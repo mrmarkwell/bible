@@ -42,7 +42,47 @@ if not ltn12_ok then
 end
 
 
--- --- 2. Read Command-Line Arguments ---
+-- --- 2. ESV API Optional Parameters ---
+-- You can change these values to customize the output from the API.
+
+-- (boolean) Include a line at the beginning of each passage indicating the book, chapter, and verse range.
+local include_passage_references = false
+-- (boolean) Include verse numbers in the text.
+local include_verse_numbers = false
+-- (boolean) Include the verse number for the first verse of each passage.
+local include_first_verse_numbers = false
+-- (boolean) Include footnote markers and the text of the footnotes.
+local include_footnotes = false
+-- (boolean) Include the body of the footnotes.
+local include_footnote_body = false
+-- (boolean) Include section headings.
+local include_headings = false
+-- (boolean) Include a short copyright notice.
+local include_short_copyright = false
+-- (boolean) Include the full copyright notice.
+local include_copyright = false
+-- (boolean) Include a horizontal line at the beginning of each passage.
+local include_passage_horizontal_lines = false
+-- (boolean) Include a horizontal line above each section heading.
+local include_heading_horizontal_lines = false
+-- (integer) The number of '=' characters to use for horizontal lines.
+local horizontal_line_length = 5
+-- (boolean) Include the word "Selah."
+local include_selahs = false
+-- (string: 'space' or 'tab') The character to use for indentation.
+local indent_using = 'space'
+-- (integer) The number of indentation characters for the first line of each paragraph.
+local indent_paragraphs = 2
+-- (boolean) Indent lines of poetry.
+local indent_poetry = true
+-- (integer) The number of indentation characters for each line of poetry.
+local indent_poetry_lines = 4
+-- (integer) The number of indentation characters for "The word of the Lord" and similar phrases.
+local indent_declares = 2
+-- (integer) The number of indentation characters for the doxology at the end of each book of Psalms.
+local indent_psalm_doxology = 1
+
+-- --- 3. Read Command-Line Arguments ---
 -- The 'arg' table holds command-line arguments. arg[1] is the first argument after the script name.
 if not arg[1] then
   print("Usage: lua fetch.lua \"<bible reference>\"")
@@ -51,7 +91,7 @@ if not arg[1] then
 end
 local verseReference = arg[1]
 
--- --- 3. Read API Key from Environment Variable ---
+-- --- 4. Read API Key from Environment Variable ---
 local apiKey = os.getenv("ESV_API_KEY")
 if not apiKey then
   io.stderr:write("Error: ESV_API_KEY environment variable not set.\n")
@@ -59,7 +99,7 @@ if not apiKey then
   os.exit(1)
 end
 
--- --- 4. Construct the API Request ---
+-- --- 5. Construct the API Request ---
 local apiBaseURL = "https://api.esv.org/v3/passage/text/"
 
 -- We need to manually URL-encode the query parameter.
@@ -68,11 +108,40 @@ local function url_encode(str)
   return str
 end
 
-local fullURL = apiBaseURL .. "?q=" .. url_encode(verseReference)
+-- A table to hold all the parameters for the API call.
+local params = {
+  q = verseReference,
+  ['include-passage-references'] = tostring(include_passage_references),
+  ['include-verse-numbers'] = tostring(include_verse_numbers),
+  ['include-first-verse-numbers'] = tostring(include_first_verse_numbers),
+  ['include-footnotes'] = tostring(include_footnotes),
+  ['include-footnote-body'] = tostring(include_footnote_body),
+  ['include-headings'] = tostring(include_headings),
+  ['include-short-copyright'] = tostring(include_short_copyright),
+  ['include-copyright'] = tostring(include_copyright),
+  ['include-passage-horizontal-lines'] = tostring(include_passage_horizontal_lines),
+  ['include-heading-horizontal-lines'] = tostring(include_heading_horizontal_lines),
+  ['horizontal-line-length'] = tostring(horizontal_line_length),
+  ['include-selahs'] = tostring(include_selahs),
+  ['indent-using'] = indent_using,
+  ['indent-paragraphs'] = tostring(indent_paragraphs),
+  ['indent-poetry'] = tostring(indent_poetry),
+  ['indent-poetry-lines'] = tostring(indent_poetry_lines),
+  ['indent-declares'] = tostring(indent_declares),
+  ['indent-psalm-doxology'] = tostring(indent_psalm_doxology),
+}
+
+-- Build the query string from the params table.
+local query_parts = {}
+for key, value in pairs(params) do
+  table.insert(query_parts, url_encode(key) .. "=" .. url_encode(value))
+end
+local query_string = table.concat(query_parts, "&")
+local fullURL = apiBaseURL .. "?" .. query_string
 
 print("Fetching: " .. verseReference)
 
--- --- 5. Execute the Request ---
+-- --- 6. Execute the Request ---
 local response_body_parts = {} -- This table will collect the response body chunks.
 
 -- By requiring 'ssl.https', https.request can now handle https URLs.
@@ -108,7 +177,7 @@ if not body or body == "" then
     os.exit(1)
 end
 
--- --- 6. Parse the JSON Response ---
+-- --- 7. Parse the JSON Response ---
 -- Capture all 3 return values from dkjson for proper error handling.
 local esvResponse, pos, err = json.decode(body)
 
@@ -128,7 +197,7 @@ if type(esvResponse) ~= "table" then
 end
 
 
--- --- 7. Display the Result ---
+-- --- 8. Display the Result ---
 -- Check if .passages exists before trying to get its length.
 if not esvResponse.passages or #esvResponse.passages == 0 then
   io.stderr:write("Error: Passage not found for query '" .. (esvResponse.query or verseReference) .. "'.\n")
