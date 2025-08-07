@@ -258,6 +258,10 @@ if createImage then
     local magickCommandTemplate = [[
 magick -size 4000x3000 -background black -fill white -font "Maple-Mono-NF-Bold-Italic" -gravity Center caption:%q -bordercolor black -border 300x300 %s
 ]]
+-- PANGO EXPERIMENT
+--     local magickCommandTemplate = [[
+-- magick -size 4000x3000 -background black -fill white -font "Maple-Mono-NF-Bold-Italic" -gravity Center pango:%q -bordercolor black -border 300x300 %s
+-- ]]
 
     -- Construct the final command
     local command = string.format(magickCommandTemplate, imageCaption, outputFilename)
