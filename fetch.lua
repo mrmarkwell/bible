@@ -211,9 +211,8 @@ end
 -- Join the passages together. Usually there is only one.
 local fullPassage = table.concat(esvResponse.passages, "")
 
-print("----------------------------------------")
--- The Canonical reference is the official, full reference returned by the API.
-print(esvResponse.canonical .. " (ESV)\n")
 -- Trim leading/trailing whitespace for cleaner output.
 print(fullPassage:match("^%s*(.-)%s*$"))
-print("----------------------------------------")
+
+-- The Canonical reference is the official, full reference returned by the API.
+print("  -- " .. esvResponse.canonical .. " (ESV)\n")
