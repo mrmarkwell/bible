@@ -7,10 +7,14 @@
   - LuaSocket: for making the HTTP request (luarocks install luasocket)
   - LuaSec: for HTTPS support (luarocks install luasec)
   - dkjson: for parsing the JSON response (luarocks install dkjson)
+  - ImageMagick: (Optional) for generating an image (https://imagemagick.org/)
 
   Usage:
   1. Set your API key: export ESV_API_KEY="YOUR_KEY_HERE"
-  2. Run the script:   lua fetch.lua "John 3:16"
+  2. Run the script:     lua fetch.lua "John 3:16"
+  3. Generate an image:  lua fetch.lua "John 3:16" --image
+     or with a custom filename:
+                         lua fetch.lua "John 3:16" --image=my_verse.png
 --]]
 
 -- --- 1. Load Required Libraries ---
@@ -84,12 +88,27 @@ local indent_psalm_doxology = 1
 
 -- --- 3. Read Command-Line Arguments ---
 -- The 'arg' table holds command-line arguments. arg[1] is the first argument after the script name.
-if not arg[1] then
-  print("Usage: lua fetch.lua \"<bible reference>\"")
-  print("Example: lua fetch.lua \"John 3:16-17\"")
+local verseReference = nil
+local createImage = false
+local outputFilename = nil
+
+for i, v in ipairs(arg) do
+    if v == "--image" or v == "-i" then
+        createImage = true
+    elseif v:match("^--image=") then
+        createImage = true
+        outputFilename = v:match("^--image=(.*)")
+    else
+        -- Assume the last non-flag argument is the verse reference
+        verseReference = v
+    end
+end
+
+if not verseReference then
+  print("Usage: lua fetch.lua [--image[=filename.png]] \"<bible reference>\" ")
+  print("Example: lua fetch.lua --image=john3_16.png \"John 3:16-17\"")
   os.exit(1)
 end
-local verseReference = arg[1]
 
 -- --- 4. Read API Key from Environment Variable ---
 local apiKey = os.getenv("ESV_API_KEY")
@@ -212,7 +231,46 @@ end
 local fullPassage = table.concat(esvResponse.passages, "")
 
 -- Trim leading/trailing whitespace for cleaner output.
-print(fullPassage:match("^%s*(.-)%s*$"))
+local cleanPassage = fullPassage:match("^%s*(.-)%s*$")
+
+print(cleanPassage)
 
 -- The Canonical reference is the official, full reference returned by the API.
 print("  -- " .. esvResponse.canonical .. " (ESV)\n")
+
+-- --- 9. Generate Image if Requested ---
+if createImage then
+    -- Helper function to make a string safe for a filename
+    local function sanitize_for_filename(str)
+        return str:gsub("[ %:%.]", "_"):gsub("[^%w%-_]", "")
+    end
+
+    -- Determine the final output filename
+    if not outputFilename then
+        outputFilename = sanitize_for_filename(esvResponse.canonical) .. ".png"
+    end
+
+    -- Combine the passage and reference for the image caption
+    local imageCaption = string.format("%s\n\n%s", cleanPassage, esvResponse.canonical .. " (ESV)")
+
+    -- Define the ImageMagick command template. Using %q safely quotes the caption.
+    local magickCommandTemplate = [[
+magick -size 1000x900 -background black -fill white -font "Maple-Mono-NF-Bold-Italic" -gravity Center caption:%q -bordercolor black -border 100x100 %s
+]]
+
+    -- Construct the final command
+    local command = string.format(magickCommandTemplate, imageCaption, outputFilename)
+
+    print("Generating image: " .. outputFilename .. "...")
+
+    -- Execute the command
+    local success, reason, code = os.execute(command)
+
+    if success then
+        print("Image saved successfully at " .. outputFilename)
+    else
+        io.stderr:write("Error generating image. ImageMagick returned exit code: " .. tostring(code) .. "\n")
+        io.stderr:write("Reason: " .. tostring(reason) .. "\n")
+        io.stderr:write("Make sure ImageMagick is installed and in your system's PATH.\n")
+    end
+end
