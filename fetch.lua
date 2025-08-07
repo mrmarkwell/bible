@@ -236,7 +236,8 @@ local cleanPassage = fullPassage:match("^%s*(.-)%s*$")
 print(cleanPassage)
 
 -- The Canonical reference is the official, full reference returned by the API.
-print("  -- " .. esvResponse.canonical .. " (ESV)\n")
+local reference = "  -- " .. esvResponse.canonical .. " (ESV)\n"
+print(reference)
 
 -- --- 9. Generate Image if Requested ---
 if createImage then
@@ -251,11 +252,11 @@ if createImage then
     end
 
     -- Combine the passage and reference for the image caption
-    local imageCaption = string.format("%s\n\n%s", cleanPassage, esvResponse.canonical .. " (ESV)")
+    local imageCaption = string.format("%s\n\n%s", cleanPassage, reference)
 
     -- Define the ImageMagick command template. Using %q safely quotes the caption.
     local magickCommandTemplate = [[
-magick -size 1000x900 -background black -fill white -font "Maple-Mono-NF-Bold-Italic" -gravity Center caption:%q -bordercolor black -border 100x100 %s
+magick -size 4000x3000 -background black -fill white -font "Maple-Mono-NF-Bold-Italic" -gravity Center caption:%q -bordercolor black -border 300x300 %s
 ]]
 
     -- Construct the final command
