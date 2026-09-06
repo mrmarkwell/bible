@@ -281,3 +281,40 @@ This is an append-only log of work performed by autonomous agents during their e
 - **Handoff Notes for Next Agent**:
   - Phase 1 is 100% complete! All core data models, storage engines, WEB text, cryptography, and user curated favorites are in place and verified.
   - Next priority on the roadmap is **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`).
+
+---
+
+## [Run 012] — 2026-09-06
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 2 — Command Line Interface (CLI)
+- **Task**: Task 2.1 — Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`).
+- **Actions Taken**:
+  - Implemented `cli/__init__.py` establishing the `cli` package with version `0.1.0`.
+  - Implemented `cli/main.py` utilizing Python 3 standard library `argparse`, `sys`, and `pathlib` (zero external dependencies per ADR-003):
+    - Subcommand dispatcher with root options: `--db` (custom database path override), `--version` / `-v` (`bible 0.1.0 (Phase 2)`), and auto-generated `--help`.
+    - Subcommand `get` with `nargs="+"` reference argument handling, supporting quoted (`"John 3:16"`) and unquoted (`Romans 8:28-30`) citations.
+    - Added options: `--version` / `-t` (translation selection, defaulting to `WEB`), `--no-numbers` (hide verse bracket numbers), and `--no-header` (suppress passage and translation header).
+    - Added `format_verse_lines` providing clean passage headers (e.g. `=== Romans 8:28-30 (WEB) ===`), bracketed verse numbers (`[28] ...`), and multi-chapter span formatting (`=== Genesis 1:31 - 2:1 (WEB) ===`).
+  - Created root CLI executable script `bible.py` and executable symlink `./bible` (`chmod +x`).
+  - Implemented comprehensive hermetic test suite `tests/test_cli.py` (12 tests covering formatting, single verse retrieval, passage spans, flag handling, missing DB error handling, invalid citation error handling, unseeded verse handling, and help menu display).
+  - Recorded **ADR-013: Subcommand CLI Architecture & Terminal Scripture Formatter Entry Point** in `DECISIONS.md`.
+  - Marked Task 2.1 as `[x]` in `ROADMAP.md`.
+  - Promoted Task 2.1 to `[DONE]` in `IDEAS.md`.
+  - Evaluated improvement opportunities with mandatory letter grades:
+    - **Idea A (Rank A+)**: *Fallback Translation Cascade & Multi-Translation Comparison CLI (`bible compare` / `bible get --version`)*. Automatically promoted to `IDEAS.md`.
+    - **Idea B (Rank A)**: *Interactive Shell Autocompletion Generator for Bash & Zsh (`bible completion`)*.
+    - **Idea C (Rank B+)**: *JSON & Markdown Machine Output Formats (`--format=json|md`)*.
+- **Verification**:
+  - Ran `python3 -m unittest discover tests` — all 115 tests passed in 5.03s.
+  - Verified manual CLI executions:
+    - `./bible get "John 3:16"` -> verified output.
+    - `./bible get "Romans 8:28-30"` -> verified output.
+    - `./bible get "Gen 1:1-3" --no-numbers --no-header` -> verified output.
+    - `./bible get "2 John"` -> verified full single-chapter book output.
+    - `./bible --help` and `./bible -v` -> verified output.
+  - 100% Zero External Dependencies compliance (stdlib only).
+- **Handoff Notes for Next Agent**:
+  - Task 2.1 is complete, verified, and committed.
+  - Root `./bible` executable is in place and verified.
+  - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
+

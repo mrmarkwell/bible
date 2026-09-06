@@ -286,3 +286,28 @@ This document is an append-only log of significant design and architectural deci
   - All 829 curated favorites (including 50 starred) are persistent, queryable, and indexed in `data/bible.db`.
   - Seamless integration with future CLI (`bible get --favorites`) and screensaver generator (`bible slide-batch --favorites`).
   - Hermetically tested in `tests/test_favorites.py`.
+
+---
+
+## ADR-013: Subcommand CLI Architecture & Terminal Scripture Formatter Entry Point
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: In Phase 2 Task 2.1, the Bible Engine requires a command-line interface entry point (`bible.py` and executable `./bible`) to provide immediate scripture lookup (`./bible get "John 3:16"`). The CLI must support flexible argument structures (quoted citations, unquoted arguments like `bible get Romans 8:28-30`, cross-chapter spans, whole books), configurable database path overrides (`--db`), translation selection (`--version=WEB`), output customization (`--no-numbers`, `--no-header`), and clean, human-friendly error reporting, while strictly complying with ADR-003 (Zero External Dependencies, Python standard library only).
+- **Decision**:
+  1. **Dual Entry Point Architecture (`cli/main.py` + `bible.py` + `./bible`)**:
+     - Implement core CLI dispatching, argument parsing, and command handlers in `cli/main.py`.
+     - Provide top-level root executable `bible.py` and executable symlink `./bible` (`chmod +x`) configured with `#!/usr/bin/env python3`.
+     - Automatically configure `sys.path` to ensure absolute package imports (`core.db`, `core.reference`) function identically regardless of the user's invocation working directory.
+  2. **Standard Library Subcommand Dispatcher (`argparse`)**:
+     - Built using standard library `argparse` with structured subcommands (`get`, with planned extensions `search`, `favorites`, `pack`, `serve`, `slide`).
+     - Global flags: `--db` for overriding SQLite file path, `--version` / `-v` for tool versioning, and auto-generated `--help`.
+     - Subcommand `get` captures citation tokens via `nargs="+"`, seamlessly supporting both quoted (`"John 3:16"`) and unquoted (`John 3 16` / `Romans 8:28-30`) CLI arguments.
+  3. **Readable Terminal Output Formatting**:
+     - Implemented `format_verse_lines` providing clean passage headers (e.g. `=== Romans 8:28-30 (WEB) ===`), bracketed verse numbers (`[28] ...`), and flags to suppress numbers or headers for shell scripting or piping (`--no-numbers`, `--no-header`).
+  4. **Hermetic Testing & Zero-Dependency Compliance**:
+     - 100% Python 3 standard library (`argparse`, `sys`, `pathlib`, `unittest`).
+     - Hermetically tested in `tests/test_cli.py` using in-memory/temporary SQLite databases and `unittest.mock.patch` over `sys.stdout` and `sys.stderr`.
+- **Consequences**:
+  - Developers and users can immediately query scripture from the terminal via `./bible get "John 3:16"`.
+  - Seamless scriptability with zero external pip/npm packages (ADR-003).
+  - Clean foundation for Task 2.2 (`--version` cascades) and Task 2.3 (`search`).

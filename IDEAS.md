@@ -195,4 +195,15 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (Python standard library `argparse`, `sys`, `pathlib`).
 - **Proposed Roadmap Phase**: Phase 2, Task 2.1 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [DONE] (Implemented in `bible.py`, `bible`, `cli/main.py`, tested in `tests/test_cli.py`, and recorded in ADR-013).
+
+### [VETTED] Fallback Translation Cascade & Multi-Translation Comparison CLI (`bible compare` / `bible get --version`) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Support multi-translation lookup flags in `bible get` (`--version=WEB,KJV,ESV`) as well as a dedicated parallel comparison subcommand (`bible compare "John 1:1" --versions=WEB,KJV`) with automatic fallback to public-domain translations (WEB) when a requested translation is not installed or lacks the target passage.
+- **Rationale**: Students and readers frequently study biblical passages by comparing translations side-by-side (e.g. formal equivalence vs. dynamic equivalence), and graceful fallbacks prevent hard CLI failures when user packs are absent.
+- **Constraints & Alignment**:
+- Offline-first? Yes (queries local SQLite database).
+- Zero third-party dependencies? Yes (Python standard library only).
+- Copyright compliant? Yes (public domain WEB/KJV by default, user packs optional).
+- **Proposed Roadmap Phase**: Phase 2, Task 2.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
