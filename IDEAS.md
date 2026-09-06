@@ -181,3 +181,13 @@ Ideas can be added directly by the repository owner or generated during interact
 
 
 
+
+### [VETTED] Zero-Dependency Terminal Scripture Formatter & ANSI Styler (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Build a dedicated terminal presentation module (`core/formatter.py` or `cli/formatter.py`) that renders scripture passages, search results, and metadata with clean typography: responsive terminal column wrapping (via `shutil.get_terminal_size()`), subtle dimmed verse numbers (`\033[2m16\033[0m`), highlighted search tokens (bold amber/gold), poetic indented line breaks, and optional marginal references, with graceful degradation when piped or running in non-TTY environments (`NO_COLOR` or `not sys.stdout.isatty()`).
+- **Rationale**: Elevates the command-line reading experience from raw text output to an editorial reading environment directly in the terminal, preparing for Phase 2 CLI (`bible get`, `bible search`).
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python standard library `os`, `sys`, `shutil`, `textwrap`, `re`).
+- **Proposed Roadmap Phase**: Phase 2, Task 2.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].

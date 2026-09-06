@@ -232,3 +232,29 @@ This document is an append-only log of significant design and architectural deci
 
 
 
+
+---
+
+## ADR-011: Unified Core Integration & Hermetic Test Architecture
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: Phase 1 established four core modules: `core/reference.py`, `core/db.py`, `tools/ingest_web.py`, and `core/crypto.py`. Each module has isolated unit tests, but Task 1.5 requires a unified integration test suite in `tests/test_core.py` verifying cross-cutting workflows, package-level exports (`__all__`), and end-to-end data pipelines without external test fixtures, network access, or third-party libraries.
+- **Decision**:
+  1. **Top-Level Package Interface Contract (`core/__init__.py`)**:
+     - The `core` module explicitly exposes its complete public API via `__all__`, covering reference objects (`Book`, `Reference`, `parse_reference`, `ALL_BOOKS`), database models (`Database`, `VerseRecord`, `TagRecord`, `CrossReferenceRecord`, `SearchResult`), and cryptographic routines (`ChaCha20`, `encrypt_string`, `decrypt_string`, `encrypt_text_pack`, `decrypt_text_pack`).
+     - `tests/test_core.py` tests both public export introspection and functional contracts.
+  2. **Multi-Stage End-to-End Pipeline Testing**:
+     - `tests/test_core.py` establishes multi-stage integration tests demonstrating complete data lifecycles:
+       - Parsing OT prophecy references ("Micah 5:2", "Isaiah 53:5") and NT fulfillments ("Matthew 2:6", "1 Peter 2:24").
+       - In-memory database persistence with automatic Protestant 66-book catalog seeding.
+       - Bidirectional cross-reference graph links with typed relationships (`prophecy_fulfillment`, `typology`).
+       - Semantic tagging and first-class starred favorites curation.
+       - SQLite FTS5 synchronized search matching across passages.
+       - Encrypting database verse text via PBKDF2 + ChaCha20-HMAC into authenticated ciphertext and sovereign `.bpack` files, followed by tamper detection and decrypting.
+  3. **Hermeticity & Performance**:
+     - 100% Python standard library `unittest`.
+     - In-memory SQLite (`:memory:`) and `tempfile.TemporaryDirectory` guaranteeing complete isolation and zero side effects.
+     - Entire 94-test suite executes in under 5 seconds.
+- **Consequences**:
+  - Full confidence in cross-module interoperability before building Phase 2 CLI.
+  - 100% Zero-Dependency compliance (ADR-003).

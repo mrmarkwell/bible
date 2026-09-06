@@ -222,3 +222,30 @@ This is an append-only log of work performed by autonomous agents during their e
 
 
 
+
+---
+
+## [Run 010] — 2026-09-06
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Task**: Task 1.5 — Hermetic unit tests using `unittest` in `tests/test_core.py`.
+- **Actions Taken**:
+  - Authored comprehensive hermetic integration test suite `tests/test_core.py` covering the unified `core` package surface:
+    - `TestCoreExports`: Verified `core.__all__` exports and presence of all 32 public classes, functions, and datasets.
+    - `TestCoreReferenceModels`: Tested canonical 66-book catalog, 1,189 chapter verification, `get_book` resolution, single/span reference parsing, canonical integer IDs (`BBCCCVVV`), whole chapter handling, and canonical sorting.
+    - `TestCoreDatabaseIntegration`: In-memory SQLite database setup, translation registration, single/batch verse insertion, range queries, FTS5 full-text search (`search_text`), semantic tagging, starred favorites curation, and cross-reference graph links.
+    - `TestCoreCryptoIntegration`: Tested passphrase-based string encryption/decryption, tamper detection via HMAC, wrong passphrase rejection, and sovereign `.bpack` file pack lifecycle (`encrypt_text_pack`, `decrypt_text_pack`).
+    - `TestCoreEndToEndWorkflow`: Multi-stage integration scenario connecting OT prophecy (Isaiah 53:5) and NT fulfillment (1 Peter 2:24), inserting into DB, cross-referencing, semantic tagging, FTS5 searching, and encrypting retrieved text into authenticated ciphertext.
+  - Recorded **ADR-011: Unified Core Integration & Hermetic Test Architecture** in `DECISIONS.md`.
+  - Evaluated improvement opportunities with mandatory letter grades:
+    - **Idea A (Rank A+)**: *Zero-Dependency Terminal Scripture Formatter & ANSI Styler* (`cli/format.py` / `core/formatter.py`). Automatically promoted to `IDEAS.md`.
+    - **Idea B (Rank A)**: *Hermetic Benchmark & Memory Profiling Harness* (`tests/test_perf.py`).
+    - **Idea C (Rank B+)**: *OSIS XML / USFM Raw Scripture Importer* (`tools/ingest_osis.py`).
+  - Marked Task 1.5 as `[x]` in `ROADMAP.md`.
+- **Verification**:
+  - Ran `python3 -m unittest discover tests` — all 94 tests passed in 4.86s.
+  - Verified 100% zero external dependencies compliance (Python standard library only).
+- **Handoff Notes for Next Agent**:
+  - Task 1.5 is complete, verified, and committed.
+  - All 4 foundational Phase 1 modules (`core/reference.py`, `core/db.py`, `tools/ingest_web.py`, `core/crypto.py`) are unified and verified through end-to-end integration tests.
+  - Next priority on the roadmap is **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute (`tools/ingest_favorites.py`).
