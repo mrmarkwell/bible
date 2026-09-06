@@ -216,5 +216,16 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (Python 3 standard library `sys`, `json`, `time`).
 - **Proposed Roadmap Phase**: Phase 0 Harness / Developer Tooling.
-- **Status**: [VETTED].
+- **Status**: [DONE] (Implemented in `tools/stream_runner.py`, integrated into `ralph.sh`, and recorded in ADR-014).
+
+### [VETTED] Senior Product Manager Meta-Improvement Cadence & System Health Sprint Protocol (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Establish an automated sprint cadence in the autonomous Ralph loop where every 5th iteration transforms into a dedicated "cleanup" sprint. The agent shifts out of the feature execution role into a Senior Product Manager & Meta-Architect role to evaluate whole-system health. The agent asks: *"What is the weakest aspect of this project structure? What is preventing this from being more incredible?"*, formulates at least one Rank A+ idea to improve the system or processes, and has unconditional authority to execute it immediately ("Nothing is disallowed during these sprints").
+- **Rationale**: Prevents accumulated process friction, technical debt, and developer ergonomics bottlenecks that linear feature-by-feature execution ignores. Elevates the meta-processes the project uses to accomplish itself.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (uses Python stdlib & bash).
+  - Autonomous loop compatible? Yes (fully integrated into `ralph.sh` and `AGENTS.md`).
+- **Proposed Roadmap Phase**: Phase 0, Task 0.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [DONE] (Formalized in `ralph.sh`, `AGENTS.md`, `GEMINI.md`, and recorded in ADR-015).
 

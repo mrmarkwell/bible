@@ -29,9 +29,20 @@ In this mode:
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
 2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed.
-3. **Claim Task**: Claim the highest-priority `[TODO]` item from [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md) and mark it `[IN PROGRESS]`.
-4. **Implement & Test**: Work strictly within [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity) (Python 3 stdlib only, zero pip/npm packages). Write hermetic unit tests (`tests/test_*.py`) and verify 100% pass (`python3 -m unittest discover tests`).
+3. **Cadence Check (Every 5th Iteration = Senior PM Cleanup Sprint)**:
+   - **If Run Number is a multiple of 5, loop iteration % 5 == 0, or invoked via `--cleanup`**:
+     - Assume the persona of a **Senior Product Manager & Meta-Architect**.
+     - Do **NOT** advance domain roadmap feature tasks.
+     - Audit the health of the whole system, answering the two core diagnostic questions:
+       1. *"What is the weakest aspect of this project structure?"*
+       2. *"What is preventing this from being more incredible?"*
+     - Conceive at least ONE Rank A+ idea to improve or clean up the system/processes.
+     - **Execute it completely**: Nothing is disallowed during these sprints. Write code/tools, run tests (100% pass), record ADR in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), promote in [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md), and log in [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
+   - **If Standard Cycle**:
+     - Claim the highest-priority `[TODO]` item from [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md) and mark it `[IN PROGRESS]`.
+     - Implement feature & hermetic unit tests (`tests/test_*.py`).
+4. **Implement & Test**: Work strictly within [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity) (Python 3 stdlib only, zero pip/npm packages). Verify 100% test pass (`python3 -m unittest discover tests`).
 5. **No Questions Asked**: Resolve ambiguities autonomously, recording decisions in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
 6. **Promote Rank A+ Ideas**: Rank all brainstormed improvement ideas with letter grades. If any idea is rank **A+** (unambiguously a good idea for improvement), automatically append it to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md) as a feature request before completing the cycle.
-7. **Handoff & Push**: Mark `[DONE]` in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
+7. **Handoff & Push**: Mark completed items in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
 8. **Executive Briefing & Self-Termination**: Conclude with a user-facing summary reporting blocker status (`BLOCKED.md`), accomplishments, current trajectory, letter-graded improvement ideas, and hygiene, then terminate cleanly.

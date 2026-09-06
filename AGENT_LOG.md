@@ -345,3 +345,36 @@ This is an append-only log of work performed by autonomous agents during their e
   - `ralph.sh --loop` now provides live visual feedback for every tool call and streaming token while continuing to cycle autonomously.
   - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
 
+---
+
+## [Run 014] — 2026-09-06
+- **Agent**: Interactive Collaboration & Systems Architect
+- **Phase**: Autonomous Harness & Meta-Process Engineering
+- **Task**: Ingest and implement Senior Product Manager Meta-Improvement Cadence (Every 5th Iteration Sprint)
+- **Actions Taken**:
+  - Ingested feature request formalizing every 5th iteration of the autonomous Ralph loop as a "cleanup" sprint.
+  - Defined the Senior Product Manager & Meta-Architect role transformation: evaluating whole-system health and meta-improvements to the processes the project uses to accomplish itself rather than routine feature advancement.
+  - Codified the two mandatory diagnostic inquiries:
+    1. *"What is the weakest aspect of this project structure?"*
+    2. *"What is preventing this from being more incredible?"*
+  - Established the execution mandate: "Nothing is disallowed during these sprints — if the ideas are A+ quality, execute them."
+  - Updated `ralph.sh`:
+    - Added helper functions `get_next_run_number()` (inspecting `AGENT_LOG.md`) and `is_cleanup_run()`.
+    - Added specialized `CLEANUP_PROMPT` containing Senior PM instructions, diagnostic questions, execution mandates, and verification standards.
+    - Updated `--loop` runner: every 5th loop iteration or whenever run number % 5 == 0, displays a prominent Senior PM banner and executes with `CLEANUP_PROMPT`.
+    - Added `--cleanup` / `-c` CLI flags for invoking the Senior PM cleanup sprint on demand.
+    - Integrated cleanup sprint auto-trigger into interactive (`./ralph.sh`) and headless (`./ralph.sh -p`) single-turn modes when the run number is a multiple of 5.
+  - Updated `AGENTS.md` and `GEMINI.md` with complete cadence protocols, Mermaid lifecycle decision trees, audit scopes, and execution rules.
+  - Recorded **ADR-015: Senior Product Manager Meta-Improvement Cadence & System Health Sprint Protocol (Every 5th Iteration)** in `DECISIONS.md`.
+  - Added vetted Rank A+ feature in `IDEAS.md` and added Task 0.5 to Phase 0 in `ROADMAP.md`.
+  - Expanded `tests/test_harness.py` with unit tests for bash syntax, prompt contents, diagnostic questions, and cadence math (all passing 100%).
+- **Verification**:
+  - `python3 -m unittest discover tests`: All 132 tests passing 100% in 5.15s.
+  - `bash -n ralph.sh`: Shell syntax validation clean.
+  - Verified bash cadence detection logic across test run numbers.
+  - 100% Zero External Dependencies compliance (stdlib only).
+- **Handoff Notes for Next Agent**:
+  - With Run 014 complete, the subsequent run is **Run 015** (a multiple of 5!).
+  - The next invocation of `./ralph.sh` (or `./ralph.sh --loop`) will automatically trigger the inaugural **Senior Product Manager Meta-Improvement & System Health Sprint**!
+  - The agent will step into the Senior PM role, answer the two core diagnostic questions, identify a Rank A+ meta-improvement to the project structure/processes, and execute it completely.
+

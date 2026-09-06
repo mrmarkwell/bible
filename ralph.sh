@@ -9,7 +9,49 @@ cd "$REPO_DIR"
 
 JETSKI_CLI="/google/bin/releases/jetski-devs/tools/cli"
 DEFAULT_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md."
+CLEANUP_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
+
+MANDATORY CADENCE: Senior Product Manager Meta-Improvement & System Health Sprint.
+
+You are acting as a Senior Product Manager auditing the entire project structure and execution processes.
+DO NOT make standard feature progress on the roadmap tasks.
+Instead, focus on meta-improvements to how this project accomplishes itself.
+
+Core Diagnostic Questions:
+1. What is the weakest aspect of this project structure?
+2. What is preventing this from being more incredible?
+
+Requirements:
+- Conduct an audit across: architecture, test velocity & hermeticity, harness automation, developer ergonomics, documentation integrity, and adherence to Manifesto & Zero-Dependency principles.
+- Formulate at least ONE Rank A+ idea to improve or clean up the system/processes.
+- You have full ownership: NOTHING is disallowed. If your idea is A+ quality, EXECUTE IT completely during this cycle!
+- Implement, test, and verify the improvement (100% test pass rate required).
+- Record architectural decisions in DECISIONS.md (ADR) and promote the Rank A+ feature in IDEAS.md.
+- Log your accomplishments in AGENT_LOG.md as a Senior PM Cleanup Sprint entry.
+- Immediately commit and push to origin/main per ADR-004.
+- Provide the structured Human Executive Briefing."
+
 DEFAULT_TIMEOUT="30m"
+
+# Helper: Detect the next run number from AGENT_LOG.md
+get_next_run_number() {
+    local last_run
+    last_run=$(grep -oE '\[Run [0-9]+\]' "$REPO_DIR/AGENT_LOG.md" 2>/dev/null | tail -n1 | grep -oE '[0-9]+' || echo "0")
+    if [ -z "$last_run" ]; then
+        last_run=0
+    fi
+    echo "$((10#$last_run + 1))"
+}
+
+# Helper: Check if a given run or iteration number is a cleanup sprint (every 5th iteration)
+is_cleanup_run() {
+    local num="${1:-0}"
+    if [ "$num" -gt 0 ] && [ $((num % 5)) -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
+}
 
 if [ ! -x "$JETSKI_CLI" ]; then
     echo "Error: Jetski CLI binary not found or not executable at $JETSKI_CLI" >&2
@@ -60,14 +102,24 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
             break
         fi
 
+        NEXT_RUN=$(get_next_run_number)
+        CYCLE_PROMPT="$DEFAULT_PROMPT"
+        SPRINT_BANNER="Standard Cycle (Roadmap Task Execution)"
+
+        if is_cleanup_run "$NEXT_RUN" || is_cleanup_run "$ITERATION"; then
+            CYCLE_PROMPT="$CLEANUP_PROMPT"
+            SPRINT_BANNER="CLEANUP SPRINT (Senior Product Manager Meta-Improvement & System Health)"
+        fi
+
         echo ""
         echo "======================================================================"
-        echo " Ralph Loop Iteration #$ITERATION — $(date '+%Y-%m-%d %H:%M:%S')"
+        echo " Ralph Loop Iteration #$ITERATION (Run #$NEXT_RUN) — $(date '+%Y-%m-%d %H:%M:%S')"
+        echo " Cadence:        $SPRINT_BANNER"
         echo "======================================================================"
 
         # Run headless iteration with auto-approved permissions and live streaming formatter
         set +e
-        "$JETSKI_CLI" --dangerously-skip-permissions -p "$DEFAULT_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$CYCLE_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
         EXIT_CODE="${PIPESTATUS[0]}"
         FORMATTER_CODE="${PIPESTATUS[1]}"
         if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
@@ -97,9 +149,52 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
     exit 0
 fi
 
-# If no arguments provided, launch interactively with the default Ralph loop prompt
+# Explicit Cleanup Sprint Mode (--cleanup / -c)
+if [ "${1:-}" = "--cleanup" ] || [ "${1:-}" = "-c" ]; then
+    shift
+    NEXT_RUN=$(get_next_run_number)
+    echo "======================================================================"
+    echo " Invoking Senior Product Manager Meta-Improvement Sprint (Run #$NEXT_RUN)"
+    echo " Cadence: On-Demand / Cadence Sprint"
+    echo "======================================================================"
+    if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
+        shift
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$CLEANUP_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        exit "${PIPESTATUS[0]}"
+    fi
+    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CLEANUP_PROMPT" "$@"
+fi
+
+# Check if user explicitly passed print/headless mode
+if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
+    shift
+    NEXT_RUN=$(get_next_run_number)
+    if [ "$#" -eq 0 ]; then
+        if is_cleanup_run "$NEXT_RUN"; then
+            echo " [!] Run #$NEXT_RUN is a multiple of 5: triggering Senior PM Cleanup Sprint."
+            PROMPT="$CLEANUP_PROMPT"
+        else
+            PROMPT="$DEFAULT_PROMPT"
+        fi
+    else
+        PROMPT="$1"
+        shift
+    fi
+    "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+    exit "${PIPESTATUS[0]}"
+fi
+
+# If no arguments provided, launch interactively
 if [ "$#" -eq 0 ]; then
-    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$DEFAULT_PROMPT"
+    NEXT_RUN=$(get_next_run_number)
+    if is_cleanup_run "$NEXT_RUN"; then
+        echo "======================================================================"
+        echo " Launching Ralph Loop Run #$NEXT_RUN (Cadence: Senior PM Cleanup Sprint)"
+        echo "======================================================================"
+        exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CLEANUP_PROMPT"
+    else
+        exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$DEFAULT_PROMPT"
+    fi
 fi
 
 # If user provided a prompt as first non-flag argument
@@ -107,15 +202,6 @@ if [[ "$1" != -* ]]; then
     PROMPT="$1"
     shift
     exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$PROMPT" "$@"
-fi
-
-# Check if user explicitly passed print/headless mode
-if [ "$1" = "--print" ] || [ "$1" = "-p" ]; then
-    shift
-    PROMPT="${1:-$DEFAULT_PROMPT}"
-    [ "$#" -gt 0 ] && shift
-    "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
-    exit "${PIPESTATUS[0]}"
 fi
 
 # Otherwise forward flags directly

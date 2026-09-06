@@ -30,6 +30,10 @@ When the human author initiates a conversation asking questions, brainstorming, 
 # Run a fixed number of continuous iterations (e.g. 5):
 ./ralph.sh --loop 5
 
+# Explicit Senior Product Manager Cleanup Sprint (on-demand):
+./ralph.sh --cleanup
+./ralph.sh -c -p
+
 # Single headless iteration (runs one task and exits):
 ./ralph.sh -p
 
@@ -43,17 +47,59 @@ tmux new -s ralph
 ```
 
 When spawned by `./ralph.sh`, direct CLI invocation, or when given an autonomous trigger (`"Execute one cycle of the Ralph loop"` / `"next task"`):
-Follow the **Boot → Select → Execute → Log → Push → Terminate** pipeline.
-
+Follow the **Boot → Cadence Check → Execute → Log → Push → Terminate** pipeline.
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[1. Boot & Orient] --> B[2. Check Blockers]
-    B --> C[3. Select Task from Roadmap]
-    C --> D[4. Implement & Test]
-    D --> E[5. Log Decisions & Work]
-    E --> F[6. Commit, Push & Self-Terminate]
+    B --> C{3. Cadence Check: 5th Iteration or --cleanup?}
+    
+    C -- No: Standard Cycle --> D[4a. Select Task from Roadmap]
+    D --> E[5a. Implement Feature & Test]
+    
+    C -- Yes: Senior PM Sprint --> F[4b. Senior PM Meta-System Health Audit]
+    F --> G["5b. Ask: Weakest Aspect? What Prevents Greatness?"]
+    G --> H[5c. Conceive & Execute Rank A+ Meta-Improvement]
+    
+    E --> I[6. Verify 100% Tests & Zero Dependencies]
+    H --> I
+    I --> J[7. Log Decisions & Work in AGENT_LOG / DECISIONS]
+    J --> K[8. Commit, Push Immediately & Self-Terminate]
 ```
+
+---
+
+### Cadence Protocol: The Senior Product Manager Cleanup Sprint (Every 5th Iteration)
+
+Every **fifth iteration** of the autonomous Ralph loop (e.g., Run #005, #010, #015, #020..., or when `run_number % 5 == 0`, or when invoked via `--cleanup` / `-c`) is a dedicated **Senior Product Manager Meta-Improvement & System Health Sprint**.
+
+#### 1. Core Purpose & Mindset
+- **Role**: Step out of the developer/coder persona and assume the role of a **Senior Product Manager & Meta-Architect**.
+- **Meta-Improvement Mandate**: Do **NOT** make standard progress on the product roadmap itself (e.g., do not implement domain feature tasks). Instead, in a *meta way*, inspect and improve the processes, tooling, structures, and ergonomics that the project is using to accomplish itself.
+- **Pushing Towards Greater Heights**: Take radical ownership to push the entire project and engineering lifecycle to world-class standards.
+
+#### 2. The Two Mandatory Diagnostic Questions
+Every cleanup sprint must confront and explicitly answer:
+1. **"What is the weakest aspect of this project structure?"**
+2. **"What is preventing this from being more incredible?"**
+
+#### 3. Scope of the Meta-Audit
+The Senior PM audits the entire system across:
+- **Project Structure & Code Cohesion**: Modularity, simplicity, dead code, adherence to [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md) and Zero-Dependency [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity).
+- **Test Infrastructure & Velocity**: Are tests running in <5 seconds? Are there missing edge cases, slow fixtures, or integration blind spots?
+- **Harness Automation & Ergonomics**: Is `ralph.sh` robust? Is streaming telemetry clean? Are failure modes transparent?
+- **Documentation & State Machine Sync**: Are `ROADMAP.md`, `DECISIONS.md`, `IDEAS.md`, and `AGENT_LOG.md` perfectly synchronized with reality?
+- **Developer & User Experience**: Actionable error reporting, CLI ergonomics, frictionless onboarding.
+
+#### 4. Execution Mandate ("Nothing is Disallowed")
+- The sprint must formulate at least **one Rank A+ idea** to improve or clean up the system.
+- **Nothing is disallowed during these sprints**: If an idea is of A+ quality, **EXECUTE IT** immediately during the sprint! Write the code, refactor the structure, build the tool, write hermetic tests, verify 100% pass, log the ADR in `DECISIONS.md`, promote the idea in `IDEAS.md`, document the sprint in `AGENT_LOG.md`, and push immediately to `origin/main`.
+
+---
+
+#### Standard Loop Lifecycle (Iterations Not Divisible by 5)
+
+When the iteration is a standard cycle:
 
 #### 1. Boot & Orient
 1. **Read Core Docs**:

@@ -337,3 +337,38 @@ This document is an append-only log of significant design and architectural deci
   - The process continues to terminate cleanly at the end of each turn, allowing the `while` loop to advance autonomously without manual intervention.
   - Fully tested in `tests/test_stream_runner.py` with 100% test pass rate and zero external dependencies.
 
+---
+
+## ADR-015: Senior Product Manager Meta-Improvement Cadence & System Health Sprint Protocol (Every 5th Iteration)
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: In autonomous, multi-turn software development loops (such as the Ralph Loop), agents naturally optimize locally for the immediate roadmap ticket assigned to them. Over multiple consecutive feature iterations, this creates systemic blind spots: process friction, harness fragility, telemetry opacity, architectural drift, documentation lag, and slow test fixtures remain unaddressed because no individual ticket owns them. The user requested formalizing a recurring sprint cadence: every 5th iteration must transform into a dedicated "cleanup" sprint where the agent acts as a Senior Product Manager, diagnosing whole-system health and executing meta-improvements to how the project accomplishes itself.
+- **Decision**:
+  1. **Every-5th-Iteration Cadence**:
+     - Automatically designate every 5th iteration (Run #005, #010, #015, #020..., `run_number % 5 == 0`, loop iteration % 5 == 0, or on-demand via `./ralph.sh --cleanup` / `-c`) as a **Senior Product Manager Meta-Improvement & System Health Sprint**.
+  2. **Role & Cognitive Shift**:
+     - The agent transitions from a domain task executor to a Senior Product Manager and Meta-Architect.
+     - The agent is **strictly prohibited** from advancing standard domain roadmap tasks during this sprint.
+     - Focus shifts entirely to *meta-improvements* — improving the processes, tooling, test velocity, documentation integrity, and architecture that the project uses to accomplish itself.
+  3. **Mandatory Core Diagnostic Questions**:
+     - The sprint must directly evaluate and answer:
+       1. *"What is the weakest aspect of this project structure?"*
+       2. *"What is preventing this from being more incredible?"*
+  4. **Unconditional Execution Mandate ("Nothing is Disallowed")**:
+     - The sprint must formulate at least **one Rank A+ idea** targeting meta-system enhancement or cleanup.
+     - If the idea is of Rank A+ quality, the agent has full ownership to **execute it immediately** during the sprint. Nothing is disallowed (refactoring structures, optimizing harnesses, overhauling test fixtures, introducing zero-dependency developer tools).
+  5. **Verification & Audit Artifacts**:
+     - All changes must be verified hermetically with a 100% test pass rate.
+     - Architectural decisions recorded in `DECISIONS.md`.
+     - Rank A+ feature request logged in `IDEAS.md`.
+     - Logged under a dedicated header in `AGENT_LOG.md` (`[Run XXX — Senior PM Cleanup Sprint]`).
+     - Immediately committed and pushed to `origin/main` per ADR-004.
+  6. **CLI & Harness Integration**:
+     - `ralph.sh` automatically detects run counts from `AGENT_LOG.md` via `get_next_run_number()`.
+     - In `--loop` mode, every 5th cycle prints a prominent Senior PM banner and injects `CLEANUP_PROMPT`.
+     - Provides `./ralph.sh --cleanup` / `-c` for running meta-sprints on demand.
+- **Consequences**:
+  - Eliminates the buildup of technical and process debt.
+  - Ensures continuous, compounding evolution of developer tooling, test speed, and autonomous harness reliability.
+  - Balances raw feature throughput with regular architectural reflection and system elevation.
+
