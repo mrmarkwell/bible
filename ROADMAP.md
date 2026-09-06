@@ -24,6 +24,8 @@ This document is the single source of truth for current project status, active t
 - [ ] **Task 1.3**: Ingest full Public Domain Bible translation (World English Bible - WEB) into bundled SQLite database for offline access.
 - [ ] **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
 - [ ] **Task 1.5**: Hermetic unit tests using `unittest` in `tests/test_core.py`.
+- [ ] **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
+
 
 ### Phase 2: Command Line Interface (CLI)
 - [ ] **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`).
@@ -54,5 +56,6 @@ This document is the single source of truth for current project status, active t
   - Citation: `--citation-style=<below|smallcaps|none>`, `--citation-color=<hex>`.
   - Format: `--format=png` (default lossless), `--format=jpg` (with `--quality=95`).
 - [ ] **Task 5.4**: Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`).
-- [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or verse list, ready for Google Photos TV screensaver albums.
+- [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums.
+
 
