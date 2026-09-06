@@ -24,13 +24,23 @@ When the human author initiates a conversation asking questions, brainstorming, 
 ### Mode 2: The Autonomous Ralph Loop
 **How to Invoke from Terminal**:
 ```bash
-# Via wrapper script:
+# Continuous automated loop (runs iterations until all tasks complete or BLOCKED.md):
+./ralph.sh --loop
+
+# Run a fixed number of continuous iterations (e.g. 5):
+./ralph.sh --loop 5
+
+# Single headless iteration (runs one task and exits):
+./ralph.sh -p
+
+# Single interactive iteration (opens interactive TUI):
 ./ralph.sh
 
-# Or directly via Jetski CLI:
-/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."
+# Persistent terminal background execution via tmux:
+tmux new -s ralph
+./ralph.sh --loop
+# Detach with: Ctrl+B then D. Reattach with: tmux attach -t ralph
 ```
-*(For non-interactive headless mode, use `./ralph.sh -p` or pass `-p` to the CLI)*
 
 When spawned by `./ralph.sh`, direct CLI invocation, or when given an autonomous trigger (`"Execute one cycle of the Ralph loop"` / `"next task"`):
 Follow the **Boot → Select → Execute → Log → Push → Terminate** pipeline.

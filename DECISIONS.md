@@ -143,13 +143,18 @@ This document is an append-only log of significant design and architectural deci
        `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`
      - Or invoke the convenient local wrapper `./ralph.sh` which defaults to this exact command.
   3. **Auto-Approve Tool Permissions**: `--dangerously-skip-permissions` is mandatory for autonomous execution to ensure file edits, command execution, and test suites run unblocked without hanging on human modal confirmations.
-  4. **Interactive & Print Flexibility**:
-     - Default mode uses `-i` (`--prompt-interactive`), launching the interactive terminal TUI with the prompt pre-loaded, giving the user live progress visibility and interactive access upon completion.
-     - Non-interactive headless/print mode is supported via `-p` / `--print`.
+  4. **Interactive, Print, and Continuous Loop Flexibility**:
+      - Default mode uses `-i` (`--prompt-interactive`), launching the interactive terminal TUI with the prompt pre-loaded, giving the user live progress visibility and interactive access upon completion.
+      - Non-interactive headless/print mode is supported via `-p` / `--print`.
+      - **Continuous Loop Mode** is supported via `--loop` / `-l [N]`. It executes iterative headless cycles sequentially, incorporating crucial automated guardrails:
+        - **Blocker Guard**: Immediately halts if `BLOCKED.md` is detected to prevent runaway token burning.
+        - **Roadmap Guard**: Automatically stops when all tasks in `ROADMAP.md` are marked complete.
+        - **Timeout Extension**: Automatically sets `--print-timeout 30m` so heavy operations (e.g. multi-step testing or bulk DB ingestion) do not abort prematurely on Jetski's default 5-minute timeout.
+        - **Cooldown & Interruption**: Enforces a clean pause between cycles and traps `SIGINT` (Ctrl+C).
 - **Consequences**:
-  - Direct, transparent terminal feedback during loop execution.
-  - Reliable execution without background process desynchronization.
-  - Seamless developer ergonomics: one command to trigger an autonomous cycle.
+   - Direct, transparent terminal feedback during loop execution.
+   - Reliable execution without background process desynchronization.
+   - Seamless developer ergonomics: run single turns interactively or chain cycles hands-free until complete.
 
 ---
 
