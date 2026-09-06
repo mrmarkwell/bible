@@ -186,6 +186,38 @@ This is an append-only log of work performed by autonomous agents during their e
   - Full World English Bible is compiled and queryable in `data/bible.db`.
   - Next priority on the roadmap is **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
 
+---
+
+## [Run 009] — 2026-09-06
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Task**: Task 1.4 — Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
+- **Actions Taken**:
+  - Implemented pure Python standard library authenticated cryptosystem in `core/crypto.py`:
+    - Pure Python implementation of RFC 7539 ChaCha20 stream cipher with 32-bit unsigned quarter-round logic and 64-byte block generation.
+    - Encrypt-then-MAC authenticated construction combining ChaCha20 with HMAC-SHA256 (`hmac`, `hashlib`) using context-separated subkeys (`BIBLE_ENC_KEY_V1` and `BIBLE_MAC_KEY_V1`) and constant-time tag verification (`hmac.compare_digest`).
+    - Standard PBKDF2-HMAC-SHA256 key derivation (`derive_key`) for password/passphrase hashing with 16-byte random salts.
+    - Self-describing sovereign data pack format (`.bpack`) with `BIBLE_PACK_V1\x00` magic header, iteration metadata, salt, nonce, MAC tag, and ciphertext.
+    - High-level file pack operations (`encrypt_text_pack`, `decrypt_text_pack`) and in-memory operations (`encrypt_bytes`, `decrypt_bytes`, `encrypt_string`, `decrypt_string`).
+  - Exposed cryptographic API in `core/__init__.py`.
+  - Authored hermetic test suite `tests/test_crypto.py` with 15 tests:
+    - Official RFC 7539 Section 2.3.2 ChaCha20 block function test vector.
+    - Official RFC 7539 Section 2.4.2 Sunscreen multi-block encryption test vector.
+    - Key generation, PBKDF2 deterministic derivation, salt independence, and password sensitivity.
+    - Round-trip string and raw byte encryption/decryption.
+    - Tamper detection, wrong passphrase rejection, and truncated/malformed header handling.
+    - Filesystem text pack roundtrip (`sample.txt` -> `sample.bpack` -> `sample_dec.txt`).
+  - Recorded **ADR-010: Zero-Dependency ChaCha20-HMAC Authenticated Keystream Cryptosystem** in `DECISIONS.md`.
+  - Evaluated improvement ideas with letter grades and promoted **Encrypted Sovereign Data Pack CLI & User Keyring (`bible pack` / `bible unpack`)** (`Rank A+`) to `IDEAS.md`.
+  - Marked Task 1.4 as `[x]` in `ROADMAP.md`.
+- **Verification**:
+  - Ran `python3 -m unittest discover tests` — all 76 tests passed in 4.85s.
+  - Zero external dependencies: 100% Python standard library (`struct`, `hmac`, `hashlib`, `secrets`, `os`).
+- **Handoff Notes for Next Agent**:
+  - Task 1.4 is complete, verified, and committed.
+  - Next priority on the roadmap is **Task 1.5**: Hermetic unit tests using `unittest` in `tests/test_core.py` (or consolidating core module testing) and **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
+
+
 
 
 

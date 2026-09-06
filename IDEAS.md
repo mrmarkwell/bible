@@ -166,15 +166,17 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 1, Task 1.6 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
 
-### [VETTED] Hermetic Canonical Verification & Corpus Audit CLI (Rank A+)
+### [VETTED] Encrypted Sovereign Data Pack CLI & User Keyring (`bible pack` / `bible unpack`) (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
-- **Summary**: Implement a comprehensive, zero-dependency corpus audit utility (`tools/audit_corpus.py` / `bible check`) that verifies canonical integrity across the compiled SQLite database: verifies exact expected verse counts for all 66 books, ensures zero missing chapters, validates UTF-8 text sanitization (no unmatched quote pairs or stray control characters), asserts FTS5 index synchronization consistency (`PRAGMA integrity_check`), and verifies that every canonical `Reference` parsed from user favorites resolves to valid verse rows.
-- **Rationale**: Acts as a hard regression prevention harness ensuring that database builds never ship with corrupted verses, truncated chapters, or broken FTS indexes.
+- **Summary**: Build dedicated CLI utility commands (`bible pack` and `bible unpack`) leveraging `core/crypto.py` to encrypt and decrypt arbitrary scripture corpora, pericope study packs, or user notes into sovereign `.bpack` format with interactive passphrase prompting, salt/nonce generation, and HMAC integrity validation.
+- **Rationale**: Provides end-users and researchers with an effortless, standard-library-only mechanism to pack copyrighted translations (e.g. ESV, NIV) or private study notes for offline sharing and storage without risk of exposing unencrypted text in public git repositories.
 - **Constraints & Alignment**:
-  - Offline-first? Yes (100% local SQLite queries).
-  - Zero third-party dependencies? Yes (Python standard library only).
-- **Proposed Roadmap Phase**: Phase 1, Task 1.5 & Phase 2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (uses `core/crypto.py`, stdlib only).
+  - Copyright compliant? Yes (enables Pillar II copyright safety).
+- **Proposed Roadmap Phase**: Phase 2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
+
 
 
 

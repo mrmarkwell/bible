@@ -205,4 +205,30 @@ This document is an append-only log of significant design and architectural deci
   - Lightning-fast hermetic compilation: ~31,103 verses compiled in under 5 seconds.
   - Full compliance with ADR-003 (Zero Dependencies, Zero Dependabot alerts).
 
+---
+
+## ADR-010: Zero-Dependency ChaCha20-HMAC Authenticated Keystream Cryptosystem
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: In Task 1.4 and Manifesto Pillar II (Public Domain First & Copyright Safety), copyrighted Bible translations (e.g., ESV, NIV, NASB) and sensitive user notes/data packs must never appear unencrypted in public repositories. Furthermore, per ADR-003 (Zero External Dependencies), the system cannot link against OpenSSL C extensions or rely on pip cryptography libraries (`cryptography`, `pycryptodome`), which are major sources of Dependabot alerts and build portability issues.
+- **Decision**:
+  1. **Pure Python RFC 7539 ChaCha20 Stream Cipher (`core/crypto.py`)**:
+     - Implement the RFC 7539 ChaCha20 specification directly in standard Python using 32-bit unsigned word operations via `struct` and bitwise rotations.
+     - Verified rigorously against official RFC 7539 Section 2.3.2 block vector and Section 2.4.2 multi-block encryption vector.
+  2. **Encrypt-then-MAC Authentication (HMAC-SHA256)**:
+     - Combine ChaCha20 keystream encryption with HMAC-SHA256 over the entire encrypted payload and header using Python's standard library `hmac` and `hashlib`.
+     - Key separation via HKDF-style context strings (`BIBLE_ENC_KEY_V1` and `BIBLE_MAC_KEY_V1`) from the master key.
+     - Constant-time verification using `hmac.compare_digest` to prevent timing side-channel attacks.
+  3. **PBKDF2-HMAC-SHA256 Key Derivation**:
+     - Passwords/passphrases are converted to 256-bit symmetric keys using Python's standard library `hashlib.pbkdf2_hmac` with configurable iterations (default 100,000) and cryptographically random 16-byte salts.
+  4. **Self-Describing Sovereign Binary Pack Wire Format (`.bpack`)**:
+     - Wire format: `[MAGIC_HEADER: 14 bytes ('BIBLE_PACK_V1\x00')]` + `[iterations: 4 bytes BE]` + `[salt: 16 bytes]` + `[nonce: 12 bytes]` + `[hmac_tag: 32 bytes]` + `[ciphertext: N bytes]`.
+  5. **Strict Zero-Dependency Compliance**:
+     - 100% Python 3 standard library (`struct`, `hmac`, `hashlib`, `secrets`, `os`).
+- **Consequences**:
+  - Copyrighted translations and personal data packs can be safely distributed or stored locally in encrypted form.
+  - Zero external C/pip dependencies: 100% immune to Dependabot alerts and cross-platform installation issues.
+  - Verified 100% against RFC 7539 standard test vectors.
+
+
 

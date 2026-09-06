@@ -1,5 +1,19 @@
 """Bible Engine Core Library (Zero External Dependencies)."""
 
+from core.crypto import (
+    MAGIC_HEADER,
+    ChaCha20,
+    CryptoError,
+    decrypt_bytes,
+    decrypt_string,
+    decrypt_text_pack,
+    derive_key,
+    encrypt_bytes,
+    encrypt_string,
+    encrypt_text_pack,
+    generate_key,
+    keystream_xor,
+)
 from core.db import (
     DEFAULT_DB_PATH,
     CrossReferenceRecord,
@@ -46,4 +60,17 @@ __all__ = [
     "CrossReferenceRecord",
     "SearchResult",
     "sanitize_fts_query",
+    # Crypto
+    "ChaCha20",
+    "CryptoError",
+    "MAGIC_HEADER",
+    "generate_key",
+    "derive_key",
+    "keystream_xor",
+    "encrypt_bytes",
+    "decrypt_bytes",
+    "encrypt_string",
+    "decrypt_string",
+    "encrypt_text_pack",
+    "decrypt_text_pack",
 ]
