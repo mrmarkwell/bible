@@ -95,8 +95,30 @@ When your task is complete and verified:
 3. **Commit & Push State**:
    - Ensure working directory is clean (`git status` clean).
    - Push all commits to the remote repository immediately (`git push origin main`).
-4. **Self-Terminate**:
+4. **User Summary / Human Briefing**:
+   - Conclude every turn or loop iteration with a high-level **Human Executive Briefing** (see protocol below).
+5. **Self-Terminate**:
    - End your execution so the next fresh agent can take over without context baggage.
+
+---
+
+## Human Executive Briefing Protocol
+
+Because this is a **near-zero maintenance project** where the human author rarely inspects code, diffs, or commits, **every agent conclusion (feature addition, roadmap task, or Ralph loop cycle) MUST provide a structured Executive Summary** covering:
+
+1. **Blocker Status**:
+   - Explicitly report whether `BLOCKED.md` exists.
+   - If clean, state: `Status: 0 Blockers (Unblocked)`.
+   - If blocked, clearly state what human action or credential is required.
+2. **What Was Accomplished**:
+   - High-level, user-facing summary of implemented features, tests verified, and state changes.
+3. **Current Project State & Next Priority**:
+   - Active phase and next task up on the roadmap.
+4. **Key Ideas & Opportunities for Improvement**:
+   - Proactively highlight 1–3 high-leverage ideas from `IDEAS.md` or creative suggestions for project enhancement (e.g. UX polish, new capabilities, architectural safeguards).
+5. **Maintenance & Hygiene Health**:
+   - Confirm 100% Zero-Dependency compliance (no pip, no npm) and clean remote push synchronization.
+
 
 ---
 
