@@ -207,3 +207,14 @@ Ideas can be added directly by the repository owner or generated during interact
 - Copyright compliant? Yes (public domain WEB/KJV by default, user packs optional).
 - **Proposed Roadmap Phase**: Phase 2, Task 2.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
+
+### [VETTED] Live Streaming Telemetry & Event Formatter for Ralph Loop (`ralph.sh --loop`) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a zero-dependency streaming event consumer (`scripts/stream_runner.py`) for `ralph.sh --loop` that ingests Jetski's `--output-format stream-json` NDJSON output in real time and renders live terminal progress (active tool calls, bash commands executed, files inspected/edited, step duration, and live text deltas) before exiting cleanly with the process status code.
+- **Rationale**: Currently, running continuous headless loop iterations (`ralph.sh --loop`) uses Jetski's default `-p` (print) mode with `--output-format text`. Because the agent spends 95% of its execution loop calling tools, running tests, and reading files (during which `TextDelta` is empty), the terminal remains completely silent for 5–15 minutes, appearing frozen to the user. A streaming event renderer restores full live visibility without sacrificing the autonomous multi-turn loop lifecycle.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library `sys`, `json`, `time`).
+- **Proposed Roadmap Phase**: Phase 0 Harness / Developer Tooling.
+- **Status**: [VETTED].
+
