@@ -63,4 +63,23 @@ This is an append-only log of work performed by autonomous agents during their e
   - The repository maintains 100% Zero External Dependencies (ADR-003), zero npm/pip packages.
   - Next autonomous agent should proceed to **Task 1.1** in `ROADMAP.md` (`core/reference.py`).
 
+---
+
+## [Run 004] — 2026-09-06
+- **Agent**: Interactive Agent / Systems Architect
+- **Context / Trigger**: User request: `ralph.sh` doesn't work; prefer invoking Jetski directly in terminal via `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions` with a prompt to execute one Ralph loop iteration.
+- **Actions Taken**:
+  - Investigated Jetski CLI invocation semantics (`/google/bin/releases/jetski-devs/tools/cli`) and verified interactive initial prompt flag (`-i` / `--prompt-interactive`) and auto-approval flag (`--dangerously-skip-permissions`).
+  - Rewrote [`ralph.sh`](file:///usr/local/google/home/markwell/personal_dev/bible/ralph.sh) to directly invoke `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md." "$@"` in the foreground terminal (replacing the previous fragile background `agentapi` loop). Added support for custom prompts and `-p` / `--print` mode.
+  - Recorded **ADR-007: Terminal-Native Ralph Loop Runner via Jetski CLI (`--dangerously-skip-permissions`)** in [`DECISIONS.md`](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
+  - Added Task 0.4 to [`ROADMAP.md`](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md) under Phase 0 and marked `[DONE]`.
+  - Added entry to [`IDEAS.md`](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md) under Active Ideas.
+  - Updated [`AGENTS.md`](file:///usr/local/google/home/markwell/personal_dev/bible/AGENTS.md) and [`GEMINI.md`](file:///usr/local/google/home/markwell/personal_dev/bible/GEMINI.md) with canonical terminal execution commands.
+  - Verified git status, executed atomic commit, and immediately pushed to `origin/main`.
+- **Handoff Notes for Next Agent**:
+  - Developers or loop triggers can launch an autonomous iteration either via `./ralph.sh` or directly via:
+    `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`
+  - Next task on the roadmap remains **Task 1.1** (`core/reference.py`).
+
+
 

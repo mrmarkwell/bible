@@ -23,7 +23,8 @@ In this mode:
 ---
 
 ### Mode 2: Autonomous Ralph Loop Mode (Zero Human Intervention)
-**Trigger**: The agent is invoked by `./ralph.sh` (`"Execute one cycle of the Ralph loop per AGENTS.md."`), or the prompt explicitly requests execution (`"ralph"`, `"next task"`, `"run loop"`), or the agent is spawned via automation with no interactive query.
+**Trigger**: The agent is invoked by `./ralph.sh`, directly via `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`, or when the prompt explicitly requests autonomous loop execution (`"ralph"`, `"next task"`, `"run loop"`).
+
 
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).

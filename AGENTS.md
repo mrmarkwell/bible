@@ -22,8 +22,19 @@ When the human author initiates a conversation asking questions, brainstorming, 
 ---
 
 ### Mode 2: The Autonomous Ralph Loop
-When spawned by `./ralph.sh` or when given an autonomous trigger (`"Execute one cycle of the Ralph loop"` / `"next task"`):
+**How to Invoke from Terminal**:
+```bash
+# Via wrapper script:
+./ralph.sh
+
+# Or directly via Jetski CLI:
+/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."
+```
+*(For non-interactive headless mode, use `./ralph.sh -p` or pass `-p` to the CLI)*
+
+When spawned by `./ralph.sh`, direct CLI invocation, or when given an autonomous trigger (`"Execute one cycle of the Ralph loop"` / `"next task"`):
 Follow the **Boot → Select → Execute → Log → Push → Terminate** pipeline.
+
 
 ```mermaid
 flowchart LR

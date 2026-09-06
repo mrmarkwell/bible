@@ -130,3 +130,23 @@ This document is an append-only log of significant design and architectural deci
   - Faithful, intellectually rigorous theological alignment with The Gospel Coalition.
   - Offline-first sovereignty with optional online AI power.
 
+---
+
+## ADR-007: Terminal-Native Ralph Loop Runner via Jetski CLI (`--dangerously-skip-permissions`)
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: The initial `ralph.sh` runner attempted to orchestrate autonomous cycles using a background `agentapi new-conversation` subshell while polling git commits. In practice, this background daemon model was brittle, opaque, failed on interactive tool permission prompts, and did not suit the developer's desired interactive terminal workflow. The developer requested invoking Jetski directly in the terminal via `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions` with an explicit initial prompt to execute one Ralph loop iteration.
+- **Decision**:
+  1. **Direct Terminal Execution**: Retire the background `agentapi` loop runner in `ralph.sh`.
+  2. **Jetski CLI as Canonical Terminal Runner**:
+     - Developers can invoke the Ralph loop directly in their terminal using:
+       `/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`
+     - Or invoke the convenient local wrapper `./ralph.sh` which defaults to this exact command.
+  3. **Auto-Approve Tool Permissions**: `--dangerously-skip-permissions` is mandatory for autonomous execution to ensure file edits, command execution, and test suites run unblocked without hanging on human modal confirmations.
+  4. **Interactive & Print Flexibility**:
+     - Default mode uses `-i` (`--prompt-interactive`), launching the interactive terminal TUI with the prompt pre-loaded, giving the user live progress visibility and interactive access upon completion.
+     - Non-interactive headless/print mode is supported via `-p` / `--print`.
+- **Consequences**:
+  - Direct, transparent terminal feedback during loop execution.
+  - Reliable execution without background process desynchronization.
+  - Seamless developer ergonomics: one command to trigger an autonomous cycle.

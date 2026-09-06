@@ -17,6 +17,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.1**: Draft `MANIFESTO.md`, `AGENTS.md`, `ROADMAP.md`, `DECISIONS.md`, and `AGENT_LOG.md`.
 - [x] **Task 0.2**: Restructure repository layout (establish `cli/`, `core/`, `web/`, `data/`, `legacy/`).
 - [x] **Task 0.3**: Establish Zero-Dependency Architecture (ADR-003) for zero maintenance and Dependabot immunity.
+- [x] **Task 0.4**: Update Ralph Loop runner harness (`ralph.sh`) to invoke Jetski CLI directly in terminal with `--dangerously-skip-permissions` (ADR-007).
+
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [ ] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

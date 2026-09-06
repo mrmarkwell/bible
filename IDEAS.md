@@ -37,6 +37,14 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Terminal-Native Ralph Loop CLI Invocation
+- **Summary**: Replace background `agentapi` loop with direct terminal invocation of Jetski CLI (`/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`).
+- **Rationale**: Immediate developer visibility, terminal-native interactivity, and elimination of fragile background daemon polling.
+- **Constraints & Alignment**:
+  - Zero third-party dependencies? Yes (uses existing local binary).
+  - Autonomous permission auto-approval? Yes (`--dangerously-skip-permissions`).
+- **Status**: Implemented via ADR-007 and Task 0.4.
+
 ### [VETTED] Semantic Tagging & Topical Heatmaps
 - **Summary**: Tag verses and spans with topics (e.g. money, wisdom, Holy Spirit) and render visual heatmaps across all 66 books.
 - **Status**: Scheduled in Phases 3 and 4 of [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
