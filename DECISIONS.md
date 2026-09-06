@@ -183,3 +183,26 @@ This document is an append-only log of significant design and architectural deci
   - Multi-resolution semantic tagging works uniformly across verses, pericopes, and books.
   - Fully compliant with ADR-003 (zero external dependencies, zero Dependabot alerts).
 
+---
+
+## ADR-009: World English Bible (WEB) Ingestion & Offline Pack Compilation Pipeline
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: Task 1.3 requires ingesting a full public domain Bible translation (World English Bible - WEB) into a bundled SQLite database (`data/bible.db`) for offline access. The translation must cover all 66 Protestant canonical books (~31,102 verses) with complete fidelity to chapter and verse structures, zero external dependencies, and reproducible local compilation.
+- **Decision**:
+  1. **Canonical Public Domain Translation**: Select the World English Bible (WEB) as the foundational offline scripture translation. It is 100% dedicated to the public domain by Rainbow Missions, Inc., modern English, and legally redistributable without licensing encumbrances.
+  2. **Two-Tier Raw Cache & SQLite Compilation (`tools/ingest_web.py`)**:
+     - Raw JSON files for all 66 canonical books are downloaded and cached in `data/raw/web/{book}.json` (9.9MB total).
+     - Because raw JSON files are committed to the repository, subsequent builds and test runs operate 100% offline without network calls.
+     - A dedicated compilation pipeline aggregates paragraph text and poetic line fragments into complete canonical verses, assigns canonical integer IDs (`BBCCCVVV`), and batch-inserts all 31,103 verses using `sqlite3.executemany` within an atomic transaction.
+  3. **Automated Search Indexing & Compaction**:
+     - SQLite FTS5 triggers automatically synchronize full-text search tokens for all 31,103 verses during insertion.
+     - Post-insertion runs `PRAGMA optimize` to generate optimal query planner statistics and `VACUUM` to defragment the SQLite database file into a production-ready package.
+  4. **Strict Zero-Dependency Compliance**:
+     - Implemented entirely with Python 3 standard library (`urllib.request`, `json`, `sqlite3`, `pathlib`, `collections`).
+- **Consequences**:
+  - Offline-first sovereignty guaranteed: full Bible text is available instantly without internet or external APIs.
+  - Lightning-fast hermetic compilation: ~31,103 verses compiled in under 5 seconds.
+  - Full compliance with ADR-003 (Zero Dependencies, Zero Dependabot alerts).
+
+

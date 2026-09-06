@@ -495,6 +495,18 @@ class Database:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
+    def execute_sql(self, sql: str, params: Sequence[Any] = ()) -> sqlite3.Cursor:
+        """Execute arbitrary SQL statement and return cursor."""
+        return self.conn.execute(sql, params)
+
+    def vacuum(self) -> None:
+        """Run SQLite VACUUM to reclaim disk space and defragment database."""
+        self.conn.execute("VACUUM")
+
+    def optimize(self) -> None:
+        """Run SQLite PRAGMA optimize to update query planner statistics."""
+        self.conn.execute("PRAGMA optimize")
+
     @contextmanager
     def transaction(self) -> Generator[sqlite3.Connection, None, None]:
         """Context manager providing an atomic SQLite transaction block."""

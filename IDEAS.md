@@ -154,7 +154,7 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (Python standard library `sqlite3`, `urllib.request`, `json`/text parser).
   - Copyright compliant? Yes (World English Bible is 100% public domain).
 - **Proposed Roadmap Phase**: Phase 1, Task 1.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
-- **Status**: [SCHEDULED].
+- **Status**: [DONE] (Implemented in `tools/ingest_web.py`, tested in `tests/test_ingest.py`, and recorded in ADR-009).
 
 ### [VETTED] Automated Curated Favorites Batch Ingestion & Starred Verse Tagging (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
@@ -165,6 +165,17 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (`csv`, `sqlite3`, `core.reference`, `core.db`).
 - **Proposed Roadmap Phase**: Phase 1, Task 1.6 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
+
+### [VETTED] Hermetic Canonical Verification & Corpus Audit CLI (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a comprehensive, zero-dependency corpus audit utility (`tools/audit_corpus.py` / `bible check`) that verifies canonical integrity across the compiled SQLite database: verifies exact expected verse counts for all 66 books, ensures zero missing chapters, validates UTF-8 text sanitization (no unmatched quote pairs or stray control characters), asserts FTS5 index synchronization consistency (`PRAGMA integrity_check`), and verifies that every canonical `Reference` parsed from user favorites resolves to valid verse rows.
+- **Rationale**: Acts as a hard regression prevention harness ensuring that database builds never ship with corrupted verses, truncated chapters, or broken FTS indexes.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% local SQLite queries).
+  - Zero third-party dependencies? Yes (Python standard library only).
+- **Proposed Roadmap Phase**: Phase 1, Task 1.5 & Phase 2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
 
 
 
