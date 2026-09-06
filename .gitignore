@@ -1,1 +1,14 @@
 *.png
+*.jpg
+*.jpeg
+*.db
+*.sqlite3
+*.sqlite
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
