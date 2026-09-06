@@ -258,3 +258,31 @@ This document is an append-only log of significant design and architectural deci
 - **Consequences**:
   - Full confidence in cross-module interoperability before building Phase 2 CLI.
   - 100% Zero-Dependency compliance (ADR-003).
+
+---
+
+## ADR-012: Curated Favorites Ingestion & Curation Architecture
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: In Task 1.6, the user's personal curated dataset [`favorite_bible_verses.csv`](file:///usr/local/google/home/markwell/personal_dev/bible/favorite_bible_verses.csv) contains 829 scripture passage entries spanning the Protestant canon, with 50 marked as high-priority starred passages (`starred=TRUE`). These records include single verses, intra-chapter verse spans, and entire chapters. The database schema in `core/db.py` must ingest and represent these favorites as first-class entities while enabling fast retrieval for CLI display, web dashboards, and Phase 5 TV screensaver batch export (`bible slide-batch --favorites`).
+- **Decision**:
+  1. **First-Class Semantic Tag Modeling**:
+     - Model favorites under the semantic tagging architecture in `tags` and `verse_tags` using tag name `favorites` and category `curation`.
+     - Store the boolean priority flag in the indexed `starred` column (`0` or `1`) on `verse_tags`.
+     - Canonical integer IDs (`BBCCCVVV`) are assigned to `start_canonical_id` and `end_canonical_id`, supporting fast interval overlap checks against any scripture reference (`start_canonical_id <= :query_end AND end_canonical_id >= :query_start`).
+  2. **Zero-Dependency Batch Ingestion Pipeline (`tools/ingest_favorites.py`)**:
+     - Built using Python 3 standard library `csv`, `sqlite3`, `pathlib`, and `argparse` per ADR-003.
+     - Automatically cleans and parses each CSV row into a canonical `Reference` object via `core/reference.py`.
+     - Incorporates safe dataset typo correction (e.g. correcting `Mark 1:223-26` to `Mark 1:23-26`) with explicit audit notes in the record.
+     - Supports idempotent re-runs with automatic tag clearing (`clear_tag`) and batch insertion (`tag_references_batch`) within an atomic transaction.
+  3. **High-Level Curation API in Database (`core/db.py`)**:
+     - `tag_references_batch(items, tag_name='favorites', ...)`: high-performance batch insertion using `sqlite3.executemany`.
+     - `clear_tag(tag_name)`: atomic deletion of all association rows for a given tag.
+     - `tag_as_favorite(reference, starred, notes)`: convenience single-reference favorite tagging.
+     - `get_favorites(starred_only=False)`: retrieval of all favorite passages or filtered by priority starred status in canonical scripture order.
+  4. **Strict Zero-Dependency Compliance**:
+     - 100% Python standard library, zero pip/npm requirements.
+- **Consequences**:
+  - All 829 curated favorites (including 50 starred) are persistent, queryable, and indexed in `data/bible.db`.
+  - Seamless integration with future CLI (`bible get --favorites`) and screensaver generator (`bible slide-batch --favorites`).
+  - Hermetically tested in `tests/test_favorites.py`.

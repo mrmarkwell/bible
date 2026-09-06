@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
-- **Overall Progress**: Phase 0 complete; Phase 1 underway
+- **Active Phase**: Phase 2 — Command Line Interface (CLI)
+- **Overall Progress**: Phase 0 and Phase 1 complete (100%); Phase 2 starting
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -26,7 +26,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 1.3**: Ingest full Public Domain Bible translation (World English Bible - WEB) into bundled SQLite database for offline access.
 - [x] **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
 - [x] **Task 1.5**: Hermetic unit tests using `unittest` in `tests/test_core.py`.
-- [ ] **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
+- [x] **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
 
 
 ### Phase 2: Command Line Interface (CLI)

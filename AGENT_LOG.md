@@ -249,3 +249,35 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 1.5 is complete, verified, and committed.
   - All 4 foundational Phase 1 modules (`core/reference.py`, `core/db.py`, `tools/ingest_web.py`, `core/crypto.py`) are unified and verified through end-to-end integration tests.
   - Next priority on the roadmap is **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute (`tools/ingest_favorites.py`).
+
+---
+
+## [Run 011] — 2026-09-06
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Task**: Task 1.6 — Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
+- **Actions Taken**:
+  - Enhanced `core/db.py`:
+    - Added `tag_references_batch(items, tag_name='favorites', ...)` allowing batch insertion of tag associations inside an atomic SQLite transaction using `executemany`.
+    - Added `clear_tag(tag_name)` to atomically clear associations for a given tag, enabling safe, idempotent re-ingestions.
+  - Implemented batch ingestion utility `tools/ingest_favorites.py`:
+    - Reads and cleans all 829 rows from `favorite_bible_verses.csv`.
+    - Handles single verses, intra-chapter spans, and whole chapters with canonical integer ID interval mappings (`start_canonical_id` / `end_canonical_id`).
+    - Implemented safe dataset typo auto-correction for known error (`Mark 1:223-26` -> `Mark 1:23-26`) with explicit audit notes.
+    - Registers `favorites` tag under category `curation` with description.
+    - Correctly sets `starred=1` on all 50 priority curated passages (e.g. 2 Samuel 7, Psalm 23, Isaiah 53, Philippians 2:5-11).
+    - Executed batch ingestion into production `data/bible.db` in 0.015s, followed by `PRAGMA optimize`.
+  - Authored hermetic unit tests in `tests/test_favorites.py` (9 tests covering CSV parsing, typo correction, batch ingestion, idempotent re-ingestion, tag clearing, and passage overlap lookup).
+  - Recorded **ADR-012: Curated Favorites Ingestion & Curation Architecture** in `DECISIONS.md`.
+  - Evaluated improvement opportunities with mandatory letter grades:
+    - **Idea A (Rank A+)**: *Unified Executable Bible CLI & Subcommand Dispatcher* (`./bible`). Promoted to `IDEAS.md`.
+    - **Idea B (Rank A)**: *Curated Favorites Reading Plan Generator* (`core/plan.py`).
+    - **Idea C (Rank B+)**: *Typo Anomaly Scanner & Dataset Linter* (`tools/lint_dataset.py`).
+  - Marked Task 1.6 as `[x]` in `ROADMAP.md` and transitioned active phase to **Phase 2: Command Line Interface (CLI)**.
+- **Verification**:
+  - Ran `python3 -m unittest discover tests` — all 103 tests passed in 4.99s.
+  - Verified 100% zero external dependencies compliance (stdlib only).
+  - Verified 829 favorites and 50 starred entries stored in `data/bible.db`.
+- **Handoff Notes for Next Agent**:
+  - Phase 1 is 100% complete! All core data models, storage engines, WEB text, cryptography, and user curated favorites are in place and verified.
+  - Next priority on the roadmap is **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`).

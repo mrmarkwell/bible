@@ -164,7 +164,7 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (`csv`, `sqlite3`, `core.reference`, `core.db`).
 - **Proposed Roadmap Phase**: Phase 1, Task 1.6 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
-- **Status**: [SCHEDULED].
+- **Status**: [DONE] (Implemented in `tools/ingest_favorites.py`, tested in `tests/test_favorites.py`, and recorded in ADR-012).
 
 ### [VETTED] Encrypted Sovereign Data Pack CLI & User Keyring (`bible pack` / `bible unpack`) (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
@@ -177,11 +177,6 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
 
-
-
-
-
-
 ### [VETTED] Zero-Dependency Terminal Scripture Formatter & ANSI Styler (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
 - **Summary**: Build a dedicated terminal presentation module (`core/formatter.py` or `cli/formatter.py`) that renders scripture passages, search results, and metadata with clean typography: responsive terminal column wrapping (via `shutil.get_terminal_size()`), subtle dimmed verse numbers (`\033[2m16\033[0m`), highlighted search tokens (bold amber/gold), poetic indented line breaks, and optional marginal references, with graceful degradation when piped or running in non-TTY environments (`NO_COLOR` or `not sys.stdout.isatty()`).
@@ -190,4 +185,14 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (Python standard library `os`, `sys`, `shutil`, `textwrap`, `re`).
 - **Proposed Roadmap Phase**: Phase 2, Task 2.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+### [VETTED] Unified Executable Bible CLI & Subcommand Dispatcher (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a single executable entry point `./bible` (and `bible.py`) in root/cli leveraging Python's standard library `argparse` with structured subcommand dispatching (`get`, `search`, `favorites`, `pack`, `serve`, `slide`). Includes automatic `--help` generation, version flag (`--version`), configurable database path override (`--db`), and human-friendly error reporting.
+- **Rationale**: Provides a seamless, unified developer and user experience where all scripture lookups, searches, curation queries, and utilities are accessible via a single memorable CLI tool with zero external dependencies.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python standard library `argparse`, `sys`, `pathlib`).
+- **Proposed Roadmap Phase**: Phase 2, Task 2.1 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].

@@ -1289,6 +1289,71 @@ class Database:
             for r in rows
         ]
 
+    def tag_references_batch(
+        self,
+        items: Sequence[Tuple[Union[Reference, str], bool, Optional[str]]],
+        tag_name: str = "favorites",
+        category: str = "curation",
+        confidence: float = 1.0,
+        source: str = "user",
+    ) -> int:
+        """Batch insert tag associations inside an atomic transaction.
+
+        Args:
+            items: Sequence of (reference, starred, notes) tuples.
+            tag_name: Semantic tag name (e.g. 'favorites').
+            category: Tag category.
+            confidence: Confidence score.
+            source: Provenance source.
+
+        Returns:
+            Count of inserted tag associations.
+        """
+        if not items:
+            return 0
+
+        tag = self.get_or_create_tag(tag_name, category=category)
+        assert tag.id is not None
+
+        now = _utc_now_iso()
+        rows = []
+        for ref_input, starred, notes in items:
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append(
+                (
+                    tag.id,
+                    ref.canonical_start_id,
+                    ref.canonical_end_id,
+                    ref.format(),
+                    confidence,
+                    source,
+                    1 if starred else 0,
+                    notes,
+                    now,
+                )
+            )
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO verse_tags (
+                    tag_id, start_canonical_id, end_canonical_id, human_ref,
+                    confidence, source, starred, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def clear_tag(self, tag_name: str) -> int:
+        """Remove all verse associations for a tag. Returns deleted row count."""
+        tag = self.get_tag(tag_name)
+        if not tag or tag.id is None:
+            return 0
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM verse_tags WHERE tag_id = ?", (tag.id,))
+            return cur.rowcount
+
     # --- Favorites Convenience API (Task 1.6 First-Class Support) ---
 
     def tag_as_favorite(
