@@ -8,7 +8,7 @@ Follow this protocol strictly to ensure seamless continuity and avoid context co
 
 ## The Ralph Loop Lifecycle
 
-Every agent execution cycle must follow the **Boot → Select → Execute → Log → Terminate** pipeline.
+Every agent execution cycle must follow the **Boot → Select → Execute → Log → Push → Terminate** pipeline.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,7 @@ flowchart LR
     B --> C[3. Select Task from Roadmap]
     C --> D[4. Implement & Test]
     D --> E[5. Log Decisions & Work]
-    E --> F[6. Commit & Self-Terminate]
+    E --> F[6. Commit, Push & Self-Terminate]
 ```
 
 ### 1. Boot & Orient
@@ -41,8 +41,9 @@ Upon spawning, perform an orientation pass:
 1. **Test-Driven / Verification-Driven**:
    - Before writing or refactoring production code, ensure tests exist or write unit tests.
    - Run the relevant test suite and verify 100% pass status.
-2. **Commit Often**:
+2. **Commit Often & Push Immediately**:
    - Commit logically atomic steps with clear, conventional git commit messages (e.g., `feat(core): add SQLite verse lookup schema`, `test(cli): add unit tests for reference parser`).
+   - **MANDATORY**: Push every commit immediately (`git push origin main`). Never leave unpushed commits on your branch.
    - Never commit broken code, failing tests, or unformatted files.
 
 ### 4. Handling Ambiguity & Architectural Decisions
@@ -67,7 +68,7 @@ True blockers are strictly defined as:
    - The exact blocker / error encountered.
    - The concrete actions required from the human to unblock.
    - Suggested options or defaults if applicable.
-3. Commit `BLOCKED.md` with message `chore: record blocker in BLOCKED.md`.
+3. Commit `BLOCKED.md` with message `chore: record blocker in BLOCKED.md` and immediately push (`git push origin main`).
 4. Self-terminate cleanly.
 
 ### 6. Logging, Handoff & Self-Termination
@@ -77,8 +78,9 @@ When your task is complete and verified:
    - Add any newly discovered subtasks or refine existing backlog items.
 2. **Append to `AGENT_LOG.md`**:
    - Add a new entry with timestamp, summary of accomplishments, tests verified, and explicit handoff notes for the next agent.
-3. **Commit State**:
+3. **Commit & Push State**:
    - Ensure working directory is clean (`git status` clean).
+   - Push all commits to the remote repository immediately (`git push origin main`).
 4. **Self-Terminate**:
    - End your execution so the next fresh agent can take over without context baggage.
 
@@ -86,7 +88,8 @@ When your task is complete and verified:
 
 ## Code Quality & Engineering Standards
 
-1. **Simplicity First**: Avoid over-engineering. Build the simplest solution that fulfills the specification and is cleanly extensible.
-2. **Documentation Integrity**: Keep docstrings and comments accurate and explanatory.
-3. **Deterministic Testing**: All tests must be fast, hermetic, and runnable offline without external internet access.
-4. **No Secrets in Repo**: Never commit API keys, personal access tokens, or unencrypted proprietary texts.
+1. **Immediate Remote Pushes**: Every commit must be pushed immediately to `origin/main`. No local-only commits.
+2. **Simplicity First**: Avoid over-engineering. Build the simplest solution that fulfills the specification and is cleanly extensible.
+3. **Documentation Integrity**: Keep docstrings and comments accurate and explanatory.
+4. **Deterministic Testing**: All tests must be fast, hermetic, and runnable offline without external internet access.
+5. **No Secrets in Repo**: Never commit API keys, personal access tokens, or unencrypted proprietary texts.

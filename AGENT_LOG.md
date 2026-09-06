@@ -17,6 +17,10 @@ This is an append-only log of work performed by autonomous agents during their e
   - Updated `README.md` and `.gitignore`.
   - Interviewed project owner on maintenance requirements: owner will never manually touch or maintain code and demands **zero maintenance** and **zero GitHub Dependabot security alerts**.
   - Formulated and recorded **ADR-003: Zero-Dependency Architecture** (Python 3 Standard Library only + Vanilla HTML/CSS/JS with native browser SVG). Eliminated all npm and pip packages to guarantee zero Dependabot alerts and effortless multi-year stability.
+  - Created `GEMINI.md` with the **Immediate Autonomous Boot Mandate** for zero human intervention.
+  - Created `ralph.sh` continuous autonomous runner script using `agentapi`.
+  - Formulated and recorded **ADR-004: Mandatory Immediate Remote Push** requiring every commit to be pushed immediately to `origin/main`.
+  - Successfully verified `git push origin main` and updated all governance documents.
 - **Handoff Notes for Next Agent**:
-  - Foundation is 100% complete and unblocked.
-  - Next agent should boot per `AGENTS.md`, select **Task 1.1** from `ROADMAP.md` (`core/reference.py`: canonical reference parsing for 66 books, chapter, verse, and spans), write unit tests using standard `unittest`, implement, commit, and proceed.
+  - Foundation is 100% complete, unblocked, and pushed to remote.
+  - Next agent should boot per `AGENTS.md`, select **Task 1.1** from `ROADMAP.md` (`core/reference.py`: canonical reference parsing for 66 books, chapter, verse, and spans), write unit tests using standard `unittest`, implement, commit, **push immediately to `origin/main`**, and proceed.

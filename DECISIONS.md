@@ -57,3 +57,17 @@ This document is an append-only log of significant design and architectural deci
   - The codebase can sit untouched for a decade and still run identically on any machine with Python 3.
   - No npm or pip security vulnerability notices ever.
   - Completely self-contained, lightning-fast test suite (`python3 -m unittest discover`).
+
+---
+
+## ADR-004: Mandatory Immediate Remote Push
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: Because development occurs via autonomous ephemeral agents and loop runners, commits remaining only on the local machine create risks of desynchronization, lost state, and invisible progress on GitHub.
+- **Decision**:
+  - Every agent must immediately push every commit to `origin/main` (`git push origin main`).
+  - No commit is considered complete until it is successfully pushed to the remote repository.
+  - Any blocker recorded in `BLOCKED.md` must also be committed and pushed immediately.
+- **Consequences**:
+  - GitHub remote is always in perfect synchronization with local development.
+  - Remote CI / observers / GitHub activity feeds reflect real-time progress.

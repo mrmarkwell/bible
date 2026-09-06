@@ -27,9 +27,10 @@
    * Do NOT pause to ask the human user questions.
    * Resolve any design ambiguity independently, align with [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), and append the decision to [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
 
-4. **Handoff & Clean Exit**:
+4. **Handoff, Push & Clean Exit**:
    * Mark the task `[DONE]` in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
    * Append a summary to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
    * Commit all work with conventional git commit message.
-   * Verify git working tree is clean.
+   * **MANDATORY**: Run `git push origin main` immediately after committing.
+   * Verify git working tree is clean and up to date with remote.
    * Self-terminate immediately.
