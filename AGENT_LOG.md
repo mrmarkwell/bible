@@ -318,3 +318,30 @@ This is an append-only log of work performed by autonomous agents during their e
   - Root `./bible` executable is in place and verified.
   - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
 
+---
+
+## [Run 013] — 2026-09-06
+- **Agent**: Interactive Collaboration & Systems Architect
+- **Phase**: Developer Ergonomics & Autonomous Harness Enhancement
+- **Task**: Implement Live Streaming Telemetry for `ralph.sh --loop` (`tools/stream_runner.py`)
+- **Actions Taken**:
+  - Investigated Jetski CLI headless output mechanism, determining that `--output-format text` suppresses tool events while `--output-format stream-json` emits rich NDJSON events in real time.
+  - Implemented `tools/stream_runner.py` using Python 3 standard library only (`json`, `datetime`, `os`, `sys`) per ADR-003:
+    - Formats active tool invocations with colored names and concise parameter summaries (e.g. `⚙ [TOOL] run_command : python3 -m unittest discover tests`).
+    - Formats completed tools with elapsed execution duration (`✔ [DONE] run_command (1.25s)`).
+    - Flushes streaming model text tokens directly to `sys.stdout` in real time.
+    - Emits clean session completion summary cards with token counts and turn count.
+    - Detects ANSI color capability (`supports_color`) and gracefully falls back to plaintext if `NO_COLOR` or non-TTY.
+    - Propagates exit codes (0 for SUCCESS, 1 for ERROR).
+  - Integrated `tools/stream_runner.py` into `ralph.sh` for continuous loop mode (`--loop`) and single print mode (`-p`).
+  - Added comprehensive test suite `tests/test_stream_runner.py` (15 tests covering ANSI styling, parameter summarization, event parsing, streaming text, success/error handling, and full streams).
+  - Recorded **ADR-014: Real-Time Live Streaming Telemetry for Autonomous Ralph Loop Harness** in `DECISIONS.md`.
+  - Updated `IDEAS.md` marking the feature as `[VETTED]` and implemented.
+- **Verification**:
+  - `python3 -m unittest discover tests`: All 130 tests passing 100% in 5.01s.
+  - `bash -n ralph.sh`: Shell syntax validation clean.
+  - Verified 100% Zero External Dependencies compliance (standard library only).
+- **Handoff Notes for Next Agent**:
+  - `ralph.sh --loop` now provides live visual feedback for every tool call and streaming token while continuing to cycle autonomously.
+  - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
+

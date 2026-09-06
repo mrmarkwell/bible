@@ -65,10 +65,14 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         echo " Ralph Loop Iteration #$ITERATION — $(date '+%Y-%m-%d %H:%M:%S')"
         echo "======================================================================"
 
-        # Run headless iteration with auto-approved permissions and extended timeout
+        # Run headless iteration with auto-approved permissions and live streaming formatter
         set +e
-        "$JETSKI_CLI" --dangerously-skip-permissions -p "$DEFAULT_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" "$@"
-        EXIT_CODE=$?
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$DEFAULT_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        EXIT_CODE="${PIPESTATUS[0]}"
+        FORMATTER_CODE="${PIPESTATUS[1]}"
+        if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
+            EXIT_CODE="$FORMATTER_CODE"
+        fi
         set -e
 
         if [ "$EXIT_CODE" -ne 0 ]; then
@@ -110,7 +114,8 @@ if [ "$1" = "--print" ] || [ "$1" = "-p" ]; then
     shift
     PROMPT="${1:-$DEFAULT_PROMPT}"
     [ "$#" -gt 0 ] && shift
-    exec "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" "$@"
+    "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+    exit "${PIPESTATUS[0]}"
 fi
 
 # Otherwise forward flags directly

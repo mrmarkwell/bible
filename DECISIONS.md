@@ -311,3 +311,29 @@ This document is an append-only log of significant design and architectural deci
   - Developers and users can immediately query scripture from the terminal via `./bible get "John 3:16"`.
   - Seamless scriptability with zero external pip/npm packages (ADR-003).
   - Clean foundation for Task 2.2 (`--version` cascades) and Task 2.3 (`search`).
+
+---
+
+## ADR-014: Real-Time Live Streaming Telemetry for Autonomous Ralph Loop Harness
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: When running continuous autonomous iterations with `./ralph.sh --loop`, the harness executes Jetski CLI in headless print mode (`-p`). In default print mode (`--output-format text`), Jetski only streams `TextDelta` tokens and suppresses all tool execution events (running bash commands, running unit tests, inspecting/editing files). Because an autonomous cycle spends >90% of its execution time running tools before emitting its final Executive Briefing, the terminal output remained silent for 5–15 minutes, appearing hung or frozen to the human observer. Running interactive mode (`-i`) inside a loop was not viable because interactive mode stays open waiting for user input and does not exit on turn completion.
+- **Decision**:
+  1. **Utilize Jetski NDJSON Streaming Mode (`--output-format stream-json`)**:
+     - Switch `ralph.sh` (`--loop` and `--print`) to invoke Jetski with `--output-format stream-json`.
+     - In this mode, Jetski emits strongly typed NDJSON events (`init`, `step_update`, `result`) in real time for every tool invocation, argument payload, execution status, and streaming text token.
+  2. **Zero-Dependency Streaming Event Formatter (`tools/stream_runner.py`)**:
+     - Implement a standalone Python utility using the Python 3 standard library (`sys`, `json`, `datetime`, `os`) per ADR-003.
+     - Formats active tool calls with concise parameter summaries (e.g. `⚙ [TOOL] run_command : python3 -m unittest discover tests`).
+     - Emits tool completion timings (`✔ [DONE] run_command (1.25s)`).
+     - Flushes streaming model text deltas live to `sys.stdout`.
+     - Emits final session summary cards with token counts and duration.
+     - Preserves clean process exit codes (exit 0 on success, exit 1 on error) so `ralph.sh` can monitor loop health and stop on failures.
+  3. **Robust Bash Pipeline Integration in `ralph.sh`**:
+     - Pipe Jetski CLI into `python3 "$REPO_DIR/tools/stream_runner.py"`.
+     - Inspect `PIPESTATUS` to correctly capture both Jetski's and the formatter's exit status while honoring `pipefail`.
+- **Consequences**:
+  - The human observer can watch Jetski work in real time during continuous `--loop` execution (watching every tool call, test execution, and streamed thought).
+  - The process continues to terminate cleanly at the end of each turn, allowing the `while` loop to advance autonomously without manual intervention.
+  - Fully tested in `tests/test_stream_runner.py` with 100% test pass rate and zero external dependencies.
+
