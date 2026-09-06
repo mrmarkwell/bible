@@ -91,7 +91,42 @@ This document is an append-only log of significant design and architectural deci
      - **Multi-Slide Splitting**: Long passages exceeding single-slide legibility thresholds can be split across consecutive slide frames (`1/N`).
      - **Format Support**: Default to PNG (lossless, highly compressible on black backgrounds) with optional JPEG (`--quality=95`) for legacy TV media player compatibility.
 - **Consequences**:
-  - Full compliance with ADR-003: zero pip requirements, zero Dependabot alerts.
+- Full compliance with ADR-003: zero pip requirements, zero Dependabot alerts.
   - Generates TV-ready 4K images natively.
   - Directly fulfills user's home TV screensaver workflow via Google Photos.
+
+---
+
+## ADR-006: Google Gemini LLM Architecture & TGC Theological Hermeneutic Framework
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: The user requested integrating Large Language Models (LLMs) to unlock deep semantic understanding of Scripture. Specifically:
+  1. **Offline Metadata Enrichment**: Pre-generating rich biblical metadata (thematic taxonomies, pericopes, typology, cross-references, character profiles) into the local SQLite database so the application functions sovereignly offline.
+  2. **Online Interactive Intelligence**: Enabling real-time Scripture RAG (Retrieval-Augmented Generation) for cross-referencing and interactive dialogue with biblical figures.
+  3. **Theological Alignment**: All theological and hermeneutical principles must adhere to The Gospel Coalition (TGC) Foundation Documents (Confessional Statement & Theological Vision for Ministry).
+  4. **Vendor & Tooling Standard**: Default model must be Google's current premier model (e.g. `gemini-2.5-pro` / `gemini-2.0-flash`).
+  5. **Architecture Mandate**: Must strictly preserve ADR-003 (Zero External Dependencies, no pip/npm packages, zero Dependabot alerts).
+- **Decision**:
+  1. **Zero-Dependency Google Gemini REST Client (`core/llm.py`)**:
+     - Implement a lean, robust API client using Python's standard library `urllib.request`, `json`, and `os`.
+     - Target the Google Gemini REST endpoint (`https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`).
+     - Default model identifier: `gemini-2.5-pro` (configurable via `--model` flag or `GEMINI_MODEL` env var, with fallback to `gemini-2.0-flash`).
+     - Authentication: reads `GEMINI_API_KEY` from environment.
+     - Zero third-party packages (`google-generativeai`, `requests`, `aiohttp` are prohibited).
+  2. **Two-Tier Offline vs. Online Architecture**:
+     - **Tier 1 (Offline Sovereign Database)**: A batch generator CLI (`bible enrich`) uses Gemini to synthesize and populate SQLite tables (`pericopes`, `typology_edges`, `theological_themes`, `character_profiles`). Once ingested, 100% of these enriched features run locally and offline without internet or API keys.
+     - **Tier 2 (Online Dynamic RAG & Character Dialogue)**: When `GEMINI_API_KEY` is present, the Web UI and CLI unlock dynamic conversational synthesis and interactive character dialogue, grounded against local SQLite scripture verses. If the API key is missing or offline, the system degrades gracefully with clear status messaging.
+  3. **TGC Foundation Hermeneutical System Prompt Protocol**:
+     - System prompts and semantic tag taxonomies are explicitly guided by TGC's Foundation Documents:
+       - **Dual-Horizon Hermeneutics**: Balance reading *along* the whole Bible (redemptive-historical trajectory: Creation, Fall, Redemption, Restoration climaxing in Christ) and reading *across* the whole Bible (systematic theological categories: God, sin, substitutionary atonement, justification by grace through faith).
+       - **Christ-Centered & Anti-Moralistic**: Biblical figures and narratives are never framed in isolated moralism ("Dare to be a Daniel"); rather, they are presented as fallible instruments in God's redemptive history pointing to the true and better Prophet, Priest, and King, Jesus Christ.
+       - **Scriptural Infallibility & Reverence**: Responses maintain deep reverence, accuracy to the text, and reject theological relativism or flippant anachronism.
+  4. **Biblical Character Dialogue ("Persona In Scripture") Safety & Constraints**:
+     - Characters speak strictly from the biblical record of their historical period, context, and canonical testimony.
+     - They express humble faith in Yahweh / Christ, candidly acknowledge their sins and failures recorded in Scripture, and decline speculative or extra-biblical doctrine.
+- **Consequences**:
+  - Full compliance with ADR-003: No pip dependencies, zero Dependabot alerts.
+  - First-class support for Google's best LLM models.
+  - Faithful, intellectually rigorous theological alignment with The Gospel Coalition.
+  - Offline-first sovereignty with optional online AI power.
 

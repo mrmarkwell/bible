@@ -74,3 +74,67 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Rationale**: Enables rich semantic drill-down into original language roots without external internet queries.
 - **Status**: Raw idea awaiting evaluation.
 
+### [VETTED] Offline LLM Semantic Enrichment Engine (`bible enrich`)
+- **Summary**: Batch offline pipeline leveraging Google's premier LLM (Gemini 2.5 Pro / Gemini 2.0 Flash) to systematically enrich the local SQLite database with multi-resolution metadata:
+  1. Pericope segmentations with redemptive-historical titles and summaries.
+  2. Canonical typology linkages (connecting Old Testament types/shadows to New Testament fulfillments, e.g. Passover Lamb -> 1 Cor 5:7; Melchizedek -> Hebrews 7).
+  3. Thematic tag mappings categorized by both Redemptive-Historical Biblical Theology (Reading Along: Covenant, Temple, Kingship, Exile, Restoration) and Systematic Theology (Reading Across: God, Sin, Substitutionary Atonement, Justification by Faith).
+  4. Biblical character profiles (historical timeline, scripture references, spoken words, key trials, and theological significance).
+- **Rationale**: Unlocks deep, semantic study without requiring continuous internet or real-time LLM inference during daily use. Sovereign data remains in the user's local SQLite file.
+- **Theological Foundation (TGC Alignment)**:
+  - Adheres strictly to The Gospel Coalition Confessional Statement and Theological Vision for Ministry.
+  - Implements the TGC hermeneutical mandate: balancing reading *along* the whole Bible (narrative arch of redemption climaxing in Christ) with reading *across* the whole Bible (propositional doctrines of grace and salvation).
+  - Explicitly rejects moralistic reductionism, grounding all pericopes in God's sovereign covenant grace.
+- **Constraints & Alignment**:
+  - Offline-first? Yes. Once generated, all metadata lives in local SQLite; zero network calls required for queries.
+  - Zero third-party dependencies? Yes. Python stdlib `urllib.request` + `json` directly interfacing with Google's Gemini REST API. No pip packages (`google-generativeai` or `requests`), zero Dependabot alerts (ADR-003, ADR-006).
+  - Default Model: Google's best flagship (`gemini-2.5-pro` with fallback to `gemini-2.0-flash`), authenticated via `GEMINI_API_KEY`.
+- **Proposed Roadmap Phase**: Phase 6 & Phase 7 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+### [VETTED] TGC-Grounded Online Scripture RAG & Cross-Reference Synthesis
+- **Summary**: Real-time interactive Scripture RAG (Retrieval-Augmented Generation) system accessible via CLI (`bible ask`) and Web UI. When a user asks a complex theological or interpretive question (e.g., *"Trace how the theme of Sabbath rest unfolds from Genesis 2 through Hebrews 4"* or *"What is the biblical basis for penal substitutionary atonement?"*), the engine:
+  1. Queries local SQLite for relevant verses, cross-references, and pre-computed typological tags using FTS5 and semantic tag graphs.
+  2. Synthesizes a structured, gospel-centered explanation quoting precise scripture citations.
+  3. Contextualizes the answer within the overarching redemptive narrative of Christ.
+- **Rationale**: Far surpasses standard keyword search by discerning conceptual and theological relationships across the entire biblical canon.
+- **Theological Foundation (TGC Alignment)**:
+  - Grounded in TGC's "Chastened Correspondence Theory of Truth" (Theological Vision I) and Dual-Horizon Reading (Theological Vision II).
+  - Maintains the supreme authority, sufficiency, and inerrancy of Scripture (Confessional Statement II).
+  - Explicitly highlights the substitutionary work of Christ and justification by faith alone.
+- **Constraints & Alignment**:
+  - Offline-first? Degrades gracefully: if `GEMINI_API_KEY` is not set or network is unavailable, falls back to offline SQLite FTS5 search and pre-computed cross-reference lists.
+  - Zero dependencies: pure Python stdlib REST client.
+- **Proposed Roadmap Phase**: Phase 8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+### [VETTED] Interactive Biblical Character Dialogue Studio ("Persona In Scripture")
+- **Summary**: An interactive dialogue feature allowing users to "converse" with key biblical figures (e.g. Abraham, Moses, David, Isaiah, Mary, Peter, Paul) strictly within their canonical, historical, and theological context.
+- **Rationale**: Immersive educational and devotional tool for understanding the human experiences, historical challenges, and covenantal faith of scripture's authors and witnesses.
+- **Theological Foundation & Guardrails (TGC Alignment)**:
+  - **Anti-Moralistic Realism**: Characters are not presented as flawless heroes to be blindly imitated, but as fallen human beings saved solely by God's sovereign mercy and grace. David speaks openly of his sin and desperate need for cleansing (Psalm 51); Peter of his denials and restoration by Christ.
+  - **Christocentric Teleology**: Every character speaks from their historical horizon but bears witness to God's unfolding promise climaxing in the Messiah (e.g., Moses speaking of the prophet like unto him; Abraham rejoicing to see Christ's day; Paul testifying to the righteousness of God revealed in Jesus).
+  - **Strict Scriptural Bounding**: Characters decline to speculate on extrabiblical modern queries or invent personal lore not warranted by scripture.
+- **Constraints & Alignment**:
+  - Zero third-party dependencies.
+  - Powered by Gemini 2.5 Pro with specialized system prompts embedded with TGC theological guardrails and pre-loaded with canonical scripture references for that figure.
+- **Proposed Roadmap Phase**: Phase 8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+### [VETTED] Illuminated Web UI: Sacred-Modern Visual Analytics & Graphic Illumination
+- **Summary**: A visually stunning, contemplative, and editorial web user interface designed to illuminate biblical architecture, structure, and thematic density.
+- **Visual Design System**:
+  - **Aesthetic**: "Sacred Minimalist / Digital Manuscript" — rich obsidian dark mode (`#0D0E11`) paired with illuminated gold/amber accents (`#D4AF37`, `#F39C12`), crisp ivory typography (`#F5F5F7`), and subtle parchment borders (`#2A2B32`).
+  - **Typography**: Editorial serif headings (Playfair Display / EB Garamond / Georgia fallback) paired with clean geometric sans-serif for metadata and scripture citations.
+- **Key Graphical Visualizations (Native SVG, Zero npm)**:
+  1. **Canonical Redemptive Ribbon**: Macro-level interactive SVG heatmap across all 66 books displaying chapter-by-chapter thematic concentration.
+  2. **Typological Arc Network**: Visual bezier arcs spanning the Old and New Testaments connecting types and prophecies to their New Testament fulfillments.
+  3. **Character Canonical Journey Map**: Interactive timeline and book-by-book presence matrix for biblical figures.
+  4. **Split-View Study & Dialogue Console**: Left pane for scripture text and pericope analysis; right pane for RAG synthesis, cross-reference explorer, or biblical character dialogue.
+- **Constraints & Alignment**:
+  - Zero npm, zero node_modules, zero bundler. 100% vanilla HTML5, CSS3, and native browser SVG/Canvas (ADR-003).
+  - Runs directly from the embedded Python standard library HTTP server (`bible serve`).
+- **Proposed Roadmap Phase**: Enhanced Phase 4 & Phase 8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+
