@@ -150,3 +150,31 @@ This document is an append-only log of significant design and architectural deci
   - Direct, transparent terminal feedback during loop execution.
   - Reliable execution without background process desynchronization.
   - Seamless developer ergonomics: one command to trigger an autonomous cycle.
+
+---
+
+## ADR-008: Canonical Integer ID Encoding & SQLite FTS5 Trigger Architecture
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: In Task 1.2, the Bible Engine requires a relational database schema in SQLite (`core/db.py`) supporting 66 canonical books, multi-translation verse storage, arbitrary multi-verse passage spans, multi-resolution semantic tags, cross-references, and lightning-fast full-text search. Relational systems often struggle with scripture range queries (e.g. querying whether a tag on Romans 8:1-11 applies to Romans 8:5, or retrieving all verses in a cross-chapter span like Genesis 1:1 - 2:3) if based on text strings or separate book/chapter/verse columns. Furthermore, SQLite full-text search (FTS5) requires synchronization with the underlying verses table.
+- **Decision**:
+  1. **Canonical Integer ID Encoding (`BBCCCVVV`)**:
+     - Encode every canonical verse as an integer:
+       `canonical_verse_id = book_number * 1,000,000 + chapter * 1,000 + verse`
+     - Valid for all 66 books (OT: 1-39, NT: 40-66), all chapters (max Psalm 150 < 1,000), and all verses (max Psalm 119:176 < 1,000).
+     - Single verses, intra-chapter spans, cross-chapter spans, whole chapters, and multi-chapter ranges map to exact `[start_canonical_id, end_canonical_id]` intervals.
+     - Fast, indexed B-Tree range scans: `WHERE canonical_verse_id BETWEEN :start AND :end` retrieves all verses in canonical order.
+     - Overlapping range check for multi-resolution tagging and cross-references:
+       `WHERE start_canonical_id <= :query_end AND end_canonical_id >= :query_start` enables immediate matching across verses, pericopes, and chapters.
+  2. **SQLite FTS5 Automatic Trigger Synchronization**:
+     - Build full-text search using SQLite's native FTS5 virtual table with `porter unicode61` tokenization.
+     - Attach `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` triggers on the `verses` table to maintain the `verses_fts` virtual table in real time without application-level double writes or out-of-sync risks.
+  3. **Robust Query Sanitization**:
+     - Provide `sanitize_fts_query` to parse user queries, supporting exact quoted phrases and Boolean operators (`AND`, `OR`, `NOT`) while stripping problematic punctuation that could cause SQLite syntax errors.
+  4. **Strict Zero-Dependency Compliance**:
+     - Built entirely on Python 3 standard library `sqlite3` and `dataclasses`.
+- **Consequences**:
+  - Passage retrieval and full-text search are instantaneous and hermetic.
+  - Multi-resolution semantic tagging works uniformly across verses, pericopes, and books.
+  - Fully compliant with ADR-003 (zero external dependencies, zero Dependabot alerts).
+

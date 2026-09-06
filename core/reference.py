@@ -459,6 +459,30 @@ class Reference:
             return NotImplemented
         return self._sort_key() < other._sort_key()
 
+    @property
+    def canonical_start_id(self) -> int:
+        """Calculate canonical integer ID for the beginning of this reference."""
+        ch = self.start_chapter
+        v = self.start_verse if self.start_verse is not None else 1
+        return self.book.number * 1_000_000 + ch * 1_000 + v
+
+    @property
+    def canonical_end_id(self) -> int:
+        """Calculate canonical integer ID for the end of this reference."""
+        ch = self.end_chapter or self.start_chapter
+        if self.end_verse is not None:
+            v = self.end_verse
+        elif self.start_verse is None:
+            v = 999  # Whole chapter or chapter range
+        else:
+            v = self.start_verse
+        return self.book.number * 1_000_000 + ch * 1_000 + v
+
+    @property
+    def canonical_range(self) -> Tuple[int, int]:
+        """Return (canonical_start_id, canonical_end_id) range."""
+        return (self.canonical_start_id, self.canonical_end_id)
+
     def __str__(self) -> str:
         return self.format()
 
@@ -611,3 +635,26 @@ def parse_references(text: str) -> List[Reference]:
 
     # Otherwise parse as single reference
     return [parse_reference(clean)]
+
+
+def verse_canonical_id(book: Union[Book, int, str], chapter: int, verse: int) -> int:
+    """Calculate canonical integer ID: book_number * 1,000,000 + chapter * 1,000 + verse."""
+    if isinstance(book, Book):
+        b_num = book.number
+    elif isinstance(book, int):
+        b_num = book
+    else:
+        b = get_book(book)
+        if not b:
+            raise ValueError(f"Unknown book: {book!r}")
+        b_num = b.number
+    return b_num * 1_000_000 + chapter * 1_000 + verse
+
+
+def canonical_id_to_triple(canonical_id: int) -> Tuple[int, int, int]:
+    """Convert canonical integer ID back into (book_number, chapter, verse)."""
+    book_num = canonical_id // 1_000_000
+    rem = canonical_id % 1_000_000
+    chapter = rem // 1_000
+    verse = rem % 1_000
+    return (book_num, chapter, verse)

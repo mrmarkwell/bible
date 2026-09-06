@@ -105,6 +105,36 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 1.1 is complete and verified.
   - Next priority on the roadmap is **Task 1.2**: Implement SQLite database schema & connection manager in `core/db.py` (`verses`, `translations`, `books`, `spans`, `tags`, `verse_tags`, `cross_references`, and FTS5 search) utilizing `core/reference.py`.
 
+---
+
+## [Run 006] — 2026-09-06
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Task**: Task 1.2 — Implement SQLite database schema & connection manager in `core/db.py` (`verses`, `translations`, `books`, `spans`, `tags`, `verse_tags`, `cross_references`, and FTS5 search).
+- **Actions Taken**:
+  - Enhanced `core/reference.py` with canonical integer ID encoding:
+    - Added `canonical_start_id`, `canonical_end_id`, and `canonical_range` properties to `Reference`.
+    - Added helper functions `verse_canonical_id` and `canonical_id_to_triple` using the standard `BBCCCVVV` scheme (`book_number * 1,000,000 + chapter * 1,000 + verse`).
+  - Implemented `core/db.py` with pure Python 3 standard library (`sqlite3`, `dataclasses`, `typing`, `re`, `contextlib`):
+    - Connection management with automatic WAL journal mode, foreign key enforcement, and atomic transaction context manager (`with db.transaction():`).
+    - Full normalized schema for `books`, `translations`, `verses`, `spans`, `tags`, `verse_tags`, `cross_references`, and forward-compatible Phase 7 tables (`pericopes`, `typology_edges`, `character_profiles`, `theological_themes`).
+    - Automatic seeding of all 66 canonical Protestant books upon initialization.
+    - Native SQLite FTS5 virtual table (`verses_fts`) with automatic synchronization triggers (`AFTER INSERT`, `AFTER UPDATE`, `AFTER DELETE`) and safe query sanitization (`sanitize_fts_query`) supporting exact quoted phrases and Boolean operators (`AND`, `OR`, `NOT`).
+    - Multi-resolution semantic tagging supporting verses, spans, chapters, and books with confidence scoring, provenance, and first-class `starred` priority flags.
+    - Bidirectional cross-reference graph edges with relationship types (`prophecy_fulfillment`, `thematic`, `typology`, `quotation`).
+    - First-class favorites convenience API (`tag_as_favorite`, `get_favorites`).
+  - Exposed database models and symbols in `core/__init__.py`.
+  - Authored comprehensive test suite `tests/test_db.py` (32 tests covering FTS5 sanitization and search, verse storage, range queries, cross-chapter spans, tag retrieval, cascade deletion, subverse parts, disk-backed WAL database, and transactions).
+  - Recorded **ADR-008: Canonical Integer ID Encoding & SQLite FTS5 Trigger Architecture** in `DECISIONS.md`.
+  - Updated `ROADMAP.md` marking Task 1.2 as `[x]`.
+- **Verification**:
+  - Ran `python3 -m unittest discover tests` — all 57 tests passed in 0.068s.
+  - Verified 100% zero external dependencies compliance (stdlib only).
+  - Verified clean git working tree and pushed all changes immediately to `origin/main`.
+- **Handoff Notes for Next Agent**:
+  - Task 1.2 is complete and verified.
+  - Next priority on the roadmap is **Task 1.3**: Ingest full Public Domain Bible translation (World English Bible - WEB) into bundled SQLite database for offline access.
+
 
 
 
