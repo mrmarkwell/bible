@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 0 — Repository Architecture & Autonomous Harness
-- **Overall Progress**: Architectural foundation complete, ready for Phase 1
+- **Active Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Overall Progress**: Phase 0 complete; Phase 1 underway
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -21,7 +21,7 @@ This document is the single source of truth for current project status, active t
 
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
-- [ ] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
+- [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
 - [ ] **Task 1.2**: Implement SQLite database schema & connection manager in `core/db.py` (`verses`, `translations`, `books`, `spans`, `tags`, `verse_tags`, `cross_references`, and FTS5 search).
 - [ ] **Task 1.3**: Ingest full Public Domain Bible translation (World English Bible - WEB) into bundled SQLite database for offline access.
 - [ ] **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
