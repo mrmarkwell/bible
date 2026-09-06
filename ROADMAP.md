@@ -43,6 +43,16 @@ This document is the single source of truth for current project status, active t
 - [ ] **Task 4.3**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages and active tags.
 - [ ] **Task 4.4**: Implement pure SVG Cross-Reference / Topic Graph visualization.
 
-### Phase 5: Image & Typst Integration
-- [ ] **Task 5.1**: Integrate Typst verse card generation from CLI (`./bible render "Philippians 4:13" --output=verse.png`).
-- [ ] **Task 5.2**: Add template customization options for Typst rendering (fonts, colors, aspect ratios).
+### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
+- [ ] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector).
+- [ ] **Task 5.2**: Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins.
+- [ ] **Task 5.3**: Implement CLI slide generation command (`bible slide` / `bible render`) with rich options:
+  - Resolution: `--resolution=4k` (3840x2160 default), `--resolution=1080p` (1920x1080), or custom `WxH`.
+  - Color themes: `--theme=oled-black` (pure `#000000` default), `--theme=charcoal` (`#121212`), `--theme=inverted` (black on white).
+  - Typography: `--font=<family>` (defaults to serif e.g., Georgia / Liberation Serif), `--font-size=<auto|pt>`, `--line-spacing`.
+  - Layout & Margins: `--safe-area=<pct>` (default 15%), `--align=<center|left|right>`.
+  - Citation: `--citation-style=<below|smallcaps|none>`, `--citation-color=<hex>`.
+  - Format: `--format=png` (default lossless), `--format=jpg` (with `--quality=95`).
+- [ ] **Task 5.4**: Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`).
+- [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or verse list, ready for Google Photos TV screensaver albums.
+

@@ -71,3 +71,27 @@ This document is an append-only log of significant design and architectural deci
 - **Consequences**:
   - GitHub remote is always in perfect synchronization with local development.
   - Remote CI / observers / GitHub activity feeds reflect real-time progress.
+
+---
+
+## ADR-005: TV Screensaver Verse Slide Architecture & Dual-Backend Rendering Engine
+- **Date**: 2026-09-06
+- **Status**: Accepted
+- **Context**: The user requested a feature to generate beautiful landscape image slides from the CLI featuring white scripture text on a black background, designed specifically for Google Photos slideshows on home TV screensavers. The implementation must accommodate passages of varying lengths (from two words to multi-verse pericopes) with balanced typography and safe margins, while strictly honoring ADR-003 (Zero external pip/npm dependencies).
+- **Decision**:
+  1. **Primary Raster Backend (ImageMagick CLI)**: Utilize the host system's existing ImageMagick installation (`magick` or `convert`) via Python's standard library `subprocess`. ImageMagick provides hardware-accelerated text rasterization, Pango rich text formatting, fontconfig integration, and high-quality anti-aliasing without requiring Python pip dependencies (`Pillow`, `cairosvg`, etc.).
+  2. **Zero-Binary Vector Backend (Pure Python SVG)**: Provide a built-in pure Python standard library SVG generator for vector output and environments lacking ImageMagick.
+  3. **TV Display & Screensaver Optimizations**:
+     - **Default Resolution**: 16:9 4K UHD (3840x2160) for maximum clarity on modern 4K/8K displays, with selectable 1080p (1920x1080) and custom dimensions.
+     - **OLED Pure Black**: Background defaults to `#000000` to completely power off OLED pixels, yielding infinite contrast and eliminating burn-in.
+     - **TV Safe Area Margins**: Enforce a 15% inner bounding box so text never clips on bezel edges or TV overscan.
+     - **Dynamic Typography Scaling**: Implement an auto-fit scaling algorithm that bounds font sizes with upper/lower limits (preventing short verses from appearing comically gigantic and long passages from shrinking below readable thresholds from a 10-foot couch distance).
+     - **Optical Vertical Centering**: Offset text slightly above mechanical dead-center (~45% baseline) for natural human aesthetic perception.
+     - **Hierarchical Citation**: Render reference citations in smaller, muted typography (e.g., `#AAAAAA`) separated from the scripture body.
+     - **Multi-Slide Splitting**: Long passages exceeding single-slide legibility thresholds can be split across consecutive slide frames (`1/N`).
+     - **Format Support**: Default to PNG (lossless, highly compressible on black backgrounds) with optional JPEG (`--quality=95`) for legacy TV media player compatibility.
+- **Consequences**:
+  - Full compliance with ADR-003: zero pip requirements, zero Dependabot alerts.
+  - Generates TV-ready 4K images natively.
+  - Directly fulfills user's home TV screensaver workflow via Google Photos.
+
