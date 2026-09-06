@@ -145,4 +145,26 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Enhanced Phase 4 & Phase 8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [SCHEDULED].
 
+### [VETTED] Streaming Public Domain Ingestion & Offline Pack Compiler (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a dedicated zero-dependency streaming importer and compiler CLI (`tools/ingest_web.py`) that streams or parses the full World English Bible (WEB) text (~31,102 verses across all 66 books), performs atomic batch database transactions via `sqlite3.executemany`, validates canonical verse totals, and compiles the standalone bundled `data/bible.db` file with pre-built FTS5 indexes.
+- **Rationale**: Eliminates manual database creation steps and guarantees 100% reproducible, hermetic scripture data pack generation in seconds without any external dependencies.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (generates standalone SQLite database).
+  - Zero third-party dependencies? Yes (Python standard library `sqlite3`, `urllib.request`, `json`/text parser).
+  - Copyright compliant? Yes (World English Bible is 100% public domain).
+- **Proposed Roadmap Phase**: Phase 1, Task 1.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+### [VETTED] Automated Curated Favorites Batch Ingestion & Starred Verse Tagging (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement an automated ingestion utility (`tools/ingest_favorites.py`) that reads the repository's curated dataset [`favorite_bible_verses.csv`](file:///usr/local/google/home/markwell/personal_dev/bible/favorite_bible_verses.csv), parses all 829 scripture passages into canonical `Reference` objects, populates the `spans` table, registers the `favorites` tag under category `curation`, and tags all entries into `verse_tags` while accurately preserving the 50 priority `starred=True` records.
+- **Rationale**: Directly operationalizes the user's personal curated scripture dataset into the database as a first-class knowledge entity, making user favorites immediately queryable via CLI and Web UI.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (`csv`, `sqlite3`, `core.reference`, `core.db`).
+- **Proposed Roadmap Phase**: Phase 1, Task 1.6 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED].
+
+
 

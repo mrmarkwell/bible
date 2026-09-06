@@ -101,14 +101,16 @@ When your task is complete and verified:
 1. **Update `ROADMAP.md`**:
    - Mark the completed task as `[DONE]`.
    - Add any newly discovered subtasks or refine existing backlog items.
-2. **Append to `AGENT_LOG.md`**:
+2. **Promote Rank A+ Ideas to Feature Requests**:
+   - If any improvement idea conceived during this cycle is self-evaluated as rank **A+** (unambiguously a good idea for improvement), automatically append it as a formalized feature request in `IDEAS.md` (and decompose into atomic tasks in `ROADMAP.md` if appropriate) as part of your final step before committing.
+3. **Append to `AGENT_LOG.md`**:
    - Add a new entry with timestamp, summary of accomplishments, tests verified, and explicit handoff notes for the next agent.
-3. **Commit & Push State**:
+4. **Commit & Push State**:
    - Ensure working directory is clean (`git status` clean).
    - Push all commits to the remote repository immediately (`git push origin main`).
-4. **User Summary / Human Briefing**:
+5. **User Summary / Human Briefing**:
    - Conclude every turn or loop iteration with a high-level **Human Executive Briefing** (see protocol below).
-5. **Self-Terminate**:
+6. **Self-Terminate**:
    - End your execution so the next fresh agent can take over without context baggage.
 
 ---
@@ -125,8 +127,10 @@ Because this is a **near-zero maintenance project** where the human author rarel
    - High-level, user-facing summary of implemented features, tests verified, and state changes.
 3. **Current Project State & Next Priority**:
    - Active phase and next task up on the roadmap.
-4. **Key Ideas & Opportunities for Improvement**:
-   - Proactively highlight 1–3 high-leverage ideas from `IDEAS.md` or creative suggestions for project enhancement (e.g. UX polish, new capabilities, architectural safeguards).
+4. **Key Ideas & Opportunities for Improvement (with Mandatory Letter Grades)**:
+   - Proactively brainstorm and highlight 1–3 high-leverage ideas for project enhancement (e.g. UX polish, new capabilities, architectural safeguards).
+   - **Mandatory Letter Grades**: Every idea MUST be evaluated and assigned an explicit letter grade (e.g., `A+`, `A`, `A-`, `B+`, etc.).
+   - **Automatic A+ Feature Promotion**: If any idea is self-evaluated as rank **A+** (unambiguously a good idea for improvement), it MUST be automatically added as a feature request to `IDEAS.md` as part of your final step before completion.
 5. **Maintenance & Hygiene Health**:
    - Confirm 100% Zero-Dependency compliance (no pip, no npm) and clean remote push synchronization.
 
