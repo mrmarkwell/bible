@@ -134,6 +134,33 @@ class BookTopicDensity:
 
 
 @dataclass(frozen=True)
+class ChapterTopicDensity:
+    """Aggregated topic density metrics for a specific chapter within a canonical book."""
+
+    book_id: int
+    book_name: str
+    osis: str
+    chapter: int
+    passage_count: int
+    starred_count: int
+    distinct_tags: int
+    tag_counts: Dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert chapter topic density to dictionary representation."""
+        return {
+            "book_id": self.book_id,
+            "book_name": self.book_name,
+            "osis": self.osis,
+            "chapter": self.chapter,
+            "passage_count": self.passage_count,
+            "starred_count": self.starred_count,
+            "distinct_tags": self.distinct_tags,
+            "tag_counts": dict(self.tag_counts),
+        }
+
+
+@dataclass(frozen=True)
 class TagCoOccurrence:
     """Co-occurrence pair metrics between two semantic tags."""
 
@@ -695,6 +722,87 @@ class TaggingService:
                     starred_count=len(stats["starred_passages"]),
                     distinct_tags=len(stats["tags"]),
                     tag_counts=stats["tag_counts"],
+                )
+            )
+
+        return results
+
+    def get_topic_density_per_chapter(
+        self,
+        book: Union[Book, str, int],
+        tag_name: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> List[ChapterTopicDensity]:
+        """Compute chapter-by-chapter topic/tag distribution and density within a book.
+
+        Args:
+            book: Canonical Book instance, OSIS identifier, name, or book number.
+            tag_name: Optional tag name to filter distribution (case-insensitive).
+            category: Optional tag category filter (e.g. 'theological', 'thematic').
+
+        Returns:
+            List of ChapterTopicDensity records ordered by chapter number (1 to total_chapters).
+        """
+        b = get_book(book)
+        cur = self.db.conn.cursor()
+
+        vt_query = """
+            SELECT
+                ((vt.start_canonical_id % 1000000) / 1000) AS ch,
+                t.name AS tag_name,
+                vt.starred,
+                vt.id AS vt_id
+            FROM verse_tags vt
+            JOIN tags t ON t.id = vt.tag_id
+            WHERE (vt.start_canonical_id / 1000000) = ?
+        """
+        vt_params: List[Any] = [b.number]
+        if tag_name:
+            vt_query += " AND t.name = ? COLLATE NOCASE"
+            vt_params.append(tag_name.strip())
+        if category:
+            vt_query += " AND t.category = ? COLLATE NOCASE"
+            vt_params.append(category.strip().lower())
+
+        cur.execute(vt_query, vt_params)
+        vt_rows = cur.fetchall()
+
+        chapter_stats: Dict[int, Dict[str, Any]] = {}
+        for ch in range(1, b.total_chapters + 1):
+            chapter_stats[ch] = {
+                "passages": set(),
+                "starred_passages": set(),
+                "tags": set(),
+                "tag_counts": {},
+            }
+
+        for r in vt_rows:
+            ch_num = int(r[0])
+            t_name = r[1]
+            starred = bool(r[2])
+            vt_id = r[3]
+
+            if 1 <= ch_num <= b.total_chapters:
+                st = chapter_stats[ch_num]
+                st["passages"].add(vt_id)
+                if starred:
+                    st["starred_passages"].add(vt_id)
+                st["tags"].add(t_name)
+                st["tag_counts"][t_name] = st["tag_counts"].get(t_name, 0) + 1
+
+        results: List[ChapterTopicDensity] = []
+        for ch in range(1, b.total_chapters + 1):
+            st = chapter_stats[ch]
+            results.append(
+                ChapterTopicDensity(
+                    book_id=b.number,
+                    book_name=b.name,
+                    osis=b.osis,
+                    chapter=ch,
+                    passage_count=len(st["passages"]),
+                    starred_count=len(st["starred_passages"]),
+                    distinct_tags=len(st["tags"]),
+                    tag_counts=st["tag_counts"],
                 )
             )
 

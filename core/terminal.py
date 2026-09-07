@@ -1102,4 +1102,192 @@ def format_redemptive_ribbon_ascii(
     return "\n".join(lines)
 
 
+# ==============================================================================
+# Pericope Section Headings & Chapter Drill-Down Formatting
+# ==============================================================================
+
+def format_pericope_banner(
+    pericope: Any,
+    styling: bool = True,
+    width: Optional[int] = None,
+) -> str:
+    """Format a pericope section banner for inline terminal scripture reading.
+
+    Args:
+        pericope: PericopeRecord instance.
+        styling: Whether to apply ANSI golden and italic styling.
+        width: Optional line wrapping width.
+
+    Returns:
+        Formatted multi-line section header banner.
+    """
+    title = getattr(pericope, "title", "Section")
+    hum_ref = getattr(pericope, "human_ref", "")
+    summary = getattr(pericope, "redemptive_summary", "") or ""
+
+    lines: List[str] = []
+    if styling:
+        lines.append(f"{BOLD_GOLD}§ {title.upper()}{RESET}  {DIM}({hum_ref}){RESET}")
+        if summary:
+            lines.append(f"  {ITALIC}{DIM}Redemptive Focus: {summary}{RESET}")
+    else:
+        lines.append(f"§ {title.upper()} ({hum_ref})")
+        if summary:
+            lines.append(f"  Redemptive Focus: {summary}")
+
+    return "\n".join(lines)
+
+
+def format_pericope_table(
+    pericopes: Sequence[Any],
+    styling: bool = True,
+) -> str:
+    """Format a list of PericopeRecord objects into a tabular display.
+
+    Args:
+        pericopes: Sequence of PericopeRecord instances.
+        styling: Whether to apply ANSI styling.
+
+    Returns:
+        Formatted tabular string.
+    """
+    if not pericopes:
+        return "No pericopes found."
+
+    headers = ["#", "Passage", "Pericope Title", "Redemptive Focus"]
+    rows: List[List[str]] = []
+    for idx, p in enumerate(pericopes, 1):
+        rows.append([
+            str(idx),
+            getattr(p, "human_ref", ""),
+            getattr(p, "title", ""),
+            getattr(p, "redemptive_summary", "") or "-",
+        ])
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(3):
+            col_widths[i] = max(col_widths[i], len(r[i]))
+        col_widths[3] = max(col_widths[3], min(45, len(r[3])))
+
+    term_width = get_terminal_width()
+    desc_width = max(20, term_width - sum(col_widths[:3]) - 10)
+    col_widths[3] = min(col_widths[3], desc_width)
+
+    lines: List[str] = []
+    header_line = (
+        f"{headers[0]:>{col_widths[0]}}  "
+        f"{headers[1]:<{col_widths[1]}}  "
+        f"{headers[2]:<{col_widths[2]}}  "
+        f"{headers[3]}"
+    )
+
+    if styling:
+        lines.append(f"{BOLD_GOLD}{header_line}{RESET}")
+        sep = "  ".join("─" * w for w in col_widths[:3]) + f"  {'─' * col_widths[3]}"
+        lines.append(f"{DIM}{sep}{RESET}")
+        for r in rows:
+            summary = r[3]
+            if len(summary) > col_widths[3]:
+                summary = summary[: col_widths[3] - 3] + "..."
+            line = (
+                f"{DIM}{r[0]:>{col_widths[0]}}{RESET}  "
+                f"{BOLD_CYAN}{r[1]:<{col_widths[1]}}{RESET}  "
+                f"{BOLD_WHITE}{r[2]:<{col_widths[2]}}{RESET}  "
+                f"{DIM}{summary}{RESET}"
+            )
+            lines.append(line)
+    else:
+        lines.append(header_line)
+        sep = "  ".join("─" * w for w in col_widths[:3]) + f"  {'─' * col_widths[3]}"
+        lines.append(sep)
+        for r in rows:
+            summary = r[3]
+            if len(summary) > col_widths[3]:
+                summary = summary[: col_widths[3] - 3] + "..."
+            line = (
+                f"{r[0]:>{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:<{col_widths[2]}}  "
+                f"{summary}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_chapter_density_grid(
+    book_name: str,
+    chapters: Sequence[Any],
+    styling: bool = True,
+    tag_name: Optional[str] = None,
+) -> str:
+    """Format chapter-by-chapter topic density as a drill-down terminal grid.
+
+    Args:
+        book_name: Human readable book name (e.g. 'Genesis', 'Romans').
+        chapters: Sequence of ChapterTopicDensity records.
+        styling: Whether to apply ANSI colors.
+        tag_name: Optional topic tag name being visualized.
+
+    Returns:
+        Formatted multi-line text grid of chapter intensities.
+    """
+    if not chapters:
+        return f"No chapter density data available for {book_name}."
+
+    total_chapters = len(chapters)
+    max_count = max((getattr(c, "passage_count", 0) for c in chapters), default=1)
+    if max_count <= 0:
+        max_count = 1
+
+    total_tagged = sum(getattr(c, "passage_count", 0) for c in chapters)
+    total_starred = sum(getattr(c, "starred_count", 0) for c in chapters)
+    active_chapters = sum(1 for c in chapters if getattr(c, "passage_count", 0) > 0)
+
+    lines: List[str] = []
+    topic_str = f" #{tag_name}" if tag_name else " (All Taxonomies)"
+
+    if styling:
+        lines.append(f"{BOLD_GOLD}╔══════════════════════════════════════════════════════════════════════════════╗{RESET}")
+        lines.append(f"{BOLD_GOLD}║  CHAPTER DRILL-DOWN HEATMAP: {book_name.upper():<47s} ║{RESET}")
+        lines.append(f"{BOLD_GOLD}╚══════════════════════════════════════════════════════════════════════════════╝{RESET}")
+        lines.append(f"  {BOLD_WHITE}Topic:{RESET}{BOLD_GOLD}{topic_str}{RESET}  │  {DIM}Chapters:{RESET} {BOLD_WHITE}{active_chapters}/{total_chapters}{RESET}  │  {DIM}Tagged Passages:{RESET} {BOLD_WHITE}{total_tagged}{RESET} ({total_starred} starred)")
+        lines.append(f"  {DIM}Scale:{RESET}  · none (0)   ░ low (<25%)   ▒ mid (25-60%)   ▓ high (60-85%)   █ peak (>85%)")
+        lines.append("")
+    else:
+        lines.append(f"=== CHAPTER DRILL-DOWN HEATMAP: {book_name.upper()} ===")
+        lines.append(f"Topic:{topic_str} | Chapters: {active_chapters}/{total_chapters} | Tagged Passages: {total_tagged} ({total_starred} starred)")
+        lines.append("Scale:  · none (0)   ░ low (<25%)   ▒ mid (25-60%)   ▓ high (60-85%)   █ peak (>85%)")
+        lines.append("")
+
+    # Print 10 chapters per line
+    chunk_size = 10
+    for i in range(0, total_chapters, chunk_size):
+        chunk = chapters[i : i + chunk_size]
+        cell_parts: List[str] = []
+        for c in chunk:
+            ch_num = getattr(c, "chapter", 0)
+            cnt = getattr(c, "passage_count", 0)
+            pct = cnt / max_count
+            char = _intensity_char(pct)
+
+            ch_label = f"c{ch_num}"
+            if styling:
+                if cnt == 0:
+                    cell_str = f"{DIM}{ch_label:>4s}:{char}{RESET}"
+                elif pct > 0.60:
+                    cell_str = f"{BOLD_YELLOW}{ch_label:>4s}:{char}{RESET}"
+                else:
+                    cell_str = f"{CYAN}{ch_label:>4s}:{char}{RESET}"
+            else:
+                cell_str = f"{ch_label:>4s}:{char}"
+            cell_parts.append(cell_str)
+
+        lines.append(f"   {'  '.join(cell_parts)}")
+
+    return "\n".join(lines)
+
+
+
 

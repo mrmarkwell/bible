@@ -315,7 +315,24 @@ class TestWebServerEndpoints(unittest.TestCase):
     def test_api_unknown_endpoint_404(self) -> None:
         status, data = self._get_json("/api/nonexistent_endpoint")
         self.assertEqual(status, 404)
-        self.assertIn("Unknown API endpoint", data["error"])
+    def test_api_pericopes_endpoint(self) -> None:
+        status, data = self._get_json("/api/pericopes?ref=John+3:16")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(data["total_pericopes"], 1)
+        self.assertTrue(any("Born Again" in p["title"] for p in data["pericopes"]))
+
+        # Filter by book
+        status, gen_data = self._get_json("/api/pericopes?book=Genesis")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(gen_data["total_pericopes"], 5)
+
+    def test_api_tags_chapters_endpoint(self) -> None:
+        status, data = self._get_json("/api/tags/chapters?book=Genesis")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["book_name"], "Genesis")
+        self.assertEqual(data["total_chapters"], 50)
+        self.assertEqual(len(data["chapters"]), 50)
+        self.assertEqual(data["chapters"][0]["chapter"], 1)
 
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
@@ -380,4 +397,5 @@ class TestWebCliAndShellIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -934,3 +934,38 @@ This document is an append-only log of significant design and architectural deci
   - Unlocks holistic macro-thematic visualization across all 66 books in both terminal and web reader.
   - Retains 100% Zero External Dependencies compliance (Python 3 stdlib and vanilla browser DOM/CSS only per ADR-003).
 
+---
+
+## ADR-032: Drill-Down Scripture Viewer, Canonical Pericope Headings & Chapter Thematic Heatmaps
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Prior to Task 4.4, the web and CLI interfaces provided macro-thematic visualization across the 66 canonical books (ADR-031 Redemptive Ribbon) and verse-level lookup, but lacked a seamless intermediate navigation layer. Clicking a book on the macro heatmap could not drill down into individual chapter cells with active thematic intensity, and scripture text was rendered as isolated verse blocks without canonical pericope section headings, passage outlines, or inline semantic tag indicators.
+- **Decision**:
+  1. **Canonical Pericope Model & Knowledge Base (`core/pericopes.py`, `core/db.py`)**:
+     - Added `PericopeRecord` dataclass and `pericopes` SQLite table indexed by `book_id` and canonical ID ranges (`start_canonical_id`, `end_canonical_id`).
+     - Curated 144 foundational canonical pericopes (`CANONICAL_PERICOPES`) spanning both Old and New Testaments with descriptive titles and redemptive-historical summaries.
+     - Implemented `PericopeService` with idempotent batch seeding (`seed_canonical_pericopes`) integrated into `core/bootstrap.py`.
+  2. **Chapter-Level Thematic Density (`core/tags.py`)**:
+     - Defined `ChapterTopicDensity` dataclass (`book_id`, `book_name`, `osis`, `chapter`, `passage_count`, `starred_count`).
+     - Implemented `TaggingService.get_topic_density_per_chapter(book, tag_name, category)` computing chapter-by-chapter thematic concentration using canonical verse ID math in `<1ms`.
+  3. **REST API Expansion (`web/server.py`)**:
+     - Added `GET /api/pericopes` supporting query filtering by scripture citation, book, or chapter.
+     - Added `GET /api/tags/chapters` returning chapter density arrays for drill-down heatmaps.
+     - Enhanced `GET /api/passage` to return overlapping `pericopes` arrays and verse-level `tags` lists.
+  4. **Interactive Drill-Down UI & Inline Pericope Viewer (`web/static/`)**:
+     - Added `#chapter-drilldown-box` with `#drilldown-chapter-grid` and back-to-canon toggle button in `index.html`.
+     - In `app.js`, hooked book clicks in the Canonical Ribbon to open chapter drill-down, dynamically color-coding each chapter cell according to the active topic's density (`data-heat="0".."4"`).
+     - Added pericope quick chips in the reader navigation bar and rendered illuminated pericope section banners with redemptive summaries and verse tag pills in the reading flow.
+  5. **CLI & REPL Integration (`cli/main.py`, `cli/shell.py`, `core/terminal.py`)**:
+     - Added `./bible pericopes [query]` and `./bible chapters <book> [tag]` subcommands.
+     - Added `--pericopes` (`-p`) flag to `./bible get` to print pericope banners and redemptive summaries.
+     - Added `/pericopes` and `/chapters` REPL commands to `BibleShell`.
+     - Implemented `format_pericope_banner`, `format_pericope_table`, and `format_chapter_density_grid` in `core/terminal.py`.
+  6. **Verification & Testing**:
+     - Authored `tests/test_pericopes.py` (6 tests) and expanded `tests/test_tags.py`, `tests/test_server.py`. Total test suite expanded to 369 tests passing 100% in ~7.4s with zero warnings.
+- **Consequences**:
+  - Completes Roadmap Task 4.4 in full.
+  - Seamlessly bridges the macro (66 books), intermediate (chapters & pericopes), and micro (verses & tags) dimensions of scripture study.
+  - Retains 100% Zero-Dependency architecture (pure Python 3 stdlib, vanilla HTML/CSS/JS, zero pip/npm packages).
+
+

@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database
+from core.pericopes import PericopeService
 from core.reference import ALL_BOOKS, Book, BOOKS
 from core.tags import TaggingService
 
@@ -45,6 +46,7 @@ class BootstrapReport:
     pragmas_optimized: bool
     is_clean: bool
     details: str
+    pericopes_count: int = 0
 
     def summary_lines(self) -> List[str]:
         """Generate human-readable summary lines for CLI display."""
@@ -56,6 +58,7 @@ class BootstrapReport:
             f"Translations:            {self.translations_count}",
             f"Curated Favorites:       {self.favorites_count} passages ({self.starred_count} starred)",
             f"Canonical Tags:          {self.tags_count} theological/redemptive taxonomies",
+            f"Canonical Pericopes:     {self.pericopes_count} redemptive section headings",
             f"Cross-Reference Edges:   {self.cross_references_count} canonical OT/NT links",
             f"Git Hook Safeguards:     {hooks_text}",
             f"Pragma Optimization:     {pragmas_text}",
@@ -159,6 +162,10 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         xr_row = db.execute_sql("SELECT count(*) FROM cross_references").fetchone()
         total_cross_references = xr_row[0] if xr_row else 0
 
+        # Canonical Pericopes
+        p_row = db.execute_sql("SELECT count(*) FROM pericopes").fetchone()
+        total_pericopes = p_row[0] if p_row else 0
+
         # FTS5 Index status
         fts_row = db.execute_sql(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='verses_fts'"
@@ -177,6 +184,7 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         "total_cross_references": total_cross_references,
         "total_favorites": total_favorites,
         "total_starred": total_starred,
+        "total_pericopes": total_pericopes,
         "sqlite_version": sqlite_version,
         "integrity_check": integrity,
         "fts5_status": "active" if fts_active else "missing",
@@ -199,7 +207,9 @@ def is_database_healthy(db_path: Optional[Union[str, Path]] = None) -> bool:
             tag_count = tag_count_row[0] if tag_count_row else 0
             xr_row = db.execute_sql("SELECT count(*) FROM cross_references").fetchone()
             xr_count = xr_row[0] if xr_row else 0
-            return verse_count >= 31100 and tag_count >= 20 and xr_count >= 40
+            p_row = db.execute_sql("SELECT count(*) FROM pericopes").fetchone()
+            p_count = p_row[0] if p_row else 0
+            return verse_count >= 31100 and tag_count >= 20 and xr_count >= 40 and p_count >= 100
     except Exception:
         return False
 
@@ -273,6 +283,7 @@ def bootstrap_database(
             pragmas_optimized=True,
             is_clean=True,
             details="Database already initialized and healthy (idempotent no-op)",
+            pericopes_count=stats.get("total_pericopes", 0),
         )
 
     # Ensure parent directory exists
@@ -321,19 +332,24 @@ def bootstrap_database(
     seeded_tags = tag_service.seed_canonical_taxonomies()
 
     # 5. Seed Canonical Typological Cross-References
-    _notify("Seeding canonical Old/New Testament typological cross-references...", 0.85)
+    _notify("Seeding canonical Old/New Testament typological cross-references...", 0.82)
     xr_service = CrossReferenceService(db)
     seeded_xrefs = xr_service.seed_canonical_cross_references()
 
-    # 6. Optimize Pragmas and Analyzers
-    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.92)
+    # 6. Seed Canonical Pericopes
+    _notify("Seeding canonical pericope headings and redemptive summaries...", 0.88)
+    pericope_service = PericopeService(db)
+    seeded_pericopes = pericope_service.seed_canonical_pericopes()
+
+    # 7. Optimize Pragmas and Analyzers
+    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.94)
     db.optimize()
     db.close()
 
-    # 7. Install Git Hooks
+    # 8. Install Git Hooks
     hooks_installed = False
     if install_git_hooks and (REPO_ROOT / ".git").exists():
-        _notify("Configuring automated git pre-commit & pre-push hooks...", 0.96)
+        _notify("Configuring automated git pre-commit & pre-push hooks...", 0.98)
         from tools.doctor import install_hooks
         hooks_installed, _ = install_hooks(REPO_ROOT)
 
@@ -356,4 +372,5 @@ def bootstrap_database(
         pragmas_optimized=True,
         is_clean=True,
         details=f"Successfully compiled and bootstrapped in {dur:.2f}s",
+        pericopes_count=final_stats["total_pericopes"],
     )

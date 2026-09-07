@@ -1118,3 +1118,48 @@ This is an append-only log of work performed by autonomous agents during their e
   - Milestone 030 is 100% complete, verified, and unblocked.
   - Next cycle is **Run 031** (Standard Ralph Loop Iteration).
   - Next domain task on the roadmap: **Task 4.4**: *Implement Typological Arc Network: interactive SVG visualization connecting OT types/shadows to NT fulfillment antitypes with biblical citations*.
+
+---
+
+## [Run 031] — 2026-09-07
+- **Agent**: Ralph Loop Autonomous Feature Agent
+- **Phase**: Phase 4 — Web UI & Visualizations (Task 4.4 / ADR-032)
+- **Goal**: Implement Drill-Down Scripture Viewer: clicking a Canonical Ribbon book / chapter cell displays chapter-level topic density heatmaps, scripture passages, canonical pericope section headings, and active semantic tags.
+- **Actions Taken**:
+  - **Canonical Pericope Model & Knowledge Base (`core/pericopes.py`, `core/db.py`)**:
+    - Created `PericopeRecord` dataclass and added `pericopes` SQLite table with indices `idx_pericopes_book` and `idx_pericopes_range`.
+    - Implemented `PericopeService` with 144 curated foundational canonical pericopes (`CANONICAL_PERICOPES`) covering major Old and New Testament narrative and theological sections with titles and redemptive-historical summaries.
+    - Integrated idempotent batch seeding (`seed_canonical_pericopes`) into `core/bootstrap.py` step 6 and verified self-healing database health checks.
+  - **Chapter-Level Thematic Density Engine (`core/tags.py`)**:
+    - Created `ChapterTopicDensity` dataclass.
+    - Implemented `TaggingService.get_topic_density_per_chapter(book, tag_name, category)` computing chapter-by-chapter density across `1..total_chapters` using canonical verse ID math in `<1ms`.
+  - **REST API Expansion (`web/server.py`)**:
+    - Added `GET /api/pericopes` (filtering by `?ref=...`, `?book=...`, or `?chapter=...`).
+    - Added `GET /api/tags/chapters` (chapter density distribution for book/tag).
+    - Enhanced `GET /api/passage` to hydrate and return overlapping `pericopes` and verse-level `tags` arrays.
+  - **Sacred-Modern Web UI Drill-Down (`web/static/`)**:
+    - Added `#chapter-drilldown-box` with `#drilldown-chapter-grid` and `#btn-back-to-canon` to `index.html`.
+    - Added `#pericope-nav-bar` with `#pericope-chips` to the Reader Stage.
+    - Styled 5-tier chapter density heat buttons (`.drilldown-chapter-btn[data-heat="0"]` through `[data-heat="4"]`), inline pericope section banners (`.pericope-banner`), and interactive tag pills (`.verse-tag-pill`) in `style.css`.
+    - Updated `app.js` so clicking any book button in the Canonical Ribbon opens the chapter drill-down grid with live thematic intensities, clicking a chapter immediately loads the passage, and pericope quick chips provide instant navigation within long chapters.
+  - **CLI & REPL Integration (`cli/main.py`, `cli/shell.py`, `core/terminal.py`)**:
+    - Implemented `format_pericope_banner`, `format_pericope_table`, and `format_chapter_density_grid` in `core/terminal.py`.
+    - Added `./bible pericopes [query]` and `./bible chapters <book> [tag]` CLI subcommands (aliases: `pericope`, `chapter`).
+    - Added `--pericopes` (`-p`) flag to `./bible get` to print pericope banners in terminal scripture reading.
+    - Added `/pericopes` and `/chapters` interactive REPL slash commands in `BibleShell`.
+  - **Hermetic Unit Test Suite**:
+    - Created `tests/test_pericopes.py` (6 tests) verifying schema, CRUD, overlap logic, service retrieval, and terminal formatting.
+    - Expanded `tests/test_tags.py` and `tests/test_server.py`. Total test suite expanded to 369 unit tests passing 100% in 7.38s.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-032** in `DECISIONS.md`.
+    - Marked Task 4.4 `[x]` in `ROADMAP.md`.
+- **Verification**:
+  - Ran `./bible pericopes "Gen 1"`: rendered canonical pericope heading.
+  - Ran `./bible chapters Genesis favorites`: rendered 50-chapter ASCII drill-down grid with 5-tier heat indicators.
+  - Ran `./bible get "Gen 1:1-5" -p`: rendered pericope banner with redemptive summary above scripture.
+  - Ran `python3 tools/doctor.py`: all 6 checks passed with 100% stdlib compliance and zero warnings.
+- **Handoff Notes for Next Agent**:
+  - Task 4.4 is 100% complete and unblocked.
+  - Next cycle is **Run 032** (Standard Ralph Loop Iteration).
+  - Next domain task on the roadmap: **Task 4.5**: *Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments*.
+

@@ -19,7 +19,7 @@ import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.db import DEFAULT_DB_PATH, Database, SearchResult, VerseRecord
-from core.reference import Reference, get_book, parse_reference
+from core.reference import BOOKS, Reference, get_book, parse_reference
 from core.terminal import (
     THEMES,
     format_aligned_comparison_styled,
@@ -416,6 +416,15 @@ def cmd_get(args: argparse.Namespace) -> int:
                     theme=theme_name,
                     box=box_header,
                 )
+                if getattr(args, "pericopes", False):
+                    from core.pericopes import PericopeService
+                    from core.terminal import format_pericope_banner
+                    p_svc = PericopeService(db)
+                    pericopes_found = p_svc.get_pericopes_for_passage(ref)
+                    if pericopes_found:
+                        p_banners = "\n".join(format_pericope_banner(p, styling=color_enabled, width=wrap_width) for p in pericopes_found)
+                        formatted = f"{' ' * margin_width}{p_banners}\n\n{formatted}"
+
                 if getattr(args, "tags", False):
                     from core.tags import TaggingService
                     from core.terminal import format_tags_badge
@@ -1383,6 +1392,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Display related cross-references with hydrated verse texts",
     )
+    parser_get.add_argument(
+        "--pericopes",
+        "-p",
+        action="store_true",
+        help="Display canonical pericope section headings and redemptive summaries",
+    )
     parser_get.set_defaults(func=cmd_get)
 
     # Subcommand: compare
@@ -2143,6 +2158,115 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_ribbon.set_defaults(func=cmd_ribbon)
 
+    # Subcommand: pericopes (alias: pericope)
+    parser_pericopes = subparsers.add_parser(
+        "pericopes",
+        aliases=["pericope"],
+        help="Inspect or search canonical pericope headings and redemptive-historical summaries",
+        description="List and explore canonical pericopes, passage outlines, and redemptive summaries.",
+    )
+    parser_pericopes.add_argument("query", nargs="?", default=None, help="Scripture passage or search keyword (e.g. 'Gen 1', 'Romans', 'covenant')")
+    parser_pericopes.add_argument("--book", "-b", help="Filter pericopes by specific book (e.g. 'Genesis', 'Rom')")
+    parser_pericopes.add_argument("--json", action="store_true", help="Output pericopes in JSON format")
+
+    def cmd_pericopes(args: argparse.Namespace) -> int:
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+        with Database(db_path) as db:
+            from core.pericopes import PericopeService
+            from core.terminal import format_pericope_table
+            svc = PericopeService(db)
+
+            query = getattr(args, "query", None)
+            book_filter = getattr(args, "book", None)
+            color_enabled = False if getattr(args, "no_color", False) else (True if getattr(args, "color", None) else should_use_color())
+
+            pericopes = []
+            if query:
+                # Try parsing as reference
+                ref = parse_reference(query)
+                if ref:
+                    pericopes = svc.get_pericopes_for_passage(ref)
+                else:
+                    # Treat query as book or search term
+                    book_match = get_book(query.strip())
+                    if book_match:
+                        pericopes = svc.get_pericopes_for_book(book_match.name)
+                    else:
+                        # Fallback search title / summary
+                        all_p = db.get_pericopes_for_book(None)
+                        q_lower = query.lower()
+                        pericopes = [p for p in all_p if q_lower in p.title.lower() or (p.redemptive_summary and q_lower in p.redemptive_summary.lower())]
+            elif book_filter:
+                book_match = get_book(book_filter.strip())
+                book_name = book_match.name if book_match else book_filter
+                pericopes = svc.get_pericopes_for_book(book_name)
+            else:
+                pericopes = db.get_pericopes_for_book(None)
+
+            if getattr(args, "json", False):
+                print(json.dumps([p.to_dict() for p in pericopes], indent=2))
+            else:
+                title_desc = f" for '{query or book_filter}'" if (query or book_filter) else ""
+                print(f"Canonical Pericopes & Redemptive Summaries{title_desc} ({len(pericopes)} entries):\n")
+                print(format_pericope_table(pericopes, styling=color_enabled))
+            return 0
+
+    parser_pericopes.set_defaults(func=cmd_pericopes)
+
+    # Subcommand: chapters (alias: chapter)
+    parser_chapters = subparsers.add_parser(
+        "chapters",
+        aliases=["chapter"],
+        help="Display chapter-by-chapter topic density drill-down for a book",
+        description="Drill down into a book's individual chapters to visualize topical and thematic density.",
+    )
+    parser_chapters.add_argument("book", help="Book of the Bible to inspect (e.g. 'Genesis', 'Romans', 'John')")
+    parser_chapters.add_argument("tag", nargs="?", default=None, help="Optional topic tag name (e.g. 'Covenant', 'Grace')")
+    parser_chapters.add_argument("--category", "-c", help="Filter tags by category")
+    parser_chapters.add_argument("--json", action="store_true", help="Output chapter density as JSON")
+
+    def cmd_chapters(args: argparse.Namespace) -> int:
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+        with Database(db_path) as db:
+            from core.tags import TaggingService
+            from core.terminal import format_chapter_density_grid
+            svc = TaggingService(db)
+
+            book_input = args.book.strip()
+            book_match = get_book(book_input)
+            if not book_match:
+                sys.stderr.write(f"Error: Unknown book '{book_input}'.\n")
+                return 1
+
+            tag_name = getattr(args, "tag", None)
+            cat = getattr(args, "category", None)
+            color_enabled = False if getattr(args, "no_color", False) else (True if getattr(args, "color", None) else should_use_color())
+
+            chapters = svc.get_topic_density_per_chapter(
+                book=book_match.name,
+                tag_name=tag_name,
+                category=cat,
+            )
+
+            if getattr(args, "json", False):
+                print(json.dumps([c.to_dict() for c in chapters], indent=2))
+            else:
+                print(format_chapter_density_grid(
+                    book_name=book_match.name,
+                    chapters=chapters,
+                    styling=color_enabled,
+                    tag_name=tag_name,
+                ))
+            return 0
+
+    parser_chapters.set_defaults(func=cmd_chapters)
+
     return parser
 
 
@@ -2167,7 +2291,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "doctor", "summary", "shell", "interactive", "repl", "console",
         "serve", "server", "http", "web",
         "init", "setup", "bootstrap", "db", "database",
-        "ribbon",
+        "ribbon", "pericopes", "pericope", "chapters", "chapter",
     }
 
     pos_idx = -1

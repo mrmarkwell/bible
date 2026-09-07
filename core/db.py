@@ -202,6 +202,50 @@ class CrossReferenceRecord:
 
 
 @dataclass(frozen=True)
+class PericopeRecord:
+    """Represents a discrete scripture pericope section with heading and redemptive summary."""
+
+    id: Optional[int]
+    book_id: int
+    start_canonical_id: int
+    end_canonical_id: int
+    human_ref: str
+    title: str
+    redemptive_summary: Optional[str] = None
+    created_at: Optional[str] = None
+
+    @property
+    def book(self) -> Optional[Book]:
+        """Associated canonical Book object."""
+        return BOOKS.get(self.book_id)
+
+    @property
+    def book_name(self) -> str:
+        """Name of the canonical book."""
+        return self.book.name if self.book else f"Book_{self.book_id}"
+
+    @property
+    def osis(self) -> str:
+        """OSIS code of the book."""
+        return self.book.osis if self.book else ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert pericope record to dictionary representation."""
+        return {
+            "id": self.id,
+            "book_id": self.book_id,
+            "book_name": self.book_name,
+            "osis": self.osis,
+            "start_canonical_id": self.start_canonical_id,
+            "end_canonical_id": self.end_canonical_id,
+            "human_ref": self.human_ref,
+            "title": self.title,
+            "redemptive_summary": self.redemptive_summary,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
 class SearchResult:
     """Result item returned by FTS5 full-text search."""
 
@@ -415,6 +459,12 @@ CREATE TABLE IF NOT EXISTS pericopes (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE RESTRICT
 );
+
+CREATE INDEX IF NOT EXISTS idx_pericopes_book
+ON pericopes(book_id, start_canonical_id);
+
+CREATE INDEX IF NOT EXISTS idx_pericopes_range
+ON pericopes(start_canonical_id, end_canonical_id);
 
 CREATE TABLE IF NOT EXISTS typology_edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1706,3 +1756,191 @@ class Database:
     def get_favorites(self, starred_only: bool = False) -> List[VerseTagRecord]:
         """Retrieve all passages tagged as favorites."""
         return self.get_references_for_tag("favorites", starred_only=starred_only)
+
+    # --- Pericopes & Redemptive Headings API (Task 4.4 & Phase 7) ---
+
+    def insert_pericope(
+        self,
+        reference: Union[Reference, str],
+        title: str,
+        redemptive_summary: Optional[str] = None,
+    ) -> PericopeRecord:
+        """Insert a canonical scripture pericope section with heading and summary.
+
+        Args:
+            reference: Passage reference (e.g. 'Romans 8:1-11').
+            title: Section title / pericope heading.
+            redemptive_summary: Optional redemptive-historical theological summary.
+
+        Returns:
+            Created PericopeRecord instance.
+        """
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        book_id = ref.book.number
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+        human = ref.format()
+        now = _utc_now_iso()
+
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO pericopes (
+                    book_id, start_canonical_id, end_canonical_id, human_ref,
+                    title, redemptive_summary, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    book_id,
+                    start_id,
+                    end_id,
+                    human,
+                    title.strip(),
+                    redemptive_summary.strip() if redemptive_summary else None,
+                    now,
+                ),
+            )
+            p_id = cur.lastrowid
+
+        return PericopeRecord(
+            id=p_id,
+            book_id=book_id,
+            start_canonical_id=start_id,
+            end_canonical_id=end_id,
+            human_ref=human,
+            title=title.strip(),
+            redemptive_summary=redemptive_summary.strip() if redemptive_summary else None,
+            created_at=now,
+        )
+
+    def insert_pericopes_batch(
+        self,
+        items: Sequence[Tuple[Union[Reference, str], str, Optional[str]]],
+    ) -> int:
+        """Batch insert multiple pericope headings inside a single transaction."""
+        now = _utc_now_iso()
+        rows: List[Tuple[Any, ...]] = []
+        for ref_input, title, summary in items:
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append((
+                ref.book.number,
+                ref.canonical_start_id,
+                ref.canonical_end_id,
+                ref.format(),
+                title.strip(),
+                summary.strip() if summary else None,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO pericopes (
+                    book_id, start_canonical_id, end_canonical_id, human_ref,
+                    title, redemptive_summary, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_pericopes_for_reference(
+        self,
+        reference: Union[Reference, str],
+    ) -> List[PericopeRecord]:
+        """Fetch all pericope headings overlapping with the given reference range."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+            FROM pericopes
+            WHERE start_canonical_id <= ? AND end_canonical_id >= ?
+            ORDER BY start_canonical_id ASC, id ASC
+            """,
+            (end_id, start_id),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            PericopeRecord(
+                id=r["id"],
+                book_id=r["book_id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                title=r["title"],
+                redemptive_summary=r["redemptive_summary"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_pericopes_for_book(
+        self,
+        book: Union[Book, str, int],
+        chapter: Optional[int] = None,
+    ) -> List[PericopeRecord]:
+        """Retrieve pericope headings for an entire book or specific chapter."""
+        b = get_book(book)
+        cur = self.conn.cursor()
+        if chapter is not None:
+            c_start = verse_canonical_id(b.number, chapter, 1)
+            c_end = verse_canonical_id(b.number, chapter, 999)
+            cur.execute(
+                """
+                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+                FROM pericopes
+                WHERE book_id = ? AND start_canonical_id <= ? AND end_canonical_id >= ?
+                ORDER BY start_canonical_id ASC, id ASC
+                """,
+                (b.number, c_end, c_start),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+                FROM pericopes
+                WHERE book_id = ?
+                ORDER BY start_canonical_id ASC, id ASC
+                """,
+                (b.number,),
+            )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            PericopeRecord(
+                id=r["id"],
+                book_id=r["book_id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                title=r["title"],
+                redemptive_summary=r["redemptive_summary"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_pericopes(self, book_id: Optional[int] = None) -> int:
+        """Count total pericopes stored in the database."""
+        cur = self.conn.cursor()
+        if book_id is not None:
+            cur.execute("SELECT count(*) FROM pericopes WHERE book_id = ?", (book_id,))
+        else:
+            cur.execute("SELECT count(*) FROM pericopes")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_pericopes(self, book_id: Optional[int] = None) -> int:
+        """Remove pericope headings (optionally filtered by book_id)."""
+        with self.conn:
+            if book_id is not None:
+                cur = self.conn.execute("DELETE FROM pericopes WHERE book_id = ?", (book_id,))
+            else:
+                cur = self.conn.execute("DELETE FROM pericopes")
+            return cur.rowcount

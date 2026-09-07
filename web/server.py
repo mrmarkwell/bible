@@ -24,7 +24,8 @@ import urllib.parse
 import webbrowser
 
 from core.crossref import CrossReferenceService
-from core.db import DEFAULT_DB_PATH, Database
+from core.db import DEFAULT_DB_PATH, Database, PericopeRecord
+from core.pericopes import PericopeService
 from core.reference import (
     ALL_BOOKS,
     Book,
@@ -33,7 +34,7 @@ from core.reference import (
     parse_reference,
     verse_canonical_id,
 )
-from core.tags import TaggingService
+from core.tags import ChapterTopicDensity, TaggingService
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
@@ -127,10 +128,14 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_search(query)
         elif clean_path == "/api/translations":
             self.handle_translations()
+        elif clean_path == "/api/pericopes":
+            self.handle_pericopes(query)
         elif clean_path == "/api/tags":
             self.handle_tags(query)
         elif clean_path == "/api/tags/density":
             self.handle_tags_density(query)
+        elif clean_path == "/api/tags/chapters":
+            self.handle_tags_chapters(query)
         elif clean_path in ("/api/tags/co-occurrence", "/api/tags/matrix"):
             self.handle_tags_co_occurrence(query)
         elif clean_path in ("/api/tags/relevance", "/api/tags/rank"):
@@ -212,11 +217,20 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             tags = tagging_svc.get_tags_for_passage(parsed_ref)
 
             crossref_svc = CrossReferenceService(self.db)
-            crossrefs = crossref_svc.get_cross_references(parsed_ref)
+            crossrefs = crossref_svc.get_cross_references(reference=parsed_ref, bidirectional=True)
+            pericope_svc = PericopeService(self.db)
+            pericopes = pericope_svc.get_pericopes_for_passage(parsed_ref)
 
-            verse_items = [
-                {
-                    "canonical_verse_id": v.canonical_verse_id,
+            verse_items = []
+            for v in verses:
+                cid = v.canonical_verse_id or 0
+                matching_tags = [
+                    t.tag_name
+                    for t in tags
+                    if t.start_canonical_id <= cid <= t.end_canonical_id
+                ]
+                verse_items.append({
+                    "canonical_verse_id": cid,
                     "book": v.book_name,
                     "book_id": v.book_id,
                     "osis_ref": v.osis_ref,
@@ -224,9 +238,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     "verse": v.verse,
                     "text": v.text,
                     "translation_id": v.translation_id,
-                }
-                for v in verses
-            ]
+                    "tags": matching_tags,
+                })
 
             tag_items = [
                 {
@@ -238,6 +251,21 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     "source": t.source,
                 }
                 for t in tags
+            ]
+
+            pericope_items = [
+                {
+                    "id": p.id,
+                    "book_id": p.book_id,
+                    "book_name": p.book_name,
+                    "osis": p.osis,
+                    "start_canonical_id": p.start_canonical_id,
+                    "end_canonical_id": p.end_canonical_id,
+                    "human_ref": p.human_ref,
+                    "title": p.title,
+                    "redemptive_summary": p.redemptive_summary,
+                }
+                for p in pericopes
             ]
 
             crossref_items = [
@@ -256,7 +284,9 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "translation_id": used_id,
                 "fallback_for": fallback_for,
                 "total_verses": len(verse_items),
+                "total_pericopes": len(pericope_items),
                 "verses": verse_items,
+                "pericopes": pericope_items,
                 "tags": tag_items,
                 "cross_references": crossref_items,
             })
@@ -417,6 +447,55 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         except Exception as exc:
             self.send_json_error(f"Failed to retrieve translations: {exc}", status=500)
 
+    def handle_pericopes(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/pericopes — Retrieve canonical pericope section headings and summaries."""
+        ref_str = query.get("ref", [None])[0]
+        book_str = query.get("book", [None])[0]
+        chapter_str = query.get("chapter", [None])[0]
+
+        pericope_svc = PericopeService(self.db)
+        try:
+            if ref_str:
+                parsed_ref = parse_reference(ref_str)
+                records = pericope_svc.get_pericopes_for_passage(parsed_ref)
+                query_label = parsed_ref.format()
+            elif book_str:
+                book = get_book(book_str)
+                chapter = int(chapter_str) if chapter_str else None
+                records = pericope_svc.get_pericopes_for_book(book, chapter=chapter)
+                query_label = f"{book.name} {chapter}" if chapter else book.name
+            else:
+                cur = self.db.conn.cursor()
+                cur.execute(
+                    "SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at "
+                    "FROM pericopes ORDER BY start_canonical_id ASC"
+                )
+                rows = cur.fetchall()
+                cur.close()
+                records = [
+                    PericopeRecord(
+                        id=r["id"],
+                        book_id=r["book_id"],
+                        start_canonical_id=r["start_canonical_id"],
+                        end_canonical_id=r["end_canonical_id"],
+                        human_ref=r["human_ref"],
+                        title=r["title"],
+                        redemptive_summary=r["redemptive_summary"],
+                        created_at=r["created_at"],
+                    )
+                    for r in rows
+                ]
+                query_label = "All Canon"
+
+            items = [p.to_dict() for p in records]
+            self.send_json({
+                "query": query_label,
+                "total_pericopes": len(items),
+                "pericopes": items,
+            })
+        except Exception as exc:
+            self.send_json_error(f"Failed to fetch pericopes: {exc}", status=500)
+
     def handle_tags(self, query: Dict[str, List[str]]) -> None:
         """GET /api/tags — List semantic tags with optional category or text filter."""
         category = query.get("category", [None])[0]
@@ -492,6 +571,42 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             })
         except Exception as exc:
             self.send_json_error(f"Failed to calculate topic density: {exc}", status=500)
+
+    def handle_tags_chapters(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/tags/chapters — Thematic topic distribution across chapters of a book."""
+        book_param = query.get("book", [None])[0]
+        if not book_param:
+            self.send_json_error("Missing required query parameter: 'book'", status=400)
+            return
+
+        try:
+            book = get_book(book_param)
+        except ValueError as exc:
+            self.send_json_error(f"Unrecognized book '{book_param}': {exc}", status=400)
+            return
+
+        tag = query.get("tag", [None])[0]
+        category = query.get("category", [None])[0]
+
+        tagging_svc = TaggingService(self.db)
+        try:
+            densities = tagging_svc.get_topic_density_per_chapter(
+                book=book,
+                tag_name=tag,
+                category=category,
+            )
+            items = [d.to_dict() for d in densities]
+            self.send_json({
+                "book_id": book.number,
+                "book_name": book.name,
+                "osis": book.osis,
+                "total_chapters": book.total_chapters,
+                "tag_filter": tag,
+                "category_filter": category,
+                "chapters": items,
+            })
+        except Exception as exc:
+            self.send_json_error(f"Failed to calculate chapter topic density: {exc}", status=500)
 
     def handle_tags_co_occurrence(self, query: Dict[str, List[str]]) -> None:
         """GET /api/tags/co-occurrence — Tag co-occurrence matrix and similarity indices."""

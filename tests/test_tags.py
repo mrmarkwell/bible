@@ -740,7 +740,32 @@ class TestRedemptiveRibbon(unittest.TestCase):
             rib_matches = shell.complete_ribbon("sov", "ribbon sov", 7, 10)
             self.assertTrue(any("Sovereign Grace" in m for m in rib_matches))
 
+    def test_get_topic_density_per_chapter(self) -> None:
+        chapters = self.svc.get_topic_density_per_chapter(book="Genesis")
+        self.assertEqual(len(chapters), 50)
+        self.assertEqual(chapters[0].chapter, 1)
+        self.assertEqual(chapters[0].book_name, "Genesis")
+        d = chapters[0].to_dict()
+        self.assertEqual(d["chapter"], 1)
+        self.assertEqual(d["book_name"], "Genesis")
+
+        # Test CLI chapters subcommand
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", self.db_path, "chapters", "Genesis", "--json"])
+            self.assertEqual(code, 0)
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(len(data), 50)
+        self.assertEqual(data[0]["chapter"], 1)
+
+        # Test Shell /chapters command
+        out_shell = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=out_shell, database=self.db) as shell:
+            shell.onecmd("/chapters Genesis")
+            self.assertIn("CHAPTER DRILL-DOWN HEATMAP: GENESIS", out_shell.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -188,6 +188,15 @@ class BibleShell(cmd.Cmd):
                 f"[Notice: Translation '{self.translation_id}' not available; showing fallback '{effective_trans}']\n"
             )
 
+        # Show pericope heading if available
+        from core.pericopes import PericopeService
+        from core.terminal import format_pericope_banner
+        p_svc = PericopeService(self.db)
+        pericopes = p_svc.get_pericopes_for_passage(ref)
+        if pericopes:
+            p_banners = "\n".join(format_pericope_banner(p, styling=self.use_color, width=self.width) for p in pericopes)
+            self.stdout.write(f"\n{' ' * self.margin}{p_banners}\n")
+
         passage = format_scripture_passage(
             verses=verses,
             show_verse_numbers=True,
@@ -513,6 +522,78 @@ class BibleShell(cmd.Cmd):
     def do_ribbon(self, arg: str) -> None:
         """Display canonical Redemptive Ribbon ASCII heatmap across 66 books: /ribbon [tag_name]"""
         self.do_tag(f"ribbon {arg}".strip())
+
+    def do_pericopes(self, arg: str) -> None:
+        """Inspect canonical pericopes and redemptive summaries: /pericopes [passage|book|keyword]"""
+        if self.db is None:
+            self._init_db()
+
+        from core.pericopes import PericopeService
+        from core.terminal import format_pericope_table
+        from core.reference import get_book
+        svc = PericopeService(self.db)
+        arg = arg.strip()
+
+        if not arg:
+            pericopes = self.db.get_pericopes_for_book(None)
+            self.stdout.write(f"\nAll Canonical Pericopes ({len(pericopes)} entries):\n\n")
+            self.stdout.write(format_pericope_table(pericopes, styling=self.use_color) + "\n\n")
+            return
+
+        ref = parse_reference(arg)
+        if ref:
+            pericopes = svc.get_pericopes_for_passage(ref)
+            desc = f"for '{ref.format()}'"
+        else:
+            book_match = get_book(arg)
+            if book_match:
+                pericopes = svc.get_pericopes_for_book(book_match.name)
+                desc = f"in {book_match.name}"
+            else:
+                all_p = self.db.get_pericopes_for_book(None)
+                q_lower = arg.lower()
+                pericopes = [p for p in all_p if q_lower in p.title.lower() or (p.redemptive_summary and q_lower in p.redemptive_summary.lower())]
+                desc = f"matching '{arg}'"
+
+        self.stdout.write(f"\nCanonical Pericopes {desc} ({len(pericopes)} entries):\n\n")
+        self.stdout.write(format_pericope_table(pericopes, styling=self.use_color) + "\n\n")
+
+    def do_pericope(self, arg: str) -> None:
+        """Alias for /pericopes."""
+        self.do_pericopes(arg)
+
+    def do_chapters(self, arg: str) -> None:
+        """Display chapter-by-chapter topic density drill-down: /chapters <book> [tag_name]"""
+        if self.db is None:
+            self._init_db()
+
+        tokens = arg.strip().split()
+        if not tokens:
+            self.stdout.write("Usage: /chapters <book> [tag_name]\nExample: /chapters Genesis Covenant\n")
+            return
+
+        from core.tags import TaggingService
+        from core.terminal import format_chapter_density_grid
+        from core.reference import get_book
+        svc = TaggingService(self.db)
+
+        book_match = get_book(tokens[0])
+        if not book_match:
+            self.stdout.write(f"Unknown book '{tokens[0]}'.\n")
+            return
+
+        tag_name = tokens[1] if len(tokens) > 1 else None
+        chapters = svc.get_topic_density_per_chapter(book_match.name, tag_name=tag_name)
+        self.stdout.write("\n" + format_chapter_density_grid(
+            book_name=book_match.name,
+            chapters=chapters,
+            styling=self.use_color,
+            tag_name=tag_name,
+        ) + "\n\n")
+
+    def do_chapter(self, arg: str) -> None:
+        """Alias for /chapters."""
+        self.do_chapters(arg)
 
     # --------------------------------------------------------------------------
     # Cross-Reference Commands

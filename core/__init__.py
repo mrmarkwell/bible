@@ -18,6 +18,7 @@ from core.db import (
     DEFAULT_DB_PATH,
     CrossReferenceRecord,
     Database,
+    PericopeRecord,
     SearchResult,
     SpanRecord,
     TagRecord,
@@ -25,6 +26,10 @@ from core.db import (
     VerseRecord,
     VerseTagRecord,
     sanitize_fts_query,
+)
+from core.pericopes import (
+    CANONICAL_PERICOPES,
+    PericopeService,
 )
 from core.reference import (
     ALL_BOOKS,
@@ -54,6 +59,7 @@ from core.crossref import (
 from core.tags import (
     BookTopicDensity,
     CANONICAL_TAXONOMY,
+    ChapterTopicDensity,
     TagCategory,
     TagCoOccurrence,
     TagCoOccurrenceMatrix,
@@ -114,8 +120,12 @@ __all__ = [
     "TagRecord",
     "VerseTagRecord",
     "CrossReferenceRecord",
+    "PericopeRecord",
     "SearchResult",
     "sanitize_fts_query",
+    # Pericopes & Headings
+    "CANONICAL_PERICOPES",
+    "PericopeService",
     # Semantic Tagging
     "TagCategory",
     "TagSummary",
@@ -123,6 +133,7 @@ __all__ = [
     "TaggingService",
     "CANONICAL_TAXONOMY",
     "BookTopicDensity",
+    "ChapterTopicDensity",
     "TagCoOccurrence",
     "TagCoOccurrenceMatrix",
     "VerseRelevance",

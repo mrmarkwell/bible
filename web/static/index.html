@@ -228,10 +228,29 @@
             <span class="legend-item"><span class="legend-swatch swatch-3"></span> 60-85%</span>
             <span class="legend-item"><span class="legend-swatch swatch-4"></span> &gt;85%</span>
           </div>
-          <div class="canon-group-header">Old Testament (39 Books)</div>
-          <div class="canon-book-grid" id="ot-book-grid"></div>
-          <div class="canon-group-header" style="margin-top: 16px;">New Testament (27 Books)</div>
-          <div class="canon-book-grid" id="nt-book-grid"></div>
+
+          <!-- Canon 66-Book Overview Grid -->
+          <div class="canon-overview-container" id="canon-overview-container">
+            <div class="canon-group-header">Old Testament (39 Books)</div>
+            <div class="canon-book-grid" id="ot-book-grid"></div>
+            <div class="canon-group-header" style="margin-top: 16px;">New Testament (27 Books)</div>
+            <div class="canon-book-grid" id="nt-book-grid"></div>
+          </div>
+
+          <!-- Book Chapter Drill-Down Matrix -->
+          <div class="chapter-drilldown-box hidden" id="chapter-drilldown-box">
+            <div class="drilldown-header">
+              <button class="btn btn-sm btn-ghost" id="btn-back-to-canon" title="Return to 66 Books Overview">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                <span>All 66 Books</span>
+              </button>
+              <div class="drilldown-title" id="drilldown-book-title">Romans</div>
+            </div>
+            <p class="drilldown-subtitle" id="drilldown-book-subtitle">16 Chapters · Thematic Heatmap</p>
+            <div class="drilldown-chapter-grid" id="drilldown-chapter-grid"></div>
+          </div>
         </div>
 
         <!-- Tab 6: REST API Documentation -->
@@ -246,8 +265,10 @@
               <li><a href="/api/verses?book=GEN&amp;chapter=1" target="_blank"><code>GET /api/verses</code></a> <span>Direct chapter verses</span></li>
               <li><a href="/api/search?q=grace" target="_blank"><code>GET /api/search</code></a> <span>SQLite FTS5 full-text search</span></li>
               <li><a href="/api/translations" target="_blank"><code>GET /api/translations</code></a> <span>Installed translations</span></li>
+              <li><a href="/api/pericopes?book=Rom" target="_blank"><code>GET /api/pericopes</code></a> <span>Canonical pericope section headings</span></li>
               <li><a href="/api/tags" target="_blank"><code>GET /api/tags</code></a> <span>Semantic taxonomies</span></li>
               <li><a href="/api/tags/density" target="_blank"><code>GET /api/tags/density</code></a> <span>Topic density per book</span></li>
+              <li><a href="/api/tags/chapters?book=Rom" target="_blank"><code>GET /api/tags/chapters</code></a> <span>Topic density per chapter</span></li>
               <li><a href="/api/tags/co-occurrence" target="_blank"><code>GET /api/tags/co-occurrence</code></a> <span>Jaccard &amp; Dice matrix</span></li>
               <li><a href="/api/tags/relevance?tags=favorites" target="_blank"><code>GET /api/tags/relevance</code></a> <span>Multi-tag relevance ranking</span></li>
               <li><a href="/api/crossref?ref=Genesis+1:1" target="_blank"><code>GET /api/crossref</code></a> <span>Passage cross-references</span></li>
@@ -307,6 +328,19 @@
 
         <!-- Tag badges container for active passage -->
         <div class="passage-tags" id="passage-tags-container"></div>
+
+        <!-- Pericope Navigator bar for current passage/chapter -->
+        <div class="pericope-nav-bar hidden" id="pericope-nav-bar">
+          <div class="pericope-nav-title">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="15" y2="12"/>
+              <line x1="3" y1="18" x2="18" y2="18"/>
+            </svg>
+            <span>Sections &amp; Pericopes</span>
+          </div>
+          <div class="pericope-chips" id="pericope-chips"></div>
+        </div>
 
         <!-- Scripture verses reader container -->
         <div class="scripture-viewport">

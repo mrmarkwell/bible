@@ -55,15 +55,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnXref = document.getElementById("btn-xref");
   const xrefStatsContent = document.getElementById("xref-stats-content");
 
-  // DOM Elements - Ribbon Tab
+  // DOM Elements - Ribbon Tab & Drill-Down
   const selectRibbonTag = document.getElementById("select-ribbon-tag");
   const otBookGrid = document.getElementById("ot-book-grid");
   const ntBookGrid = document.getElementById("nt-book-grid");
+  const canonOverviewContainer = document.getElementById("canon-overview-container");
+  const chapterDrilldownBox = document.getElementById("chapter-drilldown-box");
+  const btnBackToCanon = document.getElementById("btn-back-to-canon");
+  const drilldownBookTitle = document.getElementById("drilldown-book-title");
+  const drilldownBookSubtitle = document.getElementById("drilldown-book-subtitle");
+  const drilldownChapterGrid = document.getElementById("drilldown-chapter-grid");
 
   // DOM Elements - Reader Stage
   const displayCitation = document.getElementById("display-citation");
   const displayMeta = document.getElementById("display-meta");
   const passageTags = document.getElementById("passage-tags-container");
+  const pericopeNavBar = document.getElementById("pericope-nav-bar");
+  const pericopeChips = document.getElementById("pericope-chips");
   const scriptureContainer = document.getElementById("scripture-container");
   const btnPrevChapter = document.getElementById("btn-prev-chapter");
   const btnNextChapter = document.getElementById("btn-next-chapter");
@@ -330,7 +338,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   selectRibbonTag.addEventListener("change", () => {
     loadRibbonDensity(selectRibbonTag.value);
+    if (activeDrilldownBook) {
+      showChapterDrilldown(activeDrilldownBook);
+    }
   });
+
+  let activeDrilldownBook = null;
 
   function renderCanonicalRibbon() {
     if (!allBooks || allBooks.length === 0) return;
@@ -364,13 +377,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const starIndicator = starred > 0 ? " ★" : "";
       btn.innerHTML = `<span>${escapeHtml(book.osis)}</span><span class="book-heat-badge">${count > 0 ? count + starIndicator : ''}</span>`;
-      btn.title = `${book.name} (${book.total_chapters} ch)\n${count} tagged passage${count === 1 ? '' : 's'}${starred > 0 ? ` (${starred} starred)` : ''}`;
+      btn.title = `${book.name} (${book.total_chapters} ch)\n${count} tagged passage${count === 1 ? '' : 's'}${starred > 0 ? ` (${starred} starred)` : ''}\nClick to view chapter heatmap & drill down`;
 
       btn.addEventListener("click", () => {
-        selectBook.value = book.osis;
-        updateChapterDropdown();
-        loadChapterVerses();
-        closeMobileSidebar();
+        showChapterDrilldown(book);
       });
       if (book.testament === "OT") {
         otBookGrid.appendChild(btn);
@@ -379,6 +389,94 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  async function showChapterDrilldown(book) {
+    if (!book) return;
+    activeDrilldownBook = book;
+    canonOverviewContainer.classList.add("hidden");
+    chapterDrilldownBox.classList.remove("hidden");
+
+    drilldownBookTitle.textContent = book.name;
+    const currentTag = selectRibbonTag.value;
+    drilldownBookSubtitle.textContent = `${book.total_chapters} Chapters · ${currentTag ? `#${currentTag}` : 'Composite Topic Density'}`;
+    drilldownChapterGrid.innerHTML = '<div class="loading-spinner">Loading chapter density...</div>';
+
+    selectBook.value = book.osis;
+    updateChapterDropdown();
+
+    try {
+      let url = `/api/tags/chapters?book=${encodeURIComponent(book.osis)}`;
+      if (currentTag) url += `&tag=${encodeURIComponent(currentTag)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const chapters = data.chapters || [];
+
+      let maxChPassages = 1;
+      chapters.forEach((ch) => {
+        if (ch.passage_count > maxChPassages) maxChPassages = ch.passage_count;
+      });
+
+      drilldownChapterGrid.innerHTML = "";
+      for (let c = 1; c <= book.total_chapters; c++) {
+        const chData = chapters.find((ch) => ch.chapter === c);
+        const count = chData ? chData.passage_count : 0;
+        const starred = chData ? chData.starred_count : 0;
+        const pct = maxChPassages > 0 ? (count / maxChPassages) : 0;
+
+        let heat = 0;
+        if (count > 0) {
+          if (pct >= 0.85) heat = 4;
+          else if (pct >= 0.60) heat = 3;
+          else if (pct >= 0.25) heat = 2;
+          else heat = 1;
+        }
+
+        const chBtn = document.createElement("button");
+        chBtn.className = "drilldown-chapter-btn";
+        chBtn.dataset.heat = heat;
+        chBtn.dataset.chapter = c;
+        if (selectChapter.value == c && selectBook.value === book.osis) {
+          chBtn.classList.add("active");
+        }
+
+        const starStr = starred > 0 ? "★" : "";
+        chBtn.innerHTML = `<span>${c}</span><span class="chapter-heat-badge">${count > 0 ? count + starStr : ''}</span>`;
+        chBtn.title = `${book.name} Chapter ${c}\n${count} tagged passage${count === 1 ? '' : 's'}${starred > 0 ? ` (${starred} starred)` : ''}`;
+
+        chBtn.addEventListener("click", () => {
+          document.querySelectorAll(".drilldown-chapter-btn").forEach((b) => b.classList.remove("active"));
+          chBtn.classList.add("active");
+          selectChapter.value = c;
+          inputRef.value = `${book.osis} ${c}`;
+          fetchPassage(`${book.osis} ${c}`, selectVersion.value);
+          closeMobileSidebar();
+        });
+
+        drilldownChapterGrid.appendChild(chBtn);
+      }
+    } catch (err) {
+      console.error("Failed to load chapter density:", err);
+      drilldownChapterGrid.innerHTML = "";
+      for (let c = 1; c <= book.total_chapters; c++) {
+        const chBtn = document.createElement("button");
+        chBtn.className = "drilldown-chapter-btn";
+        chBtn.textContent = c;
+        chBtn.addEventListener("click", () => {
+          selectChapter.value = c;
+          inputRef.value = `${book.osis} ${c}`;
+          fetchPassage(`${book.osis} ${c}`, selectVersion.value);
+          closeMobileSidebar();
+        });
+        drilldownChapterGrid.appendChild(chBtn);
+      }
+    }
+  }
+
+  btnBackToCanon.addEventListener("click", () => {
+    activeDrilldownBook = null;
+    chapterDrilldownBox.classList.add("hidden");
+    canonOverviewContainer.classList.remove("hidden");
+  });
 
   function updateChapterDropdown() {
     const selectedOpt = selectBook.options[selectBook.selectedIndex];
@@ -419,6 +517,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchPassage(ref, version = "WEB") {
     scriptureContainer.innerHTML = '<div class="loading-state">Loading passage...</div>';
     passageTags.innerHTML = "";
+    pericopeNavBar.classList.add("hidden");
+    pericopeChips.innerHTML = "";
     crossrefSection.classList.add("hidden");
 
     try {
@@ -452,7 +552,28 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
 
-      // Render Verses
+      // Render Pericope Navigation Bar Chips
+      if (data.pericopes && data.pericopes.length > 0) {
+        pericopeNavBar.classList.remove("hidden");
+        pericopeChips.innerHTML = "";
+        data.pericopes.forEach((p) => {
+          const chip = document.createElement("div");
+          chip.className = "pericope-nav-chip";
+          chip.innerHTML = `<span>${escapeHtml(p.title)}</span><span class="chip-ref">${escapeHtml(p.human_ref)}</span>`;
+          chip.title = `${p.title}\n${p.human_ref}\n${p.redemptive_summary || ""}`;
+          chip.addEventListener("click", () => {
+            const bannerEl = document.getElementById(`pericope-${p.id}`);
+            if (bannerEl) {
+              bannerEl.scrollIntoView({ behavior: "smooth", block: "center" });
+              bannerEl.classList.add("highlighted");
+              setTimeout(() => bannerEl.classList.remove("highlighted"), 2200);
+            }
+          });
+          pericopeChips.appendChild(chip);
+        });
+      }
+
+      // Render Verses with Pericope Section Banners
       if (!data.verses || data.verses.length === 0) {
         scriptureContainer.innerHTML = '<div class="loading-state">No scripture text available for this passage.</div>';
         return;
@@ -460,15 +581,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
       scriptureContainer.innerHTML = "";
       data.verses.forEach((v, index) => {
+        // Check for starting pericopes at this verse boundary
+        const startingPericopes = (data.pericopes || []).filter((p) => {
+          if (p.start_canonical_id === v.canonical_verse_id) return true;
+          return index === 0 && v.canonical_verse_id >= p.start_canonical_id && v.canonical_verse_id <= p.end_canonical_id;
+        });
+
+        startingPericopes.forEach((p) => {
+          const banner = document.createElement("div");
+          banner.className = "pericope-banner";
+          banner.id = `pericope-${p.id}`;
+          banner.innerHTML = `
+            <div class="pericope-banner-header">
+              <span class="pericope-title">✦ ${escapeHtml(p.title)}</span>
+              <span class="pericope-ref">${escapeHtml(p.human_ref)}</span>
+            </div>
+            ${p.redemptive_summary ? `<div class="pericope-summary">${escapeHtml(p.redemptive_summary)}</div>` : ""}
+          `;
+          scriptureContainer.appendChild(banner);
+        });
+
         const row = document.createElement("div");
         row.className = "verse-row";
         row.dataset.verseNum = v.verse;
         row.id = `v${v.verse}`;
 
+        const tagPills = (v.tags && v.tags.length > 0)
+          ? v.tags.map((t) => `<span class="verse-tag-pill" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join("")
+          : "";
+
         row.innerHTML = `
           <span class="verse-num">${v.verse}</span>
-          <span class="verse-text">${escapeHtml(v.text)}</span>
+          <span class="verse-text">${escapeHtml(v.text)}${tagPills}</span>
         `;
+
+        row.querySelectorAll(".verse-tag-pill").forEach((pill) => {
+          pill.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const tName = pill.getAttribute("data-tag");
+            if (tName) fetchPassagesForTag(tName);
+          });
+        });
+
         scriptureContainer.appendChild(row);
       });
 
