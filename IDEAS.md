@@ -549,6 +549,19 @@ Add the following tables and indices to `core/db.py`:
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.17; ADR-048).
 - **Status**: [DONE] (Rank A+; Implemented in Run 045 / Senior PM Cleanup Sprint).
 
+---
+
+### [VETTED] Hybrid FTS5 & Dense Vector Reciprocal Rank Fusion (RRF) Search Engine
+- **Summary**: Build a hybrid search orchestrator (`core/hybrid_search.py`) that merges keyword results from SQLite FTS5 (BM25 ranking) with semantic vector results from `core/vector.py` (cosine similarity) using Reciprocal Rank Fusion ($RRF = \sum \frac{1}{60 + \text{rank}_i}$). Supports `--hybrid` flag on `./bible search` and `/search` in the REPL shell, with configurable alpha balancing between lexical and semantic weights.
+- **Rationale**: Lexical search alone misses conceptual synonyms and thematic parallels without keyword overlap, while pure vector search can occasionally miss exact phrase matches or rare biblical names. Hybrid RRF combines the precision of BM25 with the conceptual depth of 768-dimensional dense vectors, delivering the ultimate scripture discovery experience.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (operates 100% locally over SQLite FTS5 and pre-computed packed int8 vectors).
+  - Zero third-party dependencies? Yes (pure Python standard library math and sorting).
+  - High performance? Yes (merging two top-100 lists takes <0.2ms).
+- **Proposed Roadmap Phase**: Phase 7 / Phase 8 (Task 7.7 / Task 8.1).
+- **Status**: [VETTED] (Rank A+; Promoted in Run 048).
+
+
 
 
 
