@@ -387,4 +387,16 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.12 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: [DONE] (Implemented in `tools/test_runner.py`, `core/db.py`, `tools/doctor.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_test_runner.py`, verified with 436 tests passing in <2s, and recorded in ADR-036).
 
-
+### [VETTED] Smart Batch Slide Exporter and Album Compilation Generator (`bible slide-batch`) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a high-performance batch slide generation engine (`./bible slide-batch` / `SlideRenderEngine.render_batch()`) capable of exporting entire reading lists, favorite collections, thematic tags, pericopes, or custom biblical canons into structured slide albums ready for Google Photos / Apple Photos TV screensaver syncing. Features:
+  1. **Album Organization & Naming Patterns**: Configurable folder structures and zero-padded filenames (e.g., `exports/slides/romans/{page_index:03d}_{citation_slug}.svg` or `.png`).
+  2. **Index / Manifest Generation**: Automatic creation of an `index.html` visual gallery, `manifest.json`, and text-based slide index for quick previewing and verification.
+  3. **Parallel Multiprocessing Rendering**: Leverage Python `concurrent.futures.ProcessPoolExecutor` to render hundreds of 4K slides concurrently in seconds without external dependencies.
+  4. **Dynamic Metadata Embedding**: Inject Dublin Core / SVG metadata into rendered slides with canonical citations, translation version, theme, and generation timestamps.
+- **Rationale**: While single-passage and multi-slide pagination are now fully operational, users displaying scripture on home televisions need collections of dozens or hundreds of curated slides (e.g. all Psalms of Ascent, Romans 8, or Top 50 Favorite Verses) exported cleanly in one command.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% local rendering).
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+- **Proposed Roadmap Phase**: Phase 5 (Task 5.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: Scheduled (Task 5.5 in Phase 5).
