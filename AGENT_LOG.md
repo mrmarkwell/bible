@@ -689,4 +689,54 @@ This is an append-only log of work performed by autonomous agents during their e
   - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
   - Next priority on the roadmap is **Task 3.1**: Schema design for semantic tags and cross-reference associations (`core/db.py`).
 
+---
+
+## [Run 022] — 2026-09-07
+- **Agent**: Autonomous Developer (Ralph Loop)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
+- **Task**: Multi-Resolution Semantic Tagging Engine, Canonical Taxonomies, Hydrated Passage API & CLI/REPL Integration (Task 3.1 / ADR-023)
+- **Actions Taken**:
+  - **Domain Tagging Engine (`core/tags.py`)**:
+    - Created `TaggingService` managing tag definitions, taxonomies, and multi-resolution passage annotations.
+    - Defined `TagCategory` with canonical taxonomy categories (`thematic`, `theological`, `historical`, `liturgical`, `curation`, `prophecy`, `typology`).
+    - Codified `CANONICAL_TAXONOMY` with 25 seed tags aligned with The Gospel Coalition (TGC) foundation documents across redemptive-historical motifs (Creation, Fall, Covenant, Temple, Kingship, Exile, Restoration) and systematic theology (Trinity, Christology, Pneumatology, Justification, Sanctification, Sovereign Grace).
+    - Introduced `TagSummary` (aggregated metrics) and `TaggedPassage` (hydrated scripture text and structured serialization).
+  - **Database Layer Enhancements (`core/db.py`)**:
+    - Enhanced `Database.tag_reference`: automatically links and registers multi-verse passages into `spans` table (`span_id`).
+    - Enforced idempotency: re-tagging an existing citation updates attributes (`confidence`, `source`, `starred`, `notes`, `span_id`) without duplicate rows.
+    - Added `exact_only` parameter to `Database.get_tags_for_reference`: enables both hierarchical range queries (single verse matching parent span/chapter) and strict exact boundary matching.
+    - Implemented `untag_reference` (targeted association deletion), `delete_tag` (cascading tag deletion), and `get_tag_stats` (aggregate metrics).
+  - **Terminal Typography & Formatting (`core/terminal.py`)**:
+    - Implemented `format_tags_badge`: inline badge pills `🏷  [Holy Spirit] [Sanctification]`.
+    - Implemented `format_tag_table`: column-aligned ASCII/ANSI tables for tag listings.
+    - Implemented `format_tagged_passages`: styled scripture blocks with verse numbers, paragraph flow, and notes.
+  - **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Added `./bible tag` (aliases: `./bible tags`) with 8 subcommands: `add`, `list`, `show`, `for`, `remove`, `delete`, `stats`, `seed`.
+    - Enhanced `./bible get`: added `--tags` flag to display active tags beneath scripture passage lookups.
+    - Enhanced `BibleShell` REPL: added `/tag` (and `/tags`) slash commands supporting all tag actions with tab auto-completion (`complete_tag`).
+  - **Core Exports (`core/__init__.py`)**:
+    - Exported `TagCategory`, `TagSummary`, `TaggedPassage`, `TaggingService`, `CANONICAL_TAXONOMY`, and formatting helpers.
+  - **Hermetic Unit Tests (`tests/test_tags.py`)**:
+    - Added 26 hermetic tests covering definition lifecycle, validation, multi-resolution span linking, idempotency, untagging, overlapping vs exact queries, hydrated verse rendering, terminal styling, CLI subcommands, and REPL interactions.
+    - Test suite expanded from 230 to 256 tests passing 100% in ~3.1s.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-023: Multi-Resolution Semantic Tagging Engine, Canonical Taxonomies & Hydrated Passage API** in `DECISIONS.md`.
+    - Updated `ROADMAP.md` marking Task 3.1 as completed (`[x]`).
+    - Updated `IDEAS.md`.
+- **Verification**:
+  - Ran `python3 tools/doctor.py --fast`: all 4 fast checks passed in 0.12s.
+  - Ran `python3 -m unittest discover tests`: all 256 tests passed 100% in 3.10s.
+  - Ran `./bible doctor`: all 6 diagnostic checks passed cleanly (`EXCELLENT`) in 2.22s.
+  - Verified `./bible tag list`: clean table of tags displayed.
+  - Verified `./bible tag show "Holy Spirit"`: formatted passages with hydrated verse text.
+  - Verified `./bible get "John 3:16" --tags`: displayed `Tags: [favorites]`.
+  - Verified `./bible tag for "Romans 8:1"`: displayed overlapping tags.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 3.1 is 100% complete, tested, and verified.
+  - Next cycle is **Run 023** (standard roadmap cycle).
+  - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
+  - Next priority on the roadmap is **Task 3.2**: Implement verse-to-verse cross-referencing and relationship edges (thematic, prophecy-fulfillment, quotation).
+
+
 

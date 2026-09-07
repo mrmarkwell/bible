@@ -1229,6 +1229,7 @@ class Database:
         source: str = "human",
         starred: bool = False,
         notes: Optional[str] = None,
+        span_id: Optional[int] = None,
     ) -> VerseTagRecord:
         """Attach a semantic tag to an individual verse, span, or chapter."""
         ref = parse_reference(reference) if isinstance(reference, str) else reference
@@ -1240,27 +1241,66 @@ class Database:
         human = ref.format()
         now = _utc_now_iso()
 
-        with self.conn:
-            cur = self.conn.execute(
-                """
-                INSERT INTO verse_tags (
-                    tag_id, start_canonical_id, end_canonical_id, human_ref,
-                    confidence, source, starred, notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    tag.id,
-                    start_id,
-                    end_id,
-                    human,
-                    confidence,
-                    source,
-                    1 if starred else 0,
-                    notes,
-                    now,
-                ),
+        # Link to spans table if this reference represents a multi-verse span and span_id was not provided
+        resolved_span_id = span_id
+        if resolved_span_id is None and (ref.is_verse_range or ref.is_chapter_range or not ref.is_single_verse):
+            cur = self.conn.cursor()
+            cur.execute(
+                "SELECT id FROM spans WHERE start_canonical_id = ? AND end_canonical_id = ? LIMIT 1",
+                (start_id, end_id),
             )
-            vt_id = cur.lastrowid
+            span_row = cur.fetchone()
+            cur.close()
+            if span_row:
+                resolved_span_id = span_row["id"]
+            else:
+                span = self.add_span(ref)
+                resolved_span_id = span.id
+
+        with self.conn:
+            # Check for existing association to ensure idempotency
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT id FROM verse_tags
+                WHERE tag_id = ? AND start_canonical_id = ? AND end_canonical_id = ?
+                LIMIT 1
+                """,
+                (tag.id, start_id, end_id),
+            )
+            existing = cur.fetchone()
+            if existing:
+                vt_id = existing["id"]
+                self.conn.execute(
+                    """
+                    UPDATE verse_tags
+                    SET human_ref = ?, confidence = ?, source = ?, starred = ?, notes = ?, span_id = ?
+                    WHERE id = ?
+                    """,
+                    (human, confidence, source, 1 if starred else 0, notes, resolved_span_id, vt_id),
+                )
+            else:
+                cur = self.conn.execute(
+                    """
+                    INSERT INTO verse_tags (
+                        tag_id, span_id, start_canonical_id, end_canonical_id, human_ref,
+                        confidence, source, starred, notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        tag.id,
+                        resolved_span_id,
+                        start_id,
+                        end_id,
+                        human,
+                        confidence,
+                        source,
+                        1 if starred else 0,
+                        notes,
+                        now,
+                    ),
+                )
+                vt_id = cur.lastrowid
 
         return VerseTagRecord(
             id=vt_id,
@@ -1273,29 +1313,43 @@ class Database:
             source=source,
             starred=starred,
             notes=notes,
+            span_id=resolved_span_id,
             created_at=now,
         )
 
     def get_tags_for_reference(
         self,
         reference: Union[Reference, str],
+        exact_only: bool = False,
     ) -> List[VerseTagRecord]:
-        """Fetch all tags whose range overlaps with the given reference."""
+        """Fetch all tags whose range overlaps (or matches exactly) with the given reference."""
         ref = parse_reference(reference) if isinstance(reference, str) else reference
         start_id = ref.canonical_start_id
         end_id = ref.canonical_end_id
 
         cur = self.conn.cursor()
-        cur.execute(
-            """
-            SELECT vt.*, t.name as tag_name
-            FROM verse_tags vt
-            JOIN tags t ON t.id = vt.tag_id
-            WHERE vt.start_canonical_id <= ? AND vt.end_canonical_id >= ?
-            ORDER BY vt.starred DESC, vt.confidence DESC, vt.id ASC
-            """,
-            (end_id, start_id),
-        )
+        if exact_only:
+            cur.execute(
+                """
+                SELECT vt.*, t.name as tag_name
+                FROM verse_tags vt
+                JOIN tags t ON t.id = vt.tag_id
+                WHERE vt.start_canonical_id = ? AND vt.end_canonical_id = ?
+                ORDER BY vt.starred DESC, vt.confidence DESC, vt.id ASC
+                """,
+                (start_id, end_id),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT vt.*, t.name as tag_name
+                FROM verse_tags vt
+                JOIN tags t ON t.id = vt.tag_id
+                WHERE vt.start_canonical_id <= ? AND vt.end_canonical_id >= ?
+                ORDER BY vt.starred DESC, vt.confidence DESC, vt.id ASC
+                """,
+                (end_id, start_id),
+            )
         rows = cur.fetchall()
         cur.close()
         return [
@@ -1366,6 +1420,89 @@ class Database:
                 span_id=r["span_id"],
                 created_at=r["created_at"],
             )
+            for r in rows
+        ]
+
+    def untag_reference(
+        self,
+        reference: Union[Reference, str],
+        tag_name: str,
+    ) -> int:
+        """Remove tag association(s) for a specific reference and tag name.
+
+        Returns the number of deleted rows.
+        """
+        tag = self.get_tag(tag_name)
+        if not tag or tag.id is None:
+            return 0
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                DELETE FROM verse_tags
+                WHERE tag_id = ? AND start_canonical_id = ? AND end_canonical_id = ?
+                """,
+                (tag.id, start_id, end_id),
+            )
+            return cur.rowcount
+
+    def delete_tag(self, name: str) -> bool:
+        """Delete a tag definition and all its associations from the database.
+
+        Returns True if the tag was found and deleted, False otherwise.
+        """
+        tag = self.get_tag(name)
+        if not tag or tag.id is None:
+            return False
+        with self.conn:
+            self.conn.execute("DELETE FROM tags WHERE id = ?", (tag.id,))
+            return True
+
+    def get_tag_stats(self, tag_name: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Compute aggregated statistics for tags.
+
+        Returns list of dicts with id, name, category, description, passage_count,
+        starred_count, distinct_books, min_canonical_id, max_canonical_id.
+        """
+        cur = self.conn.cursor()
+        query = """
+            SELECT
+                t.id,
+                t.name,
+                t.category,
+                t.description,
+                t.created_at,
+                COUNT(vt.id) AS passage_count,
+                SUM(CASE WHEN vt.starred = 1 THEN 1 ELSE 0 END) AS starred_count,
+                COUNT(DISTINCT (vt.start_canonical_id / 1000000)) AS distinct_books,
+                MIN(vt.start_canonical_id) AS min_canonical_id,
+                MAX(vt.end_canonical_id) AS max_canonical_id
+            FROM tags t
+            LEFT JOIN verse_tags vt ON vt.tag_id = t.id
+        """
+        params: List[Any] = []
+        if tag_name:
+            query += " WHERE t.name = ? COLLATE NOCASE"
+            params.append(tag_name.strip())
+        query += " GROUP BY t.id ORDER BY passage_count DESC, t.name ASC"
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "category": r["category"],
+                "description": r["description"],
+                "created_at": r["created_at"],
+                "passage_count": r["passage_count"],
+                "starred_count": r["starred_count"] or 0,
+                "distinct_books": r["distinct_books"] or 0,
+                "min_canonical_id": r["min_canonical_id"],
+                "max_canonical_id": r["max_canonical_id"],
+            }
             for r in rows
         ]
 

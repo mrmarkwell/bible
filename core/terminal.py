@@ -15,7 +15,7 @@ import os
 import re
 import shutil
 import sys
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.db import VerseRecord
 
@@ -440,3 +440,166 @@ def wrap_prefixed_text(
         lines.append(" ".join(curr_line))
 
     return lines
+
+
+# ==============================================================================
+# Semantic Tagging Formatting Utilities
+# ==============================================================================
+
+
+def format_tags_badge(
+    tags: Sequence[Union[str, Any]],
+    styling: bool = True,
+) -> str:
+    """Format a sequence of tags as subtle inline badges/pills."""
+    if not tags:
+        return ""
+    tag_names: List[str] = []
+    for t in tags:
+        if isinstance(t, str):
+            tag_names.append(t)
+        elif hasattr(t, "tag_name"):
+            tag_names.append(t.tag_name)
+        elif hasattr(t, "name"):
+            tag_names.append(t.name)
+        else:
+            tag_names.append(str(t))
+
+    if not tag_names:
+        return ""
+
+    if styling:
+        pills = [f"{DIM}[{RESET}{BOLD_CYAN}{name}{RESET}{DIM}]{RESET}" for name in tag_names]
+        return f"{DIM}🏷  {RESET}" + " ".join(pills)
+    else:
+        pills = [f"[{name}]" for name in tag_names]
+        return "Tags: " + " ".join(pills)
+
+
+def format_tag_table(
+    tags: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+) -> str:
+    """Format a list of TagSummary items as an aligned table."""
+    if not tags:
+        return "No tags found."
+
+    headers = ("Tag Name", "Category", "Passages", "Starred", "Books", "Description")
+    rows: List[Tuple[str, str, str, str, str, str]] = []
+    for t in tags:
+        name = getattr(t, "name", "")
+        cat = getattr(t, "category", "")
+        passages = str(getattr(t, "passage_count", 0))
+        starred = str(getattr(t, "starred_count", 0))
+        books = str(getattr(t, "distinct_books", 0))
+        desc = getattr(t, "description", "") or ""
+        rows.append((name, cat, passages, starred, books, desc))
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(5):  # Name, Cat, Passages, Starred, Books
+            col_widths[i] = max(col_widths[i], len(r[i]))
+
+    # Cap description column to remaining terminal width
+    term_width = max_width or get_terminal_width()
+    prefix_width = sum(col_widths[:5]) + 10  # 2 spaces between columns
+    desc_width = max(20, term_width - prefix_width)
+    col_widths[5] = desc_width
+
+    lines: List[str] = []
+    header_str = (
+        f"{headers[0]:<{col_widths[0]}}  "
+        f"{headers[1]:<{col_widths[1]}}  "
+        f"{headers[2]:>{col_widths[2]}}  "
+        f"{headers[3]:>{col_widths[3]}}  "
+        f"{headers[4]:>{col_widths[4]}}  "
+        f"{headers[5]}"
+    )
+    divider = "-" * min(term_width, prefix_width + desc_width)
+
+    if styling:
+        lines.append(f"{BOLD_GOLD}{header_str}{RESET}")
+        lines.append(f"{DIM}{divider}{RESET}")
+        for r in rows:
+            desc = r[5]
+            if len(desc) > desc_width:
+                desc = desc[:desc_width - 3] + "..."
+            line = (
+                f"{BOLD_WHITE}{r[0]:<{col_widths[0]}}{RESET}  "
+                f"{CYAN}{r[1]:<{col_widths[1]}}{RESET}  "
+                f"{YELLOW}{r[2]:>{col_widths[2]}}{RESET}  "
+                f"{DIM}{r[3]:>{col_widths[3]}}{RESET}  "
+                f"{DIM}{r[4]:>{col_widths[4]}}{RESET}  "
+                f"{desc}"
+            )
+            lines.append(line)
+    else:
+        lines.append(header_str)
+        lines.append(divider)
+        for r in rows:
+            desc = r[5]
+            if len(desc) > desc_width:
+                desc = desc[:desc_width - 3] + "..."
+            line = (
+                f"{r[0]:<{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:>{col_widths[2]}}  "
+                f"{r[3]:>{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}  "
+                f"{desc}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_tagged_passages(
+    tagged_passages: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+) -> str:
+    """Format a sequence of TaggedPassage records with verse text and citations."""
+    if not tagged_passages:
+        return "No passages found for this tag."
+
+    term_width = max_width or get_terminal_width()
+    blocks: List[str] = []
+
+    for idx, tp in enumerate(tagged_passages, 1):
+        star = " ★" if getattr(tp, "starred", False) else ""
+        header_title = f"{tp.human_ref}{star}"
+        notes = getattr(tp, "notes", None)
+
+        lines: List[str] = []
+        rule_len = max(10, min(term_width, len(header_title) + 20))
+        rule = "─" * rule_len
+        if styling:
+            lines.append(f"{BOLD_GOLD}── {header_title} {rule}{RESET}"[:term_width])
+        else:
+            lines.append(f"── {header_title} {rule}"[:term_width])
+
+        if tp.verses:
+            passage_lines = format_scripture_passage(
+                verses=tp.verses,
+                show_verse_numbers=True,
+                show_header=False,
+                width=term_width,
+                flow=True,
+                margin=2,
+                color=styling,
+            )
+            lines.append(passage_lines)
+        elif getattr(tp, "text", ""):
+            lines.append(f"  {tp.text}")
+
+        if notes:
+            if styling:
+                lines.append(f"  {DIM}Note: {notes}{RESET}")
+            else:
+                lines.append(f"  Note: {notes}")
+
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks)
+

@@ -584,3 +584,44 @@ This document is an append-only log of significant design and architectural deci
   - Phase 0 Task 0.7 is fully satisfied and verified.
   - 100% zero external dependencies (Python 3 stdlib and POSIX bash only).
 
+---
+
+## ADR-023: Multi-Resolution Semantic Tagging Engine, Canonical Taxonomies & Hydrated Passage API
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 3 (Task 3.1), the Bible Engine requires a first-class Semantic Tagging API allowing users and automated agents to annotate individual verses (e.g. `John 3:16`), arbitrary multi-verse passage spans (e.g. `Romans 8:1-11`), whole chapters (e.g. `Psalm 23`), or cross-chapter pericopes (e.g. `Genesis 1:1 - 2:3`). Relational systems frequently struggle with scripture range queries and tag resolution across hierarchical boundaries (e.g., whether a tag placed on Romans 8:1-11 applies when a user queries Romans 8:1 or Romans 8:5). Furthermore, users need to query passages associated with a topic and immediately read the hydrated scripture text, inspect tag metrics, remove or update tags idempotently, and interact via CLI commands (`./bible tag`) and the interactive REPL (`/tag`).
+- **Decision**:
+  1. **Multi-Resolution Tagging Engine & Domain Service (`core/tags.py`)**:
+     - Implemented `TaggingService` encapsulating tag definition, passage annotation, taxonomy management, and querying.
+     - Standardized canonical tag categories (`TagCategory`): `thematic`, `theological`, `historical`, `liturgical`, `curation`, `prophecy`, `typology`.
+     - Codified canonical TGC-aligned taxonomy presets (`CANONICAL_TAXONOMY`): 25 pre-defined theological and redemptive-historical motifs (Creation, Fall, Covenant, Temple, Kingship, Exile, Restoration, Justification, Sanctification, Sovereign Grace, etc.).
+     - Introduced `TagSummary` DTO for aggregated metrics (passage counts, starred counts, distinct books covered) and `TaggedPassage` DTO with hydrated `VerseRecord` sequences, joined passage text, and structured serialization (`to_dict()`).
+  2. **Database Layer Enhancements (`core/db.py`)**:
+     - **Span Auto-Registration & Linking**: When tagging multi-verse passages, `Database.tag_reference` automatically resolves or inserts the passage into the `spans` table, recording `span_id` in `verse_tags`.
+     - **Idempotency**: Re-tagging an existing passage/tag combination updates metadata (`confidence`, `source`, `starred`, `notes`, `span_id`) rather than creating redundant association rows.
+     - **Hierarchical Range Resolution**: `get_tags_for_reference` evaluates canonical ID ranges (`start_canonical_id <= query_end AND end_canonical_id >= query_start`), enabling queries on single verses (e.g. Rom 8:1) to seamlessly discover tags placed on parent spans (Rom 8:1-11) or whole chapters (Rom 8). Added `exact_only` parameter to restrict queries strictly to identical citation boundaries.
+     - **Lifecycle Management**: Added `untag_reference` (scoped deletion of a specific tag association from a reference), `delete_tag` (cascading deletion of a tag and all its associations), and `get_tag_stats` (aggregated statistics across tags).
+  3. **Terminal Typography & Badge Formatting (`core/terminal.py`)**:
+     - Added `format_tags_badge`: renders subtle inline tag badges (e.g. `🏷  [Holy Spirit] [Sanctification]`) with ANSI styling or plain text fallback.
+     - Added `format_tag_table`: renders aligned, terminal-width-aware tables for tag listings.
+     - Added `format_tagged_passages`: renders scripture passages associated with a tag with formatted headers, reader paragraph flow, verse numbers, and notes.
+  4. **CLI & Interactive REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Added `./bible tag` (aliases: `./bible tags`) with 8 subcommands:
+       - `add <ref> <tags...>`: attach tags with optional `--category`, `--notes`, `--starred`, `--confidence`.
+       - `list`: list tags with optional `--category`, `--sort`, and `--json`.
+       - `show <tag>`: display passages associated with a tag with hydrated scripture text, `--version`, `--starred-only`, `--limit`, and `--json`.
+       - `for <ref>`: display tags applying to a verse or span with optional `--exact` and `--json`.
+       - `remove <ref> <tag>`: remove tag association from a specific passage.
+       - `delete <tag>`: delete tag definition entirely.
+       - `stats [tag]`: show aggregated usage metrics.
+       - `seed`: seed canonical TGC theological and redemptive taxonomies.
+     - Enhanced `./bible get`: added `--tags` flag to display active tags beneath passage lookups.
+     - Enhanced `BibleShell`: added `/tag` (and `/tags`) slash command supporting all tag operations, plus rich tab auto-completion (`complete_tag`) for subcommands and existing tag names.
+  5. **Hermetic Test Suite (`tests/test_tags.py`)**:
+     - Built 26 hermetic tests covering definition lifecycle, validation, multi-resolution span linking, idempotency, untagging, overlapping vs exact queries, hydrated verse rendering, terminal styling, CLI subcommands, and REPL interactions.
+- **Consequences**:
+  - Delivers a comprehensive, sovereign semantic tagging system with zero external dependencies (Python 3 stdlib only per ADR-003).
+  - Satisfies all requirements for Phase 3 Task 3.1.
+  - Multi-resolution hierarchical querying bridges individual verses to broader redemptive-historical and systematic themes.
+  - 100% test coverage and full integration across CLI and interactive REPL.
+

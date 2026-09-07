@@ -47,7 +47,7 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ### [VETTED] Semantic Tagging & Topical Heatmaps
 - **Summary**: Tag verses and spans with topics (e.g. money, wisdom, Holy Spirit) and render visual heatmaps across all 66 books.
-- **Status**: Scheduled in Phases 3 and 4 of [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: Active in Phase 3 of [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md); Task 3.1 Tagging API implemented in Run 022 (ADR-023). Heatmaps scheduled for Phase 4.
 
 ### [VETTED] Zero-Dependency Web Visualization Server
 - **Summary**: Embedded HTTP server (`./bible serve`) serving vanilla HTML/CSS/JS with native browser SVG/Canvas heatmaps without npm or pip dependencies.

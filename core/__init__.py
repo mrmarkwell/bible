@@ -38,12 +38,22 @@ from core.reference import (
     verse_canonical_id,
 )
 
+from core.tags import (
+    CANONICAL_TAXONOMY,
+    TagCategory,
+    TagSummary,
+    TaggedPassage,
+    TaggingService,
+)
 from core.terminal import (
     BOLD_GOLD,
     THEMES,
     format_aligned_comparison_styled,
     format_citation_header,
     format_scripture_passage,
+    format_tag_table,
+    format_tagged_passages,
+    format_tags_badge,
     get_terminal_width,
     should_use_color,
     strip_ansi,
@@ -72,6 +82,12 @@ __all__ = [
     "CrossReferenceRecord",
     "SearchResult",
     "sanitize_fts_query",
+    # Semantic Tagging
+    "TagCategory",
+    "TagSummary",
+    "TaggedPassage",
+    "TaggingService",
+    "CANONICAL_TAXONOMY",
     # Crypto
     "ChaCha20",
     "CryptoError",
@@ -95,5 +111,8 @@ __all__ = [
     "format_citation_header",
     "format_scripture_passage",
     "format_aligned_comparison_styled",
+    "format_tags_badge",
+    "format_tag_table",
+    "format_tagged_passages",
 ]
 

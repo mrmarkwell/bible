@@ -416,6 +416,14 @@ def cmd_get(args: argparse.Namespace) -> int:
                     theme=theme_name,
                     box=box_header,
                 )
+                if getattr(args, "tags", False):
+                    from core.tags import TaggingService
+                    from core.terminal import format_tags_badge
+                    svc = TaggingService(db)
+                    tags_found = svc.get_tags_for_passage(ref)
+                    if tags_found:
+                        badge = format_tags_badge(tags_found, styling=color_enabled)
+                        formatted += f"\n\n{' ' * margin_width}{badge}"
                 outputs.append(formatted)
 
             print("\n\n".join(outputs))
@@ -716,6 +724,199 @@ def cmd_translations(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_tag(args: argparse.Namespace) -> int:
+    """Handle 'tag' subcommand: semantic tagging, passage annotation, and taxonomy."""
+    tag_action = getattr(args, "tag_action", None)
+    if not tag_action:
+        tag_action = "list"
+
+    db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+    if not db_path.exists():
+        sys.stderr.write(
+            f"Error: Database file not found at '{db_path}'.\n"
+            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+        )
+        return 1
+
+    color_enabled = (
+        False
+        if getattr(args, "no_color", False)
+        else (True if getattr(args, "color", None) else should_use_color())
+    )
+
+    try:
+        with Database(db_path, auto_init=False) as db:
+            from core.tags import TaggingService
+            from core.terminal import format_tag_table, format_tagged_passages
+            svc = TaggingService(db)
+
+            if tag_action == "add":
+                raw_ref = args.reference
+                try:
+                    ref = parse_reference(raw_ref)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing reference '{raw_ref}': {exc}\n")
+                    return 1
+
+                cat = getattr(args, "category", "thematic")
+                starred = getattr(args, "starred", False)
+                notes = getattr(args, "notes", None)
+                conf = getattr(args, "confidence", 1.0)
+                tag_names = args.tags
+
+                recs = svc.tag_passage(
+                    reference=ref,
+                    tags=tag_names,
+                    category=cat,
+                    confidence=conf,
+                    source="user",
+                    starred=starred,
+                    notes=notes,
+                )
+                print(f"Successfully tagged {ref.format()} with {len(recs)} tag(s):")
+                for r in recs:
+                    star_str = " ★" if r.starred else ""
+                    print(f"  • {r.tag_name} [{r.human_ref}]{star_str}")
+                return 0
+
+            elif tag_action == "list":
+                cat = getattr(args, "category", None)
+                sort_by = getattr(args, "sort", "passages")
+                as_json = getattr(args, "json", False)
+
+                summaries = svc.list_tags(category=cat, sort_by=sort_by)
+                if as_json:
+                    print(json.dumps([s.to_dict() for s in summaries], indent=2))
+                else:
+                    print(format_tag_table(summaries, styling=color_enabled))
+                return 0
+
+            elif tag_action == "show":
+                tag_name = args.tag
+                version = getattr(args, "version", "WEB") or "WEB"
+                starred_only = getattr(args, "starred_only", False)
+                limit = getattr(args, "limit", 20)
+                as_json = getattr(args, "json", False)
+
+                passages = svc.get_passages_for_tag(
+                    tag_name=tag_name,
+                    translation_id=version,
+                    starred_only=starred_only,
+                    limit=limit,
+                )
+                if as_json:
+                    print(json.dumps([p.to_dict() for p in passages], indent=2))
+                else:
+                    tag_rec = svc.get_tag(tag_name)
+                    if not tag_rec:
+                        sys.stderr.write(f"Error: Tag '{tag_name}' not found.\n")
+                        return 1
+                    header = f"Tag: {tag_rec.name} ({tag_rec.category}) — {len(passages)} passage(s)"
+                    if tag_rec.description:
+                        header += f"\nDescription: {tag_rec.description}"
+                    print(header + "\n")
+                    print(format_tagged_passages(passages, styling=color_enabled))
+                return 0
+
+            elif tag_action == "for":
+                raw_ref = args.reference
+                try:
+                    ref = parse_reference(raw_ref)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing reference '{raw_ref}': {exc}\n")
+                    return 1
+
+                exact = getattr(args, "exact", False)
+                as_json = getattr(args, "json", False)
+
+                records = svc.get_tags_for_passage(ref, exact_only=exact)
+                if as_json:
+                    print(
+                        json.dumps(
+                            [
+                                {
+                                    "tag": r.tag_name,
+                                    "reference": r.human_ref,
+                                    "starred": r.starred,
+                                    "confidence": r.confidence,
+                                    "notes": r.notes,
+                                }
+                                for r in records
+                            ],
+                            indent=2,
+                        )
+                    )
+                else:
+                    if not records:
+                        print(f"No tags found for {ref.format()}.")
+                    else:
+                        match_type = "exact match" if exact else "overlapping or exact"
+                        print(f"Tags for {ref.format()} ({match_type}):")
+                        for r in records:
+                            star = " ★" if r.starred else ""
+                            note_str = f" — {r.notes}" if r.notes else ""
+                            print(f"  🏷  {r.tag_name} [{r.human_ref}]{star}{note_str}")
+                return 0
+
+            elif tag_action == "remove":
+                raw_ref = args.reference
+                try:
+                    ref = parse_reference(raw_ref)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing reference '{raw_ref}': {exc}\n")
+                    return 1
+                tag_name = args.tag
+                deleted = svc.untag_passage(ref, tag_name)
+                if deleted > 0:
+                    print(f"Removed tag '{tag_name}' from {ref.format()}.")
+                else:
+                    print(f"No tag association found for '{tag_name}' on {ref.format()}.")
+                return 0
+
+            elif tag_action == "delete":
+                tag_name = args.tag
+                ok = svc.delete_tag(tag_name)
+                if ok:
+                    print(f"Deleted tag '{tag_name}' and all its passage associations.")
+                else:
+                    sys.stderr.write(f"Error: Tag '{tag_name}' not found.\n")
+                    return 1
+                return 0
+
+            elif tag_action == "stats":
+                tag_name = getattr(args, "tag", None)
+                as_json = getattr(args, "json", False)
+                stats = db.get_tag_stats(tag_name=tag_name)
+                if as_json:
+                    print(json.dumps(stats, indent=2))
+                else:
+                    if not stats:
+                        print("No tags found.")
+                    else:
+                        for s in stats:
+                            print(f"Tag: {s['name']} ({s['category']})")
+                            print(f"  Passages: {s['passage_count']}")
+                            print(f"  Starred:  {s['starred_count']}")
+                            print(f"  Books:    {s['distinct_books']}")
+                            if s['description']:
+                                print(f"  Description: {s['description']}")
+                            print()
+                return 0
+
+            elif tag_action == "seed":
+                count = svc.seed_canonical_taxonomies()
+                print(f"Successfully seeded {count} canonical theological and redemptive-historical tags.")
+                return 0
+
+            else:
+                sys.stderr.write(f"Unknown tag action: {tag_action}\n")
+                return 1
+
+    except Exception as exc:
+        sys.stderr.write(f"Tagging error: {exc}\n")
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct argument parser for Bible Engine CLI."""
     parser = argparse.ArgumentParser(
@@ -828,6 +1029,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--box",
         action="store_true",
         help="Draw illuminated unicode box border around citation headers",
+    )
+    parser_get.add_argument(
+        "--tags",
+        action="store_true",
+        help="Display semantic tags associated with this passage",
     )
     parser_get.set_defaults(func=cmd_get)
 
@@ -1022,6 +1228,68 @@ def build_parser() -> argparse.ArgumentParser:
         description="Inspect registered Bible translations, language, copyright status, and verse statistics.",
     )
     parser_translations.set_defaults(func=cmd_translations)
+
+    # Subcommand: tag (aliases: tags)
+    parser_tag = subparsers.add_parser(
+        "tag",
+        aliases=["tags"],
+        help="Semantic tagging, passage annotations, and knowledge taxonomy",
+        description="Attach, query, and manage semantic tags across verses and arbitrary spans.",
+    )
+    tag_subparsers = parser_tag.add_subparsers(dest="tag_action", help="Tag action to perform")
+
+    # tag add
+    p_tag_add = tag_subparsers.add_parser("add", help="Attach one or more tags to a verse or passage span")
+    p_tag_add.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1-11', 'John 3:16')")
+    p_tag_add.add_argument("tags", nargs="+", help="Tag name(s) to attach (e.g. 'Holy Spirit' 'Sanctification')")
+    p_tag_add.add_argument("--category", "-c", default="thematic", help="Tag category (thematic, theological, etc.)")
+    p_tag_add.add_argument("--notes", help="Optional notes or context for the tag association")
+    p_tag_add.add_argument("--starred", action="store_true", help="Mark tag association as starred/priority")
+    p_tag_add.add_argument("--confidence", type=float, default=1.0, help="Confidence score (0.0 to 1.0, default: 1.0)")
+
+    # tag list
+    p_tag_list = tag_subparsers.add_parser("list", help="List all defined semantic tags with usage metrics")
+    p_tag_list.add_argument("--category", "-c", help="Filter tags by category")
+    p_tag_list.add_argument(
+        "--sort",
+        choices=["passages", "name", "starred", "category"],
+        default="passages",
+        help="Sort order (default: passages)",
+    )
+    p_tag_list.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # tag show
+    p_tag_show = tag_subparsers.add_parser("show", help="Display passages associated with a specific tag")
+    p_tag_show.add_argument("tag", help="Tag name to inspect")
+    p_tag_show.add_argument("--version", "-t", default="WEB", help="Scripture translation for verse text (default: WEB)")
+    p_tag_show.add_argument("--starred-only", action="store_true", help="Only show starred passages")
+    p_tag_show.add_argument("--limit", "-n", type=int, default=20, help="Maximum passages to show (default: 20)")
+    p_tag_show.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # tag for
+    p_tag_for = tag_subparsers.add_parser("for", help="Display all tags applying to a specific verse or span")
+    p_tag_for.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1', 'John 3:16')")
+    p_tag_for.add_argument("--exact", action="store_true", help="Only match tags assigned to this exact reference boundary")
+    p_tag_for.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # tag remove
+    p_tag_rem = tag_subparsers.add_parser("remove", help="Remove a tag association from a specific passage citation")
+    p_tag_rem.add_argument("reference", help="Scripture citation or span")
+    p_tag_rem.add_argument("tag", help="Tag name to remove")
+
+    # tag delete
+    p_tag_del = tag_subparsers.add_parser("delete", help="Delete a tag definition and all its passage associations")
+    p_tag_del.add_argument("tag", help="Tag name to delete")
+
+    # tag stats
+    p_tag_stats = tag_subparsers.add_parser("stats", help="Show aggregated metrics for a tag or all tags")
+    p_tag_stats.add_argument("tag", nargs="?", default=None, help="Optional tag name to inspect")
+    p_tag_stats.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # tag seed
+    p_tag_seed = tag_subparsers.add_parser("seed", help="Seed canonical TGC theological and redemptive taxonomies")
+
+    parser_tag.set_defaults(func=cmd_tag)
 
     # Subcommand: doctor
     parser_doctor = subparsers.add_parser(

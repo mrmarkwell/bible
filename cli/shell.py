@@ -297,6 +297,142 @@ class BibleShell(cmd.Cmd):
         )
         self.stdout.write("\n" + output + "\n\n")
 
+    def do_tag(self, arg: str) -> None:
+        """Semantic tagging: /tag <add|list|show|for|remove|delete|stats|seed> [args...]"""
+        if self.db is None:
+            self._init_db()
+
+        from core.tags import TaggingService
+        from core.terminal import format_tag_table, format_tagged_passages
+        svc = TaggingService(self.db)
+
+        try:
+            tokens = shlex.split(arg) if arg else []
+        except ValueError:
+            tokens = arg.split()
+
+        if not tokens:
+            summaries = svc.list_tags()
+            self.stdout.write("\n" + format_tag_table(summaries, styling=self.use_color) + "\n\n")
+            return
+
+        action = tokens[0].lower()
+        if action == "list":
+            cat = tokens[1] if len(tokens) > 1 else None
+            summaries = svc.list_tags(category=cat)
+            self.stdout.write("\n" + format_tag_table(summaries, styling=self.use_color) + "\n\n")
+
+        elif action == "show":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /tag show <tag_name> [limit]\n")
+                return
+            tag_name = tokens[1]
+            limit = int(tokens[2]) if len(tokens) > 2 and tokens[2].isdigit() else 20
+            passages = svc.get_passages_for_tag(tag_name, translation_id=self.translation_id, limit=limit)
+            tag_rec = svc.get_tag(tag_name)
+            if not tag_rec:
+                self.stdout.write(f"Tag '{tag_name}' not found.\n")
+                return
+            hdr = f"Tag: {tag_rec.name} ({tag_rec.category}) — {len(passages)} passage(s)"
+            if tag_rec.description:
+                hdr += f"\nDescription: {tag_rec.description}"
+            self.stdout.write("\n" + hdr + "\n\n")
+            self.stdout.write(format_tagged_passages(passages, styling=self.use_color) + "\n\n")
+
+        elif action == "add":
+            if len(tokens) < 3:
+                self.stdout.write("Usage: /tag add <reference> <tag1> [tag2...]\n")
+                return
+            ref_str = tokens[1]
+            try:
+                ref = parse_reference(ref_str)
+            except Exception:
+                ref = None
+            if not ref:
+                self.stdout.write(f"Could not parse '{ref_str}' as a scripture reference.\n")
+                return
+            tag_names = tokens[2:]
+            recs = svc.tag_passage(ref, tag_names, source="user")
+            self.stdout.write(f"Successfully tagged {ref.format()} with {len(recs)} tag(s):\n")
+            for r in recs:
+                self.stdout.write(f"  • {r.tag_name} [{r.human_ref}]\n")
+            self.stdout.write("\n")
+
+        elif action == "for":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /tag for <reference>\n")
+                return
+            ref_str = tokens[1]
+            try:
+                ref = parse_reference(ref_str)
+            except Exception:
+                ref = None
+            if not ref:
+                self.stdout.write(f"Could not parse '{ref_str}' as a scripture reference.\n")
+                return
+            records = svc.get_tags_for_passage(ref)
+            if not records:
+                self.stdout.write(f"No tags found for {ref.format()}.\n")
+            else:
+                self.stdout.write(f"Tags for {ref.format()}:\n")
+                for r in records:
+                    star = " ★" if r.starred else ""
+                    self.stdout.write(f"  🏷  {r.tag_name} [{r.human_ref}]{star}\n")
+            self.stdout.write("\n")
+
+        elif action == "remove":
+            if len(tokens) < 3:
+                self.stdout.write("Usage: /tag remove <reference> <tag_name>\n")
+                return
+            ref_str = tokens[1]
+            try:
+                ref = parse_reference(ref_str)
+            except Exception:
+                ref = None
+            if not ref:
+                self.stdout.write(f"Could not parse '{ref_str}' as a scripture reference.\n")
+                return
+            tag_name = tokens[2]
+            deleted = svc.untag_passage(ref, tag_name)
+            if deleted > 0:
+                self.stdout.write(f"Removed tag '{tag_name}' from {ref.format()}.\n")
+            else:
+                self.stdout.write(f"No tag association found for '{tag_name}' on {ref.format()}.\n")
+
+        elif action == "delete":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /tag delete <tag_name>\n")
+                return
+            tag_name = tokens[1]
+            ok = svc.delete_tag(tag_name)
+            if ok:
+                self.stdout.write(f"Deleted tag '{tag_name}' and all its passage associations.\n")
+            else:
+                self.stdout.write(f"Tag '{tag_name}' not found.\n")
+
+        elif action == "stats":
+            tag_name = tokens[1] if len(tokens) > 1 else None
+            stats = self.db.get_tag_stats(tag_name=tag_name)
+            if not stats:
+                self.stdout.write("No tags found.\n")
+            else:
+                for s in stats:
+                    self.stdout.write(f"Tag: {s['name']} ({s['category']})\n")
+                    self.stdout.write(f"  Passages: {s['passage_count']}\n")
+                    self.stdout.write(f"  Starred:  {s['starred_count']}\n")
+                    self.stdout.write(f"  Books:    {s['distinct_books']}\n\n")
+
+        elif action == "seed":
+            count = svc.seed_canonical_taxonomies()
+            self.stdout.write(f"Successfully seeded {count} canonical theological and redemptive-historical tags.\n")
+
+        else:
+            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, seed\n")
+
+    def do_tags(self, arg: str) -> None:
+        """Alias for /tag."""
+        self.do_tag(arg)
+
     # --------------------------------------------------------------------------
     # Session Configuration Commands
     # --------------------------------------------------------------------------
@@ -498,6 +634,28 @@ System:
         """Auto-complete doctor subcommands."""
         options = ["fast", "install-hooks", "uninstall-hooks", "hooks"]
         return [o for o in options if o.startswith(text.lower())]
+
+    def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete tag subcommands and tag names."""
+        subcommands = ["add", "list", "show", "for", "remove", "delete", "stats", "seed"]
+        parts = line.split()
+        if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
+            return [c for c in subcommands if c.startswith(text.lower())]
+
+        action = parts[1].lower() if len(parts) > 1 else ""
+        if action in ("show", "delete", "stats") or (action == "remove" and len(parts) >= 3):
+            if self.db is None:
+                self._init_db()
+            from core.tags import TaggingService
+            svc = TaggingService(self.db)
+            tags = [t.name for t in svc.list_tags()]
+            return [t for t in tags if t.lower().startswith(text.lower())]
+
+        return []
+
+    def complete_tags(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /tags alias."""
+        return self.complete_tag(text, line, begidx, endidx)
 
     def complete_theme(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete theme names."""
