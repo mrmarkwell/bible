@@ -276,6 +276,18 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 & Phase 2.
 - **Status**: [DONE] (Implemented in `cli/shell.py`, `cli/main.py`, `tests/test_shell.py`, `tools/doctor.py`, and recorded in ADR-021).
 
+### [VETTED] Automated Cross-Reference Graph Ingestion & Relationship Edge Compiler (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement an automated cross-reference ingestion tool (`tools/ingest_cross_references.py`) and schema populator for Phase 3 Task 3.2. While the database schema (`cross_references`) and relational query methods exist in `core/db.py`, having a bundled zero-dependency compiler that ingests open-domain scripture cross-reference datasets (e.g. Treasury of Scripture Knowledge / OpenBible dataset, mapping source citation, target citation, relationship type [thematic, prophecy-fulfillment, quotation, typology], and confidence weight) into the offline SQLite database makes cross-referencing immediately operational offline with thousands of curated connections.
+- **Rationale**: Multiplies the depth of Scripture study offline; fulfills Task 3.2 acceptance criteria; enables rich typological arc visualizations in Phase 4 and grounded RAG retrieval expansion in Phase 8.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (compiles offline dataset into bundled SQLite database).
+  - Zero third-party dependencies? Yes (Python 3 standard library `csv`, `sqlite3`, `pathlib`).
+  - Copyright compliant? Yes (public domain Treasury of Scripture Knowledge cross-reference data).
+- **Proposed Roadmap Phase**: Phase 3 (Task 3.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [SCHEDULED] for Phase 3 Task 3.2.
+
+
 
 
 
