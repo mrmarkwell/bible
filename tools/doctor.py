@@ -350,6 +350,65 @@ def check_bash_scripts(repo_root: Path) -> CheckResult:
     return CheckResult("Shell Script Integrity", True, f"{script_names} valid syntax and executable", dur)
 
 
+def check_ci_workflows(repo_root: Path) -> CheckResult:
+    """Verify GitHub Actions CI/CD workflow configuration and structural integrity.
+
+    Zero external dependencies: performs structural YAML validation without third-party libraries.
+    """
+    t0 = time.time()
+    workflows_dir = repo_root / ".github" / "workflows"
+    if not workflows_dir.is_dir():
+        return CheckResult("CI/CD Automation & GitHub Actions", False, "Missing .github/workflows directory", time.time() - t0)
+
+    yml_files = sorted(list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml")))
+    if not yml_files:
+        return CheckResult("CI/CD Automation & GitHub Actions", False, "No workflow YAML files found in .github/workflows", time.time() - t0)
+
+    issues: List[str] = []
+    audited = 0
+
+    for yml in yml_files:
+        audited += 1
+        try:
+            content = yml.read_text(encoding="utf-8")
+        except Exception as exc:
+            issues.append(f"{yml.name}: failed reading file: {exc}")
+            continue
+
+        # Structural inspection of mandatory top-level sections
+        lines = content.splitlines()
+        top_keys = set()
+        for line in lines:
+            if line and not line.startswith(" ") and not line.startswith("#") and ":" in line:
+                key = line.split(":", 1)[0].strip()
+                top_keys.add(key)
+
+        required_keys = {"name", "on", "jobs"}
+        missing = required_keys - top_keys
+        if missing:
+            issues.append(f"{yml.name}: missing required top-level keys: {sorted(missing)}")
+
+        if "runs-on:" not in content:
+            issues.append(f"{yml.name}: no 'runs-on:' runner specification detected")
+
+        # Verify reference to core repository quality gates
+        has_tests = "tools/test_runner.py" in content or "unittest" in content or "tools/doctor.py" in content
+        if not has_tests:
+            issues.append(f"{yml.name}: workflow does not invoke test runner or system doctor")
+
+    dur = time.time() - t0
+    if issues:
+        return CheckResult("CI/CD Automation & GitHub Actions", False, "\n  ".join(issues), dur)
+
+    names = ", ".join(y.name for y in yml_files)
+    return CheckResult(
+        "CI/CD Automation & GitHub Actions",
+        True,
+        f"{audited} workflow(s) active and structurally valid ({names})",
+        dur,
+    )
+
+
 def check_code_quality(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify code quality, syntax compilation, and AST hygiene via zero-dependency linter."""
     from tools.linter import lint_repository
@@ -664,7 +723,14 @@ def run_all_checks(
     if not res.passed:
         failed = True
 
-    # 5. Code Quality & Static Analysis
+    # 5. CI/CD Workflow Integrity
+    res = check_ci_workflows(root)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 6. Code Quality & Static Analysis
     res = check_code_quality(root, fix=fix)
     results.append(res)
     _emit_check(res, styler, emit)

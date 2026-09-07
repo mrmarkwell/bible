@@ -15,6 +15,7 @@ from tools.doctor import (
     check_doc_synchronization,
     check_bash_scripts,
     check_git_hooks,
+    check_ci_workflows,
     check_code_quality,
     check_database_integrity,
     check_unit_tests,
@@ -131,12 +132,13 @@ class TestDoctorChecks(unittest.TestCase):
     def test_run_all_checks_fast_mode(self):
         code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
         self.assertEqual(code, 0)
-        self.assertEqual(len(results), 5)
+        self.assertEqual(len(results), 6)
         names = [r.name for r in results]
         self.assertIn("Zero External Dependencies (AST Audit)", names)
         self.assertIn("Documentation State Sync", names)
         self.assertIn("Shell Script Integrity", names)
         self.assertIn("Git Hook Safeguards", names)
+        self.assertIn("CI/CD Automation & GitHub Actions", names)
         self.assertIn("Code Quality (Static Linter Audit)", names)
         self.assertNotIn("Hermetic Test Suite", names)
 
@@ -155,7 +157,7 @@ class TestDoctorChecks(unittest.TestCase):
             mock_test_check.return_value = CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.01)
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 7)
+            self.assertEqual(len(results), 8)
             for r in results:
                 self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
 
@@ -211,6 +213,36 @@ class TestDoctorChecks(unittest.TestCase):
                 res = check_database_integrity(tmp_path, fix=True)
                 self.assertTrue(res.passed)
                 self.assertIn("Auto-healed", res.details)
+
+    def test_check_ci_workflows_clean_in_repo(self):
+        res = check_ci_workflows(REPO_ROOT)
+        self.assertTrue(res.passed, f"CI check failed: {res.details}")
+        self.assertIn("workflow(s) active", res.details)
+        self.assertIn("ci.yml", res.details)
+
+    def test_check_ci_workflows_anomalies(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Missing .github/workflows directory
+            res = check_ci_workflows(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("Missing", res.details)
+
+            wf_dir = tmp_path / ".github" / "workflows"
+            wf_dir.mkdir(parents=True)
+            # Empty directory
+            res = check_ci_workflows(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("No workflow YAML", res.details)
+
+            # Invalid workflow missing required keys
+            bad_wf = wf_dir / "bad.yml"
+            bad_wf.write_text("foo: bar\n", encoding="utf-8")
+            res = check_ci_workflows(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("missing required top-level keys", res.details)
+            self.assertIn("no 'runs-on:'", res.details)
+
 
 
 if __name__ == "__main__":

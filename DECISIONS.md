@@ -1514,3 +1514,38 @@ This document is an append-only log of significant design and architectural deci
   - Empowers developers and autonomous agents to detect algorithmic regressions immediately.
   - Preserves 100% zero-dependency architecture (ADR-003) and offline-first integrity.
 
+---
+
+## ADR-048: Zero-Dependency GitHub Actions Continuous Integration & Multi-Python Matrix Quality Guard
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - In Run 045 (Senior Product Manager Meta-Improvement & System Health Sprint), an audit of repository safeguards revealed that while the local developer workstation is rigorously protected by Git pre-commit and pre-push hooks (`tools/doctor.py`), the GitHub remote repository lacked server-side continuous integration.
+  - Any web-based edit, pull request, collaborator commit, or out-of-band push could bypass local hooks, potentially introducing syntax errors, regressions, or illegal third-party pip dependencies into `origin/main` without detection.
+  - Furthermore, while local development targets the workstation's default Python version (Python 3.12), the Bible Engine's commitment to multi-year zero-maintenance longevity requires verified compatibility across all supported active Python releases (Python 3.10, 3.11, and 3.12).
+- **Decision**:
+  1. **Zero-Dependency GitHub Actions Workflow (`.github/workflows/ci.yml`)**:
+     - Configured automated GitHub Actions CI triggered on all pushes to `main`, all pull requests targeting `main`, and manual dispatch (`workflow_dispatch`).
+     - Utilizes official GitHub Actions `actions/checkout@v4` and `actions/setup-python@v5`.
+     - Matrix strategy executing across Python 3.10, 3.11, and 3.12 concurrently on `ubuntu-latest`.
+     - Strictly zero pip dependencies: does NOT install `pip`, wheels, virtual environments, or third-party packages.
+  2. **Sequential Multi-Tier Quality Gate Execution**:
+     - Step 1: Fast Zero-Dependency AST Audit (`python3 tools/doctor.py --fast`).
+     - Step 2: Sovereign Scripture Database Compilation (`python3 ./bible init`).
+     - Step 3: Complete Repository Doctor Diagnostic (`python3 tools/doctor.py`).
+     - Step 4: High-Velocity Parallel Hermetic Test Runner (`python3 tools/test_runner.py --verbose`).
+     - Step 5: Sovereign Static Analysis & Code Hygiene Audit (`python3 tools/linter.py --verbose`).
+     - Step 6: Performance Benchmark Profiler & Regression Gate (`python3 tools/benchmark.py --quick --compare-baseline --fail-regression 50`).
+     - Step 7: Sovereign Code Coverage Audit (`python3 tools/coverage.py --threshold 70.0`).
+  3. **Automated CI/CD Workflow Health Check in System Doctor (`tools/doctor.py`)**:
+     - Added `check_ci_workflows(repo_root)` to `tools/doctor.py`.
+     - Verifies existence of `.github/workflows`, detects YAML workflow files, and inspects mandatory structural keys (`name`, `on`, `jobs`, `runs-on:`) using pure Python standard library parsing (no PyYAML).
+     - Confirms invocation of core test and diagnostic utilities.
+     - Integrated into both fast pre-commit mode and full diagnostic runs.
+  4. **Hermetic Unit Test Suite (`tests/test_doctor.py`)**:
+     - Expanded `tests/test_doctor.py` with `test_check_ci_workflows_clean_in_repo` and `test_check_ci_workflows_anomalies` (testing missing directory, empty directory, and invalid key structures).
+     - Verified 100% test pass rate across 18 doctor test cases.
+- **Consequences**:
+  - Eliminates the blind spot between local hooks and the remote GitHub repository.
+  - Guarantees that every commit is validated across Python 3.10, 3.11, and 3.12 across all 6 quality dimensions.
+  - Maintains 100% zero-dependency architecture (ADR-003) and offline-first integrity.

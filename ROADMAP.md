@@ -30,6 +30,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.14**: Configure Public Open-Source Repository Governance, Permissive MIT License (`LICENSE`), and Crossway Legal Attribution Guidelines (ADR-041).
 - [x] **Task 0.15**: Implement Sovereign Zero-Dependency Code Coverage Engine (`tools/coverage.py`), CLI subcommand (`./bible coverage`), REPL integration (`/coverage`), and Resilient Autonomous Telemetry Architecture (`tools/executive_summary.py`) (ADR-043). *(Run 040 / Senior PM Double Milestone)*
 - [x] **Task 0.16**: Implement Sovereign High-Velocity Performance Benchmark Engine (`tools/benchmark.py`), CLI subcommand (`./bible bench`), REPL shell integration (`/bench`), statistical latency profiler, persistent baseline snapshots, automated regression gating, and thread-tracing coverage remediation (ADR-047). *(Run 044 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.17**: Implement Zero-Dependency GitHub Actions Continuous Integration & Multi-Python Matrix Quality Guard (`.github/workflows/ci.yml`), automated CI/CD workflow structural validator in `tools/doctor.py`, and doctor diagnostics integration (ADR-048). *(Run 045 / Senior PM Cleanup Sprint)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
