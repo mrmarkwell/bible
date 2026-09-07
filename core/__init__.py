@@ -74,11 +74,13 @@ from core.tag_prompts import (
 )
 from core.terminal import (
     BOLD_GOLD,
+    CANONICAL_DIVISIONS,
     THEMES,
     format_aligned_comparison_styled,
     format_citation_header,
     format_cross_reference_table,
     format_cross_references,
+    format_redemptive_ribbon_ascii,
     format_scripture_passage,
     format_tag_table,
     format_tagged_passages,
@@ -167,6 +169,8 @@ __all__ = [
     "format_topic_density_table",
     "format_tag_co_occurrence_table",
     "format_verse_relevance_table",
+    "format_redemptive_ribbon_ascii",
+    "CANONICAL_DIVISIONS",
     "format_cross_references",
     "format_cross_reference_table",
     # Bootstrap & Lifecycle

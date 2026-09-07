@@ -333,15 +333,15 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 4, Task 4.2 / 4.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [VETTED] (Core reader theme, typography scale, flow mode, and verse number state persisted via `localStorage` in Run 028 / ADR-029; bookmarks and history drawer queued for Task 4.4).
 
-### [SCHEDULED] Canonical Redemptive Ribbon Heatmap & Native SVG Macro-Visualizer (Rank A+)
+### [DONE] Canonical Redemptive Ribbon Heatmap & Sacred Macro-Visualizer (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
-- **Summary**: Build the macro-scale visual scripture heatmap across all 66 Protestant canonical books using pure native SVG and browser Canvas (zero npm/d3 dependencies). Color-codes all 1,189 canonical chapter cells by thematic frequency or semantic tag density (retrieved from `/api/tags/density`), with smooth hover tooltips displaying chapter references and click-to-load direct navigation into the reader stage.
-- **Rationale**: Provides instant macro-level insight into the thematic topography of Scripture (e.g. visualizing where Covenant or Justification concentrates across OT Law, Prophets, Gospels, and Epistles) directly on the client canvas without any third-party visualization libraries.
+- **Summary**: Build macro-scale visual scripture thematic heatmap across all 66 Protestant canonical books grouped by canonical divisions (Law, History, Poetry, Prophets, Gospels, Pauline Epistles, General Epistles, Apocalypse). Implemented as a dual-modal architecture: terminal-native illuminated ASCII/Unicode visualizer (`./bible ribbon [tag]`, `/ribbon` REPL slash command) and Sacred-Modern Web UI interactive overlay (`#panel-ribbon`, `#select-ribbon-tag`, `#ribbon-legend-bar`, data-heat level badge styling).
+- **Rationale**: Solves the micro vs. macro disconnect by providing immediate visual topography of theological themes across all 66 books without any external charting or npm packages.
 - **Constraints & Alignment**:
-  - Offline-first? Yes (runs 100% client-side via native browser SVG/Canvas).
-  - Zero third-party dependencies? Yes (native browser DOM APIs, zero npm packages per ADR-003).
+  - Offline-first? Yes (100% offline).
+  - Zero third-party dependencies? Yes (Python 3 stdlib and native browser DOM/CSS only per ADR-003).
 - **Proposed Roadmap Phase**: Phase 4, Task 4.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
-- **Status**: [SCHEDULED] (Queued as Task 4.3).
+- **Status**: [DONE] (Implemented in `core/terminal.py`, `core/__init__.py`, `cli/main.py`, `cli/shell.py`, `web/static/`, tested in `tests/test_tags.py` and `tests/test_server.py`, and recorded in ADR-031).
 
 
 

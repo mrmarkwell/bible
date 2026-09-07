@@ -904,3 +904,33 @@ This document is an append-only log of significant design and architectural deci
   - Eliminates cold-start friction and tribal knowledge: any machine or fresh clone reaches 100% operational readiness in `<0.5s` via `./bible init`.
   - Self-healing diagnostics (`./bible doctor --fix`) provide complete autonomous repair capabilities.
   - 100% Zero External Dependencies compliance (Python 3 stdlib only per ADR-003).
+
+---
+
+## ADR-031: Canonical Redemptive Ribbon Heatmap Engine, Macro-Thematic Topography & Multi-Modal Sacred Visualization
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Cadence Sprint Run 030 (Senior Product Manager Meta-Improvement Sprint & 10th-Iteration Executive Briefing Double Milestone), a system audit confronted the two core diagnostic inquiries:
+  1. *What is the weakest aspect of this project structure?*
+     - **Micro vs. Macro Granularity Disconnect**: The Bible Engine possessed rich verse-by-verse lookup, multi-translation alignment, SQLite FTS5 search, and statistical topic density algorithms, but had zero holistic macro-visualization across the 66 canonical books. Users and developers had no intuitive, birds-eye view of how theological themes (e.g. Covenant, Atonement, Justification, Resurrection) distribute across canonical divisions (Law, History, Poetry, Prophets, Gospels, Epistles, Apocalypse).
+  2. *What is preventing this from being more incredible?*
+     - The lack of a unified multi-modal macro-visualization across both terminal CLI and Sacred-Modern Web UI. By unifying canonical book groupings with dynamic proportional intensity heatmaps, users can immediately observe biblical-theological topography in both terminal environments and browser dashboards without any third-party graphing libraries.
+- **Decision**:
+  1. **Canonical Book Division Schema (`core/terminal.py`)**:
+     - Defined `CANONICAL_DIVISIONS`: Law (1-5), History (6-17), Poetry & Wisdom (18-22), Major Prophets (23-27), Minor Prophets (28-39), Gospels & Acts (40-44), Pauline Epistles (45-57), General Epistles (58-65), and Apocalypse (66).
+     - Created `_intensity_char(pct)`: Unicode density character mapping (`·`, `░`, `▒`, `▓`, `█`) calibrated across 5 proportional intensity tiers.
+     - Implemented `format_redemptive_ribbon_ascii()`: multi-line terminal ASCII visualizer grouping books by canonical division, calculating proportional density against max passages, and rendering illuminated ANSI color highlights.
+  2. **First-Class CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Added `./bible ribbon [tag]` subcommand (aliases: `./bible tag density --ribbon`, `./bible tag density -r`).
+     - Added `/ribbon [tag]` and `/tag ribbon [tag]` interactive REPL slash commands with dynamic tag autocompletion (`complete_ribbon`).
+     - Added `"ribbon"` to CLI `preprocess_cli_argv` registered command list.
+  3. **Sacred-Modern Web UI Heatmap Overlay (`web/static/`)**:
+     - Upgraded `#panel-ribbon` with interactive topic selector (`#select-ribbon-tag`), 5-tier color legend (`#ribbon-legend-bar`), and data-heat styling (`[data-heat="0"]` through `[data-heat="4"]`) in `style.css`.
+     - Implemented `loadRibbonDensity()` and `populateRibbonTagSelector()` in `app.js`, dynamically querying `/api/tags/density` and mapping proportional heat badges to each book button.
+  4. **Hermetic Unit Test Suite**:
+     - Authored `TestRedemptiveRibbon` in `tests/test_tags.py` (4 tests) verifying plain/styled output, CLI `./bible ribbon`, `--ribbon` flag, and shell `/ribbon` commands.
+     - Expanded `tests/test_server.py` verifying HTML elements, CSS legend styles, and JS client functions. Total test count expanded to 360 tests passing 100% with zero warnings.
+- **Consequences**:
+  - Unlocks holistic macro-thematic visualization across all 66 books in both terminal and web reader.
+  - Retains 100% Zero External Dependencies compliance (Python 3 stdlib and vanilla browser DOM/CSS only per ADR-003).
+

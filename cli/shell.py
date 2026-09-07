@@ -473,13 +473,18 @@ class BibleShell(cmd.Cmd):
             except Exception as exc:
                 self.stdout.write(f"Error generating prompt: {exc}\n")
 
-        elif action == "density":
-            from core.terminal import format_topic_density_table
-            tag_name = tokens[1] if len(tokens) > 1 else None
-            densities = svc.get_topic_density_per_book(tag_name=tag_name, min_passages=1)
+        elif action in ("density", "ribbon"):
+            from core.terminal import format_topic_density_table, format_redemptive_ribbon_ascii
+            is_ribbon = action == "ribbon" or "--ribbon" in tokens or "-r" in tokens
+            filtered_tokens = [t for t in tokens[1:] if t not in ("--ribbon", "-r")]
+            tag_name = filtered_tokens[0] if filtered_tokens else None
+            densities = svc.get_topic_density_per_book(tag_name=tag_name, min_passages=0 if is_ribbon else 1)
             filter_str = f" for '{tag_name}'" if tag_name else ""
-            self.stdout.write(f"Topic Density Distribution{filter_str}:\n\n")
-            self.stdout.write(format_topic_density_table(densities, styling=self.use_color) + "\n\n")
+            if is_ribbon:
+                self.stdout.write("\n" + format_redemptive_ribbon_ascii(densities, styling=self.use_color, tag_name=tag_name) + "\n\n")
+            else:
+                self.stdout.write(f"Topic Density Distribution{filter_str}:\n\n")
+                self.stdout.write(format_topic_density_table(densities, styling=self.use_color) + "\n\n")
 
         elif action in ("co-occurrence", "co-occur", "matrix"):
             from core.terminal import format_tag_co_occurrence_table
@@ -499,11 +504,15 @@ class BibleShell(cmd.Cmd):
             self.stdout.write(format_verse_relevance_table(rankings, styling=self.use_color) + "\n\n")
 
         else:
-            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, density, co-occurrence, relevance, seed, prompt\n")
+            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, density, ribbon, co-occurrence, relevance, seed, prompt\n")
 
     def do_tags(self, arg: str) -> None:
         """Alias for /tag."""
         self.do_tag(arg)
+
+    def do_ribbon(self, arg: str) -> None:
+        """Display canonical Redemptive Ribbon ASCII heatmap across 66 books: /ribbon [tag_name]"""
+        self.do_tag(f"ribbon {arg}".strip())
 
     # --------------------------------------------------------------------------
     # Cross-Reference Commands
@@ -944,6 +953,7 @@ Study & Search:
   /search <query>         Full-text scripture search (aliases: /find)
   /compare <ref> [ver]    Compare passage across translations (e.g. /compare 'John 1:1' WEB,KJV)
   /tag <action> [args]    Semantic tagging and passage annotations (aliases: /tags)
+  /ribbon [tag]           Display visual Redemptive Ribbon topical heatmap across 66 books
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
 
 Session Settings:
@@ -1002,14 +1012,14 @@ System & Web:
         """Auto-complete tag subcommands and tag names."""
         subcommands = [
             "add", "list", "show", "for", "remove", "delete", "stats",
-            "density", "co-occurrence", "relevance", "seed", "prompt",
+            "density", "ribbon", "co-occurrence", "relevance", "seed", "prompt",
         ]
         parts = line.split()
         if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
             return [c for c in subcommands if c.startswith(text.lower())]
 
         action = parts[1].lower() if len(parts) > 1 else ""
-        if action in ("show", "delete", "stats", "density", "relevance", "co-occurrence") or (action == "remove" and len(parts) >= 3):
+        if action in ("show", "delete", "stats", "density", "ribbon", "relevance", "co-occurrence") or (action == "remove" and len(parts) >= 3):
             if self.db is None:
                 self._init_db()
             from core.tags import TaggingService
@@ -1018,6 +1028,15 @@ System & Web:
             return [t for t in tags if t.lower().startswith(text.lower())]
 
         return []
+
+    def complete_ribbon(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /ribbon tag names."""
+        if self.db is None:
+            self._init_db()
+        from core.tags import TaggingService
+        svc = TaggingService(self.db)
+        tags = [t.name for t in svc.list_tags()]
+        return [t for t in tags if t.lower().startswith(text.lower())]
 
     def complete_tags(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /tags alias."""

@@ -56,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const xrefStatsContent = document.getElementById("xref-stats-content");
 
   // DOM Elements - Ribbon Tab
+  const selectRibbonTag = document.getElementById("select-ribbon-tag");
   const otBookGrid = document.getElementById("ot-book-grid");
   const ntBookGrid = document.getElementById("nt-book-grid");
 
@@ -91,6 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentFontSize = parseInt(localStorage.getItem("bible_font_size"), 10) || 19;
   let isFlowMode = localStorage.getItem("bible_flow_mode") === "true";
   let showVerseNumbers = localStorage.getItem("bible_show_numbers") !== "false";
+  let ribbonDensityMap = {};
 
   // -------------------------------------------------------------------------
   // Sacred-Modern Theme Engine
@@ -226,8 +228,17 @@ document.addEventListener("DOMContentLoaded", () => {
         loadTags();
       } else if (view === "crossref") {
         loadCrossrefStats();
-      } else if (view === "ribbon" && otBookGrid.children.length === 0) {
-        renderCanonicalRibbon();
+      } else if (view === "ribbon") {
+        if (allTags.length === 0) {
+          loadTags().then(() => populateRibbonTagSelector());
+        } else {
+          populateRibbonTagSelector();
+        }
+        if (Object.keys(ribbonDensityMap).length === 0) {
+          loadRibbonDensity();
+        } else {
+          renderCanonicalRibbon();
+        }
       }
     });
   });
@@ -286,16 +297,75 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  async function loadRibbonDensity(tagName = "") {
+    try {
+      let url = "/api/tags/density";
+      if (tagName) url += `?tag=${encodeURIComponent(tagName)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      ribbonDensityMap = {};
+      (data.densities || []).forEach((d) => {
+        ribbonDensityMap[d.book_id] = d;
+      });
+      renderCanonicalRibbon();
+    } catch (err) {
+      console.error("Failed to load ribbon density:", err);
+      renderCanonicalRibbon();
+    }
+  }
+
+  function populateRibbonTagSelector() {
+    if (!allTags || allTags.length === 0) return;
+    const currentVal = selectRibbonTag.value;
+    selectRibbonTag.innerHTML = '<option value="">★ All Canonical Topics (Composite Density)</option>';
+    allTags.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t.name;
+      opt.textContent = `#${t.name} (${t.passage_count || 0} passages)`;
+      selectRibbonTag.appendChild(opt);
+    });
+    selectRibbonTag.value = currentVal;
+  }
+
+  selectRibbonTag.addEventListener("change", () => {
+    loadRibbonDensity(selectRibbonTag.value);
+  });
+
   function renderCanonicalRibbon() {
     if (!allBooks || allBooks.length === 0) return;
     otBookGrid.innerHTML = "";
     ntBookGrid.innerHTML = "";
 
+    // Find max passage count for proportional heat scaling
+    let maxPassages = 1;
+    Object.values(ribbonDensityMap).forEach((d) => {
+      if (d.passage_count > maxPassages) maxPassages = d.passage_count;
+    });
+
     allBooks.forEach((book) => {
       const btn = document.createElement("button");
       btn.className = "canon-book-btn";
-      btn.textContent = book.osis;
-      btn.title = `${book.name} (${book.total_chapters} ch)`;
+      
+      const density = ribbonDensityMap[book.number] || ribbonDensityMap[book.id];
+      const count = density ? density.passage_count : 0;
+      const starred = density ? density.starred_count : 0;
+      const pct = maxPassages > 0 ? (count / maxPassages) : 0;
+
+      // Assign heat level (0 to 4)
+      let heat = 0;
+      if (count > 0) {
+        if (pct >= 0.85) heat = 4;
+        else if (pct >= 0.60) heat = 3;
+        else if (pct >= 0.25) heat = 2;
+        else heat = 1;
+      }
+      btn.dataset.heat = heat;
+
+      const starIndicator = starred > 0 ? " ★" : "";
+      btn.innerHTML = `<span>${escapeHtml(book.osis)}</span><span class="book-heat-badge">${count > 0 ? count + starIndicator : ''}</span>`;
+      btn.title = `${book.name} (${book.total_chapters} ch)\n${count} tagged passage${count === 1 ? '' : 's'}${starred > 0 ? ` (${starred} starred)` : ''}`;
+
       btn.addEventListener("click", () => {
         selectBook.value = book.osis;
         updateChapterDropdown();
@@ -867,6 +937,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial Boot
   checkHealth();
   loadBooks();
+  loadRibbonDensity();
   fetchPassage("Romans 8:28-39", "WEB");
 });
 

@@ -109,6 +109,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn(".flow-mode", css_text)
         self.assertIn(".chapter-nav-bar", css_text)
         self.assertIn(".shortcuts-table", css_text)
+        self.assertIn(".ribbon-legend-bar", css_text)
+        self.assertIn('.canon-book-btn[data-heat="4"]', css_text)
 
     def test_sacred_modern_html_elements(self) -> None:
         status, _, body = self._get("/")
@@ -120,6 +122,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('id="btn-copy-passage"', html_text)
         self.assertIn('id="chapter-breadcrumbs"', html_text)
         self.assertIn('id="shortcuts-modal"', html_text)
+        self.assertIn('id="select-ribbon-tag"', html_text)
+        self.assertIn('id="ribbon-legend-bar"', html_text)
         self.assertIn('id="ot-book-grid"', html_text)
         self.assertIn('id="nt-book-grid"', html_text)
 
@@ -132,6 +136,8 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("copyCurrentPassage", js_text)
         self.assertIn("toggleFlowMode", js_text)
         self.assertIn("renderCanonicalRibbon", js_text)
+        self.assertIn("loadRibbonDensity", js_text)
+        self.assertIn("populateRibbonTagSelector", js_text)
         self.assertIn("shortcutsModal", js_text)
 
     def test_serve_missing_file_returns_404(self) -> None:

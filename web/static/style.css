@@ -710,6 +710,80 @@ input[type="text"]:focus, select:focus {
   border-color: transparent;
 }
 
+/* Redemptive Ribbon Heatmap Overlays */
+.ribbon-legend-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-bottom: 14px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-swatch.swatch-0 { background-color: var(--bg-card-elevated); border: 1px solid var(--border-subtle); }
+.legend-swatch.swatch-1 { background-color: rgba(212, 175, 55, 0.20); border: 1px solid rgba(212, 175, 55, 0.35); }
+.legend-swatch.swatch-2 { background-color: rgba(212, 175, 55, 0.45); border: 1px solid rgba(212, 175, 55, 0.65); }
+.legend-swatch.swatch-3 { background-color: rgba(212, 175, 55, 0.75); }
+.legend-swatch.swatch-4 { background: var(--gold-gradient); box-shadow: 0 0 6px var(--gold-glow); }
+
+.canon-book-btn[data-heat="0"] {
+  opacity: 0.75;
+}
+
+.canon-book-btn[data-heat="1"] {
+  background-color: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.30);
+  color: var(--text-primary);
+}
+
+.canon-book-btn[data-heat="2"] {
+  background-color: rgba(212, 175, 55, 0.28);
+  border-color: rgba(212, 175, 55, 0.55);
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+
+.canon-book-btn[data-heat="3"] {
+  background-color: rgba(212, 175, 55, 0.50);
+  border-color: var(--gold-primary);
+  color: var(--gold-bright);
+  font-weight: 700;
+  box-shadow: 0 0 4px rgba(212, 175, 55, 0.30);
+}
+
+.canon-book-btn[data-heat="4"] {
+  background: var(--gold-gradient);
+  border-color: transparent;
+  color: #0D0E11;
+  font-weight: 800;
+  box-shadow: 0 0 8px var(--gold-glow);
+}
+
+.canon-book-btn .book-heat-badge {
+  display: block;
+  font-size: 9px;
+  line-height: 1;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
 /* Search Results in Sidebar */
 .search-stats-bar {
   font-size: 11px;

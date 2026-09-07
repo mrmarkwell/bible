@@ -941,6 +941,13 @@ def cmd_tag(args: argparse.Namespace) -> int:
                 )
                 if as_json:
                     print(json.dumps([d.to_dict() for d in densities], indent=2))
+                elif getattr(args, "ribbon", False):
+                    from core.terminal import format_redemptive_ribbon_ascii
+                    print(format_redemptive_ribbon_ascii(
+                        densities=densities,
+                        styling=color_enabled,
+                        tag_name=tag_name,
+                    ))
                 else:
                     filter_info = []
                     if tag_name:
@@ -1682,6 +1689,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_tag_density.add_argument("--category", "-c", help="Filter tags by category (thematic, theological, etc.)")
     p_tag_density.add_argument("--testament", "-T", choices=["OT", "NT", "ot", "nt"], help="Filter by Old or New Testament")
     p_tag_density.add_argument("--min-passages", type=int, default=0, help="Minimum passage count threshold (default: 0)")
+    p_tag_density.add_argument("--ribbon", "-r", action="store_true", help="Render as visual ASCII Redemptive Ribbon heatmap")
     p_tag_density.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     # tag co-occurrence (aliases: co-occur, matrix)
@@ -2116,6 +2124,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_db.set_defaults(func=cmd_db)
 
+    # Subcommand: ribbon (alias for ./bible tag density --ribbon)
+    parser_ribbon = subparsers.add_parser(
+        "ribbon",
+        help="Display visual ASCII Canonical Redemptive Ribbon heatmap across all 66 books",
+        description="Render illuminated canonical thematic heatmap visualizing topic density across 66 books.",
+    )
+    parser_ribbon.add_argument("tag", nargs="?", default=None, help="Optional topic tag name (e.g. 'Covenant', 'Justification')")
+    parser_ribbon.add_argument("--category", "-c", help="Filter tags by category")
+    parser_ribbon.add_argument("--testament", "-T", choices=["OT", "NT", "ot", "nt"], help="Filter by Old or New Testament")
+    parser_ribbon.add_argument("--json", action="store_true", help="Output density data as JSON")
+
+    def cmd_ribbon(args: argparse.Namespace) -> int:
+        setattr(args, "ribbon", True)
+        setattr(args, "min_passages", 0)
+        setattr(args, "tag_action", "density")
+        return cmd_tag(args)
+
+    parser_ribbon.set_defaults(func=cmd_ribbon)
+
     return parser
 
 
@@ -2140,6 +2167,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "doctor", "summary", "shell", "interactive", "repl", "console",
         "serve", "server", "http", "web",
         "init", "setup", "bootstrap", "db", "database",
+        "ribbon",
     }
 
     pos_idx = -1

@@ -975,3 +975,131 @@ def format_cross_reference_table(
     return "\n".join(lines)
 
 
+# ==============================================================================
+# Canonical Redemptive Ribbon & Heatmap Formatting
+# ==============================================================================
+
+# Canonical Bible Book Divisions
+CANONICAL_DIVISIONS = [
+    ("Law (Torah / Pentateuch)", "OT", 1, 5),          # Gen - Deu (5)
+    ("Old Testament History", "OT", 6, 17),             # Jos - Est (12)
+    ("Poetry & Wisdom Literature", "OT", 18, 22),       # Job - Sng (5)
+    ("Major Prophets", "OT", 23, 27),                   # Isa - Dan (5)
+    ("Minor Prophets", "OT", 28, 39),                   # Hos - Mal (12)
+    ("Gospels & Acts", "NT", 40, 44),                   # Mat - Act (5)
+    ("Pauline Epistles", "NT", 45, 57),                 # Rom - Phm (13)
+    ("General / Catholic Epistles", "NT", 58, 65),       # Heb - Jud (8)
+    ("Apocalypse", "NT", 66, 66),                       # Rev (1)
+]
+
+
+def _intensity_char(pct: float) -> str:
+    """Return an illuminated density character corresponding to a 0.0-1.0 intensity."""
+    if pct <= 0.0:
+        return "·"
+    elif pct < 0.25:
+        return "░"
+    elif pct < 0.60:
+        return "▒"
+    elif pct < 0.85:
+        return "▓"
+    else:
+        return "█"
+
+
+def format_redemptive_ribbon_ascii(
+    densities: Sequence[Any],
+    styling: bool = True,
+    tag_name: Optional[str] = None,
+    max_width: Optional[int] = None,
+) -> str:
+    """Render a terminal-native ASCII/Unicode Redemptive Ribbon heatmap across all 66 books.
+
+    Groups the 66 canonical books into canonical divisions (Law, History, Poetry, Prophets,
+    Gospels, Epistles, Apocalypse) and renders comparative topical sparklines/density blocks.
+
+    Args:
+        densities: Sequence of BookTopicDensity records (from TaggingService.get_topic_density_per_book).
+        styling: Whether to inject ANSI golden and category styling.
+        tag_name: Optional topic tag name being visualized.
+        max_width: Optional maximum display width.
+
+    Returns:
+        Formatted multi-line text visualizing canonical thematic topography.
+    """
+    if not densities:
+        return "No density data available to render Redemptive Ribbon."
+
+    # Index densities by book_id
+    density_map: Dict[int, Any] = {
+        getattr(d, "book_id", 0): d for d in densities
+    }
+
+    # Find maximum passage density to scale intensity
+    max_passages = max((getattr(d, "passage_count", 0) for d in densities), default=1)
+    if max_passages <= 0:
+        max_passages = 1
+
+    total_tagged_passages = sum(getattr(d, "passage_count", 0) for d in densities)
+    total_starred = sum(getattr(d, "starred_count", 0) for d in densities)
+    active_books = sum(1 for d in densities if getattr(d, "passage_count", 0) > 0)
+
+    lines: List[str] = []
+
+    # Title Banner
+    topic_label = f" #{tag_name}" if tag_name else " (All Semantic Taxonomies)"
+    if styling:
+        lines.append(f"{BOLD_GOLD}╔══════════════════════════════════════════════════════════════════════════════╗{RESET}")
+        lines.append(f"{BOLD_GOLD}║  CANONICAL REDEMPTIVE RIBBON — TOPICAL HEATMAP ACROSS SCRIPTURE              ║{RESET}")
+        lines.append(f"{BOLD_GOLD}╚══════════════════════════════════════════════════════════════════════════════╝{RESET}")
+        lines.append(f"  {BOLD_WHITE}Topic:{RESET}{BOLD_GOLD}{topic_label}{RESET}  │  {DIM}Active Books:{RESET} {BOLD_WHITE}{active_books}/66{RESET}  │  {DIM}Passages:{RESET} {BOLD_WHITE}{total_tagged_passages}{RESET} ({total_starred} starred)")
+        lines.append(f"  {DIM}Scale:{RESET}  · none (0)   ░ low (<25%)   ▒ mid (25-60%)   ▓ high (60-85%)   █ peak (>85%)")
+        lines.append("")
+    else:
+        lines.append("=== CANONICAL REDEMPTIVE RIBBON — TOPICAL HEATMAP ACROSS SCRIPTURE ===")
+        lines.append(f"Topic:{topic_label} | Active Books: {active_books}/66 | Passages: {total_tagged_passages} ({total_starred} starred)")
+        lines.append("Scale:  · none (0)   ░ low (<25%)   ▒ mid (25-60%)   ▓ high (60-85%)   █ peak (>85%)")
+        lines.append("")
+
+    # Render each canonical division
+    for div_name, testament, start_id, end_id in CANONICAL_DIVISIONS:
+        t_badge = f"[{testament}]"
+        div_books = [density_map.get(b_id) for b_id in range(start_id, end_id + 1) if b_id in density_map]
+        div_passages = sum(getattr(d, "passage_count", 0) for d in div_books if d)
+
+        if styling:
+            div_header = f"{BOLD_CYAN}◆ {div_name:<32s}{RESET} {DIM}{t_badge} ({div_passages} passages){RESET}"
+        else:
+            div_header = f"◆ {div_name:<32s} {t_badge} ({div_passages} passages)"
+        lines.append(div_header)
+
+        # Build book cells in this division
+        cell_parts: List[str] = []
+        for b_id in range(start_id, end_id + 1):
+            d = density_map.get(b_id)
+            if not d:
+                continue
+            osis = getattr(d, "osis", "")
+            cnt = getattr(d, "passage_count", 0)
+            pct = cnt / max_passages
+            char = _intensity_char(pct)
+
+            if styling:
+                if cnt == 0:
+                    cell_str = f"{DIM}{osis}:{char}{RESET}"
+                elif pct > 0.60:
+                    cell_str = f"{BOLD_YELLOW}{osis}:{char}{RESET}"
+                else:
+                    cell_str = f"{CYAN}{osis}:{char}{RESET}"
+            else:
+                cell_str = f"{osis}:{char}"
+            cell_parts.append(cell_str)
+
+        # Print cells aligned
+        lines.append(f"   {'  '.join(cell_parts)}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+

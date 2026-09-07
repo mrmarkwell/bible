@@ -212,8 +212,21 @@
         <!-- Tab 5: Canonical Ribbon Visualizer -->
         <div class="view-panel hidden" id="panel-ribbon" role="tabpanel">
           <div class="canon-summary-card">
-            <h4>66 Canonical Books</h4>
-            <p class="canon-summary-text">Browse the canonical division of Old and New Testament scriptures.</p>
+            <h4>Canonical Redemptive Ribbon</h4>
+            <p class="canon-summary-text">66-book macro-thematic topography and canonical reading navigator.</p>
+          </div>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="select-ribbon-tag">Thematic Heatmap Overlay</label>
+            <select id="select-ribbon-tag">
+              <option value="" selected>★ All Canonical Topics (Composite Density)</option>
+            </select>
+          </div>
+          <div class="ribbon-legend-bar" id="ribbon-legend-bar">
+            <span class="legend-item"><span class="legend-swatch swatch-0"></span> 0</span>
+            <span class="legend-item"><span class="legend-swatch swatch-1"></span> &lt;25%</span>
+            <span class="legend-item"><span class="legend-swatch swatch-2"></span> 25-60%</span>
+            <span class="legend-item"><span class="legend-swatch swatch-3"></span> 60-85%</span>
+            <span class="legend-item"><span class="legend-swatch swatch-4"></span> &gt;85%</span>
           </div>
           <div class="canon-group-header">Old Testament (39 Books)</div>
           <div class="canon-book-grid" id="ot-book-grid"></div>

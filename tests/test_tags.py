@@ -669,7 +669,78 @@ class TestTagAggregationAnalytics(unittest.TestCase):
             self.assertEqual(matches, ["density"])
             rel_matches = shell.complete_tag("rel", "tag rel", 4, 7)
             self.assertEqual(rel_matches, ["relevance"])
+            rib_matches = shell.complete_tag("rib", "tag rib", 4, 7)
+            self.assertEqual(rib_matches, ["ribbon"])
+
+
+class TestRedemptiveRibbon(unittest.TestCase):
+    """Hermetic unit tests for the Canonical Redemptive Ribbon ASCII visualizer."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = str(Path(self.temp_dir.name) / "test_ribbon.db")
+        self.db = create_mock_db(self.db_path)
+        self.svc = TaggingService(self.db)
+        self.svc.seed_canonical_taxonomies()
+
+    def tearDown(self) -> None:
+        self.db.close()
+        self.temp_dir.cleanup()
+
+    def test_format_redemptive_ribbon_ascii(self) -> None:
+        from core.terminal import format_redemptive_ribbon_ascii
+        densities = self.svc.get_topic_density_per_book()
+        self.assertEqual(len(densities), 66)
+
+        # Plain mode
+        plain_out = format_redemptive_ribbon_ascii(densities, styling=False)
+        self.assertIn("CANONICAL REDEMPTIVE RIBBON", plain_out)
+        self.assertIn("Law (Torah / Pentateuch)", plain_out)
+        self.assertIn("Pauline Epistles", plain_out)
+        self.assertIn("Gen:", plain_out)
+        self.assertIn("Rom:", plain_out)
+        self.assertIn("Rev:", plain_out)
+
+        # Styled mode
+        styled_out = format_redemptive_ribbon_ascii(densities, styling=True, tag_name="Sovereign Grace")
+        self.assertIn("#Sovereign Grace", styled_out)
+        self.assertIn("\033[", styled_out)
+
+    def test_cli_ribbon_subcommand(self) -> None:
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", self.db_path, "ribbon"])
+            self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("CANONICAL REDEMPTIVE RIBBON", out)
+        self.assertIn("Active Books:", out)
+
+    def test_cli_tag_density_ribbon_flag(self) -> None:
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", self.db_path, "tag", "density", "--ribbon"])
+            self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("CANONICAL REDEMPTIVE RIBBON", out)
+
+    def test_shell_ribbon_commands(self) -> None:
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=out, database=self.db) as shell:
+            # /ribbon command
+            shell.onecmd("/ribbon")
+            self.assertIn("CANONICAL REDEMPTIVE RIBBON", out.getvalue())
+
+            # /tag ribbon command
+            out_tag = io.StringIO()
+            shell.stdout = out_tag
+            shell.onecmd("/tag ribbon")
+            self.assertIn("CANONICAL REDEMPTIVE RIBBON", out_tag.getvalue())
+
+            # /ribbon auto-completion
+            rib_matches = shell.complete_ribbon("sov", "ribbon sov", 7, 10)
+            self.assertTrue(any("Sovereign Grace" in m for m in rib_matches))
 
 
 if __name__ == "__main__":
     unittest.main()
+
