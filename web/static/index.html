@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bible Engine — Sacred-Modern Scripture Explorer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Bar Header -->
+    <header class="top-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <line x1="12" y1="6" x2="12" y2="14"/>
+            <line x1="8" y1="9" x2="16" y2="9"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">BIBLE ENGINE</span>
+          <span class="brand-subtitle">Sacred-Modern Scripture Explorer & Knowledge Graph</span>
+        </div>
+      </div>
+
+      <div class="header-status">
+        <div class="status-indicator">
+          <span class="pulse-dot" id="health-dot"></span>
+          <span class="status-label" id="health-status">Connecting...</span>
+        </div>
+        <div class="badge badge-version" id="version-badge">WEB</div>
+        <div class="badge badge-count" id="verses-badge">... verses</div>
+      </div>
+    </header>
+
+    <!-- Main Content Split Pane -->
+    <div class="main-container">
+      <!-- Left Sidebar: Navigation & Query Inputs -->
+      <aside class="sidebar">
+        <!-- Tab Navigation -->
+        <nav class="nav-tabs">
+          <button class="nav-tab active" data-view="passage">Passage</button>
+          <button class="nav-tab" data-view="search">Search</button>
+          <button class="nav-tab" data-view="topics">Topics</button>
+          <button class="nav-tab" data-view="crossref">Cross-Refs</button>
+          <button class="nav-tab" data-view="api">REST API</button>
+        </nav>
+
+        <!-- View Controls Container -->
+        <div class="view-panel" id="panel-passage">
+          <div class="form-group">
+            <label for="input-ref">Scripture Reference</label>
+            <div class="input-with-action">
+              <input type="text" id="input-ref" placeholder="e.g. John 3:16, Romans 8:28-30" value="Romans 8:28-39" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary" id="btn-fetch-passage">Lookup</button>
+            </div>
+            <div class="quick-chips">
+              <span class="chip" data-ref="Genesis 1:1-5">Gen 1:1-5</span>
+              <span class="chip" data-ref="Psalm 23:1-6">Psalm 23</span>
+              <span class="chip" data-ref="Isaiah 53:4-6">Isa 53:4-6</span>
+              <span class="chip" data-ref="John 1:1-14">John 1:1-14</span>
+              <span class="chip" data-ref="Romans 8:28-39">Rom 8:28-39</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="select-book">Quick Chapter Jumper</label>
+            <div class="select-row">
+              <select id="select-book"></select>
+              <select id="select-chapter"></select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="select-version">Translation</label>
+            <select id="select-version">
+              <option value="WEB" selected>World English Bible (WEB)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="view-panel hidden" id="panel-search">
+          <div class="form-group">
+            <label for="input-search">Full-Text Search (FTS5)</label>
+            <div class="input-with-action">
+              <input type="text" id="input-search" placeholder="e.g. light of the world, grace" value="light of the world" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary" id="btn-search">Search</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="search-testament">Testament Filter</label>
+            <select id="search-testament">
+              <option value="">All Canon (66 Books)</option>
+              <option value="OT">Old Testament (39 Books)</option>
+              <option value="NT">New Testament (27 Books)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="view-panel hidden" id="panel-topics">
+          <div class="form-group">
+            <label for="input-tag-filter">Filter Semantic Tags</label>
+            <input type="text" id="input-tag-filter" placeholder="Filter tags..." autocomplete="off">
+          </div>
+          <div class="tag-cloud" id="tag-cloud-container">
+            <div class="loading-spinner">Loading semantic taxonomy...</div>
+          </div>
+        </div>
+
+        <div class="view-panel hidden" id="panel-crossref">
+          <div class="form-group">
+            <label for="input-xref">Passage for Cross-References</label>
+            <div class="input-with-action">
+              <input type="text" id="input-xref" placeholder="e.g. Genesis 1:1, Psalm 22:1" value="Genesis 1:1" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary" id="btn-xref">Find Refs</button>
+            </div>
+          </div>
+          <div class="stats-card" id="xref-stats-card">
+            <h4>Knowledge Graph Statistics</h4>
+            <div id="xref-stats-content">Loading...</div>
+          </div>
+        </div>
+
+        <div class="view-panel hidden" id="panel-api">
+          <div class="api-doc-list">
+            <h4>Built-in REST API Endpoints</h4>
+            <ul>
+              <li><a href="/api/health" target="_blank"><code>GET /api/health</code></a> — System status</li>
+              <li><a href="/api/books" target="_blank"><code>GET /api/books</code></a> — Canonical catalog</li>
+              <li><a href="/api/passage?ref=John+3:16" target="_blank"><code>GET /api/passage</code></a> — Verse lookup</li>
+              <li><a href="/api/search?q=grace" target="_blank"><code>GET /api/search</code></a> — FTS5 Search</li>
+              <li><a href="/api/translations" target="_blank"><code>GET /api/translations</code></a> — Translations</li>
+              <li><a href="/api/tags" target="_blank"><code>GET /api/tags</code></a> — Semantic tags</li>
+              <li><a href="/api/tags/density" target="_blank"><code>GET /api/tags/density</code></a> — Book density</li>
+              <li><a href="/api/tags/co-occurrence" target="_blank"><code>GET /api/tags/co-occurrence</code></a> — Co-occurrence</li>
+              <li><a href="/api/crossref?ref=Genesis+1:1" target="_blank"><code>GET /api/crossref</code></a> — Cross-references</li>
+              <li><a href="/api/stats" target="_blank"><code>GET /api/stats</code></a> — Overall statistics</li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Main Panel: Display & Reader -->
+      <main class="reader-stage">
+        <div class="stage-header">
+          <div class="citation-title" id="display-citation">Romans 8:28-39</div>
+          <div class="citation-meta" id="display-meta">World English Bible (WEB)</div>
+        </div>
+
+        <!-- Tag badges container for active passage -->
+        <div class="passage-tags" id="passage-tags-container"></div>
+
+        <!-- Scripture verses reader container -->
+        <div class="scripture-flow" id="scripture-container">
+          <div class="loading-state">Loading passage...</div>
+        </div>
+
+        <!-- Relationship edges / Cross-references tray -->
+        <section class="crossref-tray hidden" id="crossref-section">
+          <h3 class="section-title">Canonical Cross-References & Relationship Edges</h3>
+          <div class="crossref-list" id="crossref-list"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

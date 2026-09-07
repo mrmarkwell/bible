@@ -77,15 +77,21 @@ class BibleShell(cmd.Cmd):
 
         # Database connection
         self.db: Optional[Database] = database
+        self._owns_database = database is None
         if self.db is None:
             self._init_db()
         self._update_prompt()
 
+        # Web server daemon reference
+        self._server: Optional[Any] = None
+        self._server_thread: Optional[Any] = None
+
     def _init_db(self) -> None:
         """Initialize or reopen SQLite database connection."""
-        if self.db is not None:
+        if self.db is not None and getattr(self, "_owns_database", True):
             self.db.close()
-        self.db = Database(self.db_path, auto_init=True)
+        self.db = Database(self.db_path, auto_init=True, check_same_thread=False)
+        self._owns_database = True
 
     def _update_prompt(self) -> None:
         """Update prompt with current translation and color styling."""
@@ -96,8 +102,16 @@ class BibleShell(cmd.Cmd):
             self.prompt = f"bible {v_tag}> "
 
     def close(self) -> None:
-        """Close the underlying database connection."""
-        if self.db is not None:
+        """Close the underlying database connection and stop background server."""
+        if getattr(self, "_server", None) is not None:
+            try:
+                self._server.shutdown()
+            except Exception:
+                pass
+            self._server = None
+            self._server_thread = None
+
+        if self.db is not None and getattr(self, "_owns_database", True):
             self.db.close()
             self.db = None
 
@@ -778,6 +792,77 @@ class BibleShell(cmd.Cmd):
         report = generate_summary(window=window, repo_root=repo_root, run_doctor=False)
         self.stdout.write("\n" + format_markdown_report(report) + "\n\n")
 
+    def do_serve(self, arg: str) -> None:
+        """Launch, inspect, or stop the built-in HTTP web server and REST API.
+        Usage:
+          /serve [start|stop|status] [--port 8080] [--open]
+        """
+        tokens = arg.strip().split()
+        cmd = tokens[0].lower() if tokens else "start"
+
+        if cmd in ("stop", "halt", "down"):
+            if self._server is not None:
+                try:
+                    self._server.shutdown()
+                except Exception:
+                    pass
+                self._server = None
+                self._server_thread = None
+                self.stdout.write("Bible Engine web server stopped.\n")
+            else:
+                self.stdout.write("Web server is not running.\n")
+            return
+
+        if cmd == "status":
+            if self._server is not None and self._server.is_running():
+                self.stdout.write(f"Web server is active at {self._server.url}\n")
+            else:
+                self.stdout.write("Web server is stopped. Run '/serve start' to launch.\n")
+            return
+
+        # Start server
+        if self._server is not None and self._server.is_running():
+            self.stdout.write(f"Web server is already active at {self._server.url}\n")
+            return
+
+        port = 8080
+        open_browser = False
+        for i, t in enumerate(tokens):
+            if t in ("--port", "-p") and i + 1 < len(tokens):
+                try:
+                    port = int(tokens[i + 1])
+                except ValueError:
+                    pass
+            elif t.isdigit():
+                port = int(t)
+            elif t == "--open":
+                open_browser = True
+
+        from web.server import create_server
+        try:
+            self._server = create_server(
+                host="127.0.0.1",
+                port=port,
+                database=self.db,
+            )
+            import threading
+            t = threading.Thread(
+                target=self._server.start,
+                kwargs={"open_browser": open_browser},
+                daemon=True,
+            )
+            t.start()
+            self._server_thread = t
+            self.stdout.write(f"✓ Bible Engine web server started at {self._server.url}\n")
+            self.stdout.write(f"  • REST API: {self._server.url}/api/health\n")
+            self.stdout.write("  Type '/serve stop' to stop.\n")
+        except Exception as exc:
+            self.stdout.write(f"Error starting web server: {exc}\n")
+
+    def do_server(self, arg: str) -> None:
+        """Alias for /serve."""
+        self.do_serve(arg)
+
     # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
@@ -805,7 +890,8 @@ Session Settings:
   /flow [on|off]          Toggle continuous paragraph reader mode
   /box [on|off]           Toggle decorative header box
 
-System:
+System & Web:
+  /serve [start|stop]     Start or stop built-in HTTP server and Web UI (alias: /server)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report
   /clear                  Clear terminal screen

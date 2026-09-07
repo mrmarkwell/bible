@@ -923,6 +923,59 @@ This is an append-only log of work performed by autonomous agents during their e
   - Active Phase shifts to **Phase 4: Web UI & Visualizations (Vanilla Web, No npm)**.
   - Next agent should claim **Task 4.1**: *Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`* in `web/` and `cli/main.py`.
 
+---
+
+## [Run 027] — 2026-09-07
+- **Agent**: Autonomous Software Development Agent (Ralph Loop: Task 4.1)
+- **Phase**: Phase 4 — Web UI & Visualizations (Task 4.1 / ADR-028)
+- **Goal**: Build built-in zero-dependency local HTTP web server (`./bible serve [--port=8080]`) serving REST API endpoints and embedded static web assets via Python standard library `http.server`.
+- **Actions Taken**:
+  - **Database Multi-Thread Concurrency (`core/db.py`)**:
+    - Upgraded `Database.__init__` with optional `check_same_thread: bool = True` parameter (default `True`), enabling multithreaded analytical reads without thread affinity exceptions under SQLite WAL mode.
+  - **Multi-Threaded HTTP Server & Router (`web/server.py` & `web/__init__.py`)**:
+    - Created `BibleWebServer` wrapping `http.server.ThreadingHTTPServer` to handle concurrent connections safely.
+    - Implemented dynamic class factory `BoundHandler` binding the specific `Database` and `static_dir` instances to each server instance, preventing cross-test state collisions.
+    - Added standardized JSON serialization with UTF-8, CORS headers (`Access-Control-Allow-Origin: *`, `OPTIONS` pre-flight support), and standardized error responses (`400 Bad Request`, `404 Not Found`, `500 Internal Error`).
+  - **Comprehensive REST API Suite (`web/server.py`)**:
+    - `GET /api/health`: System diagnostics, engine version, database path, verse count, and available translations.
+    - `GET /api/books`: Canonical catalog of all 66 books with testament filtering (`testament=OT|NT`).
+    - `GET /api/passage`: Multi-verse scripture passage lookup with translation fallback, active semantic tags, and cross-reference relationship edges.
+    - `GET /api/verses`: Direct chapter retrieval by book name/OSIS and chapter number.
+    - `GET /api/search`: High-performance FTS5 full-text search with query highlighting snippets, testament filtering, and match ranking.
+    - `GET /api/translations`: Available translations catalog, public domain status, and license notes.
+    - `GET /api/tags`: Semantic tag taxonomy listing with category and search query filters.
+    - `GET /api/tags/density`: Canonical book distribution and passage counts per topic.
+    - `GET /api/tags/co-occurrence`: Pairwise co-occurrence frequencies, Jaccard similarities, and Dice coefficients.
+    - `GET /api/tags/relevance`: Multi-tag scored scripture passage ranking.
+    - `GET /api/crossref`: Passage cross-reference relationship retrieval with hydrated target verses.
+    - `GET /api/crossref/stats`: Global relationship statistics (quotation, prophecy, typology counts).
+    - `GET /api/stats`: Comprehensive repository and database aggregate counts.
+  - **Secure Static Web Asset Dispatch & Sacred-Modern UI (`web/static/`)**:
+    - Built directory traversal guard verifying resolved paths remain strictly within `static_dir` (`Path.is_relative_to`), returning HTTP 403 on traversal attempts and HTTP 404 on missing assets.
+    - Created `index.html`: Responsive split-pane layout with sidebar controls (passage lookup, FTS5 search, topic cloud, cross-references, REST API documentation) and scripture reader stage.
+    - Created `style.css`: Pure CSS3 Sacred-Modern design system foundation (Obsidian dark mode `#0D0E11`, illuminated gold accents `#D4AF37`, Cardo/Georgia editorial serif typography).
+    - Created `app.js`: Vanilla ES6+ client logic handling health polling, book/chapter selection, instant passage lookup, search queries, and tag navigation (zero npm dependencies).
+  - **CLI & REPL Shell Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Implemented `./bible serve [--host] [--port] [--open] [--verbose]` CLI command (aliases: `server`, `http`, `web`).
+    - Implemented `/serve [start|stop|status]` interactive shell command in `BibleShell`, running the server on a background daemon thread for simultaneous CLI study and web exploration.
+  - **Hermetic Unit & Integration Tests (`tests/test_server.py`)**:
+    - Authored 32 tests against an ephemeral HTTP server on port 0, covering root asset serving, CSS/JS MIME types, 404 handling, path traversal protection, CORS options, all REST API endpoints, validation errors, and CLI/shell lifecycle.
+    - Expanded test suite from 307 to 339 tests passing 100% in 5.28s with zero warnings (`-W error::ResourceWarning`).
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-028: Built-in Zero-Dependency HTTP Web Server, Multi-Threaded Request Router, and REST API Architecture** in `DECISIONS.md`.
+    - Marked Task 4.1 completed (`[x]`) in `ROADMAP.md`.
+- **Verification**:
+  - Ran `python3 tools/doctor.py --fast`: all 4 checks passed in 0.19s (audited 38 Python files, 0 dependencies).
+  - Ran `python3 tools/doctor.py`: all 6 full diagnostic checks passed in 3.93s.
+  - Ran `python3 -W error::ResourceWarning -m unittest discover tests`: all 339 tests passed 100% in 5.28s with zero warnings.
+  - Tested `./bible serve --help`: verified exit code 0 and usage documentation.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 4.1 is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 028** (Standard Cycle).
+  - Next task in active phase: **Task 4.2**: *Implement Sacred-Modern design system (obsidian dark mode `#0D0E11`, illuminated gold accents `#D4AF37`, editorial typography, responsive split-pane layout)* in `web/static/` and visualization components.
+
+
 
 
 

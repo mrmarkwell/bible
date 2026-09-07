@@ -459,12 +459,14 @@ class Database:
         self,
         db_path: Union[str, Path] = DEFAULT_DB_PATH,
         auto_init: bool = True,
+        check_same_thread: bool = True,
     ) -> None:
         """Initialize database manager.
 
         Args:
             db_path: Path to SQLite file or ":memory:".
             auto_init: If True, automatically initialize schema and books catalog.
+            check_same_thread: If False, allow connection sharing across threads (useful for web servers).
         """
         self.db_path = db_path
         self._is_memory = str(db_path) == ":memory:"
@@ -479,6 +481,7 @@ class Database:
         self.conn = sqlite3.connect(
             self._target,
             detect_types=sqlite3.PARSE_DECLTYPES,
+            check_same_thread=check_same_thread,
         )
         self.conn.row_factory = sqlite3.Row
 

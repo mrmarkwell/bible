@@ -783,3 +783,51 @@ This document is an append-only log of significant design and architectural deci
   - Completes Task 3.4 and completes Phase 3 (Semantic Tagging & Knowledge Database Engine) at 100% (4/4 tasks done).
   - Unblocks Phase 4: provides the exact backend aggregation data feeds required for the Canonical Redemptive Ribbon SVG heatmap (Task 4.3).
   - 100% Zero External Dependencies maintained (Python standard library only per ADR-003).
+
+---
+
+## ADR-028: Built-in Zero-Dependency HTTP Web Server, Multi-Threaded Request Router, and REST API Architecture
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Phase 4 begins the visual exploration and interactive Web UI era of the Bible Engine. Per Manifesto Pillars I (Offline-First & Sovereign Data) and III/IV (Multi-Resolution Knowledge Graph & Visual Comprehension), and ADR-003 (Zero External Dependencies, stdlib only), the platform requires a built-in local HTTP web server capable of:
+  1. Serving static assets (HTML/CSS/JS/SVG) securely with correct MIME types and path traversal protections.
+  2. Providing a full-featured REST API exposing scripture text, multi-translation fallback queries, SQLite FTS5 search, semantic tags, co-occurrence analytics, topic density distributions, and cross-reference relationship networks.
+  3. Operating hermetically and concurrently with high performance without external web frameworks (no Flask, FastAPI, Django, or Starlette; zero pip dependencies).
+  4. Integrating seamlessly into both the command line (`./bible serve [--port=8080] [--host=127.0.0.1] [--open]`) and interactive REPL shell (`/serve [start|stop|status]`).
+- **Decision**:
+  1. **Server Architecture & Lifecycle (`web/server.py` & `web/__init__.py`)**:
+     - Built `BibleWebServer` wrapping Python standard library `http.server.ThreadingHTTPServer` to handle concurrent HTTP requests smoothly without thread pool starvation.
+     - Implemented dynamic subclass binding (`BoundHandler`) per server instance, guaranteeing hermetic isolation between parallel instances during testing without global class variable collisions.
+     - Upgraded `Database.__init__` in `core/db.py` to support `check_same_thread: bool = True` (set to `False` by the web server to permit multi-threaded analytical reads safely under SQLite WAL mode).
+  2. **Comprehensive REST API Engine (`BibleRequestHandler`)**:
+     - Standardized JSON responses with UTF-8 encoding, standardized error envelopes (`{"error": "...", "status": 400|404|500}`), and CORS headers (`Access-Control-Allow-Origin: *`, `OPTIONS` preflight handling).
+     - Implemented complete endpoint suite:
+       - `GET /api/health`: System health, version, database path, verse count, and available translations.
+       - `GET /api/books`: Canonical 66-book catalog with optional testament filtering (`testament=OT|NT`).
+       - `GET /api/passage`: Multi-verse range lookup with translation fallback, active semantic tags, and cross-references.
+       - `GET /api/verses`: Direct chapter navigation by book name/OSIS and chapter number.
+       - `GET /api/search`: High-performance FTS5 full-text search with query highlighting snippets, testament filtering, and match ranking.
+       - `GET /api/translations`: Installed translation inventory, public domain status, and license notes.
+       - `GET /api/tags`: Semantic tag taxonomy listing and category/query search.
+       - `GET /api/tags/density`: Canonical book distribution and passage counts per topic.
+       - `GET /api/tags/co-occurrence`: Co-occurrence matrix with Jaccard and Dice association metrics.
+       - `GET /api/tags/relevance`: Multi-tag scored scripture passage ranking.
+       - `GET /api/crossref`: Passage cross-reference relationship retrieval with hydrated target verses.
+       - `GET /api/crossref/stats`: Global cross-reference relationship metrics.
+       - `GET /api/stats`: Comprehensive repository and knowledge database aggregate counts.
+  3. **Secure Static Asset Dispatch & Sacred-Modern Web Scaffolding (`web/static/`)**:
+     - Built safe static file dispatcher verifying that resolved target paths strictly remain within the static directory (`Path.is_relative_to`), returning HTTP 403 Forbidden on directory traversal attempts and HTTP 404 on missing files.
+     - Authored initial Sacred-Modern UI foundation:
+       - `index.html`: Responsive split-pane layout with sidebar controls (passage, search, topic cloud, cross-references, REST API docs) and reader stage.
+       - `style.css`: Pure CSS3 styling implementing Obsidian Dark Mode (`#0D0E11`), illuminated gold accents (`#D4AF37`), and editorial serif typography.
+       - `app.js`: Vanilla ES6+ client logic handling health polling, book/chapter selection, instant passage lookup, search queries, and tag navigation.
+  4. **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Added `./bible serve [--host] [--port] [--open] [--verbose]` command (aliases: `server`, `http`, `web`).
+     - Added `/serve [start|stop|status]` command to `BibleShell` REPL running the web server on a background daemon thread for simultaneous interactive CLI study and browser exploration.
+  5. **Hermetic Test Suite (`tests/test_server.py`)**:
+     - Created comprehensive test suite running against ephemeral server port 0, covering all static asset routes, security protections, CORS pre-flights, REST API endpoints, validation errors, and CLI/shell lifecycle. Total test count expanded from 307 to 339 tests passing 100% in ~5.2s.
+- **Consequences**:
+  - Completes Task 4.1 in full.
+  - Establishes the foundational server and web application architecture for Phase 4 (Web UI & Visualizations).
+  - Maintains 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+

@@ -1894,6 +1894,68 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_shell.set_defaults(func=cmd_shell)
 
+    # -------------------------------------------------------------------------
+    # serve / server / http subcommand
+    # -------------------------------------------------------------------------
+    parser_serve = subparsers.add_parser(
+        "serve",
+        aliases=["server", "http", "web"],
+        help="Start built-in local HTTP web server and REST API",
+        description="Launch zero-dependency local HTTP web server serving Sacred-Modern Web UI and REST API.",
+    )
+    parser_serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host IP address to bind (default: 127.0.0.1)",
+    )
+    parser_serve.add_argument(
+        "--port",
+        "-p",
+        type=int,
+        default=8080,
+        help="Port to listen on (default: 8080)",
+    )
+    parser_serve.add_argument(
+        "--open",
+        action="store_true",
+        help="Automatically open web browser at server URL",
+    )
+    parser_serve.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Log incoming HTTP requests to stderr",
+    )
+
+    def cmd_serve(args: argparse.Namespace) -> int:
+        from web.server import create_server
+        db_path = Path(args.db).resolve() if args.db else None
+        server = create_server(
+            host=args.host,
+            port=args.port,
+            db_path=db_path,
+            verbose=args.verbose,
+        )
+        print("=" * 68)
+        print("  Bible Engine — Sacred-Modern Web Server & REST API")
+        print("=" * 68)
+        print(f"  • Web UI:     {server.url}")
+        print(f"  • REST API:   {server.url}/api/health")
+        print(f"  • Database:   {server.database.db_path}")
+        print(f"  • Bound Host: {server.bound_host}:{server.port}")
+        print("-" * 68)
+        print("  Press Ctrl+C to gracefully stop the server.\n")
+
+        try:
+            server.start(open_browser=args.open)
+        except KeyboardInterrupt:
+            print("\nShutting down Bible Engine web server...")
+        finally:
+            server.shutdown()
+        return 0
+
+    parser_serve.set_defaults(func=cmd_serve)
+
     return parser
 
 
@@ -1916,6 +1978,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "get", "compare", "search", "find", "translations", "versions",
         "tag", "tags", "crossref", "xref", "refs",
         "doctor", "summary", "shell", "interactive", "repl", "console",
+        "serve", "server", "http", "web",
     }
 
     pos_idx = -1

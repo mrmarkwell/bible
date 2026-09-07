@@ -48,7 +48,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring. *(Run 026 / ADR-027)*
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
-- [ ] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`.
+- [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*
 - [ ] **Task 4.2**: Implement Sacred-Modern design system (obsidian dark mode `#0D0E11`, illuminated gold accents `#D4AF37`, editorial typography, responsive split-pane layout).
 - [ ] **Task 4.3**: Implement Canonical Redemptive Ribbon: pure SVG/Canvas Thematic Heatmap visualization across all 66 books of the Bible for any chosen tag/topic.
 - [ ] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags.
