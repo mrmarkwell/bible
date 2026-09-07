@@ -1717,6 +1717,73 @@ class BibleShell(cmd.Cmd):
         options = ["-p", "--pattern", "-m", "--module", "-u", "--missed", "-s", "--sequential", "--json", "--html", "core", "cli", "tools", "web"]
         return [c for c in options if c.startswith(text)]
 
+    def do_bench(self, arg: str) -> None:
+        """Run sovereign performance benchmarks & statistical latency profiler.
+        Usage:
+          /bench [-q/--quick] [-c <cat>] [-p <pat>] [--compare-baseline] [--json]
+        """
+        import shlex
+        from tools.benchmark import (
+            BenchmarkStyler,
+            format_benchmark_table,
+            generate_html_report,
+            load_baseline,
+            run_benchmark_suite,
+            save_baseline,
+            DEFAULT_BASELINE_PATH,
+        )
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        quick = "--quick" in tokens or "-q" in tokens or "--fast" in tokens
+        output_json = "--json" in tokens
+        compare_base = "--compare-baseline" in tokens
+        save_base = "--save-baseline" in tokens
+
+        cat = None
+        pat = None
+        for i, t in enumerate(tokens):
+            if t in ("-c", "--category") and i + 1 < len(tokens):
+                cat = tokens[i + 1]
+            elif t in ("-p", "--pattern") and i + 1 < len(tokens):
+                pat = tokens[i + 1]
+
+        categories = [c.strip() for c in cat.split(",") if c.strip()] if cat else None
+        baseline_data = None
+        if compare_base:
+            baseline_data = load_baseline(DEFAULT_BASELINE_PATH)
+
+        self.stdout.write("[Benchmarking] Executing statistical latency measurements...\n")
+        suite = run_benchmark_suite(
+            categories=categories,
+            pattern=pat,
+            quick=quick,
+            baseline=baseline_data,
+            baseline_path_str=".benchmark_baseline.json" if compare_base else None,
+        )
+
+        if save_base:
+            save_baseline(suite, DEFAULT_BASELINE_PATH)
+            self.stdout.write(f"[Saved] Baseline saved to {DEFAULT_BASELINE_PATH}\n")
+
+        if output_json:
+            self.stdout.write(suite.to_json(indent=2, include_raw=False) + "\n")
+        else:
+            styler = BenchmarkStyler(enabled=self.use_color)
+            self.stdout.write(format_benchmark_table(suite, styler=styler) + "\n")
+
+    def do_benchmark(self, arg: str) -> None:
+        """Alias for /bench."""
+        self.do_bench(arg)
+
+    def complete_bench(self, text: str, line: str, start_index: int, end_index: int) -> List[str]:
+        """Autocompletion for /bench command."""
+        options = ["-q", "--quick", "-c", "--category", "-p", "--pattern", "--compare-baseline", "--save-baseline", "--json", "reference", "database", "fts", "crypto", "render", "linter", "cache"]
+        return [c for c in options if c.startswith(text)]
+
+    def complete_benchmark(self, text: str, line: str, start_index: int, end_index: int) -> List[str]:
+        """Autocompletion for /benchmark command."""
+        return self.complete_bench(text, line, start_index, end_index)
+
     def do_esv(self, arg: str) -> None:
         """Inspect ESV API configuration, ephemeral 500-verse LRU cache, and Crossway legal compliance.
         Usage:
@@ -2128,6 +2195,7 @@ System & Web:
   /esv [status|cache|clear] Manage Crossway ESV API & 500-verse LRU cache
   /gemini [status|context] Google Gemini LLM client, model fallback & prompt context (alias: /llm)
   /test [pattern]         Run hermetic unit test suite in parallel (alias: /check)
+  /bench [options]        Run performance benchmarks & statistical latency profiler (alias: /benchmark)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report
   /clear                  Clear terminal screen

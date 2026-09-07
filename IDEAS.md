@@ -525,6 +525,19 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add CLI cast initiation subcommand (`./bible cast --plan romans_road`).
 - **Status**: [VETTED] (Rank A+; Promoted in Run 041).
 
+---
+
+### [DONE] Sovereign High-Velocity Performance Benchmark Engine, Statistical Latency Profiler & Regression Guard
+- **Summary**: Build a pure Python 3 standard library statistical micro-benchmarking engine (`tools/benchmark.py`) that profiles critical engine workloads with nanosecond precision (`time.perf_counter_ns()`), computing mean, median, min, max, standard deviation, p90, p99, operations/second, and throughput (MB/s). Features persistent baseline snapshots (`.benchmark_baseline.json`), automated regression detection (`--fail-regression N%`), color-coded ANSI terminal reporting with delta indicators, standalone Sacred-Modern HTML dashboard export (`--html`), and omnichannel integration across CLI (`./bible bench`), REPL shell (`/bench`), and system doctor (`./bible doctor --bench`).
+- **Rationale**: The Bible Engine's Manifesto mandates "instantaneous offline responsiveness" and "zero-latency scripture access." While unit tests guard correctness and linters guard syntax, the system previously had zero automated infrastructure to monitor runtime latency. Algorithmic regressions in reference parsing, SQLite queries, FTS5 search, ChaCha20-HMAC keystream generation, 4K SVG slide rendering, or AST analysis could degrade performance silently. A native benchmarking engine gives developers and autonomous agents quantitative feedback and enforces regression gates in CI and developer workflows.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (operates 100% offline, zero network calls).
+  - Zero third-party dependencies? Yes (Python 3 standard library `time`, `statistics`, `math`, `json`, `argparse` only per ADR-003).
+  - High performance? Yes (high-velocity quick mode runs all 14 workloads in <2.7s; full runs in ~13s).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.16; ADR-047).
+- **Status**: [DONE] (Rank A+; Implemented in Run 044 / Senior PM Cleanup Sprint).
+
+
 
 
 

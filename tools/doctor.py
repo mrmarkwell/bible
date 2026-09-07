@@ -553,6 +553,42 @@ def check_test_coverage(
         return CheckResult("Code Coverage & Test Gaps", False, f"Coverage audit error: {exc}", time.time() - t0)
 
 
+def check_performance_benchmarks(
+    repo_root: Path,
+    quick: bool = True,
+    regression_threshold: Optional[float] = 50.0,
+) -> CheckResult:
+    """Verify system performance benchmarks and guard against latency regressions."""
+    t0 = time.time()
+    try:
+        from tools.benchmark import DEFAULT_BASELINE_PATH, load_baseline, run_benchmark_suite
+        base_data = load_baseline(DEFAULT_BASELINE_PATH)
+        suite = run_benchmark_suite(
+            quick=quick,
+            baseline=base_data,
+            regression_threshold_pct=regression_threshold,
+            baseline_path_str=str(DEFAULT_BASELINE_PATH) if base_data else None,
+        )
+        dur = time.time() - t0
+        if suite.regressions:
+            reg_names = [f"{r.name} (+{abs(r.delta_pct or 0.0):.1f}% slower)" for r in suite.regressions]
+            return CheckResult(
+                "Performance Benchmarks",
+                False,
+                f"{len(suite.regressions)} performance regression(s) detected: {', '.join(reg_names)}",
+                dur,
+            )
+        base_notice = f" (vs baseline '{DEFAULT_BASELINE_PATH.name}')" if base_data else ""
+        return CheckResult(
+            "Performance Benchmarks",
+            True,
+            f"All {len(suite.results)} workloads verified within performance budgets in {dur:.2f}s{base_notice}",
+            dur,
+        )
+    except Exception as exc:
+        return CheckResult("Performance Benchmarks", False, f"Benchmark execution error: {exc}", time.time() - t0)
+
+
 def run_all_checks(
     repo_root: Optional[Path] = None,
     color: bool = True,
@@ -562,6 +598,7 @@ def run_all_checks(
     fix: bool = False,
     coverage: bool = False,
     coverage_threshold: float = 70.0,
+    bench: bool = False,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
     """Execute all diagnostic checks and render styled report.
@@ -658,6 +695,14 @@ def run_all_checks(
             if not res.passed:
                 failed = True
 
+        # 9. Performance Benchmarks (Optional or when --bench requested)
+        if bench:
+            res = check_performance_benchmarks(root, quick=True)
+            results.append(res)
+            _emit_check(res, styler, emit)
+            if not res.passed:
+                failed = True
+
     total_dur = time.time() - total_start
     emit(styler.bold("----------------------------------------------------------------------"))
     if failed:
@@ -728,6 +773,13 @@ if __name__ == "__main__":
         help="Minimum coverage percentage required when --coverage is enabled (default: 70%%)",
     )
     parser.add_argument(
+        "--bench",
+        "--benchmark",
+        dest="bench",
+        action="store_true",
+        help="Include performance benchmark suite in diagnostics",
+    )
+    parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -779,5 +831,6 @@ if __name__ == "__main__":
         fix=args.fix,
         coverage=args.coverage,
         coverage_threshold=args.coverage_threshold,
+        bench=args.bench,
     )
     sys.exit(code)

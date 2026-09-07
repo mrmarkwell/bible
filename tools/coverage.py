@@ -232,7 +232,7 @@ def _worker_trace_module(test_module_path: str, repo_root_str: str) -> Dict[str,
         test_path = repo_root / test_path
 
     worker_script = f"""
-import sys, os, trace, unittest, json
+import sys, os, trace, unittest, json, threading
 from pathlib import Path
 
 repo_root = Path({repo_root_str!r})
@@ -240,6 +240,7 @@ sys.path.insert(0, str(repo_root))
 
 stdlib_dir = os.path.dirname(os.__file__)
 tracer = trace.Trace(count=1, trace=0, ignoredirs=[stdlib_dir])
+threading.settrace(tracer.globaltrace)
 
 test_file = {str(test_path.relative_to(repo_root))!r}
 mod_name = test_file.replace("/", ".").replace("\\\\", ".").removesuffix(".py")

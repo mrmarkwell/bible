@@ -1820,6 +1820,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Quiet mode: suppress output and exit with status code only",
     )
+    parser_doctor.add_argument(
+        "--bench",
+        "--benchmark",
+        dest="bench",
+        action="store_true",
+        help="Include sovereign performance benchmark suite in diagnostics",
+    )
     def cmd_doctor(args: argparse.Namespace) -> int:
         from tools.doctor import install_hooks, uninstall_hooks, check_git_hooks, run_all_checks, DoctorStyler
         repo_root = Path(__file__).resolve().parent.parent
@@ -1845,12 +1852,14 @@ def build_parser() -> argparse.ArgumentParser:
         fast_mode = getattr(args, "fast", False)
         quiet_mode = getattr(args, "quiet", False)
         fix_mode = getattr(args, "fix", False)
+        bench_mode = getattr(args, "bench", False)
         code, _ = run_all_checks(
             repo_root=repo_root,
             color=is_tty,
             fast=fast_mode,
             quiet=quiet_mode,
             fix=fix_mode,
+            bench=bench_mode,
         )
         return code
 
@@ -4095,6 +4104,138 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_gemini.set_defaults(func=cmd_gemini)
 
+    # Subcommand: bench (aliases: benchmark, perf)
+    parser_bench = subparsers.add_parser(
+        "bench",
+        aliases=["benchmark", "perf"],
+        help="Sovereign high-velocity performance benchmark engine & regression guard",
+        description="High-precision statistical benchmarking and latency regression detection across all core workloads.",
+    )
+    parser_bench.add_argument(
+        "-c",
+        "--category",
+        default=None,
+        help="Filter benchmarks by category (comma-separated: reference,database,fts,crypto,render,linter,cache)",
+    )
+    parser_bench.add_argument(
+        "-p",
+        "--pattern",
+        default=None,
+        help="Filter benchmarks by name or description pattern substring",
+    )
+    parser_bench.add_argument(
+        "-n",
+        "--iterations",
+        type=int,
+        default=None,
+        help="Override iteration count for workloads",
+    )
+    parser_bench.add_argument(
+        "-w",
+        "--warmup",
+        type=int,
+        default=None,
+        help="Override warmup round count",
+    )
+    parser_bench.add_argument(
+        "-q",
+        "--quick",
+        "--fast",
+        action="store_true",
+        help="Run benchmarks in high-velocity quick mode (<2s)",
+    )
+    parser_bench.add_argument(
+        "--save-baseline",
+        nargs="?",
+        const=".benchmark_baseline.json",
+        default=None,
+        help="Save benchmark results to persistent baseline file (default: .benchmark_baseline.json)",
+    )
+    parser_bench.add_argument(
+        "--compare-baseline",
+        nargs="?",
+        const=".benchmark_baseline.json",
+        default=None,
+        help="Compare execution against persistent baseline file (default: .benchmark_baseline.json)",
+    )
+    parser_bench.add_argument(
+        "--fail-regression",
+        type=float,
+        metavar="THRESHOLD_PCT",
+        default=None,
+        help="Exit with code 1 if any benchmark regresses by more than THRESHOLD_PCT (e.g. 20.0)",
+    )
+    parser_bench.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit results as structured JSON",
+    )
+    parser_bench.add_argument(
+        "--html",
+        metavar="PATH",
+        default=None,
+        help="Export Sacred-Modern HTML performance dashboard to target file",
+    )
+    parser_bench.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI colors in terminal output",
+    )
+
+    def cmd_bench(args: argparse.Namespace) -> int:
+        from tools.benchmark import (
+            BenchmarkStyler,
+            format_benchmark_table,
+            generate_html_report,
+            load_baseline,
+            run_benchmark_suite,
+            save_baseline,
+        )
+
+        categories = [c.strip() for c in args.category.split(",") if c.strip()] if getattr(args, "category", None) else None
+        baseline_data = None
+        baseline_path_str = None
+        if getattr(args, "compare_baseline", None):
+            base_p = Path(args.compare_baseline)
+            baseline_path_str = str(base_p)
+            baseline_data = load_baseline(base_p)
+            if not baseline_data and not getattr(args, "json", False):
+                sys.stderr.write(f"[Notice] Baseline file '{base_p}' not found. Running benchmarks without baseline comparison.\n")
+
+        suite = run_benchmark_suite(
+            categories=categories,
+            pattern=getattr(args, "pattern", None),
+            iterations=getattr(args, "iterations", None),
+            warmup=getattr(args, "warmup", None),
+            quick=getattr(args, "quick", False),
+            baseline=baseline_data,
+            regression_threshold_pct=getattr(args, "fail_regression", None),
+            baseline_path_str=baseline_path_str,
+        )
+
+        if getattr(args, "save_baseline", None):
+            target_p = Path(args.save_baseline)
+            save_baseline(suite, target_p)
+            if not getattr(args, "json", False):
+                sys.stderr.write(f"[Saved] Baseline successfully saved to {target_p}\n")
+
+        if getattr(args, "html", None):
+            html_f = generate_html_report(suite, Path(args.html))
+            if not getattr(args, "json", False):
+                sys.stderr.write(f"[Exported] HTML benchmark report saved to {html_f}\n")
+
+        if getattr(args, "json", False):
+            print(suite.to_json(indent=2, include_raw=False))
+        else:
+            styler = BenchmarkStyler(enabled=not getattr(args, "no_color", False))
+            print(format_benchmark_table(suite, styler=styler))
+
+        if getattr(args, "fail_regression", None) is not None and suite.regressions:
+            return 1
+        return 0
+
+    parser_bench.set_defaults(func=cmd_bench)
+
     return parser
 
 
@@ -4128,6 +4269,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "coverage", "cov", "test-coverage",
         "esv", "esv-api", "esv-cache",
         "gemini", "llm", "gemini-api",
+        "bench", "benchmark", "perf",
     }
 
     pos_idx = -1
