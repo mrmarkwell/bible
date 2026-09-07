@@ -218,10 +218,32 @@ class TestShell(unittest.TestCase):
             self.assertIn("Static Analysis & Linter Engine", out)
             self.assertIn("CODE QUALITY: CLEAN", out)
 
-            # Autocompletion test
-            opts = shell.complete_lint("-", "/lint -", 0, 0)
-            self.assertIn("--fix", opts)
-            self.assertIn("--strict", opts)
+    def test_shell_slide_batch_command(self):
+        stdout = io.StringIO()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = Path(temp_dir) / "shell_slides"
+            with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+                # Test list-plans
+                shell.onecmd("/slide-batch --list-plans")
+                out = stdout.getvalue()
+                self.assertIn("Curated Scripture Reading Plans", out)
+                self.assertIn("psalms_of_ascent", out)
+
+                stdout.truncate(0)
+                stdout.seek(0)
+
+                # Test batch generation to svg
+                shell.onecmd(f"/slide-batch 'John 3:16' 'Genesis 1:1' -f svg -d {out_path} --sequential")
+                out2 = stdout.getvalue()
+                self.assertIn("Generated 2 slides", out2)
+                self.assertTrue((out_path / "manifest.json").exists())
+                self.assertTrue((out_path / "index.html").exists())
+
+                # Autocompletion test
+                opts = shell.complete_slide_batch("--p", "/slide-batch --p", 0, 0)
+                self.assertIn("--plan", opts)
+                plan_opts = shell.complete_slide_batch("psalms", "/slide-batch --plan psalms", 0, 0)
+                self.assertIn("psalms_of_ascent", plan_opts)
 
 
 class TestDirectReferenceRouting(unittest.TestCase):

@@ -259,6 +259,20 @@ class TestCliExecution(unittest.TestCase):
                     verse=16,
                     text="For God so loved the world, that he gave his only begotten Son.",
                 ),
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=45,
+                    chapter=3,
+                    verse=23,
+                    text="for all have sinned, and fall short of the glory of God;",
+                ),
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=45,
+                    chapter=6,
+                    verse=23,
+                    text="For the wages of sin is death, but the free gift of God is eternal life in Christ Jesus our Lord.",
+                ),
             ]
             + [
                 VerseRecord(
@@ -977,6 +991,73 @@ class TestCliExecution(unittest.TestCase):
             out = stdout.getvalue()
             self.assertIn("Generated 3840x2160 SVG slide", out)
             self.assertTrue(out_file.exists())
+
+    def test_cli_slide_batch_list_plans(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "slide-batch", "--list-plans"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Curated Scripture Reading Plans", out)
+        self.assertIn("psalms_of_ascent", out)
+        self.assertIn("romans_road", out)
+
+    def test_cli_slide_batch_missing_source_error(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "slide-batch"])
+        self.assertEqual(code, 1)
+        self.assertIn("No passage source specified", stderr.getvalue())
+
+    def test_cli_slide_batch_plan_export(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir) / "cli_plan_batch"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide-batch",
+                    "--plan", "romans_road",
+                    "-d", str(out_dir),
+                    "-f", "svg",
+                    "--limit", "2",
+                    "--sequential",
+                ])
+            self.assertEqual(code, 0)
+            out = stdout.getvalue()
+            self.assertIn("Batch Slide Export Complete!", out)
+            self.assertIn("The Romans Road to Salvation", out)
+            self.assertTrue(out_dir.exists())
+            self.assertTrue((out_dir / "manifest.json").exists())
+            self.assertTrue((out_dir / "index.html").exists())
+            self.assertTrue((out_dir / "index.txt").exists())
+            svgs = list(out_dir.glob("*.svg"))
+            self.assertEqual(len(svgs), 2)
+
+    def test_cli_slide_batch_json_flag(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_dir = Path(tmpdir) / "cli_json_batch"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide-batch",
+                    "John 3:16", "Romans 3:23",
+                    "-d", str(out_dir),
+                    "-f", "svg",
+                    "--json",
+                    "--sequential",
+                ])
+            self.assertEqual(code, 0)
+            import json
+            data = json.loads(stdout.getvalue())
+            self.assertEqual(data["total_slides"], 2)
+            self.assertEqual(data["total_passages"], 2)
+            self.assertTrue(Path(data["manifest_file"]).exists())
 
     def test_cli_lint_subcommand(self):
         stdout = io.StringIO()

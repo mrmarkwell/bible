@@ -138,7 +138,10 @@ class BibleShell(cmd.Cmd):
             cmd_name = parts[0].lower()
             arg_str = parts[1] if len(parts) > 1 else ""
 
-            handler = getattr(self, f"do_{cmd_name}", None)
+            handler = (
+                getattr(self, f"do_{cmd_name}", None)
+                or getattr(self, f"do_{cmd_name.replace('-', '_')}", None)
+            )
             if handler:
                 handler(arg_str)
                 return
@@ -1164,6 +1167,223 @@ class BibleShell(cmd.Cmd):
         ] + themes + books
         return [o for o in opts if o.lower().startswith(text.lower())]
 
+    def do_slide_batch(self, arg: str) -> None:
+        """Batch export visual verse slides: /slide-batch [--favorites|--plan <name>|--tag <name>] [options]"""
+        if self.db is None:
+            self._init_db()
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        from core.plans import format_plans_table, get_plan, list_plans
+        from core.render import (
+            ImageMagickNotFoundError,
+            PaginationConfig,
+            RenderConfig,
+            RenderError,
+            get_theme,
+            normalize_color,
+            parse_resolution,
+        )
+        from core.slide_batch import BatchExportConfig, SlideBatchExporter
+
+        if "--list-plans" in tokens or "-l" in tokens:
+            self.stdout.write(format_plans_table(styling=self.use_color) + "\n\n")
+            return
+
+        favs = "--favorites" in tokens
+        starred_only = "--starred-only" in tokens
+        plan_name = None
+        tag_name = None
+        book_name = None
+        file_path = None
+        out_dir = None
+        title = None
+        res_str = "4k"
+        theme_str = "oled_black"
+        fmt_str = "png"
+        backend_str = "auto"
+        limit = None
+        offset = 0
+        shuffle = "--shuffle" in tokens
+        sequential = "--sequential" in tokens or "-s" in tokens
+        no_paginate = "--no-paginate" in tokens
+        open_after = "--open" in tokens
+        json_out = "--json" in tokens
+
+        i = 0
+        refs: List[str] = []
+        while i < len(tokens):
+            t = tokens[i]
+            if t in ("--plan", "--reading-plan") and i + 1 < len(tokens):
+                plan_name = tokens[i + 1]
+                i += 2
+            elif t == "--tag" and i + 1 < len(tokens):
+                tag_name = tokens[i + 1]
+                i += 2
+            elif t == "--book" and i + 1 < len(tokens):
+                book_name = tokens[i + 1]
+                i += 2
+            elif t == "--file" and i + 1 < len(tokens):
+                file_path = tokens[i + 1]
+                i += 2
+            elif t in ("--output-dir", "-d") and i + 1 < len(tokens):
+                out_dir = tokens[i + 1]
+                i += 2
+            elif t == "--title" and i + 1 < len(tokens):
+                title = tokens[i + 1]
+                i += 2
+            elif t in ("--resolution", "-r") and i + 1 < len(tokens):
+                res_str = tokens[i + 1]
+                i += 2
+            elif t in ("--theme", "-t") and i + 1 < len(tokens):
+                theme_str = tokens[i + 1]
+                i += 2
+            elif t in ("--output-format", "-f", "--format") and i + 1 < len(tokens):
+                fmt_str = tokens[i + 1]
+                i += 2
+            elif t in ("--backend", "-b") and i + 1 < len(tokens):
+                backend_str = tokens[i + 1]
+                i += 2
+            elif t in ("--limit", "-n") and i + 1 < len(tokens):
+                try:
+                    limit = int(tokens[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            elif t == "--offset" and i + 1 < len(tokens):
+                try:
+                    offset = int(tokens[i + 1])
+                except ValueError:
+                    pass
+                i += 2
+            elif t in (
+                "--favorites", "--starred-only", "--shuffle", "--sequential", "-s",
+                "--no-paginate", "--open", "--json", "--list-plans"
+            ):
+                i += 1
+            else:
+                refs.append(t)
+                i += 1
+
+        if not (favs or tag_name or book_name or plan_name or file_path or refs):
+            self.stdout.write(
+                "Usage: /slide-batch [--favorites|--plan <name>|--tag <name>|--book <name>] [options]\n"
+                "Examples:\n"
+                "  /slide-batch --favorites --starred-only -f svg\n"
+                "  /slide-batch --plan sermon_on_the_mount\n"
+                "  /slide-batch --plan psalms_of_ascent -r 1080p\n"
+                "  /slide-batch --list-plans\n\n"
+            )
+            return
+
+        w, h = parse_resolution(res_str)
+        theme = get_theme(theme_str)
+        render_cfg = RenderConfig(
+            width=w,
+            height=h,
+            theme=theme,
+            backend=backend_str,
+            output_format=fmt_str,
+        )
+
+        pagination = PaginationConfig(enabled=not no_paginate)
+
+        folder_slug = "shell_batch"
+        if favs:
+            folder_slug = "favorites_starred" if starred_only else "favorites"
+        elif plan_name:
+            folder_slug = f"plan_{re.sub(r'[^a-zA-Z0-9_]+', '_', plan_name).strip('_').lower()}"
+        elif tag_name:
+            folder_slug = f"tag_{re.sub(r'[^a-zA-Z0-9_]+', '_', tag_name).strip('_').lower()}"
+        elif book_name:
+            folder_slug = f"book_{re.sub(r'[^a-zA-Z0-9_]+', '_', book_name).strip('_').lower()}"
+
+        dest_dir = Path(out_dir).resolve() if out_dir else Path.cwd() / "exports" / "slides" / folder_slug
+        album_title = title or (f"Reading Plan: {plan_name}" if plan_name else "Scripture Screensaver Album")
+
+        export_config = BatchExportConfig(
+            destination_dir=dest_dir,
+            render_config=render_cfg,
+            pagination_config=pagination,
+            album_title=album_title,
+            sequential=sequential,
+            shuffle=shuffle,
+            limit=limit,
+            offset=offset,
+            quiet=True,
+        )
+
+        self.stdout.write(f"Generating batch slides ({render_cfg.width}x{render_cfg.height} {render_cfg.output_format.upper()})...\n")
+
+        exporter = SlideBatchExporter(self.db)
+        passages = exporter.resolve_passages(
+            favorites=favs,
+            starred_only=starred_only,
+            tag=tag_name,
+            book=book_name,
+            plan=plan_name,
+            file_path=file_path,
+            references=refs if refs else None,
+            translation_id=self.translation_id,
+            limit=limit,
+            offset=offset,
+            shuffle=shuffle,
+        )
+
+        if not passages:
+            self.stdout.write("Error: No matching scripture passages found to export.\n\n")
+            return
+
+        try:
+            result = exporter.export_batch(export_config, passages=passages)
+        except ImageMagickNotFoundError as exc:
+            self.stdout.write(f"ImageMagick Error: {exc}\nTip: Run with '-f svg' or install ImageMagick.\n\n")
+            return
+        except RenderError as exc:
+            self.stdout.write(f"Render Error: {exc}\n\n")
+            return
+
+        if json_out:
+            self.stdout.write(json.dumps(result.to_dict(), indent=2) + "\n\n")
+            return
+
+        mb_size = result.total_bytes / (1024 * 1024)
+        size_str = f"{mb_size:.2f} MB" if mb_size >= 1.0 else f"{result.total_bytes / 1024:.1f} KB"
+
+        self.stdout.write(f"\n✓ Generated {result.total_slides} slides ({size_str}) in {result.duration_seconds:.2f}s:\n")
+        self.stdout.write(f"  • Album:     {result.album_title}\n")
+        self.stdout.write(f"  • Folder:    {result.destination_dir}\n")
+        if result.gallery_path:
+            self.stdout.write(f"  • Gallery:   file://{result.gallery_path}\n")
+        self.stdout.write(f"  • Manifest:  manifest.json\n\n")
+
+        if open_after and result.gallery_path:
+            try:
+                import subprocess
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.Popen([opener, str(result.gallery_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
+    def do_batch_slide(self, arg: str) -> None:
+        """Alias for /slide-batch."""
+        self.do_slide_batch(arg)
+
+    def complete_slide_batch(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /slide-batch command."""
+        from core.plans import list_plans
+        from core.render import STANDARD_THEMES
+        plans = [p.name for p in list_plans()]
+        themes = list(STANDARD_THEMES.keys())
+        opts = [
+            "--favorites", "--starred-only", "--plan", "--tag", "--book", "--list-plans",
+            "-d", "--output-dir", "--title", "-r", "--resolution", "-t", "--theme",
+            "-f", "--format", "--backend", "-n", "--limit", "--offset", "--shuffle",
+            "--sequential", "-s", "--no-paginate", "--open", "--json",
+            "4k", "1080p", "720p", "square", "png", "svg", "jpg",
+        ] + plans + themes
+        return [o for o in opts if o.lower().startswith(text.lower())]
+
+
     # --------------------------------------------------------------------------
     # Session Configuration Commands
     # --------------------------------------------------------------------------
@@ -1663,6 +1883,7 @@ Study & Search:
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
+  /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)

@@ -1582,5 +1582,49 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 041** (Standard Ralph Loop Iteration).
   - Next domain task on the roadmap: **Task 5.5**: *Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums*.
 
+---
+
+## [Run 041] 2026-09-07 — Batch Scripture Slide Exporter, Curated Reading Plans & Sacred-Modern TV Screensaver Album Generator (Task 5.5 / ADR-044)
+- **Role**: Ralph Loop Autonomous Cycle (Standard Iteration).
+- **Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation (100% COMPLETE).
+- **Task**: Task 5.5 — Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums.
+- **Accomplishments & Deliverables**:
+  - **Curated Reading Plans & Scripture Collections (`core/plans.py`)**:
+    - Created `ReadingPlan` dataclass and curated 12 standard biblical collections across 113 core passages: `psalms_of_ascent` (15 pilgrim songs), `sermon_on_the_mount` (14 Kingdom manifesto passages), `romans_road` (7 gospel/salvation passages), `messianic_prophecies` (12 Christological fulfillment passages), `comfort_and_peace` (12 solace passages), `creation_and_covenant` (11 covenant arc passages), `beatitudes`, `armor_of_god`, `fruit_of_the_spirit`, `love_chapter`, `great_commandments`, and `divine_names`.
+    - Added ergonomic alias resolution (`ascent`, `sermon`, `romans`, `prophecy`, `peace`, `armor`, `fruit`, `love`) and formatted terminal table listing (`format_plans_table`).
+  - **High-Performance Batch Slide Exporter (`core/slide_batch.py`)**:
+    - Architected `SlideBatchExporter`, `BatchExportConfig`, and `BatchExportResult` with multi-source resolution: `--favorites` (from `favorite_bible_verses.csv` / DB), `--starred-only`, `--tag <name>`, `--book <name>`, `--plan <name>`, `--file <path>`, or arbitrary reference citation lists.
+    - Implemented high-concurrency multiprocessing rendering via `concurrent.futures.ProcessPoolExecutor` with picklable task workers.
+    - Automated zero-padded sequential naming (`001_john_3_16.png`, `014_2_samuel_22_p1.png`) and multi-slide pagination handling for long passages.
+    - Added slicing (`--limit`, `--offset`) and deterministic seeded shuffling (`--shuffle`, `--seed`).
+  - **Structured Screensaver Album Packaging & Sacred-Modern Web Gallery**:
+    - `manifest.json`: Complete JSON metadata inventory recording album title, theme, resolution, format, total passages, total slides, duration, and individual slide metadata.
+    - `index.html`: Self-contained, zero-dependency Sacred-Modern dark visual gallery (`#0D0E11` obsidian, `#D4AF37` gold accents) featuring responsive card grid, instant search/filter, full-screen interactive slideshow modal with auto-play (10s), keyboard navigation (Left, Right, Space, Esc), and TV Screensaver Setup Guides for Google TV, Chromecast, USB smart TVs, and Apple TV.
+    - `index.txt`: Simple plaintext index for TV media players and shell scripts.
+  - **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added `./bible slide-batch` subcommand (aliases: `batch-slide`, `slides-batch`, `batch-render`, `slidebatch`).
+    - Added `/slide-batch` (alias: `/batch_slide`) command to `BibleShell` with tab autocompletion and hyphen-to-underscore dispatch routing.
+    - Extended `core/render.py` with `export_slide_batch(...)` convenience functional interface.
+  - **Hermetic Unit Test Suite (`tests/test_plans.py`, `tests/test_slide_batch.py`)**:
+    - Authored 8 unit tests in `tests/test_plans.py` (100% statement coverage) and 12 unit tests in `tests/test_slide_batch.py` (85.4% statement coverage).
+    - Expanded `tests/test_cli.py` (74 tests) and `tests/test_shell.py` (18 tests).
+    - Entire repository test suite expanded to **528 tests across 26 modules passing 100% in 3.5s** with zero warnings or resource leaks.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-044** in `DECISIONS.md`.
+    - Marked **Task 5.5** complete in `ROADMAP.md` (Phase 5 now 100% complete!).
+- **Verification**:
+  - Ran `./bible test`: 528 tests across 26 modules passed in 3.498s.
+  - Ran `./bible doctor`: all 7 repository health checks passed in 4.47s.
+  - Ran `./bible doctor --fast`: all 5 fast pre-commit checks passed in 0.65s.
+  - Ran `./bible lint`: 56 files checked with 0 errors.
+  - Ran `./bible slide-batch --list-plans`: verified formatted plans table.
+  - Ran `./bible slide-batch --plan romans_road --limit 3 -f svg -d /tmp/test_batch_cli`: verified SVG export in 0.01s.
+  - Ran `./bible slide-batch --plan sermon_on_the_mount --limit 2 -f png -d /tmp/test_raster_album`: verified 4K UHD PNG raster rendering.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Phase 5 is 100% complete.
+  - Next domain task on roadmap: **Task 2.5**: *Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041)*, OR **Task 6.1**: *Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback per ADR-003 and ADR-006)*.
+
+
 
 

@@ -1485,3 +1485,65 @@ def render_verse_slides(
         return engine.render_sequence_to_files(contents, output_path, config=config)
     return engine.render_sequence(contents, config=config)
 
+
+def export_slide_batch(
+    destination_dir: Union[str, Path],
+    favorites: bool = False,
+    starred_only: bool = False,
+    tag: Optional[str] = None,
+    book: Optional[str] = None,
+    plan: Optional[str] = None,
+    references: Optional[Sequence[Union[str, Any]]] = None,
+    file_path: Optional[Union[str, Path]] = None,
+    album_title: str = "Scripture Screensaver Album",
+    theme: Union[str, SlideTheme] = "oled_black",
+    resolution: Union[str, Tuple[int, int]] = "4k",
+    output_format: str = "png",
+    limit: Optional[int] = None,
+    offset: int = 0,
+    shuffle: bool = False,
+    seed: Optional[int] = None,
+    max_workers: int = 4,
+    sequential: bool = False,
+    quiet: bool = True,
+    **kwargs: Any,
+) -> Any:
+    """Convenience functional interface for generating a batch screensaver album."""
+    from core.slide_batch import BatchExportConfig, SlideBatchExporter
+
+    w, h = parse_resolution(resolution)
+    render_config = RenderConfig(
+        width=w,
+        height=h,
+        theme=theme,
+        output_format=output_format,
+        **kwargs,
+    )
+    dest_path = Path(destination_dir).resolve()
+    config = BatchExportConfig(
+        destination_dir=dest_path,
+        render_config=render_config,
+        album_title=album_title,
+        max_workers=max_workers,
+        sequential=sequential,
+        shuffle=shuffle,
+        seed=seed,
+        limit=limit,
+        offset=offset,
+        quiet=quiet,
+    )
+    exporter = SlideBatchExporter()
+    passages = exporter.resolve_passages(
+        favorites=favorites,
+        starred_only=starred_only,
+        tag=tag,
+        book=book,
+        plan=plan,
+        references=references,
+        file_path=file_path,
+        limit=limit,
+        offset=offset,
+        shuffle=shuffle,
+        seed=seed,
+    )
+    return exporter.export_batch(config, passages=passages)

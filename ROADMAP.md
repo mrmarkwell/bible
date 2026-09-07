@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation
-- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete (100%); Phase 5 in progress (Tasks 5.1, 5.2, 5.3, 5.4 complete)
+- **Active Phase**: Phase 2 (Task 2.5) & Phase 6 — Google Gemini LLM Client & Theological Guardrail Engine
+- **Overall Progress**: Phase 0, Phase 1, Phase 2 (core), Phase 3, Phase 4, and Phase 5 complete (100%); Phase 6 next
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -70,7 +70,7 @@ This document is the single source of truth for current project status, active t
   - Citation: `--citation-style=<below|smallcaps|none>`, `--citation-color=<hex>`.
   - Format: `--format=png` (default lossless), `--format=jpg` (with `--quality=95`).
 - [x] **Task 5.4**: Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`). *(Run 038 / ADR-039)*
-- [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums.
+- [x] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums. *(Run 041 / ADR-044)*
 
 ### Phase 6: Google Gemini LLM Client & Theological Guardrail Engine (Zero-Dependencies)
 - [ ] **Task 6.1**: Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback, zero pip dependencies per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041.

@@ -139,6 +139,22 @@ from core.render import (
     paginate_verses,
     paginate_text,
     render_verse_slides,
+    export_slide_batch,
+)
+from core.plans import (
+    ReadingPlan,
+    STANDARD_PLANS,
+    get_plan,
+    list_plans,
+    format_plans_table,
+)
+from core.slide_batch import (
+    BatchExportConfig,
+    BatchExportResult,
+    BatchPassageItem,
+    BatchSlideItem,
+    SlideBatchExporter,
+    generate_html_gallery,
 )
 
 __all__ = [
@@ -267,5 +283,18 @@ __all__ = [
     "paginate_verses",
     "paginate_text",
     "render_verse_slides",
+    "export_slide_batch",
+    # Reading Plans & Scripture Collections
+    "ReadingPlan",
+    "STANDARD_PLANS",
+    "get_plan",
+    "list_plans",
+    "format_plans_table",
+    # Batch Slide Export & Screensaver Album Generator
+    "BatchExportConfig",
+    "BatchExportResult",
+    "BatchPassageItem",
+    "BatchSlideItem",
+    "SlideBatchExporter",
+    "generate_html_gallery",
 ]
-

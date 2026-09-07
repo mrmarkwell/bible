@@ -2831,6 +2831,534 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_slide.set_defaults(func=cmd_slide)
 
+    # Subcommand: slide-batch (aliases: batch-slide, slides-batch, batch-render, slidebatch)
+    parser_slide_batch = subparsers.add_parser(
+        "slide-batch",
+        aliases=["batch-slide", "slides-batch", "batch-render", "slidebatch"],
+        help="Batch export visual verse slides for Google Photos, Chromecast, and TV screensavers",
+        description=(
+            "Generate high-resolution 16:9 4K UHD or 1080p scripture slide albums from user favorites, "
+            "curated reading plans, thematic tags, canonical books, or custom reference lists, complete with "
+            "an offline Sacred-Modern HTML gallery (index.html) and manifest.json."
+        ),
+    )
+    # Source options
+    parser_slide_batch.add_argument(
+        "references",
+        nargs="*",
+        default=None,
+        help="Optional explicit scripture citations to render (e.g. 'John 3:16' 'Romans 8:28')",
+    )
+    parser_slide_batch.add_argument(
+        "--favorites",
+        action="store_true",
+        help="Export user curated favorite passages (from favorite_bible_verses.csv / database)",
+    )
+    parser_slide_batch.add_argument(
+        "--starred-only",
+        action="store_true",
+        help="Filter favorites or tags to only starred/prioritized passages",
+    )
+    parser_slide_batch.add_argument(
+        "--tag",
+        type=str,
+        default=None,
+        help="Export all scripture passages associated with a semantic tag (e.g. 'Covenant', 'Grace')",
+    )
+    parser_slide_batch.add_argument(
+        "--book",
+        type=str,
+        default=None,
+        help="Export all pericopes or chapters of a canonical book (e.g. 'Romans', 'James', 'Psalms')",
+    )
+    parser_slide_batch.add_argument(
+        "--plan",
+        "--reading-plan",
+        type=str,
+        default=None,
+        help="Export passages from a curated reading plan (e.g. 'psalms_of_ascent', 'sermon', 'romans_road')",
+    )
+    parser_slide_batch.add_argument(
+        "--list-plans",
+        action="store_true",
+        help="List all available curated reading plans with passage counts and descriptions",
+    )
+    parser_slide_batch.add_argument(
+        "--file",
+        type=str,
+        default=None,
+        help="File path containing scripture citations (one per line)",
+    )
+    # Album & Destination options
+    parser_slide_batch.add_argument(
+        "--output-dir",
+        "-d",
+        type=str,
+        default=None,
+        help="Destination directory for generated slide album (default: exports/slides/<album_name>)",
+    )
+    parser_slide_batch.add_argument(
+        "--title",
+        type=str,
+        default=None,
+        help="Custom title for the exported album and HTML visual gallery",
+    )
+    parser_slide_batch.add_argument(
+        "--resolution",
+        "-r",
+        type=str,
+        default="4k",
+        help="Resolution preset ('4k', '1080p', 'square', 'portrait_1080p') or WxH (default: '4k')",
+    )
+    parser_slide_batch.add_argument(
+        "--theme",
+        "-t",
+        type=str,
+        default="oled_black",
+        help="Color theme ('oled_black', 'charcoal', 'obsidian', 'monastery', 'inverted', 'parchment')",
+    )
+    parser_slide_batch.add_argument(
+        "--output-format",
+        "-f",
+        type=str,
+        default="png",
+        choices=["png", "jpg", "jpeg", "svg"],
+        help="Output image format: 'png' (lossless, default), 'jpg' (JPEG), 'svg' (vector)",
+    )
+    parser_slide_batch.add_argument(
+        "--version",
+        dest="version",
+        default="WEB",
+        help="Scripture translation identifier (default: WEB)",
+    )
+    parser_slide_batch.add_argument(
+        "--backend",
+        "-b",
+        type=str,
+        default="auto",
+        choices=["auto", "raster", "svg"],
+        help="Rendering backend: 'auto' (default), 'raster' (ImageMagick), 'svg' (pure Python)",
+    )
+    parser_slide_batch.add_argument(
+        "--quality",
+        type=int,
+        default=95,
+        help="JPEG quality compression factor (1-100, default: 95)",
+    )
+    parser_slide_batch.add_argument(
+        "--dpi",
+        type=int,
+        default=300,
+        help="Rasterization DPI when converting SVG to raster (default: 300)",
+    )
+    parser_slide_batch.add_argument(
+        "--safe-area",
+        type=float,
+        default=0.15,
+        help="TV safe area margin percentage (0.05 to 0.30, default: 0.15 for 15%%)",
+    )
+    parser_slide_batch.add_argument(
+        "--align",
+        type=str,
+        default="center",
+        choices=["center", "left", "right"],
+        help="Horizontal text alignment (default: 'center')",
+    )
+    parser_slide_batch.add_argument(
+        "--font-family",
+        "--font",
+        type=str,
+        default=None,
+        help="Custom font family for slide typography",
+    )
+    parser_slide_batch.add_argument(
+        "--font-size",
+        type=parse_font_size_arg,
+        default=None,
+        help="Font size in points, or 'auto' (default) for layout engine calculation",
+    )
+    parser_slide_batch.add_argument(
+        "--line-spacing",
+        type=float,
+        default=1.5,
+        help="Line spacing multiplier (default: 1.5)",
+    )
+    parser_slide_batch.add_argument(
+        "--citation-style",
+        type=str,
+        default="below",
+        choices=["below", "smallcaps", "none"],
+        help="Citation placement style (default: 'below')",
+    )
+    parser_slide_batch.add_argument(
+        "--citation-color",
+        "-c",
+        type=str,
+        default=None,
+        help="Custom hex color for citation text (e.g. '#D4AF37')",
+    )
+    parser_slide_batch.add_argument(
+        "--accent-color",
+        type=str,
+        default=None,
+        help="Custom hex color for accent divider rule",
+    )
+    parser_slide_batch.add_argument(
+        "--optical-center",
+        type=float,
+        default=0.45,
+        help="Optical vertical centering factor (0.0 - 1.0, default: 0.45)",
+    )
+    parser_slide_batch.add_argument(
+        "--no-balance",
+        action="store_true",
+        help="Disable typographic line balancing",
+    )
+    parser_slide_batch.add_argument(
+        "--no-rule",
+        action="store_true",
+        help="Suppress decorative accent rule between verse and citation",
+    )
+    parser_slide_batch.add_argument(
+        "--tags",
+        action="store_true",
+        help="Display semantic tags in the slide footer",
+    )
+    # Slicing & Ordering
+    parser_slide_batch.add_argument(
+        "--limit",
+        "-n",
+        type=int,
+        default=None,
+        help="Maximum number of passages to export",
+    )
+    parser_slide_batch.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="Number of passages to skip before exporting",
+    )
+    parser_slide_batch.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Randomize passage order before generating slides",
+    )
+    parser_slide_batch.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Deterministic random seed for shuffling",
+    )
+    # Pagination
+    parser_slide_batch.add_argument(
+        "--no-paginate",
+        action="store_true",
+        help="Disable multi-slide pagination; force passage onto a single slide",
+    )
+    parser_slide_batch.add_argument(
+        "--max-verses",
+        type=int,
+        default=None,
+        help="Maximum verses per slide before paginating",
+    )
+    parser_slide_batch.add_argument(
+        "--max-lines",
+        type=int,
+        default=None,
+        help="Maximum wrapped lines per slide before paginating (default: 8)",
+    )
+    parser_slide_batch.add_argument(
+        "--max-chars",
+        type=int,
+        default=None,
+        help="Maximum characters per slide before paginating (default: 420)",
+    )
+    # Execution & Automation
+    parser_slide_batch.add_argument(
+        "--jobs",
+        "-j",
+        type=int,
+        default=None,
+        help="Number of concurrent worker processes for rendering (default: CPU count)",
+    )
+    parser_slide_batch.add_argument(
+        "--sequential",
+        "-s",
+        action="store_true",
+        help="Force sequential rendering in a single process",
+    )
+    parser_slide_batch.add_argument(
+        "--no-gallery",
+        action="store_true",
+        help="Skip generating HTML visual gallery (index.html)",
+    )
+    parser_slide_batch.add_argument(
+        "--no-manifest",
+        action="store_true",
+        help="Skip generating JSON manifest (manifest.json)",
+    )
+    parser_slide_batch.add_argument(
+        "--open",
+        action="store_true",
+        help="Open generated visual gallery (index.html) in default web browser",
+    )
+    parser_slide_batch.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress terminal progress bar and status output",
+    )
+    parser_slide_batch.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON summary of exported album",
+    )
+
+    def cmd_slide_batch(args: argparse.Namespace) -> int:
+        from core.plans import format_plans_table, get_plan
+        from core.render import (
+            ImageMagickNotFoundError,
+            PaginationConfig,
+            RenderConfig,
+            RenderError,
+            get_theme,
+            normalize_color,
+            parse_resolution,
+        )
+        from core.slide_batch import BatchExportConfig, SlideBatchExporter
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+
+        if getattr(args, "list_plans", False):
+            print(format_plans_table(styling=color_enabled))
+            return 0
+
+        # Validate source selection
+        has_favs = bool(getattr(args, "favorites", False))
+        has_tag = bool(getattr(args, "tag", None))
+        has_book = bool(getattr(args, "book", None))
+        has_plan = bool(getattr(args, "plan", None))
+        has_file = bool(getattr(args, "file", None))
+        has_refs = bool(getattr(args, "references", None))
+
+        if not (has_favs or has_tag or has_book or has_plan or has_file or has_refs):
+            sys.stderr.write(
+                "Error: No passage source specified for batch export.\n"
+                "Specify a source, for example:\n"
+                "  ./bible slide-batch --favorites [--starred-only]\n"
+                "  ./bible slide-batch --plan psalms_of_ascent\n"
+                "  ./bible slide-batch --tag Covenant\n"
+                "  ./bible slide-batch --book James\n"
+                "  ./bible slide-batch 'John 3:16' 'Romans 8:28' 'Psalm 23'\n"
+                "Run with '--list-plans' to view all available reading plans.\n"
+            )
+            return 1
+
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+
+        # Derive default album title and folder slug
+        custom_title = getattr(args, "title", None)
+        starred_only = bool(getattr(args, "starred_only", False))
+        folder_slug = "scripture_slides"
+        album_title = custom_title or "Scripture Screensaver Album"
+        source_type = "custom"
+        source_query = ""
+
+        if has_favs:
+            source_type = "favorites"
+            if starred_only:
+                album_title = custom_title or "Curated Starred Bible Verses"
+                folder_slug = "favorites_starred"
+            else:
+                album_title = custom_title or "Curated Favorite Bible Verses"
+                folder_slug = "favorites"
+        elif has_plan:
+            source_type = "plan"
+            source_query = args.plan
+            plan_obj = get_plan(args.plan)
+            if plan_obj:
+                album_title = custom_title or plan_obj.title
+                folder_slug = f"plan_{plan_obj.name}"
+            else:
+                album_title = custom_title or f"Reading Plan: {args.plan}"
+                folder_slug = f"plan_{re.sub(r'[^a-zA-Z0-9_]+', '_', args.plan).strip('_').lower()}"
+        elif has_tag:
+            source_type = "tag"
+            source_query = args.tag
+            album_title = custom_title or f"Thematic Scriptures: {args.tag}"
+            folder_slug = f"tag_{re.sub(r'[^a-zA-Z0-9_]+', '_', args.tag).strip('_').lower()}"
+        elif has_book:
+            source_type = "book"
+            source_query = args.book
+            album_title = custom_title or f"Canonical Book: {args.book}"
+            folder_slug = f"book_{re.sub(r'[^a-zA-Z0-9_]+', '_', args.book).strip('_').lower()}"
+        elif has_file:
+            source_type = "file"
+            source_query = str(args.file)
+            f_stem = Path(args.file).stem
+            album_title = custom_title or f"Scripture Collection ({f_stem})"
+            folder_slug = f"file_{re.sub(r'[^a-zA-Z0-9_]+', '_', f_stem).strip('_').lower()}"
+        elif has_refs:
+            source_type = "references"
+            album_title = custom_title or "Curated Scripture Passages"
+            folder_slug = "custom_passages"
+
+        out_dir_arg = getattr(args, "output_dir", None)
+        if out_dir_arg:
+            dest_dir = Path(out_dir_arg).resolve()
+        else:
+            dest_dir = Path.cwd() / "exports" / "slides" / folder_slug
+
+        # Parse dimensions and theme
+        w, h = parse_resolution(args.resolution)
+        theme = get_theme(args.theme)
+        target_format = getattr(args, "output_format", "png")
+
+        render_config = RenderConfig(
+            width=w,
+            height=h,
+            theme=theme,
+            safe_area_pct=args.safe_area,
+            font_family=getattr(args, "font_family", None),
+            font_size=args.font_size,
+            line_spacing=getattr(args, "line_spacing", 1.5),
+            text_align=args.align,
+            citation_style=getattr(args, "citation_style", "below"),
+            citation_color=normalize_color(getattr(args, "citation_color", None)),
+            accent_color=normalize_color(getattr(args, "accent_color", None)),
+            optical_center_pct=getattr(args, "optical_center", 0.45),
+            balance_lines=not getattr(args, "no_balance", False),
+            show_accent_rule=not args.no_rule,
+            show_tags=bool(args.tags),
+            backend=args.backend,
+            output_format=target_format,
+            jpeg_quality=args.quality,
+            dpi=args.dpi,
+        )
+
+        no_paginate_flag = getattr(args, "no_paginate", False)
+        if no_paginate_flag:
+            pagination = PaginationConfig(enabled=False)
+        else:
+            pagination = PaginationConfig(
+                enabled=True,
+                mode="auto",
+                max_verses_per_slide=getattr(args, "max_verses", None),
+                max_lines_per_slide=getattr(args, "max_lines", None),
+                max_chars_per_slide=getattr(args, "max_chars", None),
+            )
+
+        export_config = BatchExportConfig(
+            destination_dir=dest_dir,
+            render_config=render_config,
+            pagination_config=pagination,
+            album_title=album_title,
+            album_description=f"Generated with Bible Engine ({render_config.width}x{render_config.height} {render_config.output_format.upper()})",
+            source_type=source_type,
+            source_query=source_query,
+            max_workers=getattr(args, "jobs", None) or (os.cpu_count() or 4),
+            sequential=getattr(args, "sequential", False),
+            shuffle=getattr(args, "shuffle", False),
+            seed=getattr(args, "seed", None),
+            limit=getattr(args, "limit", None),
+            offset=getattr(args, "offset", 0),
+            generate_gallery=not getattr(args, "no_gallery", False),
+            generate_manifest=not getattr(args, "no_manifest", False),
+            quiet=getattr(args, "quiet", False) or getattr(args, "json", False),
+        )
+
+        with Database(db_path) as db:
+            exporter = SlideBatchExporter(db)
+            passages = exporter.resolve_passages(
+                favorites=has_favs,
+                starred_only=starred_only,
+                tag=args.tag,
+                book=args.book,
+                plan=args.plan,
+                file_path=args.file,
+                references=args.references,
+                translation_id=args.version,
+                limit=args.limit,
+                offset=args.offset,
+                shuffle=args.shuffle,
+                seed=args.seed,
+            )
+
+            if not passages:
+                sys.stderr.write("Error: No matching scripture passages found to export.\n")
+                return 1
+
+            if not export_config.quiet:
+                gold = "\033[38;2;212;175;55m" if color_enabled else ""
+                cyan = "\033[36m" if color_enabled else ""
+                reset = "\033[0m" if color_enabled else ""
+                bold = "\033[1m" if color_enabled else ""
+                workers_label = "1 worker (sequential)" if export_config.sequential else f"{export_config.max_workers} worker processes"
+                print(f"{bold}{gold}=== Exporting Batch Scripture Slide Album ==={reset}")
+                print(f"  • Title:       {album_title}")
+                print(f"  • Passages:    {len(passages)} resolved")
+                print(f"  • Resolution:  {render_config.width}x{render_config.height} ({render_config.output_format.upper()})")
+                print(f"  • Theme:       {render_config.theme.name if hasattr(render_config.theme, 'name') else render_config.theme}")
+                print(f"  • Workers:     {workers_label}")
+                print(f"  • Destination: {cyan}{dest_dir}{reset}")
+                print()
+
+            try:
+                result = exporter.export_batch(export_config, passages=passages)
+            except ImageMagickNotFoundError as exc:
+                sys.stderr.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend=svg' or install ImageMagick.\n")
+                return 1
+            except RenderError as exc:
+                sys.stderr.write(f"Render Error: {exc}\n")
+                return 1
+
+        if getattr(args, "json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+            return 0
+
+        if not getattr(args, "quiet", False):
+            gold = "\033[38;2;212;175;55m" if color_enabled else ""
+            green = "\033[32m" if color_enabled else ""
+            cyan = "\033[36m" if color_enabled else ""
+            reset = "\033[0m" if color_enabled else ""
+            bold = "\033[1m" if color_enabled else ""
+
+            mb_size = result.total_bytes / (1024 * 1024)
+            size_str = f"{mb_size:.2f} MB" if mb_size >= 1.0 else f"{result.total_bytes / 1024:.1f} KB"
+
+            print()
+            print(f"{bold}{green}✓ Batch Slide Export Complete!{reset}")
+            print(f"  • Album:       {result.album_title}")
+            print(f"  • Slides:      {result.total_slides} generated across {result.total_passages} passages in {result.duration_seconds:.2f}s")
+            print(f"  • Total Size:  {size_str}")
+            print(f"  • Directory:   {cyan}{result.destination_dir}{reset}")
+            if result.gallery_path:
+                print(f"  • Gallery:     {cyan}file://{result.gallery_path}{reset}")
+            if result.manifest_path:
+                print(f"  • Manifest:    {result.manifest_path.name}")
+            print()
+            print(f"  {gold}📺 TV Screensaver Tip:{reset} Open the gallery above in your browser, or upload this directory")
+            print("     to Google Photos to sync with Google TV / Chromecast ambient screensavers.")
+
+        if getattr(args, "open", False) and result.gallery_path:
+            try:
+                import subprocess
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.Popen([opener, str(result.gallery_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+
+        return 0
+
+    parser_slide_batch.set_defaults(func=cmd_slide_batch)
+
     # Subcommand: test (aliases: tests, check)
     parser_test = subparsers.add_parser(
         "test",
@@ -3171,6 +3699,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "ribbon", "pericopes", "pericope", "chapters", "chapter",
         "arcs", "arc", "typology", "typologies",
         "slide", "render",
+        "slide-batch", "batch-slide", "slides-batch", "batch-render", "slidebatch",
         "test", "tests", "check",
         "lint", "linter", "check-style",
         "coverage", "cov", "test-coverage",

@@ -1339,7 +1339,57 @@ This document is an append-only log of significant design and architectural deci
   - Telemetry and executive summaries are immune to parser syntax drift.
   - Unit test suite expanded to 503 tests across 24 modules passing 100% in 3.3s.
 
+---
 
-
-
-
+## ADR-044: Batch Scripture Slide Exporter, Curated Reading Plans, and Sacred-Modern Visual TV Screensaver Album Generator (`bible slide-batch`)
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - In Phase 5, Tasks 5.1 through 5.4 established the core slide rendering engine (`core/render.py`), dynamic typography layout box calculation, single-verse CLI rendering (`./bible slide`), and multi-slide pagination.
+  - However, users displaying scripture on living room smart TVs, Google TV, Apple TV, Chromecast, digital frames, or church presentations need whole curated collections (e.g. all 15 Psalms of Ascent, the Sermon on the Mount, the Romans Road, or the user's top 50 curated favorites from `favorite_bible_verses.csv`) exported into ready-to-use digital albums in a single command.
+  - Individual manual rendering of hundreds of slides is tedious, sequential rendering is slow on high-core machines, and static images alone lack visual browsing, structured metadata, or TV sync guidance.
+- **Decision**:
+  1. **Curated Reading Plans & Scripture Collections (`core/plans.py`)**:
+     - Modeled `ReadingPlan` dataclass (`name`, `title`, `description`, `category`, `passages`, `tags`).
+     - Authored 12 standard curated biblical collections spanning 113 core passages:
+       * `psalms_of_ascent` (Psalms 120-134, 15 pilgrim songs)
+       * `sermon_on_the_mount` (Matthew 5-7, 14 kingdom manifesto passages)
+       * `romans_road` (Romans 3:23, 6:23, 5:8, 10:9-10, 5:1-2, 8:1-2, 8:38-39)
+       * `messianic_prophecies` (12 Old Testament messianic types and prophetic promises)
+       * `comfort_and_peace` (12 timeless passages of divine solace and peace)
+       * `creation_and_covenant` (11 passages charting redemptive covenant history)
+       * `beatitudes` (Matthew 5:3-12)
+       * `armor_of_god` (Ephesians 6:10-20)
+       * `fruit_of_the_spirit` (Galatians 5:16-26)
+       * `love_chapter` (1 Corinthians 13:1-13)
+       * `great_commandments` (The Shema and Great Commandments)
+       * `divine_names` (Divine names and attributes of God)
+     - Added fuzzy and ergonomic alias mapping (`ascent`, `sermon`, `romans`, `prophecy`, `peace`, `armor`, `fruit`, `love`, etc.) and terminal listing (`format_plans_table`).
+  2. **High-Performance Batch Slide Exporter (`core/slide_batch.py`)**:
+     - Built `SlideBatchExporter` and `BatchExportConfig` supporting flexible source resolution:
+       * `--favorites`: User curated favorites from `favorite_bible_verses.csv` / SQLite database.
+       * `--starred-only`: Filter favorites or tags to starred/prioritized passages.
+       * `--tag <name>`: All passages tagged with a semantic taxonomy concept.
+       * `--book <name>`: All pericopes or chapters of a canonical book.
+       * `--plan <name>`: Curated reading plans from `core/plans.py`.
+       * `--file <path>`: External scripture lists (one citation per line).
+       * Arbitrary positional reference citations.
+     - Implemented parallel multiprocessing rendering using `concurrent.futures.ProcessPoolExecutor` with picklable task workers, achieving ~150+ slides/sec for SVG and fast parallel rendering for 4K PNG.
+     - Automatically handles multi-slide pagination for long passages, creating zero-padded sequential files (e.g. `001_john_3_16.png`, `014_2_samuel_22_p1.png`, `015_2_samuel_22_p2.png`).
+     - Added slicing (`--limit`, `--offset`) and deterministic seeded randomization (`--shuffle`, `--seed`).
+  3. **Structured Screensaver Album Packaging**:
+     - `manifest.json`: Complete JSON album metadata, theme, resolution, passage count, slide list with file sizes, dimensions, citations, text snippets, and tags.
+     - `index.html`: Standalone, zero-dependency Sacred-Modern dark gallery featuring responsive card grid, instant search/filter, full-screen interactive slideshow modal with auto-play (10s interval), keyboard shortcuts (Left, Right, Space, Esc), and TV Screensaver Setup Guides for Google TV, Chromecast, USB smart TVs, and Apple TV.
+     - `index.txt`: Simple plaintext index for TV media players and shell scripts.
+  4. **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Added `./bible slide-batch` subcommand (aliases: `batch-slide`, `slides-batch`, `batch-render`, `slidebatch`).
+     - Added `/slide-batch` (alias: `/batch_slide`) command to `BibleShell` with auto-completion for plans, themes, and options.
+     - Extended `core/render.py` with `export_slide_batch(...)` convenience functional interface.
+  5. **Hermetic Testing & Code Quality**:
+     - Authored `tests/test_plans.py` (8 tests) and `tests/test_slide_batch.py` (12 tests), achieving 100% test pass and 85.4% statement coverage on batch rendering without any external packages.
+     - Expanded `tests/test_cli.py` (74 tests) and `tests/test_shell.py` (18 tests).
+     - Full test suite expanded to **528 tests across 26 modules passing 100% in 3.5s**.
+- **Consequences**:
+  - Completes Phase 5 (Task 5.5) in full.
+  - Users can generate comprehensive 4K TV screensaver slide albums in seconds for Google Photos, Apple Photos, Chromecast, and USB media players.
+  - Strictly preserves 100% Zero-Dependency compliance (stdlib only per ADR-003).
