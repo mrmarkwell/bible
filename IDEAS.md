@@ -323,6 +323,16 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 3, Task 3.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [DONE] (Implemented in `core/tags.py`, `core/terminal.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_tags.py`, `tests/test_core.py`, and recorded in ADR-027).
 
+### Offline Web UI History & Sovereign Reading State via LocalStorage (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a sovereign, client-side offline persistence layer in `web/static/app.js` using the browser's native `localStorage` API. Retains recently looked-up scripture references, FTS5 search queries, starred passage bookmarks, and reader typography preferences (font scale, layout style) without requiring server-side session cookies or external database mutations. Features a dedicated "History & Bookmarks" drawer in the Sacred-Modern UI sidebar with instant one-click navigation and offline data export/clearing.
+- **Rationale**: Elevates the built-in Web UI into a personalized scripture study workstation while adhering strictly to Manifesto Pillar I (Offline-First & Sovereign Data) and ADR-003 (Zero External Dependencies, vanilla JavaScript). Works seamlessly even when entirely disconnected from network access.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% browser-native client storage).
+  - Zero third-party dependencies? Yes (native browser `localStorage`, vanilla JS).
+- **Proposed Roadmap Phase**: Phase 4, Task 4.2 / 4.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+
+
 
 
 
