@@ -302,6 +302,68 @@ class TestVerseStorageAndRetrieval(unittest.TestCase):
         verses = self.db.get_verses_by_reference("Genesis 1-2")
         self.assertEqual(len(verses), 6)
 
+    def test_get_available_translation_ids(self):
+        self.assertEqual(self.db.get_available_translation_ids(), ["WEB"])
+        # Add another translation and verse
+        self.db.add_translation("KJV", "King James Version")
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="KJV",
+                book_id=1,
+                chapter=1,
+                verse=1,
+                text="In the beginning God created the heaven and the earth.",
+            )
+        )
+        self.assertEqual(self.db.get_available_translation_ids(), ["KJV", "WEB"])
+
+    def test_get_verses_with_fallback_direct(self):
+        verses, eff_id, is_fb = self.db.get_verses_with_fallback("Genesis 1:1", translation_id="WEB", fallback_id="KJV")
+        self.assertEqual(len(verses), 1)
+        self.assertEqual(eff_id, "WEB")
+        self.assertFalse(is_fb)
+        self.assertEqual(verses[0].text, "In the beginning, God created the heavens and the earth.")
+
+    def test_get_verses_with_fallback_triggered(self):
+        verses, eff_id, is_fb = self.db.get_verses_with_fallback("Genesis 1:1", translation_id="ESV", fallback_id="WEB")
+        self.assertEqual(len(verses), 1)
+        self.assertEqual(eff_id, "WEB")
+        self.assertTrue(is_fb)
+
+    def test_get_verses_with_fallback_disabled(self):
+        verses, eff_id, is_fb = self.db.get_verses_with_fallback("Genesis 1:1", translation_id="ESV", fallback_id=None)
+        self.assertEqual(verses, [])
+        self.assertEqual(eff_id, "ESV")
+        self.assertFalse(is_fb)
+
+    def test_compare_verses(self):
+        self.db.add_translation("KJV", "King James Version")
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="KJV",
+                book_id=1,
+                chapter=1,
+                verse=1,
+                text="In the beginning God created the heaven and the earth.",
+            )
+        )
+        res = self.db.compare_verses("Genesis 1:1", translation_ids=["WEB", "KJV", "ESV"], fallback_id="WEB")
+        self.assertIn("WEB", res)
+        self.assertIn("KJV", res)
+        self.assertIn("ESV", res)
+
+        web_verses, web_eff, web_fb = res["WEB"]
+        self.assertEqual(web_eff, "WEB")
+        self.assertFalse(web_fb)
+
+        kjv_verses, kjv_eff, kjv_fb = res["KJV"]
+        self.assertEqual(kjv_eff, "KJV")
+        self.assertFalse(kjv_fb)
+
+        esv_verses, esv_eff, esv_fb = res["ESV"]
+        self.assertEqual(esv_eff, "WEB")
+        self.assertTrue(esv_fb)
+
 
 class TestFullTextSearch(unittest.TestCase):
     """Test SQLite FTS5 search with automatic trigger synchronization."""

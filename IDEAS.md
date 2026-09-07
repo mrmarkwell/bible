@@ -206,7 +206,7 @@ Ideas can be added directly by the repository owner or generated during interact
 - Zero third-party dependencies? Yes (Python standard library only).
 - Copyright compliant? Yes (public domain WEB/KJV by default, user packs optional).
 - **Proposed Roadmap Phase**: Phase 2, Task 2.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
-- **Status**: [SCHEDULED].
+- **Status**: [DONE] (Implemented in `core/db.py` and `cli/main.py`, tested in `tests/test_cli.py` and `tests/test_db.py`, and recorded in ADR-018).
 
 ### [VETTED] Live Streaming Telemetry & Event Formatter for Ralph Loop (`ralph.sh --loop`) (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)

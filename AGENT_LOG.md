@@ -449,3 +449,50 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 0.8 is complete and verified.
   - Next cycle is **Run 017** (standard roadmap cycle).
   - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
+
+---
+
+## [Run 017] — 2026-09-07
+- **Agent**: Ralph Loop Autonomous Agent
+- **Phase**: Phase 2 — Command Line Interface (CLI) (Task 2.2)
+- **Task**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks, parallel comparison subcommand (`bible compare`), and translations inspector (`bible translations`)
+- **Actions Taken**:
+  - Implemented core translation database operations in `core/db.py`:
+    - `get_available_translation_ids()`: returns list of translation IDs with stored verses.
+    - `get_verses_with_fallback(reference, translation_id="WEB", fallback_id="WEB") -> Tuple[List[VerseRecord], str, bool]`: queries target translation, cascading seamlessly to fallback (default `WEB`) if requested translation is absent or has 0 verses.
+    - `compare_verses(reference, translation_ids, fallback_id="WEB")`: retrieves multi-translation verses across an arbitrary list of versions.
+  - Implemented multi-translation parsing and formatting in `cli/main.py`:
+    - `parse_translation_ids()`: normalizes comma-separated ("WEB,KJV") or list arguments into uppercase deduplicated translation identifiers while preserving order.
+    - Extended `format_verse_lines()` with `fallback_for` labeling in header (e.g. `=== John 3:16 (WEB [fallback for ESV]) ===`).
+    - Implemented `format_aligned_comparison()`: formats verses across translations in an aligned verse-by-verse comparison layout with fallback annotations `[WEB*]`.
+  - Upgraded `bible get` in `cli/main.py`:
+    - Supports multiple translations via comma-separated string (`--version=WEB,KJV`) or repeated flags (`-t WEB -t KJV`).
+    - Added `--fallback` (default `WEB`) and `--no-fallback` / `--strict` flags.
+    - Emits stderr notice upon fallback while cleanly rendering fallback passage text with clear header indication.
+  - Implemented dedicated `bible compare` subcommand:
+    - Accepts reference and multiple versions (`--versions=WEB,KJV`).
+    - Supports presentation layouts: `--mode=aligned` (interleaved verse-by-verse) or `--mode=stacked` (full passage blocks per translation).
+    - Full fallback integration and strict mode enforcement.
+  - Implemented `bible translations` (alias `versions`) subcommand:
+    - Lists registered translations, language codes, copyright/encryption status, and total verse counts.
+  - Recorded **ADR-018: Multi-Translation CLI Cascade, Fallback Resolution & Parallel Comparison Engine** in `DECISIONS.md`.
+  - Updated `ROADMAP.md` marking Task 2.2 as `[x]`.
+  - Updated `IDEAS.md` marking the Fallback Translation Cascade & Multi-Translation Comparison CLI idea as `[DONE]`.
+  - Authored comprehensive hermetic unit tests:
+    - Expanded `tests/test_db.py` with tests for `get_available_translation_ids`, direct vs. fallback verse lookups, disabled fallbacks, and `compare_verses`.
+    - Expanded `tests/test_cli.py` with tests for `parse_translation_ids`, formatting with fallbacks, aligned comparisons, multi-translation `get`, fallback notices, strict errors, aligned/stacked comparisons, and translations/versions catalog commands.
+- **Verification**:
+  - Ran `./bible doctor`: All 5 checks passed cleanly (`EXCELLENT`) in 1.05s.
+  - Ran `python3 -m unittest discover tests`: All 165 tests passing 100% in 4.60s.
+  - Verified manual CLI invocations:
+    - `./bible get "John 3:16" --version=ESV`: Verified fallback to WEB with stderr notice and header label.
+    - `./bible get "John 3:16" --version=ESV --strict`: Verified exit code 1 with clean error message.
+    - `./bible compare "John 1:1" --versions=ESV,WEB`: Verified aligned comparison with fallback marker.
+    - `./bible compare "John 1:1-2" --mode=stacked --versions=ESV,WEB`: Verified stacked passage blocks.
+    - `./bible translations`: Verified registered translations catalog and verse statistics.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 2.2 is 100% complete, verified, and tested.
+  - Next cycle is **Run 018** (standard roadmap cycle).
+  - Next priority on the roadmap is **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`).
+

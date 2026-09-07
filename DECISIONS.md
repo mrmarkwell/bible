@@ -433,4 +433,35 @@ This document is an append-only log of significant design and architectural deci
   - The capability can be triggered on demand via CLI, python script, or skill.
   - Zero external dependencies are preserved (Python 3 stdlib only).
 
+---
+
+## ADR-018: Multi-Translation CLI Cascade, Fallback Resolution & Parallel Comparison Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Bible readers, scholars, and devotions regularly compare passages across multiple translations (e.g. formal equivalence like KJV/ESV vs. dynamic equivalence like WEB/NIV). Furthermore, while the public domain World English Bible (WEB) is bundled locally by default, user-provided copyrighted packs (e.g. ESV, NIV) may or may not be installed. A rigid single-translation CLI (`bible get --version=ESV`) would crash or exit with errors when a requested translation is absent, degrading user experience. Task 2.2 on the roadmap mandates multi-translation flag support with graceful fallbacks.
+- **Decision**:
+  1. **Translation Fallback Resolution Engine (`core/db.py`)**:
+     - Added `get_available_translation_ids()` to query distinct translation IDs with populated verses.
+     - Added `get_verses_with_fallback(reference, translation_id="WEB", fallback_id="WEB") -> Tuple[List[VerseRecord], str, bool]`: queries the requested translation; if unavailable or containing zero verses for the passage, seamlessly cascades to the configured fallback translation (default: `WEB`) and flags `is_fallback=True`.
+     - Added `compare_verses(reference, translation_ids, fallback_id="WEB")` returning a structured dictionary of translation results.
+  2. **Multi-Translation Lookup in `bible get` (`cli/main.py`)**:
+     - Extended `--version` / `-t` to accept comma-separated strings (e.g. `--version=WEB,KJV`), repeated flags (`-t WEB -t KJV`), and list structures via `parse_translation_ids()`.
+     - Added `--fallback` (default: `WEB`) and `--no-fallback` / `--strict` flags for controlling fallback behavior.
+     - When fallback is utilized, outputs an informative notice to `sys.stderr` (`Notice: Translation 'ESV' not available; falling back to 'WEB'.`) and clearly labels the passage header `=== Reference (WEB [fallback for ESV]) ===`.
+     - Sequentially outputs all requested translation blocks.
+  3. **Parallel Multi-Translation Comparison Subcommand (`bible compare`)**:
+     - Added dedicated subcommand `bible compare <reference> [--versions=WEB,KJV] [--mode=aligned|stacked]`:
+       - `aligned` mode (default): interleaved verse-by-verse comparison grouping matching verses together across translations for side-by-side linguistic analysis.
+       - `stacked` mode: renders complete consecutive passage blocks per translation.
+       - Full fallback integration: missing translations fall back to `WEB` with notice and visual indicator `[WEB*]`.
+  4. **Translation Catalog Inspection (`bible translations` / `bible versions`)**:
+     - Added first-class subcommand to list registered translations, language codes, copyright/encryption status, and total verse counts.
+- **Consequences**:
+  - Scripture study across multiple translations is natively supported in the CLI with zero external dependencies.
+  - Absence of optional translation packs never results in hard failure unless `--strict` / `--no-fallback` is explicitly commanded.
+  - Aligned verse comparison provides an exceptional terminal reading and exegesis experience.
+  - 100% compliant with ADR-003 zero-dependency architecture.
+
+
+
 

@@ -616,6 +616,14 @@ class Database:
             for row in rows
         ]
 
+    def get_available_translation_ids(self) -> List[str]:
+        """Return list of translation IDs that currently have verses stored in the database."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT DISTINCT translation_id FROM verses ORDER BY translation_id ASC")
+        rows = cur.fetchall()
+        cur.close()
+        return [r[0] for r in rows]
+
     # --- Verses ---
 
     def insert_verse(self, verse: VerseRecord) -> int:
@@ -759,6 +767,63 @@ class Database:
         rows = cur.fetchall()
         cur.close()
         return [self._row_to_verse(r) for r in rows]
+
+    def get_verses_with_fallback(
+        self,
+        reference: Union[Reference, str],
+        translation_id: str = "WEB",
+        fallback_id: Optional[str] = "WEB",
+    ) -> Tuple[List[VerseRecord], str, bool]:
+        """Retrieve verses for a reference with automatic fallback resolution.
+
+        Args:
+            reference: Reference object or canonical scripture citation string.
+            translation_id: Desired translation identifier (e.g. 'ESV', 'WEB').
+            fallback_id: Optional fallback translation ID (e.g. 'WEB') to use if the requested
+                translation has no matching verses in the database.
+
+        Returns:
+            Tuple of (verses_list, effective_translation_id, is_fallback_used).
+        """
+        req_id = translation_id.strip().upper()
+        verses = self.get_verses_by_reference(reference, translation_id=req_id)
+        if verses:
+            return verses, req_id, False
+
+        # Attempt fallback if configured and different from requested translation
+        if fallback_id:
+            fb_id = fallback_id.strip().upper()
+            if fb_id != req_id:
+                fb_verses = self.get_verses_by_reference(reference, translation_id=fb_id)
+                if fb_verses:
+                    return fb_verses, fb_id, True
+
+        return [], req_id, False
+
+    def compare_verses(
+        self,
+        reference: Union[Reference, str],
+        translation_ids: Sequence[str],
+        fallback_id: Optional[str] = "WEB",
+    ) -> Dict[str, Tuple[List[VerseRecord], str, bool]]:
+        """Retrieve verses across multiple translations for parallel comparison.
+
+        Args:
+            reference: Reference object or citation string.
+            translation_ids: Sequence of translation IDs to query.
+            fallback_id: Optional fallback translation ID if a requested version is absent.
+
+        Returns:
+            Dictionary mapping requested translation ID to (verses_list, effective_id, is_fallback).
+        """
+        results: Dict[str, Tuple[List[VerseRecord], str, bool]] = {}
+        for t_id in translation_ids:
+            clean_id = t_id.strip().upper()
+            verses, eff_id, is_fallback = self.get_verses_with_fallback(
+                reference, translation_id=clean_id, fallback_id=fallback_id
+            )
+            results[clean_id] = (verses, eff_id, is_fallback)
+        return results
 
     def count_verses(self, translation_id: Optional[str] = None) -> int:
         """Return total count of verses stored, optionally filtered by translation."""

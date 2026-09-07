@@ -10,12 +10,26 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from cli.main import build_parser, format_verse_lines, main
+from cli.main import (
+    build_parser,
+    format_aligned_comparison,
+    format_verse_lines,
+    main,
+    parse_translation_ids,
+)
 from core.db import Database, VerseRecord
+from core.reference import parse_reference
 
 
 class TestCliFormatting(unittest.TestCase):
-    """Test verse line formatting functions."""
+    """Test verse line formatting and translation parsing functions."""
+
+    def test_parse_translation_ids(self):
+        self.assertEqual(parse_translation_ids(None), ["WEB"])
+        self.assertEqual(parse_translation_ids(""), ["WEB"])
+        self.assertEqual(parse_translation_ids("WEB,KJV"), ["WEB", "KJV"])
+        self.assertEqual(parse_translation_ids("web, kjv, esv"), ["WEB", "KJV", "ESV"])
+        self.assertEqual(parse_translation_ids(["WEB, ESV", "kjv", "web"]), ["WEB", "ESV", "KJV"])
 
     def test_format_single_verse(self):
         v = VerseRecord(
@@ -30,6 +44,49 @@ class TestCliFormatting(unittest.TestCase):
         out = format_verse_lines([v], show_verse_numbers=True, show_header=True)
         self.assertIn("=== John 3:16 (WEB) ===", out)
         self.assertIn("[16] For God so loved the world...", out)
+
+    def test_format_verse_lines_with_fallback(self):
+        v = VerseRecord(
+            translation_id="WEB",
+            book_id=43,
+            book_name="John",
+            chapter=3,
+            verse=16,
+            text="For God so loved the world...",
+            canonical_verse_id=43003016,
+        )
+        out = format_verse_lines([v], show_verse_numbers=True, show_header=True, fallback_for="ESV")
+        self.assertIn("=== John 3:16 (WEB [fallback for ESV]) ===", out)
+
+    def test_format_aligned_comparison(self):
+        v_web = VerseRecord(
+            translation_id="WEB",
+            book_id=43,
+            book_name="John",
+            chapter=1,
+            verse=1,
+            text="In the beginning was the Word...",
+            canonical_verse_id=43001001,
+        )
+        v_kjv = VerseRecord(
+            translation_id="KJV",
+            book_id=43,
+            book_name="John",
+            chapter=1,
+            verse=1,
+            text="In the beginning was the Word...",
+            canonical_verse_id=43001001,
+        )
+        comp_data = {
+            "WEB": ([v_web], "WEB", False),
+            "ESV": ([v_kjv], "KJV", True),
+        }
+        ref = parse_reference("John 1:1")
+        out = format_aligned_comparison(ref, comp_data, show_header=True)
+        self.assertIn("=== Compare: John 1:1 (WEB, KJV* (fallback for ESV)) ===", out)
+        self.assertIn("--- John 1:1 ---", out)
+        self.assertIn("[WEB]    In the beginning", out)
+        self.assertIn("[KJV*]   In the beginning", out)
 
     def test_format_multi_verse_same_chapter(self):
         v1 = VerseRecord(
@@ -105,6 +162,7 @@ class TestCliExecution(unittest.TestCase):
         self.db_path = Path(self.temp_dir.name) / "test_bible.db"
         self.db = Database(self.db_path, auto_init=True)
         self.db.add_translation("WEB", "World English Bible")
+        self.db.add_translation("KJV", "King James Version")
         self.db.insert_verses(
             [
                 VerseRecord(
@@ -120,6 +178,13 @@ class TestCliExecution(unittest.TestCase):
                     chapter=3,
                     verse=17,
                     text="For God didn't send his Son into the world to judge the world.",
+                ),
+                VerseRecord(
+                    translation_id="KJV",
+                    book_id=43,
+                    chapter=3,
+                    verse=16,
+                    text="For God so loved the world, that he gave his only begotten Son.",
                 ),
             ]
         )
@@ -213,6 +278,99 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Executive Summary & Trajectory Briefing", stdout.getvalue())
         self.assertIn("Overall Project Completion", stdout.getvalue())
+
+    def test_cli_get_multi_translation(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16", "--version", "WEB,KJV"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("=== John 3:16 (WEB) ===", out)
+        self.assertIn("one and only Son", out)
+        self.assertIn("=== John 3:16 (KJV) ===", out)
+        self.assertIn("only begotten Son", out)
+
+    def test_cli_get_fallback_notice_and_output(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16", "--version", "ESV"])
+        self.assertEqual(code, 0)
+        self.assertIn("Notice: Translation 'ESV' not available; falling back to 'WEB'.", stderr.getvalue())
+        self.assertIn("=== John 3:16 (WEB [fallback for ESV]) ===", stdout.getvalue())
+        self.assertIn("one and only Son", stdout.getvalue())
+
+    def test_cli_get_strict_mode_prevents_fallback(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16", "--version", "ESV", "--strict"])
+        self.assertEqual(code, 1)
+        self.assertIn("No verses found for reference 'John 3:16' in translation 'ESV'.", stderr.getvalue())
+
+    def test_cli_compare_default_aligned(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "compare", "John 3:16"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("=== Compare: John 3:16", out)
+        self.assertIn("--- John 3:16 ---", out)
+        self.assertIn("[KJV]", out)
+        self.assertIn("only begotten Son", out)
+        self.assertIn("[WEB]", out)
+        self.assertIn("one and only Son", out)
+
+    def test_cli_compare_stacked_mode(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "compare", "John 3:16", "--mode", "stacked"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("=== John 3:16 (KJV) ===", out)
+        self.assertIn("=== John 3:16 (WEB) ===", out)
+
+    def test_cli_compare_with_fallback(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "compare", "John 3:16", "--versions", "ESV,WEB"])
+        self.assertEqual(code, 0)
+        self.assertIn("Notice: Translation 'ESV' not available; falling back to 'WEB'.", stderr.getvalue())
+        out = stdout.getvalue()
+        self.assertIn("=== Compare: John 3:16 (WEB* (fallback for ESV), WEB) ===", out)
+        self.assertIn("[WEB*]", out)
+        self.assertIn("[WEB]", out)
+
+    def test_cli_compare_strict_failure(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "compare", "John 3:16", "--versions", "ESV,WEB", "--strict"])
+        self.assertEqual(code, 1)
+        self.assertIn("Error: No verses found for reference 'John 3:16' in translation 'ESV'.", stderr.getvalue())
+
+    def test_cli_translations(self):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", str(self.db_path), "translations"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Installed Scripture Translations:", out)
+        self.assertIn("[WEB] World English Bible", out)
+        self.assertIn("[KJV] King James Version", out)
+
+    def test_cli_versions_alias(self):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", str(self.db_path), "versions"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Installed Scripture Translations:", out)
+        self.assertIn("[WEB] World English Bible", out)
 
 
 if __name__ == "__main__":
