@@ -1375,5 +1375,50 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 037** (Standard Ralph Loop Iteration).
   - Active domain roadmap task pending: **Task 5.3**: *Implement CLI slide generation command (`bible slide` / `bible render`) with rich options (Resolution, themes, typography, layout, citation style, and format)* — Note: many CLI flags have been scaffolded; next task should polish slide CLI output messaging, handle multi-verse citations cleanly, format validation, and custom output directory management.
 
+---
 
-
+## [Run 037] — 2026-09-07
+- **Agent**: Ralph Loop Standard Cycle Agent
+- **Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation (Task 5.3 / ADR-038)
+- **Task**: Task 5.3 — Implement CLI slide generation command (`bible slide` / `bible render`) with rich options (Resolution, themes, typography, layout, citation style, custom colors, tags, and format).
+- **Actions Taken**:
+  - **Self-Documenting Theme & Resolution Catalogs (`core/render.py`)**:
+    - Added `description` field to `SlideTheme` with tailored explanations for all 6 standard themes (`oled_black`, `charcoal`, `obsidian`, `monastery`, `inverted`, `parchment`).
+    - Added `RESOLUTION_METADATA` and `list_resolutions()` tracking presets (`4k`, `1080p`, `720p`, `square`, `square_4k`, `portrait_1080p`) with aspect ratios and display recommendations.
+    - Implemented `format_theme_table()` and `format_resolution_table()` generating clean, aligned ANSI or plain-text inspection tables.
+  - **Color Normalization & Custom Color Overrides**:
+    - Implemented `normalize_color(color)` supporting hex codes (`#RRGGBB`, `#RGB`), bare hex (`D4AF37` -> `#D4AF37`), and canonical names (`gold`, `amber`, `sapphire`, `emerald`, `charcoal`, `white`, `black`, etc.).
+    - Added `citation_color` and `accent_color` to `RenderConfig`.
+    - Updated `SvgSlideRenderer.render_svg_markup` to override theme defaults with custom colors when provided.
+  - **Flexible Argument Parsing & Layout Helpers (`cli/main.py`)**:
+    - Implemented `parse_font_size_arg` accepting explicit points (`48`, `64pt`, `60px`) or `'auto'` for dynamic binary search fitting.
+    - Implemented `parse_safe_area_arg` accepting percentages (`15%`, `15`) or ratios (`0.15`).
+    - Made positional `reference` optional when `--list-themes` or `--list-resolutions` is passed.
+    - Added `--citation-color` (`-c`), `--accent-color`, `--tags`, `--open`, `--quiet` (`-q`), `--list-themes`, and `--list-resolutions` to `./bible slide`.
+  - **First-Class Semantic Tag Integration**:
+    - Linked `TaggingService` to fetch active tags (e.g. `favorites`) for requested passage citations when `--tags` is passed, rendering them in the slide footer.
+  - **UNIX Stream Piping & Quiet Mode**:
+    - Handled `-o -` / `-o stdout` by directly writing raw vector or image bytes to `sys.stdout.buffer`, suppressing text logging for clean piping.
+    - Added `--quiet` / `-q` to suppress confirmation cards.
+  - **Omnichannel Integration across CLI, REPL, and REST API**:
+    - Enhanced `/slide` REPL command in `cli/shell.py` with all options and autocompletion in `complete_slide`.
+    - Enhanced `GET /api/slide` in `web/server.py` with `citation_color`, `accent_color`, `tags`, and `safe_area` query parameters.
+  - **Hermetic Unit Test Suite**:
+    - Expanded `tests/test_render.py`, `tests/test_cli.py`, and `tests/test_server.py` with 13 new unit tests covering color normalization, theme/resolution tables, custom colors, tags, stdout piping, quiet mode, and REST endpoints.
+    - Total test suite expanded to **454 tests across 22 modules passing 100% in ~1.98s** with zero warnings.
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-038** in `DECISIONS.md`.
+    - Marked Task 5.3 as completed (`[x]`) in `ROADMAP.md`.
+    - Updated status in `IDEAS.md`.
+- **Verification**:
+  - Ran `./bible test -v`: all 454 tests across 22 modules passed in 1.966s.
+  - Ran `./bible doctor`: all 6 repository health checks passed in 2.63s.
+  - Verified `./bible slide --list-themes`: rendered formatted table of 6 themes.
+  - Verified `./bible slide --list-resolutions`: rendered formatted table of standard resolutions.
+  - Verified `./bible slide "Romans 8:28" --tags -c gold -f svg`: generated valid SVG with tags and custom gold citation.
+  - Verified `./bible slide "John 3:16" -f svg -o - | head -n 5`: piped raw SVG cleanly without stdout pollution.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 5.3 is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 038** (Standard Ralph Loop Iteration).
+  - Next domain task on the roadmap: **Task 5.4**: *Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`)*.

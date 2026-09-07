@@ -47,6 +47,7 @@ class SlideTheme:
     font_family: str = "Georgia, 'Liberation Serif', 'DejaVu Serif', 'Times New Roman', serif"
     tag_pill_bg: str = "#222222"
     tag_pill_color: str = "#AAAAAA"
+    description: str = ""
 
 
 STANDARD_THEMES: Dict[str, SlideTheme] = {
@@ -60,6 +61,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#616161",
         tag_pill_bg="#1A1812",
         tag_pill_color="#D4AF37",
+        description="Pure #000000 black for zero-power OLED displays, crisp white text, and illuminated gold citation",
     ),
     "charcoal": SlideTheme(
         name="charcoal",
@@ -71,6 +73,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#555555",
         tag_pill_bg="#1E1E1E",
         tag_pill_color="#C5A059",
+        description="Refined warm dark mode (#121212) with muted gold citation (#C5A059) for reduced eye strain",
     ),
     "obsidian": SlideTheme(
         name="obsidian",
@@ -82,6 +85,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#4B5563",
         tag_pill_bg="#171A21",
         tag_pill_color="#E2B170",
+        description="Sacred-Modern abyssal obsidian (#0D0E11) with radiant Byzantine gold accents",
     ),
     "monastery": SlideTheme(
         name="monastery",
@@ -93,6 +97,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#635B52",
         tag_pill_bg="#26221E",
         tag_pill_color="#E2B170",
+        description="Antique scriptorium dark bronze (#1A1715) with sepia-gold typography",
     ),
     "inverted": SlideTheme(
         name="inverted",
@@ -104,6 +109,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#888888",
         tag_pill_bg="#F3F3F3",
         tag_pill_color="#7A5800",
+        description="High-contrast clean white background (#FFFFFF) with dark charcoal text for daytime reading or printing",
     ),
     "parchment": SlideTheme(
         name="parchment",
@@ -115,6 +121,7 @@ STANDARD_THEMES: Dict[str, SlideTheme] = {
         page_indicator_color="#8C7D73",
         tag_pill_bg="#EFE8DD",
         tag_pill_color="#8C6226",
+        description="Illuminated manuscript warm parchment (#FDFBF7) with antique ink typography",
     ),
 }
 
@@ -172,6 +179,183 @@ def parse_resolution(resolution: Union[str, Tuple[int, int]]) -> Tuple[int, int]
     return RESOLUTION_PRESETS["4k"]
 
 
+def list_themes() -> List[SlideTheme]:
+    """Return all standard slide theme configurations."""
+    return list(STANDARD_THEMES.values())
+
+
+# Preset metadata for listing and self-documentation: (width, height, aspect_ratio, description)
+RESOLUTION_METADATA: Dict[str, Tuple[int, int, str, str]] = {
+    "4k": (3840, 2160, "16:9", "Ultra High Definition (4K TV screensavers & displays, default)"),
+    "1080p": (1920, 1080, "16:9", "Full High Definition (standard TVs, monitors, slides)"),
+    "720p": (1280, 720, "16:9", "Standard HD (compact displays, smaller file sizes)"),
+    "square": (1080, 1080, "1:1", "Standard square format (social media, album covers)"),
+    "square_4k": (2160, 2160, "1:1", "Ultra high-res square format (high-DPI printing & art)"),
+    "portrait_1080p": (1080, 1920, "9:16", "Vertical portrait format (smartphones, vertical TVs)"),
+}
+
+
+def list_resolutions() -> List[Tuple[str, int, int, str, str]]:
+    """Return list of standard resolution presets: (preset_name, width, height, aspect, description)."""
+    return [
+        (name, w, h, aspect, desc)
+        for name, (w, h, aspect, desc) in RESOLUTION_METADATA.items()
+    ]
+
+
+COLOR_NAMES: Dict[str, str] = {
+    "gold": "#D4AF37",
+    "byzantine_gold": "#D4AF37",
+    "amber": "#F39C12",
+    "yellow": "#FFD700",
+    "white": "#FFFFFF",
+    "black": "#000000",
+    "charcoal": "#121212",
+    "red": "#E74C3C",
+    "crimson": "#E74C3C",
+    "blue": "#4A90E2",
+    "sapphire": "#4A90E2",
+    "green": "#2ECC71",
+    "emerald": "#2ECC71",
+    "purple": "#9B51E0",
+    "silver": "#A0AEC0",
+    "gray": "#888888",
+    "grey": "#888888",
+    "bronze": "#CD7F32",
+    "sepia": "#704214",
+}
+
+
+def normalize_color(color: Optional[str]) -> Optional[str]:
+    """Normalize a hex, named, or CSS color string (e.g. 'gold' -> '#D4AF37', 'D4AF37' -> '#D4AF37')."""
+    if not color:
+        return None
+    raw = str(color).strip()
+    if not raw:
+        return None
+
+    # Check named colors
+    lower_raw = raw.lower().replace("-", "_").replace(" ", "_")
+    if lower_raw in COLOR_NAMES:
+        return COLOR_NAMES[lower_raw]
+
+    # Bare hex without '#'
+    if re.match(r"^[0-9a-fA-F]{3}$", raw) or re.match(r"^[0-9a-fA-F]{6}$", raw) or re.match(r"^[0-9a-fA-F]{8}$", raw):
+        return f"#{raw.upper()}"
+
+    # Hex with '#'
+    if re.match(r"^#[0-9a-fA-F]{3,8}$", raw):
+        return raw
+
+    # CSS color functions like rgb(...), rgba(...), hsl(...)
+    return raw
+
+
+def format_theme_table(styling: bool = True) -> str:
+    """Format an aligned table of all available slide color themes."""
+    headers = ("Theme", "Background", "Text Color", "Citation", "Description")
+    rows = [
+        (t.name, t.background_color, t.text_color, t.citation_color, t.description)
+        for t in list_themes()
+    ]
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(4):
+            col_widths[i] = max(col_widths[i], len(r[i]))
+    col_widths[4] = 60
+
+    divider = "─" * (sum(col_widths[:4]) + col_widths[4] + 8)
+    lines: List[str] = []
+
+    header_str = (
+        f"{headers[0]:<{col_widths[0]}}  "
+        f"{headers[1]:<{col_widths[1]}}  "
+        f"{headers[2]:<{col_widths[2]}}  "
+        f"{headers[3]:<{col_widths[3]}}  "
+        f"{headers[4]}"
+    )
+
+    if styling:
+        lines.append(f"\033[1;33m{header_str}\033[0m")
+        lines.append(f"\033[2m{divider}\033[0m")
+        for r in rows:
+            line = (
+                f"\033[1;37m{r[0]:<{col_widths[0]}}\033[0m  "
+                f"\033[36m{r[1]:<{col_widths[1]}}\033[0m  "
+                f"\033[37m{r[2]:<{col_widths[2]}}\033[0m  "
+                f"\033[33m{r[3]:<{col_widths[3]}}\033[0m  "
+                f"{r[4]}"
+            )
+            lines.append(line)
+    else:
+        lines.append(header_str)
+        lines.append(divider)
+        for r in rows:
+            line = (
+                f"{r[0]:<{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:<{col_widths[2]}}  "
+                f"{r[3]:<{col_widths[3]}}  "
+                f"{r[4]}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_resolution_table(styling: bool = True) -> str:
+    """Format an aligned table of all standard slide display resolutions."""
+    headers = ("Preset", "Dimensions", "Aspect", "Description & Target Display")
+    rows = [
+        (name, f"{w}x{h}", aspect, desc)
+        for name, w, h, aspect, desc in list_resolutions()
+    ]
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(3):
+            col_widths[i] = max(col_widths[i], len(r[i]))
+    col_widths[3] = 60
+
+    divider = "─" * (sum(col_widths[:3]) + col_widths[3] + 6)
+    lines: List[str] = []
+
+    header_str = (
+        f"{headers[0]:<{col_widths[0]}}  "
+        f"{headers[1]:<{col_widths[1]}}  "
+        f"{headers[2]:<{col_widths[2]}}  "
+        f"{headers[3]}"
+    )
+
+    if styling:
+        lines.append(f"\033[1;33m{header_str}\033[0m")
+        lines.append(f"\033[2m{divider}\033[0m")
+        for r in rows:
+            line = (
+                f"\033[1;37m{r[0]:<{col_widths[0]}}\033[0m  "
+                f"\033[36m{r[1]:<{col_widths[1]}}\033[0m  "
+                f"\033[33m{r[2]:<{col_widths[2]}}\033[0m  "
+                f"{r[3]}"
+            )
+            lines.append(line)
+        lines.append(f"\033[2mCustom resolution: pass 'WIDTHxHEIGHT' (e.g. 2560x1440, 1600x900)\033[0m")
+    else:
+        lines.append(header_str)
+        lines.append(divider)
+        for r in rows:
+            line = (
+                f"{r[0]:<{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:<{col_widths[2]}}  "
+                f"{r[3]}"
+            )
+            lines.append(line)
+        lines.append("Custom resolution: pass 'WIDTHxHEIGHT' (e.g. 2560x1440, 1600x900)")
+
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Content & Configuration Dataclasses
 # ---------------------------------------------------------------------------
@@ -201,6 +385,8 @@ class RenderConfig:
     line_spacing: float = 1.5
     text_align: str = "center"  # "center", "left", "right"
     citation_style: str = "below"  # "below", "smallcaps", "none"
+    citation_color: Optional[str] = None  # Custom override for citation text color
+    accent_color: Optional[str] = None  # Custom override for accent divider rule color
     optical_center_pct: float = 0.45  # 45% baseline for human optical vertical center
     balance_lines: bool = True  # Balanced word wrapping to eliminate orphan words / minimize line length variance
     show_accent_rule: bool = True
@@ -599,6 +785,9 @@ class SvgSlideRenderer:
             rule_x1 = (w / 2.0) - rule_half
             rule_x2 = (w / 2.0) + rule_half
 
+        cit_color = normalize_color(config.citation_color) or theme.citation_color
+        acc_color = normalize_color(config.accent_color) or theme.accent_color
+
         lines: List[str] = [
             f'<svg xmlns="http://www.w3.org/2000/svg" '
             f'width="{w}" height="{h}" viewBox="0 0 {w} {h}">',
@@ -607,13 +796,13 @@ class SvgSlideRenderer:
             f'      .verse-text {{ font-family: {font_family}; font-size: {layout.font_size:.2f}px; '
             f'fill: {theme.text_color}; text-anchor: {anchor}; }}',
             f'      .citation-text {{ font-family: {font_family}; font-size: {layout.citation_font_size:.2f}px; '
-            f'fill: {theme.citation_color}; text-anchor: {anchor}; font-weight: 600; letter-spacing: 0.08em; '
+            f'fill: {cit_color}; text-anchor: {anchor}; font-weight: 600; letter-spacing: 0.08em; '
             f'{"font-variant: all-small-caps; text-transform: uppercase;" if config.citation_style == "smallcaps" else ""} }}',
             f'      .pericope-text {{ font-family: {font_family}; font-size: {layout.pericope_font_size:.2f}px; '
             f'fill: {theme.pericope_color}; text-anchor: {anchor}; text-transform: uppercase; letter-spacing: 0.12em; }}',
             f'      .indicator-text {{ font-family: {font_family}; font-size: {layout.pericope_font_size * 0.85:.2f}px; '
             f'fill: {theme.page_indicator_color}; text-anchor: middle; }}',
-            f'      .accent-rule {{ stroke: {theme.accent_color}; stroke-width: {max(1.5, w / 1920.0):.1f}; stroke-linecap: round; }}',
+            f'      .accent-rule {{ stroke: {acc_color}; stroke-width: {max(1.5, w / 1920.0):.1f}; stroke-linecap: round; }}',
             "    </style>",
             "  </defs>",
             f'  <!-- Canvas Background -->',

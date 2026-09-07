@@ -1128,5 +1128,34 @@ This document is an append-only log of significant design and architectural deci
   - Guarantees professional editorial typographic aesthetics for screensaver and TV presentations.
   - Zero external dependencies (Python stdlib standard algorithms only).
 
+---
 
-
+## ADR-038: Rich CLI Slide Generation, Self-Documenting Themes & Resolutions, Color Normalization, and UNIX Stream Piping
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 5 (Task 5.3), the visual verse slide generator command (`bible slide` / `bible render`) requires rich options, layout controls, theme/resolution discovery, color overrides, and clean UNIX piping. Previously, users had no CLI discovery mechanisms to inspect available themes and resolutions without reading source code, lacked custom color overrides for citations and accents, could not display active semantic tags on slides, and writing to standard output (`-o -`) polluted image streams with terminal summary text.
+- **Decision**:
+  1. **Self-Documenting Theme & Resolution Catalogs (`--list-themes`, `--list-resolutions`)**:
+     - Added `list_themes()`, `list_resolutions()`, `format_theme_table()`, and `format_resolution_table()` in `core/render.py`.
+     - Displays aligned tables showing theme names, backgrounds, text colors, citation colors, and descriptive guidance, along with resolution presets (4K UHD, 1080p FHD, 720p HD, square, square_4k, portrait).
+     - Allows running `./bible slide --list-themes` and `./bible slide --list-resolutions` without requiring a scripture reference.
+  2. **Custom Color Normalization & Override Engine (`--citation-color`, `--accent-color`)**:
+     - Added `normalize_color()` supporting 3/6/8-digit hex values, bare hex (e.g. `D4AF37` -> `#D4AF37`), and canonical theological color names (`gold`, `amber`, `sapphire`, `emerald`, `charcoal`, etc.).
+     - Added `citation_color` and `accent_color` fields to `RenderConfig`.
+     - In `SvgSlideRenderer`, overrides theme defaults when custom colors are specified.
+  3. **Flexible Typography & Layout Parameter Parsing (`--font-size`, `--safe-area`)**:
+     - Added `parse_font_size_arg()` supporting numeric points (`48`, `64pt`, `60px`) and string `'auto'` for dynamic binary search auto-fitting.
+     - Added `parse_safe_area_arg()` supporting percentage strings (`15%`), integer percentages (`15`), and decimal ratios (`0.15`).
+  4. **First-Class Semantic Tag Integration (`--tags`)**:
+     - Connects `TaggingService` to automatically extract canonical tags (e.g. `favorites`, `theology`) associated with the requested passage and render them in the slide footer.
+  5. **UNIX Stream Piping & Silent Execution (`-o -`, `-q` / `--quiet`)**:
+     - When `-o -` or `-o stdout` is specified, writes raw image/vector bytes directly to `sys.stdout.buffer` and suppresses all console print statements.
+     - Enables shell pipes like `./bible slide "John 3:16" -f svg -o - > verse.svg`.
+     - Added `--quiet` / `-q` flag to silence informational summary cards.
+     - Added `--open` flag to automatically trigger default system image viewers.
+  6. **Omnichannel Parity**:
+     - Full option support in `./bible slide`, interactive REPL `/slide` with tab autocompletion, and HTTP `GET /api/slide`.
+- **Consequences**:
+  - Completes Phase 5 Task 5.3.
+  - Slashes friction in generating customized 4K screensaver slides.
+  - Preserves 100% Zero-Dependency compliance per ADR-003.

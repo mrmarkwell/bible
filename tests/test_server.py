@@ -341,6 +341,15 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn(b"<svg", body)
         self.assertIn(b"John 3:16", body)
 
+    def test_api_slide_rich_options(self) -> None:
+        status, headers, body = self._get("/api/slide?ref=John+3:16&citation_color=%23E74C3C&accent_color=%232ECC71&safe_area=10%25&tags=true")
+        self.assertEqual(status, 200)
+        self.assertIn("image/svg+xml", headers.get("Content-Type", ""))
+        body_text = body.decode("utf-8")
+        self.assertIn("fill: #E74C3C", body_text)
+        self.assertIn("stroke: #2ECC71", body_text)
+        self.assertIn("John 3:16", body_text)
+
     def test_api_slide_missing_ref_error(self) -> None:
         status, data = self._get_json("/api/slide")
         self.assertEqual(status, 400)

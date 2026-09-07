@@ -821,6 +821,97 @@ class TestCliExecution(unittest.TestCase):
             self.assertTrue(out_svg.exists())
             self.assertIn("Generated 3840x2160 SVG slide", stdout.getvalue())
 
+    def test_cli_slide_list_themes(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "slide", "--list-themes"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("oled_black", out)
+        self.assertIn("charcoal", out)
+        self.assertIn("obsidian", out)
+
+    def test_cli_slide_list_resolutions(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "slide", "--list-resolutions"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("3840x2160", out)
+        self.assertIn("1920x1080", out)
+
+    def test_cli_slide_missing_reference_error(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "slide"])
+        self.assertEqual(code, 1)
+        self.assertIn("Scripture reference required", stderr.getvalue())
+
+    def test_cli_slide_rich_options(self):
+        self.db.tag_reference(parse_reference("John 3:16"), "Gospel", category="theological")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_svg = Path(tmpdir) / "rich_slide.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "John 3:16",
+                    "-o", str(out_svg),
+                    "-f", "svg",
+                    "--safe-area", "15%",
+                    "--font-size", "auto",
+                    "--citation-color", "gold",
+                    "--accent-color", "#2ECC71",
+                    "--tags",
+                ])
+            self.assertEqual(code, 0)
+            self.assertTrue(out_svg.exists())
+            content = out_svg.read_text(encoding="utf-8")
+            self.assertIn("fill: #D4AF37", content)
+            self.assertIn("stroke: #2ECC71", content)
+            self.assertIn("John 3:16", content)
+            self.assertIn("Gospel", content)
+            self.assertIn("Generated 3840x2160 SVG slide", stdout.getvalue())
+            self.assertIn("Citation:   #D4AF37", stdout.getvalue())
+
+    def test_cli_slide_stdout_piping(self):
+        import io
+        stdout_buf = io.BytesIO()
+        stderr = io.StringIO()
+        fake_stdout = io.TextIOWrapper(stdout_buf, encoding="utf-8")
+        with patch("sys.stdout", fake_stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "slide", "John 3:16",
+                "-f", "svg",
+                "-o", "-",
+            ])
+        self.assertEqual(code, 0)
+        output_bytes = stdout_buf.getvalue()
+        self.assertIn(b"<svg", output_bytes)
+        self.assertIn(b"John 3:16", output_bytes)
+
+    def test_cli_slide_quiet_flag(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_svg = Path(tmpdir) / "quiet_slide.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "John 3:16",
+                    "-o", str(out_svg),
+                    "-f", "svg",
+                    "-q",
+                ])
+            self.assertEqual(code, 0)
+            self.assertTrue(out_svg.exists())
+            self.assertEqual(stdout.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -391,6 +391,98 @@ class TestSlideRenderEngine(unittest.TestCase):
             self.assertIn(b"Numbers 6:24", res.data)
 
 
+class TestSlideOptionsAndHelpers(unittest.TestCase):
+    """Hermetic unit tests for slide options, color normalization, and table helpers."""
+
+    def test_normalize_color(self):
+        from core.render import normalize_color
+        self.assertIsNone(normalize_color(None))
+        self.assertIsNone(normalize_color(""))
+        self.assertEqual(normalize_color("gold"), "#D4AF37")
+        self.assertEqual(normalize_color("amber"), "#F39C12")
+        self.assertEqual(normalize_color("white"), "#FFFFFF")
+        self.assertEqual(normalize_color("black"), "#000000")
+        self.assertEqual(normalize_color("D4AF37"), "#D4AF37")
+        self.assertEqual(normalize_color("#D4AF37"), "#D4AF37")
+        self.assertEqual(normalize_color("abc"), "#ABC")
+        self.assertEqual(normalize_color("#abc"), "#abc")
+        self.assertEqual(normalize_color("rgb(10, 20, 30)"), "rgb(10, 20, 30)")
+
+    def test_list_themes_and_table(self):
+        from core.render import list_themes, format_theme_table
+        themes = list_themes()
+        self.assertEqual(len(themes), 6)
+        names = [t.name for t in themes]
+        self.assertIn("oled_black", names)
+        self.assertIn("charcoal", names)
+        self.assertIn("obsidian", names)
+        self.assertIn("monastery", names)
+        self.assertIn("inverted", names)
+        self.assertIn("parchment", names)
+        for t in themes:
+            self.assertTrue(len(t.description) > 10)
+
+        table_styled = format_theme_table(styling=True)
+        self.assertIn("oled_black", table_styled)
+        self.assertIn("\033[", table_styled)
+
+        table_plain = format_theme_table(styling=False)
+        self.assertIn("oled_black", table_plain)
+        self.assertNotIn("\033[", table_plain)
+
+    def test_list_resolutions_and_table(self):
+        from core.render import list_resolutions, format_resolution_table
+        res_list = list_resolutions()
+        self.assertTrue(len(res_list) >= 6)
+        res_dict = {name: (w, h, aspect) for name, w, h, aspect, _ in res_list}
+        self.assertEqual(res_dict["4k"], (3840, 2160, "16:9"))
+        self.assertEqual(res_dict["1080p"], (1920, 1080, "16:9"))
+        self.assertEqual(res_dict["720p"], (1280, 720, "16:9"))
+        self.assertEqual(res_dict["square"], (1080, 1080, "1:1"))
+
+        table_styled = format_resolution_table(styling=True)
+        self.assertIn("3840x2160", table_styled)
+        self.assertIn("\033[", table_styled)
+
+        table_plain = format_resolution_table(styling=False)
+        self.assertIn("3840x2160", table_plain)
+        self.assertNotIn("\033[", table_plain)
+
+    def test_custom_citation_and_accent_colors(self):
+        from core.render import SvgSlideRenderer, RenderConfig, SlideContent
+        renderer = SvgSlideRenderer()
+        config = RenderConfig(
+            width=1920,
+            height=1080,
+            citation_color="#E74C3C",
+            accent_color="#2ECC71",
+        )
+        content = SlideContent(
+            text="In the beginning was the Word.",
+            citation="John 1:1",
+        )
+        markup = renderer.render_svg_markup(content, config)
+        self.assertIn("fill: #E74C3C", markup)
+        self.assertIn("stroke: #2ECC71", markup)
+
+    def test_tags_rendering_on_slide(self):
+        from core.render import SvgSlideRenderer, RenderConfig, SlideContent
+        renderer = SvgSlideRenderer()
+        config = RenderConfig(
+            width=1920,
+            height=1080,
+            show_tags=True,
+        )
+        content = SlideContent(
+            text="For God so loved the world.",
+            citation="John 3:16",
+            tags=["Gospel", "Sovereign Grace"],
+        )
+        markup = renderer.render_svg_markup(content, config)
+        self.assertIn("Gospel · Sovereign Grace", markup)
+        self.assertIn("<!-- Semantic Tags -->", markup)
+
+
 class TestShellSlideCommands(unittest.TestCase):
     """Test interactive REPL /slide command integration."""
 
@@ -402,12 +494,29 @@ class TestShellSlideCommands(unittest.TestCase):
             out_file = Path(tmpdir) / "repl_slide.svg"
             shell = BibleShell(stdout=out_buf, color=False)
             with shell:
-                shell.do_slide(f"John 3:16 -o {out_file} -f svg -r 1080p -t charcoal")
+                shell.do_slide(f"John 3:16 -o {out_file} -f svg -r 1080p -t charcoal -c gold --tags")
                 self.assertTrue(out_file.exists())
                 self.assertIn("Generated 1920x1080 SVG slide", out_buf.getvalue())
                 content = out_file.read_text(encoding="utf-8")
                 self.assertIn("<svg", content)
                 self.assertIn("John 3:16", content)
+                self.assertIn("fill: #D4AF37", content)
+
+    def test_shell_slide_list_themes_and_resolutions(self):
+        import io
+        from cli.shell import BibleShell
+        out_buf = io.StringIO()
+        shell = BibleShell(stdout=out_buf, color=False)
+        with shell:
+            shell.do_slide("--list-themes")
+            self.assertIn("oled_black", out_buf.getvalue())
+            self.assertIn("charcoal", out_buf.getvalue())
+
+            out_buf.truncate(0)
+            out_buf.seek(0)
+            shell.do_slide("--list-resolutions")
+            self.assertIn("3840x2160", out_buf.getvalue())
+            self.assertIn("1920x1080", out_buf.getvalue())
 
     def test_shell_slide_completion(self):
         from cli.shell import BibleShell
@@ -415,6 +524,11 @@ class TestShellSlideCommands(unittest.TestCase):
         try:
             matches = shell.complete_slide("ol", "/slide John 3:16 -t ol", 23, 25)
             self.assertIn("oled_black", matches)
+            c_matches = shell.complete_slide("--ci", "/slide John 3:16 --ci", 23, 27)
+            self.assertIn("--citation-color", c_matches)
+            t_matches = shell.complete_slide("--list", "/slide --list", 10, 16)
+            self.assertIn("--list-themes", t_matches)
+            self.assertIn("--list-resolutions", t_matches)
         finally:
             shell.close()
 

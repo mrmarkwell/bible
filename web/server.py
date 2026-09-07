@@ -864,6 +864,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             SlideContent,
             get_default_engine,
             get_theme,
+            normalize_color,
             parse_resolution,
         )
 
@@ -876,6 +877,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         line_spacing_raw = query.get("line_spacing", ["1.5"])[0]
         align_param = query.get("align", ["center"])[0].lower()
         citation_style_param = query.get("citation_style", ["below"])[0].lower()
+        citation_color_param = query.get("citation_color", [None])[0]
+        accent_color_param = query.get("accent_color", [None])[0]
+        tags_param = query.get("tags", ["false"])[0].lower() in ("true", "1", "yes")
+        safe_area_raw = query.get("safe_area", ["0.15"])[0]
         optical_center_raw = query.get("optical_center", ["0.45"])[0]
         balance_param = query.get("balance", ["true"])[0].lower()
 
@@ -901,19 +906,36 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         except ValueError:
             optical_center = 0.45
 
+        safe_area = 0.15
+        try:
+            sa_val = float(safe_area_raw.rstrip("%"))
+            safe_area = sa_val / 100.0 if sa_val > 1.0 else sa_val
+        except ValueError:
+            safe_area = 0.15
+
         balance_lines = balance_param not in ("false", "0", "no")
+
+        slide_tags: List[str] = []
+        if tags_param:
+            tagging_svc = TaggingService(self.db)
+            passages = tagging_svc.get_tags_for_passage(parsed_ref)
+            slide_tags = [p.tag_name for p in passages if p.tag_name]
 
         config = RenderConfig(
             width=w,
             height=h,
             theme=theme_obj,
+            safe_area_pct=safe_area,
             font_family=font_param,
             font_size=font_size,
             line_spacing=line_spacing,
             text_align=align_param if align_param in ("center", "left", "right") else "center",
             citation_style=citation_style_param if citation_style_param in ("below", "smallcaps", "none") else "below",
+            citation_color=normalize_color(citation_color_param),
+            accent_color=normalize_color(accent_color_param),
             optical_center_pct=optical_center,
             balance_lines=balance_lines,
+            show_tags=tags_param,
             backend=backend_param,
             output_format="svg" if fmt_param == "svg" else fmt_param,
         )
@@ -923,6 +945,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             citation=citation,
             translation=used_id,
             pericope_title=pericope_title,
+            tags=slide_tags,
         )
 
         try:

@@ -2345,6 +2345,40 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_arcs.set_defaults(func=cmd_arcs)
 
+    def parse_font_size_arg(val: Optional[str]) -> Optional[float]:
+        """Parse font size CLI argument (e.g. '48', '64pt', 'auto', 'fit')."""
+        if val is None:
+            return None
+        val_str = str(val).strip().lower()
+        if val_str in ("auto", "none", "fit", "default"):
+            return None
+        if val_str.endswith("pt") or val_str.endswith("px"):
+            val_str = val_str[:-2].strip()
+        try:
+            num = float(val_str)
+            if num <= 0:
+                raise argparse.ArgumentTypeError("Font size must be greater than 0.")
+            return num
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid font size '{val}'. Expected a number (e.g. 48, 64pt) or 'auto'.")
+
+    def parse_safe_area_arg(val: Optional[str]) -> float:
+        """Parse TV safe area margin percentage (e.g. '15%', '15', '0.15')."""
+        if val is None:
+            return 0.15
+        val_str = str(val).strip()
+        if val_str.endswith("%"):
+            val_str = val_str[:-1].strip()
+        try:
+            num = float(val_str)
+            if num > 1.0:
+                num = num / 100.0
+            if num < 0.0 or num >= 0.5:
+                raise argparse.ArgumentTypeError("Safe area margin must be between 0% and 50% (0.0 to 0.5).")
+            return num
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid safe area margin '{val}'. Expected a percentage (e.g. 15% or 0.15).")
+
     # Subcommand: slide (aliases: render)
     parser_slide = subparsers.add_parser(
         "slide",
@@ -2354,6 +2388,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_slide.add_argument(
         "reference",
+        nargs="?",
+        default=None,
         help="Scripture citation or passage (e.g. 'John 3:16', 'Romans 8:28-30', 'Psalm 23:1-3')",
     )
     parser_slide.add_argument(
@@ -2361,7 +2397,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-o",
         dest="output",
         default=None,
-        help="Destination file path for generated slide (e.g. 'verse.png', 'slide.svg', 'display.jpg')",
+        help="Destination file path for generated slide (e.g. 'verse.png', 'slide.svg', '-' for stdout)",
     )
     parser_slide.add_argument(
         "--resolution",
@@ -2385,6 +2421,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_slide.add_argument(
         "--backend",
+        "-b",
         choices=["auto", "imagemagick", "svg"],
         default="auto",
         help="Rendering backend: 'auto', 'imagemagick' (raster), or 'svg' (pure vector, default: auto)",
@@ -2403,9 +2440,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_slide.add_argument(
         "--font-size",
-        type=float,
+        type=parse_font_size_arg,
         default=None,
-        help="Explicit typography font size in points (default: auto-fit based on text volume)",
+        help="Typography font size in points (e.g. 48, 64pt, or 'auto' for dynamic fitting, default: auto)",
     )
     parser_slide.add_argument(
         "--line-spacing",
@@ -2420,6 +2457,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Citation typography style ('below', 'smallcaps', 'none', default: below)",
     )
     parser_slide.add_argument(
+        "--citation-color",
+        "-c",
+        type=str,
+        default=None,
+        help="Custom citation text color (hex e.g. '#D4AF37' or named color like 'gold')",
+    )
+    parser_slide.add_argument(
+        "--accent-color",
+        type=str,
+        default=None,
+        help="Custom decorative accent divider rule color (hex or named color)",
+    )
+    parser_slide.add_argument(
+        "--tags",
+        action="store_true",
+        help="Display active semantic tags on the slide footer",
+    )
+    parser_slide.add_argument(
         "--no-balance",
         action="store_true",
         help="Disable balanced word wrapping (revert to greedy first-fit line breaking)",
@@ -2432,9 +2487,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_slide.add_argument(
         "--safe-area",
-        type=float,
+        type=parse_safe_area_arg,
         default=0.15,
-        help="TV safe area margin percentage (default: 0.15 for 15% inner padding)",
+        help="TV safe area margin percentage (e.g. '15%%', '15', '0.15', default: 15%%)",
     )
     parser_slide.add_argument(
         "--align",
@@ -2459,14 +2514,69 @@ def build_parser() -> argparse.ArgumentParser:
         default=300,
         help="DPI rendering density for rasterization (default: 300)",
     )
+    parser_slide.add_argument(
+        "--open",
+        action="store_true",
+        help="Open generated slide in system default image viewer",
+    )
+    parser_slide.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress console status summary",
+    )
+    parser_slide.add_argument(
+        "--list-themes",
+        action="store_true",
+        help="List all available slide color themes and styling descriptions",
+    )
+    parser_slide.add_argument(
+        "--list-resolutions",
+        action="store_true",
+        help="List all standard resolution presets and dimensions",
+    )
 
     def cmd_slide(args: argparse.Namespace) -> int:
+        from core.render import (
+            ImageMagickNotFoundError,
+            RenderConfig,
+            RenderError,
+            SlideContent,
+            format_resolution_table,
+            format_theme_table,
+            get_default_engine,
+            get_theme,
+            normalize_color,
+            parse_resolution,
+        )
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+
+        if getattr(args, "list_themes", False):
+            print(format_theme_table(styling=color_enabled))
+            return 0
+
+        if getattr(args, "list_resolutions", False):
+            print(format_resolution_table(styling=color_enabled))
+            return 0
+
+        ref_str = args.reference
+        if not ref_str:
+            sys.stderr.write(
+                "Error: Scripture reference required (e.g. 'John 3:16', 'Romans 8:28-30').\n"
+                "Use '--list-themes' or '--list-resolutions' to view available styling options.\n"
+            )
+            return 1
+
         db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
         if not db_path.exists():
             sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
             return 1
 
-        ref_str = args.reference
         ref = parse_reference(ref_str)
         if ref is None:
             sys.stderr.write(f"Error: Could not parse '{ref_str}' as a canonical scripture reference.\n")
@@ -2474,15 +2584,6 @@ def build_parser() -> argparse.ArgumentParser:
 
         with Database(db_path) as db:
             from core.pericopes import PericopeService
-            from core.render import (
-                ImageMagickNotFoundError,
-                RenderConfig,
-                RenderError,
-                SlideContent,
-                get_default_engine,
-                get_theme,
-                parse_resolution,
-            )
 
             verses, used_id, is_fallback = db.get_verses_with_fallback(
                 ref, translation_id=args.version
@@ -2499,19 +2600,30 @@ def build_parser() -> argparse.ArgumentParser:
             pericopes = pericope_svc.get_pericopes_for_passage(ref)
             pericope_title = pericopes[0].title if pericopes else None
 
+            # Retrieve semantic tags if requested
+            slide_tags: List[str] = []
+            if getattr(args, "tags", False):
+                from core.tags import TaggingService
+                tagging_svc = TaggingService(db)
+                passages = tagging_svc.get_tags_for_passage(ref)
+                slide_tags = [p.tag_name for p in passages if p.tag_name]
+
             # Determine output destination and format
             out_dest = args.output
             target_format = args.output_format
+            is_stdout = out_dest in ("-", "stdout")
 
-            if out_dest:
+            if out_dest and not is_stdout:
                 dest_path = Path(out_dest).resolve()
                 ext = dest_path.suffix.lower().lstrip(".")
                 if not target_format and ext in ("png", "jpg", "jpeg", "svg"):
                     target_format = ext
-            else:
+            elif not is_stdout:
                 target_format = target_format or "png"
                 safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
                 dest_path = Path.cwd() / f"slide_{safe_stem}.{target_format}"
+            else:
+                dest_path = None
 
             target_format = target_format or "png"
 
@@ -2529,9 +2641,12 @@ def build_parser() -> argparse.ArgumentParser:
                 line_spacing=getattr(args, "line_spacing", 1.5),
                 text_align=args.align,
                 citation_style=getattr(args, "citation_style", "below"),
+                citation_color=normalize_color(getattr(args, "citation_color", None)),
+                accent_color=normalize_color(getattr(args, "accent_color", None)),
                 optical_center_pct=getattr(args, "optical_center", 0.45),
                 balance_lines=not getattr(args, "no_balance", False),
                 show_accent_rule=not args.no_rule,
+                show_tags=bool(args.tags),
                 backend=args.backend,
                 output_format=target_format,
                 jpeg_quality=args.quality,
@@ -2543,11 +2658,19 @@ def build_parser() -> argparse.ArgumentParser:
                 citation=citation_str,
                 translation=used_id,
                 pericope_title=pericope_title,
+                tags=slide_tags,
             )
 
             engine = get_default_engine()
             try:
-                result = engine.render_to_file(content, dest_path, config)
+                if is_stdout:
+                    result = engine.render(content, config)
+                    sys.stdout.buffer.write(result.data)
+                    sys.stdout.buffer.flush()
+                    return 0
+                else:
+                    assert dest_path is not None
+                    result = engine.render_to_file(content, dest_path, config)
             except ImageMagickNotFoundError as exc:
                 sys.stderr.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend=svg' or install ImageMagick on your system.\n")
                 return 1
@@ -2555,11 +2678,25 @@ def build_parser() -> argparse.ArgumentParser:
                 sys.stderr.write(f"Render Error: {exc}\n")
                 return 1
 
-            size_str = f"{len(result.data):,} bytes"
-            print(f"Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:")
-            print(f"  • File:     {dest_path}")
-            print(f"  • Passage:  {citation_str} ({used_id})")
-            print(f"  • Theme:    {theme.name}")
+            if not getattr(args, "quiet", False):
+                size_str = f"{len(result.data):,} bytes"
+                print(f"Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:")
+                print(f"  • File:       {dest_path}")
+                print(f"  • Passage:    {citation_str} ({used_id})")
+                print(f"  • Theme:      {theme.name}")
+                if config.citation_color:
+                    print(f"  • Citation:   {config.citation_color} ({config.citation_style})")
+                if slide_tags:
+                    print(f"  • Tags:       {', '.join(slide_tags)}")
+
+            if getattr(args, "open", False) and dest_path:
+                try:
+                    import subprocess
+                    opener = "open" if sys.platform == "darwin" else "xdg-open"
+                    subprocess.Popen([opener, str(dest_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
+
             return 0
 
     parser_slide.set_defaults(func=cmd_slide)
@@ -2697,7 +2834,13 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
             if i + 1 < len(raw_args):
                 pos_idx = i + 1
             break
-        if token in ("--db", "-w", "--width", "-m", "--margin", "--theme", "-t", "--version", "--window", "-r", "--resolution", "-o", "--output", "-f", "--format", "--backend", "--dpi", "--quality", "--safe-area", "--align", "--font-size"):
+        if token in (
+            "--db", "-w", "--width", "-m", "--margin", "--theme", "-t", "--version",
+            "--window", "-r", "--resolution", "-o", "--output", "-f", "--format",
+            "--backend", "-b", "--dpi", "--quality", "--safe-area", "--align",
+            "--font-size", "-c", "--citation-color", "--accent-color", "--font",
+            "--line-spacing", "--citation-style", "--optical-center",
+        ):
             skip_next = True
             continue
         if token.startswith("-"):

@@ -819,7 +819,29 @@ class BibleShell(cmd.Cmd):
         tokens = shlex.split(arg) if arg.strip() else []
         if not tokens:
             self.stdout.write("Usage: /slide <reference> [-o FILE] [-r 4k|1080p] [-t THEME] [-f png|svg|jpg]\n"
-                              "Example: /slide John 3:16 -o verse.png -t oled_black\n")
+                              "Example: /slide John 3:16 -o verse.png -t oled_black\n"
+                              "Flags: --list-themes, --list-resolutions, --citation-color, --tags, --safe-area\n")
+            return
+
+        from core.render import (
+            ImageMagickNotFoundError,
+            RenderConfig,
+            RenderError,
+            SlideContent,
+            format_resolution_table,
+            format_theme_table,
+            get_default_engine,
+            get_theme,
+            normalize_color,
+            parse_resolution,
+        )
+
+        if "--list-themes" in tokens:
+            self.stdout.write("\n" + format_theme_table(styling=self.use_color) + "\n\n")
+            return
+
+        if "--list-resolutions" in tokens:
+            self.stdout.write("\n" + format_resolution_table(styling=self.use_color) + "\n\n")
             return
 
         ref_tokens = []
@@ -833,8 +855,13 @@ class BibleShell(cmd.Cmd):
         line_spacing = 1.5
         text_align = "center"
         citation_style = "below"
+        citation_color = None
+        accent_color = None
+        show_tags = False
         balance_lines = True
         optical_center = 0.45
+        safe_area = 0.15
+        open_viewer = False
 
         idx = 0
         while idx < len(tokens):
@@ -858,14 +885,32 @@ class BibleShell(cmd.Cmd):
                 font_family = tokens[idx + 1]
                 idx += 2
             elif tok == "--font-size" and idx + 1 < len(tokens):
-                try:
-                    font_size = float(tokens[idx + 1])
-                except ValueError:
-                    pass
+                val_str = tokens[idx + 1].strip().lower()
+                if val_str not in ("auto", "none", "fit"):
+                    if val_str.endswith("pt") or val_str.endswith("px"):
+                        val_str = val_str[:-2]
+                    try:
+                        font_size = float(val_str)
+                    except ValueError:
+                        pass
                 idx += 2
             elif tok == "--line-spacing" and idx + 1 < len(tokens):
                 try:
                     line_spacing = float(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok in ("-c", "--citation-color") and idx + 1 < len(tokens):
+                citation_color = tokens[idx + 1]
+                idx += 2
+            elif tok == "--accent-color" and idx + 1 < len(tokens):
+                accent_color = tokens[idx + 1]
+                idx += 2
+            elif tok == "--safe-area" and idx + 1 < len(tokens):
+                sa_str = tokens[idx + 1].strip().rstrip("%")
+                try:
+                    sa_num = float(sa_str)
+                    safe_area = sa_num / 100.0 if sa_num > 1.0 else sa_num
                 except ValueError:
                     pass
                 idx += 2
@@ -881,6 +926,12 @@ class BibleShell(cmd.Cmd):
                 except ValueError:
                     pass
                 idx += 2
+            elif tok == "--tags":
+                show_tags = True
+                idx += 1
+            elif tok == "--open":
+                open_viewer = True
+                idx += 1
             elif tok == "--no-balance":
                 balance_lines = False
                 idx += 1
@@ -903,19 +954,17 @@ class BibleShell(cmd.Cmd):
             self.stdout.write(f"Error: No verses found for '{ref.format()}' in translation '{self.translation_id}'.\n")
             return
 
-        from core.render import (
-            ImageMagickNotFoundError,
-            RenderConfig,
-            RenderError,
-            SlideContent,
-            get_default_engine,
-            get_theme,
-            parse_resolution,
-        )
         from core.pericopes import PericopeService
         pericope_svc = PericopeService(self.db)
         pericopes = pericope_svc.get_pericopes_for_passage(ref)
         pericope_title = pericopes[0].title if pericopes else None
+
+        slide_tags: List[str] = []
+        if show_tags:
+            from core.tags import TaggingService
+            tag_svc = TaggingService(self.db)
+            active_tags = tag_svc.get_tags_for_passage(ref)
+            slide_tags = [t.tag_name for t in active_tags if t.tag_name]
 
         verse_text = " ".join(v.text.strip() for v in verses)
         citation_str = ref.format()
@@ -939,13 +988,17 @@ class BibleShell(cmd.Cmd):
             width=w,
             height=h,
             theme=theme_obj,
+            safe_area_pct=safe_area,
             font_family=font_family,
             font_size=font_size,
             line_spacing=line_spacing,
             text_align=text_align,
             citation_style=citation_style,
+            citation_color=normalize_color(citation_color),
+            accent_color=normalize_color(accent_color),
             balance_lines=balance_lines,
             optical_center_pct=optical_center,
+            show_tags=show_tags,
             backend=backend,
             output_format=out_fmt,
         )
@@ -955,6 +1008,7 @@ class BibleShell(cmd.Cmd):
             citation=citation_str,
             translation=used_id,
             pericope_title=pericope_title,
+            tags=slide_tags,
         )
 
         engine = get_default_engine()
@@ -964,7 +1018,20 @@ class BibleShell(cmd.Cmd):
             self.stdout.write(f"\n✓ Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:\n")
             self.stdout.write(f"  • File:     {dest_path}\n")
             self.stdout.write(f"  • Passage:  {citation_str} ({used_id})\n")
-            self.stdout.write(f"  • Theme:    {theme_obj.name}\n\n")
+            self.stdout.write(f"  • Theme:    {theme_obj.name}\n")
+            if config.citation_color:
+                self.stdout.write(f"  • Citation: {config.citation_color} ({config.citation_style})\n")
+            if slide_tags:
+                self.stdout.write(f"  • Tags:     {', '.join(slide_tags)}\n")
+            self.stdout.write("\n")
+
+            if open_viewer and dest_path:
+                try:
+                    import subprocess
+                    opener = "open" if sys.platform == "darwin" else "xdg-open"
+                    subprocess.Popen([opener, str(dest_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
         except ImageMagickNotFoundError as exc:
             self.stdout.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend svg' or install ImageMagick.\n\n")
         except RenderError as exc:
@@ -981,8 +1048,9 @@ class BibleShell(cmd.Cmd):
         themes = list(STANDARD_THEMES.keys())
         books = [b.name for b in ALL_BOOKS]
         opts = [
-            "-o", "-r", "-t", "-f", "--backend", "--font", "--font-size", "--line-spacing",
-            "--align", "--citation-style", "--optical-center", "--no-balance",
+            "-o", "-r", "-t", "-f", "-c", "--backend", "--font", "--font-size", "--line-spacing",
+            "--align", "--citation-style", "--citation-color", "--accent-color", "--safe-area",
+            "--optical-center", "--no-balance", "--tags", "--open", "--list-themes", "--list-resolutions",
             "4k", "1080p", "720p", "square", "png", "svg", "jpg",
             "center", "left", "right", "below", "smallcaps", "none",
         ] + themes + books

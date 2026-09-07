@@ -70,7 +70,7 @@ Ideas can be added directly by the repository owner or generated during interact
   - Multi-slide pagination support for lengthy passages exceeding safe viewing density.
   - Dual rendering backend: ImageMagick (`magick`/`convert`) for raster PNG/JPEG + pure Python SVG vector generator.
 - **Proposed Roadmap Phase**: Phase 5 (Tasks 5.1–5.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
-- **Status**: [VETTED] and scheduled.
+- **Status**: Tasks 5.1, 5.2, and 5.3 implemented (ADR-034, ADR-037, ADR-038). Multi-slide pagination (Task 5.4) and batch export (Task 5.5) active in Phase 5.
 
 ### [IDEA] Audio Bible Alignment / Narration Timestamps
 - **Summary**: Associate public-domain audio recordings (e.g. LibriVox WEB/KJV audio) with verse timestamps for synchronous playback and reading.
