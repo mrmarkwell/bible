@@ -431,10 +431,10 @@ This is an append-only log of work performed by autonomous agents during their e
   - Authored project-specific skill in `skills/executive-summary/SKILL.md` for on-demand invocation.
   - Updated autonomous loop runner `ralph.sh`:
     - Added helper `is_summary_run()` detecting iterations divisible by 10 (`run_number % 10 == 0`).
-    - Added specialized `SUMMARY_PROMPT` instructing the agent to curate the executive summary.
+    - Updated `SUMMARY_PROMPT` so the 10th iteration executes the **Senior Product Manager role** (answering diagnostic questions and executing Rank A+ meta-improvements, since 10 is divisible by 5) and concludes with the curated **Human Executive Briefing post-summary**.
     - Added `--summary` / `-s` flags for on-demand execution in terminal or headless mode.
-    - Harmonized cadence hierarchy: multiples of 10 -> Executive Summary; multiples of 5 (not 10) -> Senior PM Cleanup Sprint; others -> Standard Feature Cycles.
-  - Updated `AGENTS.md` and `GEMINI.md` documenting the new cadence and CLI options.
+    - Harmonized cadence hierarchy: multiples of 10 -> Senior PM Meta-Sprint & 10th-Iteration Executive Briefing; multiples of 5 (not 10) -> Senior PM Cleanup Sprint; others -> Standard Feature Cycles.
+  - Updated `AGENTS.md` and `GEMINI.md` documenting the updated cadence, Senior PM double milestone, and CLI options.
   - Added Task 0.8 to Phase 0 in `ROADMAP.md` and marked `[x]`.
   - Logged feature request in `IDEAS.md` and marked `[DONE]`.
   - Recorded **ADR-017: Autonomous Executive Summary Cadence (Every 10th Iteration) & Trajectory Diagnostic Engine** in `DECISIONS.md`.

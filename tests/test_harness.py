@@ -61,14 +61,15 @@ class TestHarness(unittest.TestCase):
         # PIPESTATUS array should be captured into a variable before indexing
         self.assertIn('PIPE_STATUSES=("${PIPESTATUS[@]}")', content)
     def test_summary_prompt_contents(self):
-        """Verify ralph.sh contains the Executive Summary prompt and options."""
+        """Verify ralph.sh contains the Executive Summary prompt, Senior PM role, and options."""
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         ralph_path = os.path.join(repo_root, "ralph.sh")
         with open(ralph_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        self.assertIn("Executive Summary & Project Trajectory Briefing", content)
+        self.assertIn("Senior Product Manager Meta-Improvement Sprint", content)
         self.assertIn("tools/executive_summary.py", content)
+        self.assertIn("What is the weakest aspect of this project structure?", content)
         self.assertIn("--summary", content)
         self.assertIn("-s", content)
         self.assertIn("is_summary_run", content)

@@ -420,13 +420,14 @@ This document is an append-only log of significant design and architectural deci
   3. **Dedicated Project Skill (`skills/executive-summary/SKILL.md`)**:
      - Formally defined as an agent skill with instructions and execution workflows.
   4. **Autonomous Ralph Loop Cadence Integration (`ralph.sh`)**:
-     - Updated `ralph.sh`: every 10th iteration (`run_number % 10 == 0`, e.g. Run #010, #020, #030...), injects `SUMMARY_PROMPT`, prompting the agent to curate the 10-run executive summary, evaluate trajectory, and present it to the user.
+     - Updated `ralph.sh`: every 10th iteration (`run_number % 10 == 0`, e.g. Run #010, #020, #030...), injects `SUMMARY_PROMPT`, instructing the agent to first execute the **Senior Product Manager role** (answering the two diagnostic questions and executing a Rank A+ meta-improvement, since 10 is divisible by 5), and then conclude by delivering the curated **Human Executive Briefing post-summary**.
      - Added `--summary` / `-s` CLI flags to `ralph.sh` for triggering the executive summary on demand in terminal or headless mode.
   5. **Harmonized Cadence Hierarchy**:
-     - Iterations divisible by 10 (`10, 20, 30...`) trigger the **Executive Summary Briefing**.
+     - Iterations divisible by 10 (`10, 20, 30...`) trigger the **Senior PM Meta-Sprint & 10th-Iteration Executive Briefing** double milestone.
      - Iterations divisible by 5 but not 10 (`5, 15, 25...`) trigger the **Senior PM Cleanup Sprint**.
      - All other iterations execute standard domain roadmap tasks.
 - **Consequences**:
+  - The 10th iteration cleanly preserves the 5-iteration cadence invariant (always performing Senior PM meta-engineering when divisible by 5) while appending the macro 10-run executive synthesis at the end.
   - The repository owner receives clear, high-level, low-noise milestone reviews every 10 iterations without needing to inspect commits.
   - Project completion trajectory and iteration estimates are empirically computed from live roadmap and log state.
   - The capability can be triggered on demand via CLI, python script, or skill.

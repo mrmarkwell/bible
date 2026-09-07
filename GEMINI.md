@@ -29,10 +29,11 @@ In this mode:
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
 2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed.
-3. **Cadence Check (10th Iteration = Executive Summary Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
+3. **Cadence Check (10th Iteration = Senior PM Meta-Sprint + Executive Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
    - **If Run Number is a multiple of 10, loop iteration % 10 == 0, or invoked via `--summary`**:
-     - Run `python3 tools/executive_summary.py` (or `./bible summary`).
-     - Curate and present the Executive Summary reviewing the last 10 iterations, project completion trajectory, remaining effort in iterations, and overall system health.
+     - Step into the **Senior Product Manager & Meta-Architect** role (since 10 is divisible by 5): answer the two core diagnostic questions (*"What is the weakest aspect?"*, *"What is preventing this from being more incredible?"*), formulate and **execute** a Rank A+ meta-improvement with 100% passing tests and zero dependencies.
+     - Next, run `python3 tools/executive_summary.py` (or `./bible summary`) to curate the accomplishments across the last 10 iterations from `AGENT_LOG.md`.
+     - Deliver the curated **Human Executive Briefing post-summary** at the end of the iteration, covering project trajectory, remaining effort in iterations, overall system health, and letter-graded improvement opportunities (with mandatory immediate ingestion for any Rank A+ ideas).
    - **If Run Number is a multiple of 5 (and not 10), loop iteration % 5 == 0, or invoked via `--cleanup`**:
      - Assume the persona of a **Senior Product Manager & Meta-Architect**.
      - Do **NOT** advance domain roadmap feature tasks.

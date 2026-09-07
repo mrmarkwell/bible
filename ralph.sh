@@ -33,22 +33,34 @@ Requirements:
 
 SUMMARY_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
 
-MANDATORY CADENCE: Executive Summary & Project Trajectory Briefing (10th Iteration Review).
+MANDATORY CADENCE: Senior Product Manager Meta-Improvement Sprint & 10th-Iteration Executive Briefing.
 
-You are curating an Executive Summary and high-level trajectory briefing for the repository owner.
-DO NOT make standard feature progress on roadmap tasks during this cycle.
+Every 10th iteration is divisible by 5 and represents a double milestone.
+You are acting as a Senior Product Manager auditing the entire project structure and execution processes, followed by curating the 10-iteration Executive Summary.
+DO NOT make standard feature progress on domain roadmap tasks during this cycle.
 
-Requirements:
-1. Run the zero-dependency Executive Summary tool:
-   python3 tools/executive_summary.py --window 10
-   (or ./bible summary)
-2. Review and curate the accomplishments across the last 10 iterations (from AGENT_LOG.md).
-3. Present a high-level executive overview of the project state:
-   - Overall project completion percentage and active phase.
-   - Estimated completion effort remaining in iterations based on observed velocity.
-   - Comprehensive system health and architectural invariant summary (zero dependencies, tests, database).
-4. Identify 1-3 high-leverage improvement ideas, assign mandatory letter grades, and promote any Rank A+ ideas to IDEAS.md.
-5. Record ADR-017 (Executive Summary Cadence) if relevant, log in AGENT_LOG.md under Run entry, commit and push to origin/main."
+PART 1: SENIOR PRODUCT MANAGER META-IMPROVEMENT SPRINT
+- Answer the Two Core Diagnostic Questions:
+  1. What is the weakest aspect of this project structure?
+  2. What is preventing this from being more incredible?
+- Formulate at least ONE Rank A+ idea to improve or clean up the system/processes.
+- You have full ownership: NOTHING is disallowed. If your idea is A+ quality, EXECUTE IT completely during this cycle!
+- Implement, test, and verify the improvement (100% test pass rate required).
+- Record architectural decisions in DECISIONS.md (ADR) and promote the Rank A+ feature in IDEAS.md.
+- Log your accomplishments in AGENT_LOG.md as a Senior PM Cleanup Sprint entry.
+- Immediately commit and push to origin/main per ADR-004.
+
+PART 2: EXECUTIVE SUMMARY & TRAJECTORY BRIEFING (POST-SUMMARY BRIEFING)
+- Run the zero-dependency Executive Summary tool:
+  python3 tools/executive_summary.py --window 10
+  (or ./bible summary)
+- Review and curate the accomplishments across the last 10 iterations (from AGENT_LOG.md).
+- Conclude your cycle by delivering the curated Human Executive Briefing covering:
+  1. Blocker Status (BLOCKED.md)
+  2. High-level trajectory overview (completion percentage, estimated remaining iterations to finish roadmap)
+  3. 10-Iteration accomplishment review
+  4. System health and architectural invariant verification (zero dependencies, tests, database)
+  5. Letter-graded improvement opportunities (with mandatory immediate promotion for any Rank A+ ideas)."
 
 DEFAULT_TIMEOUT="30m"
 

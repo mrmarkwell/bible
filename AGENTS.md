@@ -101,15 +101,29 @@ The Senior PM audits the entire system across:
 
 ---
 
-### Cadence Protocol: Executive Summary & Trajectory Briefing (Every 10th Iteration)
+### Cadence Protocol: Executive Summary & Senior PM Double Milestone (Every 10th Iteration)
 
-Every **tenth iteration** of the autonomous Ralph loop (e.g., Run #010, #020, #030..., or when `run_number % 10 == 0`, or when invoked via `--summary` / `-s`) is a dedicated **Executive Summary & Project Trajectory Briefing**.
+Every **tenth iteration** of the autonomous Ralph loop (e.g., Run #010, #020, #030..., or when `run_number % 10 == 0`, or when invoked via `--summary` / `-s`) is a dedicated **Senior Product Manager Meta-Improvement Sprint & Executive Briefing Double Milestone**:
+- **Why?**: Because the 10th iteration is divisible by 5, it fully performs the **Senior Product Manager role** (answering the two core diagnostic questions and executing a Rank A+ meta-improvement).
+- **Post-Summary Executive Briefing**: In addition to the Senior PM meta-improvement, the agent curates the multi-iteration retrospective across the last 10 runs and delivers the comprehensive **Executive Briefing** at the end of the iteration.
 
-#### 1. Core Purpose & Mandate
-- **Curated Multi-Iteration Review**: Review the accomplishments, state transitions, and lessons from the last 10 iterations (from `AGENT_LOG.md`).
-- **High-Level Trajectory Assessment**: Parse `ROADMAP.md` to compute total project completion percentage, active phase status, remaining tasks, and estimated iterations to completion based on observed velocity.
-- **Overall Project Health**: Execute automated diagnostics (`tools/doctor.py` / `tools/executive_summary.py`) to verify AST zero-dependency compliance, documentation synchronization, test hermeticity, and database integrity.
-- **On-Demand & Automatic Availability**: Available on-demand at any time via `./bible summary [--window N]`, `python3 tools/executive_summary.py`, or `./ralph.sh --summary`, and codified as a project skill in `skills/executive-summary/SKILL.md`.
+#### 1. Core Mandate & Execution Order
+1. **Senior PM Meta-Audit & Execution**:
+   - Answer: *"What is the weakest aspect of this project structure?"* and *"What is preventing this from being more incredible?"*
+   - Conceive and immediately execute at least one Rank A+ meta-improvement to code, tooling, tests, or ergonomics.
+   - Verify 100% test pass rate and zero external dependencies.
+   - Record ADR in `DECISIONS.md`, update `ROADMAP.md` / `IDEAS.md`, and log in `AGENT_LOG.md`.
+2. **Curated Multi-Iteration Review & Trajectory Assessment**:
+   - Run `python3 tools/executive_summary.py --window 10` (or `./bible summary`).
+   - Review accomplishments across the last 10 iterations from `AGENT_LOG.md`.
+   - Compute roadmap completion percentage and remaining effort in iterations.
+   - Verify overall project health via automated diagnostics (`tools/doctor.py`).
+3. **Emit Post-Summary Executive Briefing**:
+   - Deliver the structured Human Executive Briefing synthesizing the 10-run achievements, trajectory, and letter-graded improvement ideas.
+   - Execute mandatory post-briefing ingestion of any newly evaluated Rank A+ ideas before self-terminating.
+
+#### 2. On-Demand Availability
+- On-demand summary and trajectory briefing can also be requested at any time via `./bible summary [--window N]`, `python3 tools/executive_summary.py`, `./ralph.sh --summary`, or using the `skills/executive-summary/SKILL.md` project skill.
 
 ---
 
