@@ -23,6 +23,17 @@ class TestHarness(unittest.TestCase):
         res = subprocess.run(["bash", "-n", ralph_path], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0, f"ralph.sh bash syntax error: {res.stderr}")
 
+    def test_install_hooks_script_syntax_and_executable(self):
+        """Validate bash syntax and executable permission of tools/install_hooks.sh."""
+        import subprocess
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        hook_installer = os.path.join(repo_root, "tools", "install_hooks.sh")
+        self.assertTrue(os.path.exists(hook_installer), "Missing tools/install_hooks.sh")
+        self.assertTrue(os.access(hook_installer, os.X_OK), "tools/install_hooks.sh is not executable")
+        res = subprocess.run(["bash", "-n", hook_installer], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, f"tools/install_hooks.sh syntax error: {res.stderr}")
+
     def test_cleanup_sprint_prompt_contents(self):
         """Verify ralph.sh contains the Senior PM prompt and core diagnostic questions."""
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

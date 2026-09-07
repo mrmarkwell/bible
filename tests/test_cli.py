@@ -344,6 +344,45 @@ class TestCliExecution(unittest.TestCase):
             code = main(["doctor"])
         self.assertEqual(code, 0)
         self.assertTrue(mock_doctor.called)
+        self.assertFalse(mock_doctor.call_args.kwargs.get("fast", False))
+
+    @patch("tools.doctor.run_all_checks", return_value=(0, []))
+    def test_cli_doctor_fast(self, mock_doctor):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["doctor", "--fast"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_doctor.called)
+        self.assertTrue(mock_doctor.call_args.kwargs.get("fast", False))
+
+    @patch("tools.doctor.install_hooks", return_value=(True, "Hooks installed successfully"))
+    def test_cli_doctor_install_hooks(self, mock_install):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["doctor", "--install-hooks"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_install.called)
+        self.assertIn("Hooks installed", stdout.getvalue())
+
+    @patch("tools.doctor.uninstall_hooks", return_value=(True, "Hooks uninstalled successfully"))
+    def test_cli_doctor_uninstall_hooks(self, mock_uninstall):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["doctor", "--uninstall-hooks"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_uninstall.called)
+        self.assertIn("Hooks uninstalled", stdout.getvalue())
+
+    @patch("tools.doctor.check_git_hooks")
+    def test_cli_doctor_check_hooks(self, mock_check):
+        from tools.doctor import CheckResult
+        mock_check.return_value = CheckResult("Git Hook Safeguards", True, "Hooks active", 0.001)
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["doctor", "--check-hooks"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_check.called)
+        self.assertIn("Git Hook Safeguards", stdout.getvalue())
 
     @patch("tools.executive_summary.generate_summary")
     def test_cli_summary(self, mock_summary):

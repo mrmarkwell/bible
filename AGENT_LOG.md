@@ -637,3 +637,56 @@ This is an append-only log of work performed by autonomous agents during their e
   - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
   - Next priority on the roadmap is **Task 3.1**: Schema design for semantic tags and cross-reference associations (`core/db.py`).
 
+---
+
+## [Run 021] — 2026-09-07
+- **Agent**: Senior Product Manager & Meta-Architect (Cadence Sprint)
+- **Phase**: Senior Product Manager Meta-Improvement & System Health Sprint
+- **Task**: Multi-Tiered Automated Git Hook Safeguards, Fast Pre-Commit Linting, Machine-Enforced Invariants, and Test Output Hygiene (Task 0.7 / ADR-022)
+- **Core Diagnostic Inquiries**:
+  1. *What is the weakest aspect of this project structure?*
+     - The absence of machine-level, automated git safeguards prior to commit and push. While ADR-003, ADR-004, ADR-016, and test hermeticity are strictly documented, enforcement relied entirely on agent/developer vigilance or post-hoc validation by `ralph.sh`. A developer or agent could commit an unapproved pip module, introduce a documentation state machine desync, or break a test, and `git push origin main` would succeed without mechanical prevention. Task 0.7 had been scheduled in `ROADMAP.md` and `IDEAS.md` (Rank A+) but remained unbuilt.
+     - In addition, running `run_all_checks()` printed unconditionally to `sys.stdout`, causing test suites like `test_doctor.py` to inject noisy ASCII banners into standard test runs.
+  2. *What is preventing this from being more incredible?*
+     - Lack of automated Git hook lifecycle management (`./bible doctor --install-hooks`, `--uninstall-hooks`, `--check-hooks`, and standalone script `tools/install_hooks.sh`).
+     - Lack of a multi-tiered hook execution architecture: running the full diagnostic test suite on every atomic commit would introduce ~2.0s latency, hindering commit frequency. By building an ultra-fast pre-commit mode (<0.15s) checking AST imports, doc sync, shell scripts, and hook status, and reserving the full suite (<2.5s) for pre-push, developers and agents enjoy zero commit friction while guaranteeing 100% remote push safety.
+- **Actions Taken**:
+  - **Multi-Tiered Automated Git Hook Engine (`tools/doctor.py`)**:
+    - Implemented `install_hooks(repo_root)` and `uninstall_hooks(repo_root)`: writes zero-dependency executable bash hooks into `.git/hooks/pre-commit` and `.git/hooks/pre-push`.
+    - **Pre-commit hook**: runs `python3 tools/doctor.py --fast` (<0.15s: AST zero-dependency audit across all Python files, doc sync, shell script syntax, hook status). Aborts commit instantly on violation with colored diagnostics.
+    - **Pre-push hook**: runs `python3 tools/doctor.py` (full suite: fast checks + database `PRAGMA quick_check` + FTS5 operational verify + full hermetic unit test discovery). Aborts push immediately if any test fails or invariants are violated.
+    - Added `check_git_hooks(repo_root)` as a 6th core diagnostic check in `tools/doctor.py`.
+    - Added `fast: bool = False`, `quiet: bool = False`, and `stream: Optional[TextIO] = None` parameters to `run_all_checks()`, eliminating test runner stdout pollution.
+  - **Standalone Hook Installer Script (`tools/install_hooks.sh`)**:
+    - Created executable POSIX bash installer script wrapping `doctor.py --install-hooks`.
+    - Integrated into `check_bash_scripts` validation.
+  - **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Added `--fast`, `--install-hooks`, `--uninstall-hooks`, `--check-hooks`, and `--quiet` flags to `./bible doctor`.
+    - Enhanced `/doctor` slash command in interactive shell (`BibleShell`) to support `/doctor fast`, `/doctor hooks`, `/doctor install-hooks`, and `/doctor uninstall-hooks` with tab autocompletion (`complete_doctor`).
+    - Added `check_git_hooks` into `tools/executive_summary.py` health reporting.
+  - **Hook Installation**:
+    - Executed `./bible doctor --install-hooks`, activating live pre-commit and pre-push hooks in repository `.git/hooks`.
+  - **Hermetic Unit Tests**:
+    - Expanded `tests/test_doctor.py` with 4 new tests (`test_check_git_hooks_clean_in_repo`, `test_check_git_hooks_missing_and_lifecycle`, `test_run_all_checks_fast_mode`, `test_run_all_checks_quiet_and_stream`), updating e2e test to assert 6 checks with quiet execution.
+    - Added `test_install_hooks_script_syntax_and_executable` in `tests/test_harness.py`.
+    - Added 4 new CLI tests in `tests/test_cli.py` (`test_cli_doctor_fast`, `test_cli_doctor_install_hooks`, `test_cli_doctor_uninstall_hooks`, `test_cli_doctor_check_hooks`).
+    - Added doctor command and autocompletion tests in `tests/test_shell.py`.
+  - **Documentation & Governance**:
+    - Recorded **ADR-022: Multi-Tiered Automated Git Hook Safeguards, Fast Pre-Commit Linting & Machine-Enforced Invariant Architecture** in `DECISIONS.md`.
+    - Updated `ROADMAP.md` marking Task 0.7 as `[x]`, bringing Phase 0 to 100% completion (8/8 tasks).
+    - Updated `IDEAS.md` promoting Git Hook Automation to `[DONE]`.
+- **Verification**:
+  - Executed `.git/hooks/pre-commit` directly: verified all 4 fast checks passed in 0.11s.
+  - Executed `.git/hooks/pre-push` directly: verified all 6 checks passed in 2.15s.
+  - Ran `./bible doctor --check-hooks`: reported `[PASS] Git Hook Safeguards: Active (pre-commit: fast linting, pre-push: full doctor)`.
+  - Ran `./bible doctor`: all 6 checks passed cleanly (`EXCELLENT`) in 2.09s, dynamically discovering 218 tests.
+  - Ran `python3 -m unittest discover tests`: all 230 tests passed 100% in 2.748s with clean, quiet output.
+  - Ran `./bible summary --window 3`: verified git hook safeguards reported cleanly in executive health section.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Phase 0 is now 100% complete! Phase 1 and Phase 2 are also 100% complete!
+  - Next cycle is **Run 022** (standard roadmap cycle).
+  - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
+  - Next priority on the roadmap is **Task 3.1**: Schema design for semantic tags and cross-reference associations (`core/db.py`).
+
+

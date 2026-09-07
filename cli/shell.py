@@ -403,10 +403,35 @@ class BibleShell(cmd.Cmd):
     # --------------------------------------------------------------------------
 
     def do_doctor(self, arg: str) -> None:
-        """Run repository health diagnostic check."""
-        from tools.doctor import run_all_checks
+        """Run repository health diagnostic check: /doctor [fast|install|uninstall|hooks]"""
+        from tools.doctor import run_all_checks, install_hooks, uninstall_hooks, check_git_hooks, DoctorStyler
         repo_root = Path(__file__).resolve().parent.parent
-        run_all_checks(repo_root=repo_root, color=self.use_color)
+        arg = arg.strip().lower()
+
+        if arg in ("install", "install-hooks", "--install-hooks"):
+            ok, msg = install_hooks(repo_root)
+            self.stdout.write(msg + "\n")
+            return
+
+        if arg in ("uninstall", "uninstall-hooks", "--uninstall-hooks"):
+            ok, msg = uninstall_hooks(repo_root)
+            self.stdout.write(msg + "\n")
+            return
+
+        if arg in ("hooks", "check-hooks", "--check-hooks"):
+            res = check_git_hooks(repo_root)
+            styler = DoctorStyler(enabled=self.use_color)
+            badge = styler.green("[PASS]") if res.passed else styler.red("[FAIL]")
+            self.stdout.write(f"{badge} {res.name}: {res.details}\n")
+            return
+
+        fast_mode = arg in ("fast", "--fast", "-f")
+        run_all_checks(
+            repo_root=repo_root,
+            color=self.use_color,
+            fast=fast_mode,
+            stream=self.stdout,
+        )
 
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
@@ -468,6 +493,11 @@ System:
     # --------------------------------------------------------------------------
     # Auto-Completion
     # --------------------------------------------------------------------------
+
+    def complete_doctor(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete doctor subcommands."""
+        options = ["fast", "install-hooks", "uninstall-hooks", "hooks"]
+        return [o for o in options if o.startswith(text.lower())]
 
     def complete_theme(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete theme names."""

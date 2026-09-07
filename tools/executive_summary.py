@@ -178,12 +178,14 @@ def generate_summary(
                 check_zero_dependencies,
                 check_doc_synchronization,
                 check_bash_scripts,
+                check_git_hooks,
                 check_database_integrity,
             )
             checks = [
                 check_zero_dependencies(root),
                 check_doc_synchronization(root),
                 check_bash_scripts(root),
+                check_git_hooks(root),
                 check_database_integrity(root),
             ]
             all_passed = all(c.passed for c in checks)

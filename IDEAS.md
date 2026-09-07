@@ -243,15 +243,15 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.6).
 - **Status**: [DONE] (Implemented in `tools/doctor.py`, integrated into CLI via `./bible doctor`, integrated into `ralph.sh`, tested in `tests/test_doctor.py`, and recorded in ADR-016).
 
-### [SCHEDULED] Git Pre-Commit / Pre-Push Hook Automation (`bible doctor --install-hook`) (Rank A+)
+### [DONE] Git Pre-Commit / Pre-Push Hook Automation (`bible doctor --install-hooks`) (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
-- **Summary**: Provide automated git hook installation (`./bible doctor --install-hook` or `tools/install_hooks.sh`) that writes a zero-dependency pre-commit/pre-push script to `.git/hooks/pre-push`. The hook runs `python3 tools/doctor.py`, preventing any git push from completing if AST dependency violations, documentation desynchronization, or failing tests are detected.
-- **Rationale**: Eliminates human and agent oversight by physically preventing any non-compliant code or broken state from being pushed to `origin/main`.
+- **Summary**: Provide automated git hook installation (`./bible doctor --install-hooks` and `tools/install_hooks.sh`) that writes zero-dependency pre-commit (<0.15s) and pre-push (<2.5s) scripts into `.git/hooks`. The pre-commit hook runs fast AST zero-dependency and documentation synchronization linting; the pre-push hook runs full doctor verification (including database PRAGMA check and 100% hermetic unit tests), physically preventing non-compliant or broken state from ever reaching `origin/main`.
+- **Rationale**: Eliminates human and agent oversight by physically preventing any non-compliant code, missing ADRs, or broken tests from being pushed to `origin/main`.
 - **Constraints & Alignment**:
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (uses standard git hooks and Python standard library).
 - **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.7).
-- **Status**: [SCHEDULED].
+- **Status**: [DONE] (Implemented in `tools/doctor.py`, `tools/install_hooks.sh`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_doctor.py`, `tests/test_harness.py`, `tests/test_cli.py`, `tests/test_shell.py`, and recorded in ADR-022).
 
 ### [VETTED] Curated Executive Summary & Project Trajectory Briefing (10th Iteration Cadence & Skill) (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)

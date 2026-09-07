@@ -55,6 +55,14 @@ class TestShell(unittest.TestCase):
         cls.db.close()
         cls.temp_dir.cleanup()
 
+    def setUp(self):
+        self.shells = []
+
+    def tearDown(self):
+        for s in self.shells:
+            if s.db:
+                s.db.close()
+
     def _create_shell(self, theme="plain", margin=0, box=False, color=False):
         stdout = io.StringIO()
         shell = BibleShell(
@@ -66,6 +74,7 @@ class TestShell(unittest.TestCase):
             color=color,
             stdout=stdout,
         )
+        self.shells.append(shell)
         return shell, stdout
 
     def test_shell_direct_reference(self):
@@ -158,6 +167,21 @@ class TestShell(unittest.TestCase):
         # Book autocompletion
         gen = shell.completenames("Gen")
         self.assertIn("Genesis", gen)
+
+        # Doctor autocompletion
+        doc = shell.complete_doctor("fas", "doctor fas", 0, 0)
+        self.assertIn("fast", doc)
+
+    def test_shell_doctor_commands(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/doctor hooks")
+        self.assertIn("Git Hook Safeguards", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/doctor fast")
+        self.assertIn("Fast Pre-Commit Mode", stdout.getvalue())
+        self.assertIn("EXCELLENT", stdout.getvalue())
 
 
 class TestDirectReferenceRouting(unittest.TestCase):

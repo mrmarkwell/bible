@@ -550,3 +550,37 @@ This document is an append-only log of significant design and architectural deci
   - Slashes test latency in half while expanding automated health check coverage to 100% of test suites.
   - Guarantees seamless CLI ergonomics for direct citation queries.
 
+---
+
+## ADR-022: Multi-Tiered Automated Git Hook Safeguards, Fast Pre-Commit Linting & Machine-Enforced Invariant Architecture
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: The Bible Engine project enforces strict architectural invariants: 100% Zero External Dependencies (ADR-003), immediate remote pushes (ADR-004), documentation state machine synchronization (ADR-016), shell script integrity, and 100% passing hermetic tests. However, these invariants previously relied on manual developer vigilance or post-hoc validation by `ralph.sh` and `./bible doctor`. There was no mechanical, machine-level prevention at the git level: a developer or agent could commit an unapproved pip package (`import requests`), introduce a doc-sync gap in `AGENT_LOG.md`, or break a test, and `git push origin main` would proceed unchecked. Furthermore, running full doctor diagnostics on every commit (~2.0s) would add unwanted latency to atomic commit velocity.
+- **Decision**:
+  1. **Multi-Tiered Git Hook Defense Architecture**:
+     - **Pre-Commit Hook (`.git/hooks/pre-commit`)**: Executes `python3 tools/doctor.py --fast`. Completes in <0.15 seconds (~0.11s). Validates:
+       1. Zero External Dependencies AST audit across all Python files.
+       2. Documentation state machine synchronization (ADRs, sequential runs, Rank A+ ideas).
+       3. Shell script integrity (`ralph.sh`, `tools/install_hooks.sh`).
+       4. Git hook safeguards status.
+       If any violation occurs, the commit is instantly aborted with colored diagnostics, preventing invalid code from ever entering git history without delaying developers.
+     - **Pre-Push Hook (`.git/hooks/pre-push`)**: Executes `python3 tools/doctor.py` (full mode). Completes in ~2.0 seconds. Validates:
+       1. All four fast pre-commit checks.
+       2. SQLite scripture database integrity (`PRAGMA quick_check`, 31,103+ verses, FTS5 index operational).
+       3. Full hermetic unit test suite (100% pass across all test suites).
+       Guarantees that broken code, failing tests, or corrupt databases can never be pushed to `origin/main`.
+  2. **Automated Hook Lifecycle Management**:
+     - Added `--install-hooks` / `--install-hook` and `--uninstall-hooks` to `tools/doctor.py` and CLI `./bible doctor`.
+     - Added standalone executable shell script `tools/install_hooks.sh` for standard Unix developer onboarding.
+     - Added `check_git_hooks` in `tools/doctor.py` as a 6th core diagnostic check, continuously verifying that git hook safeguards are active and executable.
+  3. **Doctor Quiet Execution & Custom Stream Redirection**:
+     - Enhanced `run_all_checks` in `tools/doctor.py` with `fast: bool = False`, `quiet: bool = False`, and `stream: Optional[TextIO] = None`.
+     - Suppresses verbose ASCII banner output during hermetic test discovery runs (`python3 -m unittest discover tests`), maintaining clean, silent test feedback.
+  4. **Interactive REPL Shell Integration (`cli/shell.py`)**:
+     - Upgraded `/doctor` slash command in `BibleShell` to support `/doctor fast`, `/doctor hooks`, `/doctor install-hooks`, and `/doctor uninstall-hooks` with tab autocompletion.
+- **Consequences**:
+  - Invariants for zero dependencies, documentation synchronization, and test pass rates are physically enforced by git at the machine level before commits and pushes can occur.
+  - Pre-commit latency remains under 0.15s, ensuring atomic commit workflows (ADR-004) are never bottlenecked.
+  - Phase 0 Task 0.7 is fully satisfied and verified.
+  - 100% zero external dependencies (Python 3 stdlib and POSIX bash only).
+

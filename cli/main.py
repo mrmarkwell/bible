@@ -1027,13 +1027,61 @@ def build_parser() -> argparse.ArgumentParser:
     parser_doctor = subparsers.add_parser(
         "doctor",
         help="Run comprehensive health, dependency, and documentation diagnostics",
-        description="Verify zero external dependencies, documentation sync, bash scripts, and tests.",
+        description="Verify zero external dependencies, documentation sync, bash scripts, git hooks, and tests.",
+    )
+    parser_doctor.add_argument(
+        "--fast",
+        action="store_true",
+        help="Run fast pre-commit checks only (<0.15s: dependencies, doc sync, shell scripts, hook status)",
+    )
+    parser_doctor.add_argument(
+        "--install-hooks",
+        "--install-hook",
+        dest="install_hooks",
+        action="store_true",
+        help="Install automated git pre-commit (fast) and pre-push (full) hooks in .git/hooks",
+    )
+    parser_doctor.add_argument(
+        "--uninstall-hooks",
+        action="store_true",
+        help="Remove automated git hooks from .git/hooks",
+    )
+    parser_doctor.add_argument(
+        "--check-hooks",
+        action="store_true",
+        help="Check git hook safeguards status only",
+    )
+    parser_doctor.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Quiet mode: suppress output and exit with status code only",
     )
     def cmd_doctor(args: argparse.Namespace) -> int:
-        from tools.doctor import run_all_checks
+        from tools.doctor import install_hooks, uninstall_hooks, check_git_hooks, run_all_checks, DoctorStyler
         repo_root = Path(__file__).resolve().parent.parent
+
+        if getattr(args, "install_hooks", False):
+            ok, msg = install_hooks(repo_root)
+            print(msg)
+            return 0 if ok else 1
+
+        if getattr(args, "uninstall_hooks", False):
+            ok, msg = uninstall_hooks(repo_root)
+            print(msg)
+            return 0 if ok else 1
+
+        if getattr(args, "check_hooks", False):
+            res = check_git_hooks(repo_root)
+            styler = DoctorStyler(enabled=not getattr(args, "no_color", False))
+            badge = styler.green("[PASS]") if res.passed else styler.red("[FAIL]")
+            print(f"{badge} {res.name}: {res.details}")
+            return 0 if res.passed else 1
+
         is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and not sys.platform.startswith("win")
-        code, _ = run_all_checks(repo_root=repo_root, color=is_tty)
+        fast_mode = getattr(args, "fast", False)
+        quiet_mode = getattr(args, "quiet", False)
+        code, _ = run_all_checks(repo_root=repo_root, color=is_tty, fast=fast_mode, quiet=quiet_mode)
         return code
 
     parser_doctor.set_defaults(func=cmd_doctor)
