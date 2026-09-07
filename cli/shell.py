@@ -12,6 +12,7 @@ Provides an interactive command loop powered by cmd.Cmd and readline:
 import cmd
 import os
 from pathlib import Path
+import re
 import shlex
 import sys
 from typing import List, Optional, Sequence
@@ -825,6 +826,7 @@ class BibleShell(cmd.Cmd):
 
         from core.render import (
             ImageMagickNotFoundError,
+            PaginationConfig,
             RenderConfig,
             RenderError,
             SlideContent,
@@ -833,6 +835,7 @@ class BibleShell(cmd.Cmd):
             get_default_engine,
             get_theme,
             normalize_color,
+            paginate_verses,
             parse_resolution,
         )
 
@@ -862,12 +865,24 @@ class BibleShell(cmd.Cmd):
         optical_center = 0.45
         safe_area = 0.15
         open_viewer = False
+        paginate_flag = False
+        no_paginate_flag = False
+        max_verses = None
+        max_lines = None
+        max_chars = None
+        page_format = "{page} / {total}"
+        show_indicator = True
+        keep_citation = False
+        output_dir = None
 
         idx = 0
         while idx < len(tokens):
             tok = tokens[idx]
             if tok in ("-o", "--output") and idx + 1 < len(tokens):
                 out_file = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-d", "--output-dir") and idx + 1 < len(tokens):
+                output_dir = tokens[idx + 1]
                 idx += 2
             elif tok in ("-r", "--resolution") and idx + 1 < len(tokens):
                 res_preset = tokens[idx + 1]
@@ -926,6 +941,39 @@ class BibleShell(cmd.Cmd):
                 except ValueError:
                     pass
                 idx += 2
+            elif tok == "--paginate":
+                paginate_flag = True
+                idx += 1
+            elif tok == "--no-paginate":
+                no_paginate_flag = True
+                idx += 1
+            elif tok == "--max-verses" and idx + 1 < len(tokens):
+                try:
+                    max_verses = int(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--max-lines" and idx + 1 < len(tokens):
+                try:
+                    max_lines = int(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--max-chars" and idx + 1 < len(tokens):
+                try:
+                    max_chars = int(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--page-format" and idx + 1 < len(tokens):
+                page_format = tokens[idx + 1]
+                idx += 2
+            elif tok == "--no-page-indicator":
+                show_indicator = False
+                idx += 1
+            elif tok == "--keep-citation":
+                keep_citation = True
+                idx += 1
             elif tok == "--tags":
                 show_tags = True
                 idx += 1
@@ -976,11 +1024,11 @@ class BibleShell(cmd.Cmd):
                 out_fmt = ext
         else:
             out_fmt = out_fmt or "png"
-            import re
             safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
             dest_path = Path.cwd() / f"slide_{safe_stem}.{out_fmt}"
 
         out_fmt = out_fmt or "png"
+        safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
         w, h = parse_resolution(res_preset)
         theme_obj = get_theme(theme)
 
@@ -1003,35 +1051,93 @@ class BibleShell(cmd.Cmd):
             output_format=out_fmt,
         )
 
-        content = SlideContent(
-            text=verse_text,
-            citation=citation_str,
-            translation=used_id,
+        if no_paginate_flag:
+            pagination = PaginationConfig(enabled=False)
+        else:
+            pagination = PaginationConfig(
+                enabled=True,
+                mode="always" if paginate_flag else "auto",
+                max_verses_per_slide=max_verses,
+                max_lines_per_slide=max_lines,
+                max_chars_per_slide=max_chars,
+                indicator_format=page_format,
+                show_indicator=show_indicator,
+                sub_citations=not keep_citation,
+                keep_parent_citation=keep_citation,
+            )
+
+        slide_contents = paginate_verses(
+            verses=verses,
+            parent_ref=ref,
+            config=config,
+            pagination=pagination,
             pericope_title=pericope_title,
             tags=slide_tags,
         )
 
+        if not slide_contents:
+            slide_contents = [
+                SlideContent(
+                    text=verse_text,
+                    citation=citation_str,
+                    translation=used_id,
+                    pericope_title=pericope_title,
+                    tags=slide_tags,
+                )
+            ]
+
         engine = get_default_engine()
         try:
-            result = engine.render_to_file(content, dest_path, config)
-            size_str = f"{len(result.data):,} bytes"
-            self.stdout.write(f"\n✓ Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:\n")
-            self.stdout.write(f"  • File:     {dest_path}\n")
-            self.stdout.write(f"  • Passage:  {citation_str} ({used_id})\n")
-            self.stdout.write(f"  • Theme:    {theme_obj.name}\n")
-            if config.citation_color:
-                self.stdout.write(f"  • Citation: {config.citation_color} ({config.citation_style})\n")
-            if slide_tags:
-                self.stdout.write(f"  • Tags:     {', '.join(slide_tags)}\n")
-            self.stdout.write("\n")
+            if output_dir:
+                out_dir_path = Path(output_dir).resolve()
+                results = engine.render_sequence_to_dir(
+                    slide_contents,
+                    destination_dir=out_dir_path,
+                    file_prefix=f"slide_{safe_stem}",
+                    config=config,
+                )
+            else:
+                assert dest_path is not None
+                results = engine.render_sequence_to_files(
+                    slide_contents,
+                    destination=dest_path,
+                    config=config,
+                )
 
-            if open_viewer and dest_path:
-                try:
-                    import subprocess
-                    opener = "open" if sys.platform == "darwin" else "xdg-open"
-                    subprocess.Popen([opener, str(dest_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except Exception:
-                    pass
+            if len(results) == 1:
+                result = results[0]
+                size_str = f"{len(result.data):,} bytes"
+                self.stdout.write(f"\n✓ Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:\n")
+                self.stdout.write(f"  • File:     {result.file_path or dest_path}\n")
+                self.stdout.write(f"  • Passage:  {citation_str} ({used_id})\n")
+                self.stdout.write(f"  • Theme:    {theme_obj.name}\n")
+                if config.citation_color:
+                    self.stdout.write(f"  • Citation: {config.citation_color} ({config.citation_style})\n")
+                if slide_tags:
+                    self.stdout.write(f"  • Tags:     {', '.join(slide_tags)}\n")
+                self.stdout.write("\n")
+            else:
+                res0 = results[0]
+                self.stdout.write(f"\n✓ Generated {len(results)}-slide sequence ({res0.width}x{res0.height} {res0.format.upper()}) via {res0.backend}:\n")
+                self.stdout.write(f"  • Passage:  {citation_str} ({used_id})\n")
+                self.stdout.write(f"  • Theme:    {theme_obj.name}\n")
+                self.stdout.write(f"  • Sequence: {len(results)} slides auto-paginated for display readability\n")
+                for i, res in enumerate(results):
+                    c = slide_contents[i]
+                    size_str = f"{len(res.data):,} bytes"
+                    ind = f"[{c.page_indicator}]" if c.page_indicator else f"[{i+1}/{len(results)}]"
+                    self.stdout.write(f"    {ind:<9} {res.file_path} ({size_str}) — {c.citation}\n")
+                self.stdout.write("\n")
+
+            if open_viewer and results:
+                target_open = results[0].file_path or dest_path
+                if target_open:
+                    try:
+                        import subprocess
+                        opener = "open" if sys.platform == "darwin" else "xdg-open"
+                        subprocess.Popen([opener, str(target_open)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except Exception:
+                        pass
         except ImageMagickNotFoundError as exc:
             self.stdout.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend svg' or install ImageMagick.\n\n")
         except RenderError as exc:
@@ -1048,7 +1154,9 @@ class BibleShell(cmd.Cmd):
         themes = list(STANDARD_THEMES.keys())
         books = [b.name for b in ALL_BOOKS]
         opts = [
-            "-o", "-r", "-t", "-f", "-c", "--backend", "--font", "--font-size", "--line-spacing",
+            "-o", "-r", "-t", "-f", "-c", "-d", "--output-dir", "--paginate", "--no-paginate",
+            "--max-verses", "--max-lines", "--max-chars", "--page-format", "--no-page-indicator",
+            "--keep-citation", "--backend", "--font", "--font-size", "--line-spacing",
             "--align", "--citation-style", "--citation-color", "--accent-color", "--safe-area",
             "--optical-center", "--no-balance", "--tags", "--open", "--list-themes", "--list-resolutions",
             "4k", "1080p", "720p", "square", "png", "svg", "jpg",

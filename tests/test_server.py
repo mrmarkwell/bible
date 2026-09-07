@@ -355,6 +355,25 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn("Missing required query parameter: 'ref'", data["error"])
 
+    def test_api_slide_json_manifest(self) -> None:
+        status, data = self._get_json("/api/slide?ref=Romans+8:28-39&format=json")
+        self.assertEqual(status, 200)
+        self.assertIn("total_pages", data)
+        self.assertGreater(data["total_pages"], 1)
+        self.assertEqual(len(data["pages"]), data["total_pages"])
+        self.assertEqual(data["pages"][0]["page"], 1)
+        self.assertIn("Romans 8:", data["pages"][0]["citation"])
+        self.assertIn("svg_url", data["pages"][0])
+
+    def test_api_slide_pagination_headers_and_page_selection(self) -> None:
+        status, headers, body = self._get("/api/slide?ref=Romans+8:28-39&page=2")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("X-Bible-Slide-Page"), "2")
+        total_pages = int(headers.get("X-Bible-Slide-Total-Pages", "1"))
+        self.assertGreater(total_pages, 1)
+        self.assertTrue(headers.get("X-Bible-Slide-Citation", "").startswith("Romans 8:"))
+        self.assertEqual(headers.get("X-Bible-Slide-Indicator"), f"2 / {total_pages}")
+
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
     """Test CLI argument parsing and REPL shell integration for the web server."""

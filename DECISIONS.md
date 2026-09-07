@@ -1159,3 +1159,37 @@ This document is an append-only log of significant design and architectural deci
   - Completes Phase 5 Task 5.3.
   - Slashes friction in generating customized 4K screensaver slides.
   - Preserves 100% Zero-Dependency compliance per ADR-003.
+
+---
+
+## ADR-039: Multi-Slide Scripture Pagination, Dynamic Readability Thresholds, Contextual Sub-Citations, and Omnichannel Sequence Rendering
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 5 (Task 5.4), long scripture passages (e.g. Romans 8:28-39, Psalm 23, 1 Corinthians 13, Hebrews 11) rendered on digital displays and 4K TV screensavers risk exceeding maximum readability thresholds when forced onto a single slide. When too much text is squeezed onto one canvas, font sizes shrink excessively (e.g. <32pt on 4K), text lines become cluttered, and the contemplative aesthetic required by ADR-005 is compromised. The system required automated multi-slide pagination that partitions long passages along canonical verse boundaries, displays clean sequence indicators (e.g. `1 / 4`), generates accurate contextual sub-citations per slide, and outputs numbered image sequences.
+- **Decision**:
+  1. **Multi-Slide Pagination Engine & Readability Thresholds (`PaginationConfig`, `paginate_verses`, `paginate_text`)**:
+     - Introduced `PaginationConfig` in `core/render.py` supporting `mode` (`auto`, `verses`, `always`, `disabled`), `max_verses_per_slide`, `max_lines_per_slide` (default: 8 lines), `max_chars_per_slide` (default: 420 chars), `min_readability_font_size` (default: 48pt at 4K / 24pt at 1080p), `indicator_format` (default: `{page} / {total}`), and `sub_citations`.
+     - In `auto` mode, short passages (such as single verses like John 3:16) naturally fit on a single slide without pagination, suppressing the page indicator. Long passages exceeding readability thresholds are automatically partitioned into an optimal multi-slide sequence.
+     - Implemented `paginate_text()` for splitting arbitrary raw text across slides along natural sentence and paragraph boundaries.
+  2. **Canonical Sub-Citation Generation (`_format_sub_citation`)**:
+     - Automatically generates precise canonical sub-citations per slide (e.g. Slide 1: `Romans 8:28-30`, Slide 2: `Romans 8:31-33`, Slide 3: `Romans 8:34-36`, Slide 4: `Romans 8:37-39`), with an option (`keep_parent_citation` / `--keep-citation`) to preserve the overarching passage citation across all slides.
+  3. **Sequence Rendering Methods (`render_sequence`, `render_sequence_to_files`, `render_sequence_to_dir`)**:
+     - Added sequence rendering primitives to `SlideRenderEngine` and the functional `render_verse_slides()` interface.
+     - Automatically saves numbered files (`slide_romans_8_28_39_1.png`, `slide_romans_8_28_39_2.png`, etc.) or writes directly into a designated target directory (`--output-dir` / `-d`).
+  4. **Omnichannel CLI & REPL Integration (`./bible slide`, `/slide`)**:
+     - Added `--paginate`, `--no-paginate`, `--max-verses`, `--max-lines`, `--max-chars`, `--page-format`, `--no-page-indicator`, `--keep-citation`, and `--output-dir` (`-d`) to `./bible slide` and the interactive REPL `/slide`.
+     - Displays formatted multi-slide summary cards detailing total pages, dimensions, backend, sub-citations, and byte sizes.
+     - Added autocompletion support for all pagination flags in `BibleShell.complete_slide`.
+  5. **REST API Pagination & JSON Manifest (`GET /api/slide`)**:
+     - Supports `page`, `paginate`, `max_verses`, and `keep_citation` query parameters on `/api/slide`.
+     - Returns individual slide pages with HTTP response headers: `X-Bible-Slide-Page`, `X-Bible-Slide-Total-Pages`, `X-Bible-Slide-Citation`, and `X-Bible-Slide-Indicator`.
+     - Supports `format=json` returning a complete JSON sequence manifest with metadata and SVG URLs for digital signage integration.
+  6. **Hermetic Unit Test Suite**:
+     - Expanded test coverage across `tests/test_render.py`, `tests/test_cli.py`, and `tests/test_server.py` with 17 new tests covering single-slide fits, auto-pagination, sub-citations, verse constraints, sequence file generation, CLI multi-file creation, and REST manifest endpoints.
+     - Total test suite expanded to **471 tests across 22 modules passing 100% in ~1.99s**.
+- **Consequences**:
+  - Completes Phase 5 Task 5.4.
+  - Guarantees readable, beautiful, and contemplative slides for passages of any length on 4K OLED screens.
+  - Fully unblocks Task 5.5 (Batch slide generation for Google Photos TV screensaver albums).
+  - 100% Zero-Dependency compliance per ADR-003.
+

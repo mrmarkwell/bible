@@ -2535,10 +2535,62 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="List all standard resolution presets and dimensions",
     )
+    parser_slide.add_argument(
+        "--paginate",
+        action="store_true",
+        help="Enable multi-slide pagination (or force passage splitting across multiple slides)",
+    )
+    parser_slide.add_argument(
+        "--no-paginate",
+        action="store_true",
+        help="Disable pagination; force entire passage onto a single slide",
+    )
+    parser_slide.add_argument(
+        "--max-verses",
+        type=int,
+        default=None,
+        help="Maximum verses per slide before paginating (e.g. 2, 3)",
+    )
+    parser_slide.add_argument(
+        "--max-lines",
+        type=int,
+        default=None,
+        help="Maximum wrapped lines per slide before paginating (default: 8)",
+    )
+    parser_slide.add_argument(
+        "--max-chars",
+        type=int,
+        default=None,
+        help="Maximum characters per slide before paginating (default: 420)",
+    )
+    parser_slide.add_argument(
+        "--page-format",
+        type=str,
+        default="{page} / {total}",
+        help="Multi-slide page indicator format string (default: '{page} / {total}')",
+    )
+    parser_slide.add_argument(
+        "--no-page-indicator",
+        action="store_true",
+        help="Suppress multi-slide page indicator in footer",
+    )
+    parser_slide.add_argument(
+        "--keep-citation",
+        action="store_true",
+        help="Preserve parent passage citation across all slides instead of sub-verse citations",
+    )
+    parser_slide.add_argument(
+        "--output-dir",
+        "-d",
+        type=str,
+        default=None,
+        help="Directory to save generated slide files",
+    )
 
     def cmd_slide(args: argparse.Namespace) -> int:
         from core.render import (
             ImageMagickNotFoundError,
+            PaginationConfig,
             RenderConfig,
             RenderError,
             SlideContent,
@@ -2547,6 +2599,7 @@ def build_parser() -> argparse.ArgumentParser:
             get_default_engine,
             get_theme,
             normalize_color,
+            paginate_verses,
             parse_resolution,
         )
 
@@ -2610,6 +2663,7 @@ def build_parser() -> argparse.ArgumentParser:
 
             # Determine output destination and format
             out_dest = args.output
+            output_dir = getattr(args, "output_dir", None)
             target_format = args.output_format
             is_stdout = out_dest in ("-", "stdout")
 
@@ -2626,6 +2680,7 @@ def build_parser() -> argparse.ArgumentParser:
                 dest_path = None
 
             target_format = target_format or "png"
+            safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
 
             # Parse dimensions and theme
             w, h = parse_resolution(args.resolution)
@@ -2653,24 +2708,84 @@ def build_parser() -> argparse.ArgumentParser:
                 dpi=args.dpi,
             )
 
-            content = SlideContent(
-                text=verse_text,
-                citation=citation_str,
-                translation=used_id,
+            # Configure multi-slide pagination
+            paginate_flag = getattr(args, "paginate", False)
+            no_paginate_flag = getattr(args, "no_paginate", False)
+            max_verses = getattr(args, "max_verses", None)
+            max_lines = getattr(args, "max_lines", None)
+            max_chars = getattr(args, "max_chars", None)
+            page_format = getattr(args, "page_format", "{page} / {total}")
+            show_indicator = not getattr(args, "no_page_indicator", False)
+            keep_citation = getattr(args, "keep_citation", False)
+
+            if no_paginate_flag:
+                pagination = PaginationConfig(enabled=False)
+            else:
+                pagination = PaginationConfig(
+                    enabled=True,
+                    mode="always" if paginate_flag else "auto",
+                    max_verses_per_slide=max_verses,
+                    max_lines_per_slide=max_lines,
+                    max_chars_per_slide=max_chars,
+                    indicator_format=page_format,
+                    show_indicator=show_indicator,
+                    sub_citations=not keep_citation,
+                    keep_parent_citation=keep_citation,
+                )
+
+            slide_contents = paginate_verses(
+                verses=verses,
+                parent_ref=ref,
+                config=config,
+                pagination=pagination,
                 pericope_title=pericope_title,
                 tags=slide_tags,
             )
 
+            if not slide_contents:
+                slide_contents = [
+                    SlideContent(
+                        text=verse_text,
+                        citation=citation_str,
+                        translation=used_id,
+                        pericope_title=pericope_title,
+                        tags=slide_tags,
+                    )
+                ]
+
             engine = get_default_engine()
             try:
                 if is_stdout:
-                    result = engine.render(content, config)
-                    sys.stdout.buffer.write(result.data)
-                    sys.stdout.buffer.flush()
-                    return 0
+                    if target_format == "svg":
+                        for c in slide_contents:
+                            res = engine.render(c, config)
+                            sys.stdout.buffer.write(res.data)
+                            if len(slide_contents) > 1:
+                                sys.stdout.buffer.write(b"\n")
+                        sys.stdout.buffer.flush()
+                        return 0
+                    else:
+                        if len(slide_contents) > 1:
+                            sys.stderr.write("Notice: Stdout output for binary image formats only streams slide 1 of sequence.\n")
+                        res = engine.render(slide_contents[0], config)
+                        sys.stdout.buffer.write(res.data)
+                        sys.stdout.buffer.flush()
+                        return 0
+                elif output_dir:
+                    out_dir_path = Path(output_dir).resolve()
+                    results = engine.render_sequence_to_dir(
+                        slide_contents,
+                        destination_dir=out_dir_path,
+                        file_prefix=f"slide_{safe_stem}",
+                        config=config,
+                    )
                 else:
                     assert dest_path is not None
-                    result = engine.render_to_file(content, dest_path, config)
+                    results = engine.render_sequence_to_files(
+                        slide_contents,
+                        destination=dest_path,
+                        config=config,
+                    )
             except ImageMagickNotFoundError as exc:
                 sys.stderr.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend=svg' or install ImageMagick on your system.\n")
                 return 1
@@ -2679,23 +2794,38 @@ def build_parser() -> argparse.ArgumentParser:
                 return 1
 
             if not getattr(args, "quiet", False):
-                size_str = f"{len(result.data):,} bytes"
-                print(f"Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:")
-                print(f"  • File:       {dest_path}")
-                print(f"  • Passage:    {citation_str} ({used_id})")
-                print(f"  • Theme:      {theme.name}")
-                if config.citation_color:
-                    print(f"  • Citation:   {config.citation_color} ({config.citation_style})")
-                if slide_tags:
-                    print(f"  • Tags:       {', '.join(slide_tags)}")
+                if len(results) == 1:
+                    result = results[0]
+                    size_str = f"{len(result.data):,} bytes"
+                    print(f"Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:")
+                    print(f"  • File:       {result.file_path or dest_path}")
+                    print(f"  • Passage:    {citation_str} ({used_id})")
+                    print(f"  • Theme:      {theme.name}")
+                    if config.citation_color:
+                        print(f"  • Citation:   {config.citation_color} ({config.citation_style})")
+                    if slide_tags:
+                        print(f"  • Tags:       {', '.join(slide_tags)}")
+                else:
+                    res0 = results[0]
+                    print(f"Generated {len(results)}-slide sequence ({res0.width}x{res0.height} {res0.format.upper()}) via {res0.backend}:")
+                    print(f"  • Passage:    {citation_str} ({used_id})")
+                    print(f"  • Theme:      {theme.name}")
+                    print(f"  • Sequence:   {len(results)} slides auto-paginated for optimal display readability")
+                    for i, res in enumerate(results):
+                        c = slide_contents[i]
+                        size_str = f"{len(res.data):,} bytes"
+                        ind = f"[{c.page_indicator}]" if c.page_indicator else f"[{i+1}/{len(results)}]"
+                        print(f"    {ind:<9} {res.file_path} ({size_str}) — {c.citation}")
 
-            if getattr(args, "open", False) and dest_path:
-                try:
-                    import subprocess
-                    opener = "open" if sys.platform == "darwin" else "xdg-open"
-                    subprocess.Popen([opener, str(dest_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except Exception:
-                    pass
+            if getattr(args, "open", False) and results:
+                target_open = results[0].file_path or dest_path
+                if target_open:
+                    try:
+                        import subprocess
+                        opener = "open" if sys.platform == "darwin" else "xdg-open"
+                        subprocess.Popen([opener, str(target_open)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except Exception:
+                        pass
 
             return 0
 

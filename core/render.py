@@ -420,6 +420,22 @@ class RenderResult:
         return p
 
 
+@dataclass
+class PaginationConfig:
+    """Configuration parameters for multi-slide passage pagination and readability thresholds."""
+    enabled: bool = True
+    mode: str = "auto"  # "auto", "verses", "chars", "lines", "always", "disabled"
+    max_lines_per_slide: Optional[int] = None  # maximum wrapped lines before splitting (default: 8)
+    max_chars_per_slide: Optional[int] = None  # maximum characters before splitting (default: 420)
+    max_verses_per_slide: Optional[int] = None  # maximum verses before splitting
+    min_readability_font_size: Optional[float] = None  # in pt; if auto font size would drop below this, paginate
+    indicator_format: str = "{page} / {total}"  # format string for multi-slide indicator (e.g. "1 / 3")
+    show_indicator: bool = True  # whether to display indicator (e.g. "1 / 3") when total > 1
+    sub_citations: bool = True  # whether to generate specific sub-verse citations per slide (e.g. "Romans 8:28-30")
+    keep_parent_citation: bool = False  # preserve parent passage citation across all slides
+    repeat_pericope_title: bool = False  # repeat pericope title on every slide (default: first slide only)
+
+
 # ---------------------------------------------------------------------------
 # Layout & Typography Calculations
 # ---------------------------------------------------------------------------
@@ -1018,6 +1034,83 @@ class SlideRenderEngine:
         result.save(dest_path)
         return result
 
+    def render_sequence(
+        self,
+        contents: List[SlideContent],
+        config: Optional[RenderConfig] = None,
+    ) -> List[RenderResult]:
+        """Render a sequence of multi-slide contents into a list of RenderResults."""
+        if config is None:
+            config = RenderConfig()
+        return [self.render(c, config) for c in contents]
+
+    def render_sequence_to_files(
+        self,
+        contents: List[SlideContent],
+        destination: Union[str, Path],
+        config: Optional[RenderConfig] = None,
+    ) -> List[RenderResult]:
+        """Render a multi-slide sequence, writing numbered files if multiple slides.
+
+        If len(contents) <= 1:
+            writes to destination directly (e.g. 'slide.png').
+        If len(contents) > 1:
+            writes numbered files (e.g. 'slide_1.png', 'slide_2.png', 'slide_3.png').
+        """
+        dest_path = Path(destination)
+        if config is None:
+            config = RenderConfig()
+
+        ext = dest_path.suffix.lower().lstrip(".")
+        if ext in ("svg", "png", "jpg", "jpeg") and config.output_format == "png":
+            config = dataclasses.replace(config, output_format=ext)
+
+        if len(contents) <= 1:
+            c = contents[0] if contents else SlideContent(text="")
+            res = self.render_to_file(c, dest_path, config)
+            return [res]
+
+        dest_dir = dest_path.parent
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        stem = dest_path.stem
+        fmt = config.output_format.lower()
+        suffix = f".{fmt}" if fmt else dest_path.suffix
+
+        results: List[RenderResult] = []
+        total = len(contents)
+        for i, c in enumerate(contents, start=1):
+            idx_str = f"_{i:02d}" if total >= 10 else f"_{i}"
+            page_path = dest_dir / f"{stem}{idx_str}{suffix}"
+            res = self.render_to_file(c, page_path, config)
+            results.append(res)
+
+        return results
+
+    def render_sequence_to_dir(
+        self,
+        contents: List[SlideContent],
+        destination_dir: Union[str, Path],
+        file_prefix: str = "slide",
+        config: Optional[RenderConfig] = None,
+    ) -> List[RenderResult]:
+        """Render a multi-slide sequence into a target directory."""
+        dest_dir = Path(destination_dir)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        if config is None:
+            config = RenderConfig()
+
+        fmt = config.output_format.lower()
+        suffix = f".{fmt}" if fmt else ".png"
+        results: List[RenderResult] = []
+        total = len(contents)
+        for i, c in enumerate(contents, start=1):
+            idx_str = f"_{i:02d}" if total >= 10 else f"_{i}"
+            page_path = dest_dir / f"{file_prefix}{idx_str}{suffix}"
+            res = self.render_to_file(c, page_path, config)
+            results.append(res)
+
+        return results
+
 
 _DEFAULT_ENGINE: Optional[SlideRenderEngine] = None
 
@@ -1027,6 +1120,278 @@ def get_default_engine() -> SlideRenderEngine:
     if _DEFAULT_ENGINE is None:
         _DEFAULT_ENGINE = SlideRenderEngine()
     return _DEFAULT_ENGINE
+
+
+def _format_sub_citation(
+    first_v: Any,
+    last_v: Any,
+    parent_ref: Optional[Any],
+    keep_parent: bool = False,
+) -> str:
+    """Format precise sub-verse citation for a slide chunk (e.g. 'Romans 8:28-30')."""
+    parent_str = parent_ref.format() if hasattr(parent_ref, "format") else str(parent_ref or "").strip()
+    if keep_parent or not parent_ref:
+        return parent_str
+
+    try:
+        from core.reference import Reference
+        if isinstance(parent_ref, Reference) and hasattr(parent_ref, "book"):
+            book = parent_ref.book
+            ch1 = getattr(first_v, "chapter", None)
+            v1 = getattr(first_v, "verse", getattr(first_v, "verse_number", None))
+            ch2 = getattr(last_v, "chapter", None)
+            v2 = getattr(last_v, "verse", getattr(last_v, "verse_number", None))
+            if ch1 is not None and v1 is not None and ch2 is not None and v2 is not None:
+                if ch1 == ch2:
+                    if v1 == v2:
+                        sub = Reference(book, start_chapter=ch1, start_verse=v1)
+                    else:
+                        sub = Reference(book, start_chapter=ch1, start_verse=v1, end_chapter=ch1, end_verse=v2)
+                else:
+                    sub = Reference(book, start_chapter=ch1, start_verse=v1, end_chapter=ch2, end_verse=v2)
+                return sub.format()
+    except Exception:
+        pass
+
+    return parent_str
+
+
+def _check_verses_fit(
+    candidate_verses: List[Any],
+    config: RenderConfig,
+    pagination: PaginationConfig,
+    scale_factor: float,
+) -> bool:
+    """Check if candidate list of verses fits within readability limits."""
+    if pagination.max_verses_per_slide is not None and len(candidate_verses) > pagination.max_verses_per_slide:
+        return False
+
+    if pagination.mode == "verses":
+        return True
+
+    min_font = pagination.min_readability_font_size if pagination.min_readability_font_size is not None else max(24.0, 48.0 * scale_factor)
+    max_lines = pagination.max_lines_per_slide if pagination.max_lines_per_slide is not None else 8
+    max_chars = pagination.max_chars_per_slide if pagination.max_chars_per_slide is not None else 420
+
+    txt = " ".join(v.text.strip() for v in candidate_verses if getattr(v, "text", None))
+    if len(txt) > max_chars:
+        return False
+
+    test_content = SlideContent(text=txt)
+    layout = calculate_slide_layout(test_content, config)
+    if len(layout.wrapped_lines) > max_lines:
+        return False
+    if layout.font_size < min_font:
+        return False
+    return True
+
+
+def paginate_verses(
+    verses: List[Any],
+    parent_ref: Optional[Any] = None,
+    config: Optional[RenderConfig] = None,
+    pagination: Optional[PaginationConfig] = None,
+    pericope_title: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+) -> List[SlideContent]:
+    """Partition a list of verses into paginated SlideContent objects for optimal readability."""
+    if not verses:
+        return []
+
+    if pagination is None:
+        pagination = PaginationConfig()
+    if config is None:
+        config = RenderConfig()
+
+    parent_cit = parent_ref.format() if hasattr(parent_ref, "format") else str(parent_ref or "").strip()
+    used_id = getattr(verses[0], "translation_id", "WEB") if verses else "WEB"
+
+    if not pagination.enabled or pagination.mode == "disabled":
+        full_text = " ".join(v.text.strip() for v in verses if getattr(v, "text", None))
+        return [
+            SlideContent(
+                text=full_text,
+                citation=parent_cit,
+                translation=used_id,
+                pericope_title=pericope_title,
+                tags=tags or [],
+                page_indicator=None,
+            )
+        ]
+
+    scale_factor = config.width / 3840.0
+
+    # If all verses fit comfortably on 1 slide and mode is not 'always', keep on single slide
+    if pagination.mode != "always" and _check_verses_fit(verses, config, pagination, scale_factor):
+        full_text = " ".join(v.text.strip() for v in verses if getattr(v, "text", None))
+        return [
+            SlideContent(
+                text=full_text,
+                citation=parent_cit,
+                translation=used_id,
+                pericope_title=pericope_title,
+                tags=tags or [],
+                page_indicator=None,
+            )
+        ]
+
+    # Partition verses into chunks
+    chunks: List[List[Any]] = []
+    current_chunk: List[Any] = []
+
+    for v in verses:
+        if not current_chunk:
+            current_chunk.append(v)
+            continue
+        candidate = current_chunk + [v]
+        if _check_verses_fit(candidate, config, pagination, scale_factor):
+            current_chunk = candidate
+        else:
+            chunks.append(current_chunk)
+            current_chunk = [v]
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    total_chunks = len(chunks)
+    slide_contents: List[SlideContent] = []
+
+    for i, chunk in enumerate(chunks):
+        chunk_text = " ".join(v.text.strip() for v in chunk if getattr(v, "text", None))
+        sub_cit = _format_sub_citation(
+            chunk[0],
+            chunk[-1],
+            parent_ref,
+            keep_parent=pagination.keep_parent_citation or not pagination.sub_citations,
+        )
+
+        indicator = None
+        if total_chunks > 1 and pagination.show_indicator:
+            indicator = pagination.indicator_format.format(page=i + 1, total=total_chunks)
+
+        chunk_peri = pericope_title if (i == 0 or pagination.repeat_pericope_title) else None
+
+        slide_contents.append(
+            SlideContent(
+                text=chunk_text,
+                citation=sub_cit,
+                translation=used_id,
+                pericope_title=chunk_peri,
+                page_indicator=indicator,
+                tags=tags or [],
+            )
+        )
+
+    return slide_contents
+
+
+def paginate_text(
+    text: str,
+    citation: str = "",
+    translation: str = "WEB",
+    config: Optional[RenderConfig] = None,
+    pagination: Optional[PaginationConfig] = None,
+    pericope_title: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+) -> List[SlideContent]:
+    """Split raw text into paginated SlideContent chunks for optimal display readability."""
+    clean_text = text.strip()
+    if not clean_text:
+        return []
+
+    if pagination is None:
+        pagination = PaginationConfig()
+    if config is None:
+        config = RenderConfig()
+
+    if not pagination.enabled or pagination.mode == "disabled":
+        return [
+            SlideContent(
+                text=clean_text,
+                citation=citation,
+                translation=translation,
+                pericope_title=pericope_title,
+                tags=tags or [],
+                page_indicator=None,
+            )
+        ]
+
+    scale_factor = config.width / 3840.0
+    min_font = pagination.min_readability_font_size if pagination.min_readability_font_size is not None else max(24.0, 48.0 * scale_factor)
+    max_lines = pagination.max_lines_per_slide if pagination.max_lines_per_slide is not None else 8
+    max_chars = pagination.max_chars_per_slide if pagination.max_chars_per_slide is not None else 420
+
+    test_content = SlideContent(text=clean_text)
+    layout = calculate_slide_layout(test_content, config)
+
+    if (
+        pagination.mode != "always"
+        and len(clean_text) <= max_chars
+        and len(layout.wrapped_lines) <= max_lines
+        and layout.font_size >= min_font
+    ):
+        return [
+            SlideContent(
+                text=clean_text,
+                citation=citation,
+                translation=translation,
+                pericope_title=pericope_title,
+                tags=tags or [],
+                page_indicator=None,
+            )
+        ]
+
+    # Split into sentences or clauses
+    raw_sentences = [s.strip() for s in re.split(r"(?<=[.?!;:])\s+", clean_text) if s.strip()]
+    if not raw_sentences:
+        raw_sentences = [clean_text]
+
+    chunks: List[List[str]] = []
+    current: List[str] = []
+
+    for s in raw_sentences:
+        if not current:
+            current.append(s)
+            continue
+        candidate = current + [s]
+        cand_txt = " ".join(candidate)
+        cand_layout = calculate_slide_layout(SlideContent(text=cand_txt), config)
+        if (
+            len(cand_txt) <= max_chars
+            and len(cand_layout.wrapped_lines) <= max_lines
+            and cand_layout.font_size >= min_font
+        ):
+            current = candidate
+        else:
+            chunks.append(current)
+            current = [s]
+
+    if current:
+        chunks.append(current)
+
+    total_chunks = len(chunks)
+    slide_contents: List[SlideContent] = []
+
+    for i, chunk in enumerate(chunks):
+        chunk_txt = " ".join(chunk)
+        indicator = None
+        if total_chunks > 1 and pagination.show_indicator:
+            indicator = pagination.indicator_format.format(page=i + 1, total=total_chunks)
+
+        chunk_peri = pericope_title if (i == 0 or pagination.repeat_pericope_title) else None
+
+        slide_contents.append(
+            SlideContent(
+                text=chunk_txt,
+                citation=citation,
+                translation=translation,
+                pericope_title=chunk_peri,
+                page_indicator=indicator,
+                tags=tags or [],
+            )
+        )
+
+    return slide_contents
 
 
 def render_verse_slide(
@@ -1041,7 +1406,7 @@ def render_verse_slide(
     output_path: Optional[Union[str, Path]] = None,
     **kwargs: Any,
 ) -> RenderResult:
-    """Convenience functional interface for generating a scripture slide."""
+    """Convenience functional interface for generating a single scripture slide."""
     w, h = parse_resolution(resolution)
     config = RenderConfig(
         width=w,
@@ -1062,3 +1427,61 @@ def render_verse_slide(
     if output_path:
         return engine.render_to_file(content, output_path, config)
     return engine.render(content, config)
+
+
+def render_verse_slides(
+    text_or_verses: Union[str, List[Any]],
+    parent_ref: Optional[Any] = None,
+    citation: str = "",
+    translation: str = "WEB",
+    pericope_title: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    theme: Union[str, SlideTheme] = "oled_black",
+    resolution: Union[str, Tuple[int, int]] = "4k",
+    output_format: str = "png",
+    output_path: Optional[Union[str, Path]] = None,
+    output_dir: Optional[Union[str, Path]] = None,
+    pagination: Optional[PaginationConfig] = None,
+    **kwargs: Any,
+) -> List[RenderResult]:
+    """Convenience functional interface for generating paginated scripture slides."""
+    w, h = parse_resolution(resolution)
+    config = RenderConfig(
+        width=w,
+        height=h,
+        theme=theme,
+        output_format=output_format,
+        **kwargs,
+    )
+    if pagination is None:
+        pagination = PaginationConfig()
+
+    if isinstance(text_or_verses, list):
+        contents = paginate_verses(
+            verses=text_or_verses,
+            parent_ref=parent_ref,
+            config=config,
+            pagination=pagination,
+            pericope_title=pericope_title,
+            tags=tags,
+        )
+    else:
+        cit_str = citation or (parent_ref.format() if hasattr(parent_ref, "format") else str(parent_ref or ""))
+        contents = paginate_text(
+            text=str(text_or_verses),
+            citation=cit_str,
+            translation=translation,
+            config=config,
+            pagination=pagination,
+            pericope_title=pericope_title,
+            tags=tags,
+        )
+
+    engine = get_default_engine()
+    if output_dir:
+        safe_prefix = re.sub(r"[^a-zA-Z0-9_]+", "_", citation or "slide").strip("_").lower() or "slide"
+        return engine.render_sequence_to_dir(contents, output_dir, file_prefix=safe_prefix, config=config)
+    elif output_path:
+        return engine.render_sequence_to_files(contents, output_path, config=config)
+    return engine.render_sequence(contents, config=config)
+

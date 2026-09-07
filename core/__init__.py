@@ -135,6 +135,10 @@ from core.render import (
     format_theme_table,
     parse_resolution,
     render_verse_slide,
+    PaginationConfig,
+    paginate_verses,
+    paginate_text,
+    render_verse_slides,
 )
 
 __all__ = [
@@ -259,5 +263,9 @@ __all__ = [
     "SlideRenderEngine",
     "get_default_engine",
     "render_verse_slide",
+    "PaginationConfig",
+    "paginate_verses",
+    "paginate_text",
+    "render_verse_slides",
 ]
 

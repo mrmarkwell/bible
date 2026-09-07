@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation
-- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete (100%); Phase 5 in progress (Task 5.1 complete)
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete (100%); Phase 5 in progress (Tasks 5.1, 5.2, 5.3, 5.4 complete)
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -65,7 +65,7 @@ This document is the single source of truth for current project status, active t
   - Layout & Margins: `--safe-area=<pct>` (default 15%), `--align=<center|left|right>`.
   - Citation: `--citation-style=<below|smallcaps|none>`, `--citation-color=<hex>`.
   - Format: `--format=png` (default lossless), `--format=jpg` (with `--quality=95`).
-- [ ] **Task 5.4**: Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`).
+- [x] **Task 5.4**: Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`). *(Run 038 / ADR-039)*
 - [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums.
 
 ### Phase 6: Google Gemini LLM Client & Theological Guardrail Engine (Zero-Dependencies)

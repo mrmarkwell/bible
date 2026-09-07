@@ -260,6 +260,16 @@ class TestCliExecution(unittest.TestCase):
                     text="For God so loved the world, that he gave his only begotten Son.",
                 ),
             ]
+            + [
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=58,
+                    chapter=11,
+                    verse=v_num,
+                    text=f"Hebrews chapter 11 verse {v_num} text describing faith, redemption, and perseverance.",
+                )
+                for v_num in range(1, 13)
+            ]
         )
 
     @classmethod
@@ -911,6 +921,62 @@ class TestCliExecution(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertTrue(out_svg.exists())
             self.assertEqual(stdout.getvalue(), "")
+
+    def test_cli_slide_multi_pagination(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_file = Path(tmpdir) / "hebrews.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "Hebrews 11:1-12",
+                    "-o", str(base_file),
+                    "-f", "svg",
+                    "--paginate",
+                ])
+            self.assertEqual(code, 0)
+            out = stdout.getvalue()
+            self.assertIn("slide sequence", out)
+            self.assertIn("[1 /", out)
+            created_files = list(Path(tmpdir).glob("hebrews_*.svg"))
+            self.assertGreater(len(created_files), 1)
+
+    def test_cli_slide_output_dir_and_max_verses(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "Hebrews 11:1-12",
+                    "-d", str(tmpdir),
+                    "--max-verses", "3",
+                    "-f", "svg",
+                ])
+            self.assertEqual(code, 0)
+            out = stdout.getvalue()
+            self.assertIn("Generated 4-slide sequence", out)
+            files = list(Path(tmpdir).glob("*.svg"))
+            self.assertEqual(len(files), 4)
+
+    def test_cli_slide_no_paginate_override(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "single_hebrews.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "Hebrews 11:1-12",
+                    "-o", str(out_file),
+                    "-f", "svg",
+                    "--no-paginate",
+                ])
+            self.assertEqual(code, 0)
+            out = stdout.getvalue()
+            self.assertIn("Generated 3840x2160 SVG slide", out)
+            self.assertTrue(out_file.exists())
 
 
 if __name__ == "__main__":

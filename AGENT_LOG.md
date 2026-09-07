@@ -1422,3 +1422,48 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 5.3 is 100% complete, verified, and unblocked.
   - Next cycle is **Run 038** (Standard Ralph Loop Iteration).
   - Next domain task on the roadmap: **Task 5.4**: *Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`)*.
+
+---
+
+## [Run 038] — 2026-09-07
+- **Agent**: Ralph Loop Standard Cycle Agent
+- **Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation (Task 5.4 / ADR-039)
+- **Task**: Task 5.4 — Add multi-slide pagination: automatically split long passages exceeding maximum readability thresholds into numbered slide sequences (e.g. `1/3`, `2/3`, `3/3`).
+- **Actions Taken**:
+  - **Multi-Slide Pagination Engine & Readability Thresholds (`core/render.py`)**:
+    - Implemented `PaginationConfig` dataclass supporting `mode` (`auto`, `verses`, `chars`, `lines`, `always`, `disabled`), `max_lines_per_slide` (default: 8), `max_chars_per_slide` (default: 420), `max_verses_per_slide`, `min_readability_font_size` (default: 48pt at 4K / 24pt at 1080p, resolution-scaled), `indicator_format` (`{page} / {total}`), and `sub_citations`.
+    - Implemented `_check_verses_fit` and `paginate_verses`: short single-verse or 2-verse passages (e.g. John 3:16) naturally fit on a single slide without pagination and suppress page indicators. Long passages (e.g. Romans 8:28-39, Psalm 23) exceeding maximum readability thresholds are partitioned into optimal multi-slide sequences along canonical verse boundaries.
+    - Implemented `paginate_text` for partitioning raw scripture or arbitrary text across slide sequences along sentence, clause, or paragraph boundaries.
+  - **Canonical Sub-Citation Generation (`_format_sub_citation`)**:
+    - Automatically builds precise canonical sub-citations per slide (e.g. Slide 1: `Romans 8:28-30`, Slide 2: `Romans 8:31-33`, Slide 3: `Romans 8:34-36`, Slide 4: `Romans 8:37-39`), with support for `--keep-citation` / `keep_parent_citation=True` to preserve the parent passage reference.
+  - **Sequence File & Directory Rendering Primitives (`core/render.py`)**:
+    - Added `render_sequence()`, `render_sequence_to_files()`, and `render_sequence_to_dir()` to `SlideRenderEngine`.
+    - Automatically writes numbered files (`stem_1.png`, `stem_2.png`, etc.) or writes directly into target folders (`--output-dir` / `-d`).
+    - Added functional convenience interface `render_verse_slides()`.
+  - **CLI Multi-Slide Parity (`cli/main.py`)**:
+    - Added `--paginate`, `--no-paginate`, `--max-verses`, `--max-lines`, `--max-chars`, `--page-format`, `--no-page-indicator`, `--keep-citation`, and `--output-dir` (`-d`) to `./bible slide`.
+    - Formatted terminal confirmation cards for multi-slide sequences detailing passage, theme, sequence count, sub-citations, file paths, and file sizes.
+  - **REPL Shell Integration (`cli/shell.py`)**:
+    - Enhanced `/slide` REPL command with full pagination options, multi-slide rendering, and autocompletion in `BibleShell.complete_slide`.
+  - **Web REST API Pagination & Manifest (`web/server.py`)**:
+    - Enhanced `GET /api/slide` with `page`, `paginate`, `max_verses`, and `keep_citation` query parameters.
+    - Emits response headers: `X-Bible-Slide-Page`, `X-Bible-Slide-Total-Pages`, `X-Bible-Slide-Citation`, and `X-Bible-Slide-Indicator`.
+    - Added `format=json` serving complete JSON slide sequence manifests with metadata and SVG URLs.
+  - **Hermetic Unit Test Suite**:
+    - Added 17 new hermetic unit tests across `tests/test_render.py`, `tests/test_cli.py`, and `tests/test_server.py`.
+    - Test suite expanded to **471 tests across 22 modules passing 100% in 1.99s** with zero warnings or leaks.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-039** in `DECISIONS.md`.
+    - Marked Task 5.4 as completed (`[x]`) in `ROADMAP.md`.
+- **Verification**:
+  - Ran `./bible test`: 471 tests across 22 modules passed in 1.989s.
+  - Ran `./bible doctor`: all 6 repository diagnostics passed in 2.67s.
+  - Verified `./bible slide "Romans 8:28-39" --paginate -f svg -d /tmp/test_slides`: generated 4 distinct slides with sub-citations and indicators `1 / 4` through `4 / 4`.
+  - Verified `./bible slide "Romans 8:28-39" --max-verses 2 -f svg`: generated 6 distinct 2-verse slides.
+  - Verified `./bible slide "Romans 8:28-39" --no-paginate -f svg`: forced single slide output.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 5.4 is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 039** (Standard Ralph Loop Iteration).
+  - Next domain task on the roadmap: **Task 5.5**: *Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums*.
+

@@ -529,9 +529,195 @@ class TestShellSlideCommands(unittest.TestCase):
             t_matches = shell.complete_slide("--list", "/slide --list", 10, 16)
             self.assertIn("--list-themes", t_matches)
             self.assertIn("--list-resolutions", t_matches)
+            p_matches = shell.complete_slide("--pag", "/slide John 3:16 --pag", 23, 28)
+            self.assertIn("--paginate", p_matches)
+            v_matches = shell.complete_slide("--max-v", "/slide John 3:16 --max-v", 23, 30)
+            self.assertIn("--max-verses", v_matches)
         finally:
             shell.close()
 
 
+class TestMultiSlidePagination(unittest.TestCase):
+    """Hermetic unit tests for multi-slide passage pagination and sequence rendering."""
+
+    def setUp(self):
+        from core.db import Database, DEFAULT_DB_PATH
+        from core.reference import parse_reference
+        self.db = Database(DEFAULT_DB_PATH)
+        self.ref_short = parse_reference("John 3:16")
+        self.verses_short, _, _ = self.db.get_verses_with_fallback(self.ref_short)
+        self.ref_long = parse_reference("Romans 8:28-39")
+        self.verses_long, _, _ = self.db.get_verses_with_fallback(self.ref_long)
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_pagination_config_defaults(self):
+        from core.render import PaginationConfig
+        config = PaginationConfig()
+        self.assertTrue(config.enabled)
+        self.assertEqual(config.mode, "auto")
+        self.assertIsNone(config.max_lines_per_slide)
+        self.assertIsNone(config.max_chars_per_slide)
+        self.assertIsNone(config.max_verses_per_slide)
+        self.assertIsNone(config.min_readability_font_size)
+        self.assertEqual(config.indicator_format, "{page} / {total}")
+        self.assertTrue(config.show_indicator)
+        self.assertTrue(config.sub_citations)
+        self.assertFalse(config.keep_parent_citation)
+
+    def test_single_verse_fits_without_pagination(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig()
+        slides = paginate_verses(self.verses_short, parent_ref=self.ref_short, config=config, pagination=pagination)
+        self.assertEqual(len(slides), 1)
+        self.assertIsNone(slides[0].page_indicator)
+        self.assertEqual(slides[0].citation, "John 3:16")
+
+    def test_long_passage_auto_paginates(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig(mode="auto")
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        self.assertGreater(len(slides), 1)
+        # Verify page indicators
+        total = len(slides)
+        for i, slide in enumerate(slides, start=1):
+            self.assertEqual(slide.page_indicator, f"{i} / {total}")
+            self.assertTrue(slide.citation.startswith("Romans 8:"))
+
+    def test_sub_citation_accuracy(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig(mode="auto", sub_citations=True)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        self.assertGreaterEqual(len(slides), 3)
+        # First slide starts at verse 28
+        self.assertIn("Romans 8:28", slides[0].citation)
+        # Last slide ends at verse 39
+        self.assertTrue(slides[-1].citation.endswith("39"))
+
+    def test_keep_parent_citation_flag(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig(mode="auto", keep_parent_citation=True)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        for slide in slides:
+            self.assertEqual(slide.citation, "Romans 8:28-39")
+
+    def test_max_verses_per_slide_constraint(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        # 12 verses with max 2 per slide = 6 slides
+        pagination = PaginationConfig(max_verses_per_slide=2)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        self.assertEqual(len(slides), 6)
+        self.assertEqual(slides[0].citation, "Romans 8:28-29")
+        self.assertEqual(slides[0].page_indicator, "1 / 6")
+        self.assertEqual(slides[-1].citation, "Romans 8:38-39")
+        self.assertEqual(slides[-1].page_indicator, "6 / 6")
+
+    def test_custom_page_format_and_suppress_indicator(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig(max_verses_per_slide=3, indicator_format="{page} of {total}")
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        self.assertEqual(slides[0].page_indicator, f"1 of {len(slides)}")
+
+        pagination_no_ind = PaginationConfig(max_verses_per_slide=3, show_indicator=False)
+        slides_no_ind = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination_no_ind)
+        self.assertIsNone(slides_no_ind[0].page_indicator)
+
+    def test_disabled_pagination_forces_single_slide(self):
+        from core.render import paginate_verses, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        pagination = PaginationConfig(enabled=False)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+        self.assertEqual(len(slides), 1)
+        self.assertEqual(slides[0].citation, "Romans 8:28-39")
+        self.assertIsNone(slides[0].page_indicator)
+
+    def test_paginate_text(self):
+        from core.render import paginate_text, RenderConfig, PaginationConfig
+        config = RenderConfig(width=3840, height=2160)
+        short_text = "Jesus wept."
+        slides_short = paginate_text(short_text, citation="John 11:35", config=config)
+        self.assertEqual(len(slides_short), 1)
+        self.assertIsNone(slides_short[0].page_indicator)
+
+        long_text = " ".join([
+            "For I am persuaded, that neither death, nor life, nor angels, nor principalities, nor things present, nor things to come, nor powers, nor height, nor depth, nor any other created thing, will be able to separate us from the love of God, which is in Christ Jesus our Lord.",
+            "We know that all things work together for good for those who love God, to those who are called according to his purpose.",
+            "For whom he foreknew, he also predestined to be conformed to the image of his Son, that he might be the firstborn among many brothers.",
+            "Whom he predestined, those he also called. Whom he called, those he also justified. Whom he justified, those he also glorified.",
+            "What then shall we say about these things? If God is for us, who can be against us?",
+        ])
+        slides_long = paginate_text(long_text, citation="Romans 8", config=config, pagination=PaginationConfig(mode="auto"))
+        self.assertGreater(len(slides_long), 1)
+        self.assertEqual(slides_long[0].page_indicator, f"1 / {len(slides_long)}")
+
+    def test_render_sequence_to_files(self):
+        from core.render import (
+            get_default_engine,
+            paginate_verses,
+            RenderConfig,
+            PaginationConfig,
+        )
+        engine = get_default_engine()
+        config = RenderConfig(width=1920, height=1080, output_format="svg")
+        pagination = PaginationConfig(max_verses_per_slide=3)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "presentation_slide.svg"
+            results = engine.render_sequence_to_files(slides, destination=out_file, config=config)
+            self.assertEqual(len(results), 4)
+            for i, res in enumerate(results, start=1):
+                expected_path = Path(tmpdir) / f"presentation_slide_{i}.svg"
+                self.assertTrue(expected_path.exists())
+                self.assertEqual(res.file_path, str(expected_path))
+                svg_content = expected_path.read_text(encoding="utf-8")
+                self.assertIn(f"{i} / 4", svg_content)
+                self.assertIn("<svg", svg_content)
+
+    def test_render_sequence_to_dir(self):
+        from core.render import (
+            get_default_engine,
+            paginate_verses,
+            RenderConfig,
+            PaginationConfig,
+        )
+        engine = get_default_engine()
+        config = RenderConfig(width=1920, height=1080, output_format="svg")
+        pagination = PaginationConfig(mode="verses", max_verses_per_slide=4)
+        slides = paginate_verses(self.verses_long, parent_ref=self.ref_long, config=config, pagination=pagination)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            results = engine.render_sequence_to_dir(slides, destination_dir=tmpdir, file_prefix="romans", config=config)
+            self.assertEqual(len(results), 3)
+            for i, res in enumerate(results, start=1):
+                expected_path = Path(tmpdir) / f"romans_{i}.svg"
+                self.assertTrue(expected_path.exists())
+                self.assertEqual(res.file_path, str(expected_path))
+
+    def test_render_verse_slides_functional_interface(self):
+        from core.render import render_verse_slides, PaginationConfig
+        with tempfile.TemporaryDirectory() as tmpdir:
+            results = render_verse_slides(
+                text_or_verses=self.verses_long,
+                parent_ref=self.ref_long,
+                output_format="svg",
+                resolution="1080p",
+                output_dir=tmpdir,
+                pagination=PaginationConfig(mode="verses", max_verses_per_slide=4),
+            )
+            self.assertEqual(len(results), 3)
+            for i in range(1, 4):
+                p = Path(tmpdir) / f"slide_{i}.svg"
+                self.assertTrue(p.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
+

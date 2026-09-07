@@ -860,11 +860,13 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         pericope_title = pericopes[0].title if pericopes else None
 
         from core.render import (
+            PaginationConfig,
             RenderConfig,
             SlideContent,
             get_default_engine,
             get_theme,
             normalize_color,
+            paginate_verses,
             parse_resolution,
         )
 
@@ -883,6 +885,15 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         safe_area_raw = query.get("safe_area", ["0.15"])[0]
         optical_center_raw = query.get("optical_center", ["0.45"])[0]
         balance_param = query.get("balance", ["true"])[0].lower()
+
+        # Pagination query parameters
+        paginate_param = query.get("paginate", ["auto"])[0].lower()
+        page_param = query.get("page", ["1"])[0]
+        max_verses_raw = query.get("max_verses", [None])[0]
+        max_lines_raw = query.get("max_lines", [None])[0]
+        max_chars_raw = query.get("max_chars", [None])[0]
+        page_format_param = query.get("page_format", ["{page} / {total}"])[0]
+        keep_cit_param = query.get("keep_citation", ["false"])[0].lower() in ("true", "1", "yes")
 
         w, h = parse_resolution(res_param)
         theme_obj = get_theme(theme_param)
@@ -940,25 +951,120 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             output_format="svg" if fmt_param == "svg" else fmt_param,
         )
 
-        content = SlideContent(
-            text=verse_text,
-            citation=citation,
-            translation=used_id,
+        max_verses_val = None
+        if max_verses_raw:
+            try:
+                max_verses_val = int(max_verses_raw)
+            except ValueError:
+                max_verses_val = None
+
+        max_lines_val = None
+        if max_lines_raw:
+            try:
+                max_lines_val = int(max_lines_raw)
+            except ValueError:
+                max_lines_val = None
+
+        max_chars_val = None
+        if max_chars_raw:
+            try:
+                max_chars_val = int(max_chars_raw)
+            except ValueError:
+                max_chars_val = None
+
+        if paginate_param in ("false", "0", "no"):
+            pagination = PaginationConfig(enabled=False)
+        else:
+            pagination = PaginationConfig(
+                enabled=True,
+                mode="always" if paginate_param in ("true", "1", "always") else "auto",
+                max_verses_per_slide=max_verses_val,
+                max_lines_per_slide=max_lines_val,
+                max_chars_per_slide=max_chars_val,
+                indicator_format=page_format_param,
+                sub_citations=not keep_cit_param,
+                keep_parent_citation=keep_cit_param,
+            )
+
+        pages = paginate_verses(
+            verses=verses,
+            parent_ref=parsed_ref,
+            config=config,
+            pagination=pagination,
             pericope_title=pericope_title,
             tags=slide_tags,
         )
+
+        if not pages:
+            pages = [
+                SlideContent(
+                    text=verse_text,
+                    citation=citation,
+                    translation=used_id,
+                    pericope_title=pericope_title,
+                    tags=slide_tags,
+                )
+            ]
+
+        # JSON manifest response
+        if fmt_param == "json":
+            from urllib.parse import quote
+            pages_data = []
+            for i, p in enumerate(pages, start=1):
+                pages_data.append({
+                    "page": i,
+                    "total": len(pages),
+                    "citation": p.citation,
+                    "page_indicator": p.page_indicator,
+                    "text": p.text,
+                    "tags": p.tags,
+                    "svg_url": f"/api/slide?ref={quote(citation)}&page={i}&format=svg",
+                })
+            self.send_json({
+                "reference": citation,
+                "translation": used_id,
+                "total_pages": len(pages),
+                "pages": pages_data,
+            })
+            return
+
+        try:
+            page_idx = int(page_param) - 1
+            if page_idx < 0 or page_idx >= len(pages):
+                page_idx = 0
+        except ValueError:
+            page_idx = 0
+
+        content = pages[page_idx]
 
         try:
             engine = get_default_engine()
             res = engine.render(content, config)
             if res.format == "svg":
-                self.send_svg(res.data.decode("utf-8"))
+                svg_data = res.data.decode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+                self.send_header("Content-Length", str(len(res.data)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Bible-Slide-Page", str(page_idx + 1))
+                self.send_header("X-Bible-Slide-Total-Pages", str(len(pages)))
+                self.send_header("X-Bible-Slide-Citation", content.citation)
+                if content.page_indicator:
+                    self.send_header("X-Bible-Slide-Indicator", content.page_indicator)
+                self.end_headers()
+                self.wfile.write(res.data)
             else:
                 self.send_response(200)
                 self.send_header("Content-Type", res.mime_type)
                 self.send_header("Content-Length", str(len(res.data)))
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Bible-Slide-Page", str(page_idx + 1))
+                self.send_header("X-Bible-Slide-Total-Pages", str(len(pages)))
+                self.send_header("X-Bible-Slide-Citation", content.citation)
+                if content.page_indicator:
+                    self.send_header("X-Bible-Slide-Indicator", content.page_indicator)
                 self.end_headers()
                 self.wfile.write(res.data)
         except Exception as exc:
