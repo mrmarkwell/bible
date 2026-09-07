@@ -51,6 +51,18 @@ class TestHarness(unittest.TestCase):
         for run_num in [1, 2, 3, 4, 6, 7, 8, 9, 11, 14, 16, 99]:
             self.assertFalse(is_cleanup(run_num), f"Run {run_num} should not be a cleanup sprint")
 
+    def test_ralph_script_pipestatus_handling(self):
+        """Verify ralph.sh safely captures PIPESTATUS array without tripping set -u."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # PIPESTATUS array should be captured into a variable before indexing
+        self.assertIn('PIPE_STATUSES=("${PIPESTATUS[@]}")', content)
+        # There should be no raw ${PIPESTATUS[1]} references which trip bash set -u
+        self.assertNotIn('${PIPESTATUS[1]}', content)
+
 
 if __name__ == "__main__":
     unittest.main()

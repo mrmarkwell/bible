@@ -120,8 +120,9 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         # Run headless iteration with auto-approved permissions and live streaming formatter
         set +e
         "$JETSKI_CLI" --dangerously-skip-permissions -p "$CYCLE_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
-        EXIT_CODE="${PIPESTATUS[0]}"
-        FORMATTER_CODE="${PIPESTATUS[1]}"
+        PIPE_STATUSES=("${PIPESTATUS[@]}")
+        EXIT_CODE="${PIPE_STATUSES[0]:-0}"
+        FORMATTER_CODE="${PIPE_STATUSES[1]:-0}"
         if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
             EXIT_CODE="$FORMATTER_CODE"
         fi
@@ -166,8 +167,16 @@ if [ "${1:-}" = "--cleanup" ] || [ "${1:-}" = "-c" ]; then
     echo "======================================================================"
     if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
         shift
+        set +e
         "$JETSKI_CLI" --dangerously-skip-permissions -p "$CLEANUP_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
-        exit "${PIPESTATUS[0]}"
+        PIPE_STATUSES=("${PIPESTATUS[@]}")
+        set -e
+        EXIT_CODE="${PIPE_STATUSES[0]:-0}"
+        FORMATTER_CODE="${PIPE_STATUSES[1]:-0}"
+        if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
+            exit "$FORMATTER_CODE"
+        fi
+        exit "$EXIT_CODE"
     fi
     exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CLEANUP_PROMPT" "$@"
 fi
@@ -187,8 +196,16 @@ if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
         PROMPT="$1"
         shift
     fi
+    set +e
     "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
-    exit "${PIPESTATUS[0]}"
+    PIPE_STATUSES=("${PIPESTATUS[@]}")
+    set -e
+    EXIT_CODE="${PIPE_STATUSES[0]:-0}"
+    FORMATTER_CODE="${PIPE_STATUSES[1]:-0}"
+    if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
+        exit "$FORMATTER_CODE"
+    fi
+    exit "$EXIT_CODE"
 fi
 
 # If no arguments provided, launch interactively
