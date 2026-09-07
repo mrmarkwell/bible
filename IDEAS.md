@@ -299,7 +299,16 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
   - Copyright compliant? Yes (uses public domain WEB/KJV by default).
 - **Proposed Roadmap Phase**: Phase 3, Task 3.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
-- **Status**: [DONE] (Implemented in `core/tag_prompts.py`, `tools/tag_generator.py`, `cli/main.py`, `cli/shell.py`, verified in `tests/test_tag_prompts.py`, and recorded in ADR-025).
+### [DONE] Interactive Shell Context Management, Resource Leak Elimination & Runner Self-Documentation (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement context management protocol (`__enter__`/`__exit__`), explicit `.close()`, and `database` dependency injection on `BibleShell` to eliminate SQLite connection resource leakage and warnings (`ResourceWarning: unclosed database`). Muffle noisy batch prompt generator stdout during hermetic testing, align core export unit test suites with Phase 2/3 symbols, and add comprehensive `--help` / `-h` self-documenting CLI guidance to `ralph.sh`.
+- **Rationale**: Elevates developer ergonomics, guarantees leak-free database lifecycle management, keeps test suites completely quiet and deterministic, and provides human operators with clear CLI documentation of Ralph runner modes and cadence triggers.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library only).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.9 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [DONE] (Implemented in `cli/shell.py`, `ralph.sh`, verified in `tests/test_tags.py`, `tests/test_crossref.py`, `tests/test_tag_prompts.py`, `tests/test_core.py`, `tests/test_harness.py`, and recorded in ADR-026).
+
 
 
 

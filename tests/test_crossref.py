@@ -411,28 +411,28 @@ class TestCrossReferenceShell(unittest.TestCase):
 
     def test_shell_crossref_for(self):
         out = io.StringIO()
-        shell = BibleShell(db_path=self.db_path)
-        shell.stdout = out
-        shell.do_crossref("for Genesis 3:15")
+        with BibleShell(db_path=self.db_path) as shell:
+            shell.stdout = out
+            shell.do_crossref("for Genesis 3:15")
         self.assertIn("Galatians 4:4-5", out.getvalue())
 
     def test_shell_xref_alias_and_seed(self):
         out = io.StringIO()
-        shell = BibleShell(db_path=self.db_path)
-        shell.stdout = out
-        shell.do_xref("seed")
+        with BibleShell(db_path=self.db_path) as shell:
+            shell.stdout = out
+            shell.do_xref("seed")
         self.assertIn("Successfully seeded", out.getvalue())
 
     def test_shell_autocompletions(self):
-        shell = BibleShell(db_path=self.db_path)
-        comps = shell.complete_crossref("", "crossref ", 9, 9)
-        self.assertIn("for", comps)
-        self.assertIn("link", comps)
-        self.assertIn("seed", comps)
+        with BibleShell(db_path=self.db_path) as shell:
+            comps = shell.complete_crossref("", "crossref ", 9, 9)
+            self.assertIn("for", comps)
+            self.assertIn("link", comps)
+            self.assertIn("seed", comps)
 
-        rel_comps = shell.complete_crossref("", "crossref for Gen 3:15 ", 23, 23)
-        self.assertIn("prophecy_fulfillment", rel_comps)
-        self.assertIn("typology", rel_comps)
+            rel_comps = shell.complete_crossref("", "crossref for Gen 3:15 ", 23, 23)
+            self.assertIn("prophecy_fulfillment", rel_comps)
+            self.assertIn("typology", rel_comps)
 
 
 if __name__ == '__main__':

@@ -108,5 +108,21 @@ class TestHarness(unittest.TestCase):
             self.assertEqual(res.stdout.strip(), "NO", f"Bash is_summary_run {run_num} should return NO")
 
 
+    def test_ralph_help_flags(self):
+        """Verify ./ralph.sh --help and -h exit 0 with clean usage information."""
+        import subprocess
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+
+        for flag in ["--help", "-h"]:
+            res = subprocess.run([ralph_path, flag], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"ralph.sh {flag} failed with code {res.returncode}")
+            self.assertIn("ralph.sh — Autonomous & Interactive Development Loop Runner", res.stdout)
+            self.assertIn("--loop", res.stdout)
+            self.assertIn("--cleanup", res.stdout)
+            self.assertIn("--summary", res.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

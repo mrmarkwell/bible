@@ -450,8 +450,7 @@ class TestShellTagCommands(unittest.TestCase):
     def setUp(self) -> None:
         self.db = create_mock_db()
         self.out = io.StringIO()
-        self.shell = BibleShell(db_path=str(self.db.db_path), stdout=self.out)
-        self.shell.db = self.db
+        self.shell = BibleShell(db_path=str(self.db.db_path), stdout=self.out, database=self.db)
 
     def tearDown(self) -> None:
         self.db.close()

@@ -94,6 +94,41 @@ is_cleanup_run() {
     fi
 }
 
+# Helper: Display comprehensive CLI usage guide
+show_help() {
+    cat << 'EOF'
+ralph.sh — Autonomous & Interactive Development Loop Runner for Bible Engine
+
+Usage:
+  ./ralph.sh [OPTIONS] [PROMPT]
+
+Operating Modes:
+  (no args)             Launch single interactive session in terminal TUI (with auto-cadence detection)
+  --print, -p           Launch single headless autonomous cycle with real-time streaming telemetry
+  --loop, -l [N]        Run continuous autonomous loop (iterates until all tasks complete, BLOCKED.md, or N cycles)
+  --cleanup, -c         Explicitly run a Senior Product Manager Meta-Improvement Sprint (answering diagnostic questions)
+  --summary, -s         Explicitly run a 10th-Iteration Executive Summary & Trajectory Briefing Double Milestone
+  --help, -h            Show this help reference guide
+
+Options with Subcommands:
+  -p, --print           Run in headless mode with streaming telemetry (e.g. ./ralph.sh -c -p, ./ralph.sh -s -p)
+  [PROMPT]              Custom initial instruction prompt to execute
+
+Cadence Protocol:
+  - Run # % 10 == 0:    Double Milestone: Senior PM Meta-Sprint + Executive Summary Briefing
+  - Run # % 5 == 0:     Senior PM Meta-Improvement & System Health Sprint
+  - Standard Runs:      Autonomous roadmap feature execution
+
+Examples:
+  ./ralph.sh                     # Interactive single iteration (opens TUI)
+  ./ralph.sh -p                  # Headless single iteration (streams progress and exits)
+  ./ralph.sh --loop              # Continuous loop until completion
+  ./ralph.sh --loop 5            # Continuous loop for 5 iterations
+  ./ralph.sh --cleanup -p        # Headless Senior PM Cleanup Sprint on-demand
+  ./ralph.sh --summary -p        # Headless Executive Summary milestone on-demand
+EOF
+}
+
 if [ ! -x "$JETSKI_CLI" ]; then
     echo "Error: Jetski CLI binary not found or not executable at $JETSKI_CLI" >&2
     exit 1
@@ -101,6 +136,12 @@ fi
 
 # Guard execution if sourced as a library by tests or subshells
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+
+# Help flag (--help / -h)
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    show_help
+    exit 0
+fi
 
 # Continuous Loop Mode (--loop / -l [max_iterations])
 if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then

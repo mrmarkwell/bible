@@ -306,7 +306,8 @@ class TestTagGeneratorTool(unittest.TestCase):
         args = parser.parse_args(
             ["prompt", "Romans 8:1-2", "--db", str(self.db_path), "--format", "gemini", "-o", str(out_file)]
         )
-        code = cmd_prompt(args)
+        with patch("sys.stdout", io.StringIO()):
+            code = cmd_prompt(args)
         self.assertEqual(code, 0)
         self.assertTrue(out_file.exists())
         data = json.loads(out_file.read_text(encoding="utf-8"))
@@ -319,7 +320,8 @@ class TestTagGeneratorTool(unittest.TestCase):
         args = parser.parse_args(
             ["batch", "--refs", "John 3:16, Romans 8:1", "--db", str(self.db_path), "-o", str(out_file)]
         )
-        code = cmd_batch(args)
+        with patch("sys.stdout", io.StringIO()):
+            code = cmd_batch(args)
         self.assertEqual(code, 0)
         self.assertTrue(out_file.exists())
         lines = out_file.read_text(encoding="utf-8").strip().splitlines()
@@ -477,8 +479,8 @@ class TestCLIAndShellIntegration(unittest.TestCase):
 
     def test_shell_tag_prompt(self):
         shell_out = io.StringIO()
-        shell = BibleShell(db_path=self.db_path, stdout=shell_out)
-        shell.onecmd("/tag prompt John 3:16")
+        with BibleShell(db_path=self.db_path, stdout=shell_out) as shell:
+            shell.onecmd("/tag prompt John 3:16")
         output = shell_out.getvalue()
         self.assertIn("Citation**: John 3:16", output)
         self.assertIn("For God so loved the world", output)

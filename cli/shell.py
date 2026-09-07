@@ -61,6 +61,7 @@ class BibleShell(cmd.Cmd):
         flow: bool = False,
         box: bool = True,
         color: Optional[bool] = None,
+        database: Optional[Database] = None,
         stdin=None,
         stdout=None,
     ) -> None:
@@ -75,8 +76,9 @@ class BibleShell(cmd.Cmd):
         self.use_color = should_use_color() if color is None else color
 
         # Database connection
-        self.db: Optional[Database] = None
-        self._init_db()
+        self.db: Optional[Database] = database
+        if self.db is None:
+            self._init_db()
         self._update_prompt()
 
     def _init_db(self) -> None:
@@ -92,6 +94,18 @@ class BibleShell(cmd.Cmd):
             self.prompt = f"\033[1;33mbible\033[0m \033[2m{v_tag}\033[0m> "
         else:
             self.prompt = f"bible {v_tag}> "
+
+    def close(self) -> None:
+        """Close the underlying database connection."""
+        if self.db is not None:
+            self.db.close()
+            self.db = None
+
+    def __enter__(self) -> "BibleShell":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     def emptyline(self) -> bool:
         """Do nothing on empty line."""
@@ -884,3 +898,5 @@ def launch_shell(
     except KeyboardInterrupt:
         print("\nInterrupted. Exiting shell.")
         return 0
+    finally:
+        shell.close()

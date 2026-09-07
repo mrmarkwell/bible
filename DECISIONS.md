@@ -718,4 +718,32 @@ This document is an append-only log of significant design and architectural deci
   - Strictly preserves Zero External Dependencies (ADR-003, ADR-006).
   - Test suite expanded to 300 tests passing 100% in under 3.8s.
 
+---
 
+## ADR-026: Resource Lifecycle Integrity, Shell Context Management, and Autonomous Runner Self-Documentation
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: During the Run 025 Senior Product Manager Meta-Improvement & System Health Sprint, a comprehensive audit across runtime execution, testing infrastructure, and developer ergonomics revealed three key friction points in how the project accomplishes itself:
+  1. **SQLite Connection Resource Leakage in Tests**: When instantiating `BibleShell(db_path=...)`, an internal `Database` connection was allocated and cached on `self._db`. When unit tests instantiated `BibleShell` without an explicit teardown mechanism, Python 3.13 garbage collection emitted `ResourceWarning: unclosed database in <sqlite3.Connection object>`. Running Python with warning errors (`-W error::ResourceWarning`) halted test runs.
+  2. **Test Output Noise Pollution**: In `tools/tag_generator.py`, batch generation commands (`cmd_prompt`, `cmd_batch`) printed status messages directly to `sys.stdout`. When invoked during unit tests (`tests/test_tag_prompts.py`), these diagnostic messages leaked into the test runner's standard output, violating the quiet/clean terminal mandate for hermetic tests.
+  3. **Harness Self-Documentation Deficit**: The autonomous runner script `ralph.sh` supported rich operational flags (`--loop [N]`, `-p`, `--cleanup`, `--summary`, `-c`, `-s`), but lacked standard CLI help flags (`--help`, `-h`). Developers or operators querying `./ralph.sh --help` were greeted by immediate autonomous loop execution rather than formatted documentation explaining modes and cadence rules.
+  4. **Core Public Symbols Divergence in Export Tests**: In `tests/test_core.py`, `TestCoreExports` tested Phase 1 exports but had not been kept in parity with subsequent Phase 2 and Phase 3 capabilities (semantic tagging, cross-references, hermeneutical prompt engineering, and typography).
+- **Decision**:
+  1. **Interactive Shell Context Management & Dependency Injection (`cli/shell.py`)**:
+     - Upgraded `BibleShell` to implement explicit resource teardown via `close()`, ensuring any internally allocated `Database` connection is safely closed.
+     - Implemented Python context management protocol (`__enter__` returning `self`, `__exit__` invoking `self.close()`).
+     - Added optional `database: Optional[Database] = None` dependency injection parameter to `BibleShell.__init__`. When tests or callers supply an existing `Database` instance, `BibleShell` reuses it rather than opening duplicate file handles, and preserves ownership semantics.
+     - Wrapped `launch_shell()` in a `try...finally: shell.close()` construct.
+  2. **Zero Warning & Clean Output Test Hygiene (`tests/`)**:
+     - Updated `tests/test_tags.py`, `tests/test_crossref.py`, and `tests/test_tag_prompts.py` to instantiate `BibleShell` within context managers or inject existing fixture databases, guaranteeing 100% cleanup without unclosed resource warnings.
+     - Silenced batch prompt generation test stdout in `tests/test_tag_prompts.py` using `unittest.mock.patch("sys.stdout", io.StringIO())`.
+     - Updated `tests/test_core.py` to assert comprehensive public exports across Phase 1, Phase 2, and Phase 3.
+  3. **Autonomous Runner Self-Documentation (`ralph.sh`)**:
+     - Implemented `show_help()` in `ralph.sh` rendering formatted ANSI usage, mode options, and cadence protocol explanations.
+     - Added robust `--help` / `-h` flag interception before command dispatch.
+     - Added hermetic CLI test `test_ralph_help_flags` in `tests/test_harness.py` asserting exit code 0 and usage rendering.
+- **Consequences**:
+  - `python3 -W error::ResourceWarning -m unittest discover tests` runs 100% clean across all 301 tests in 3.67s with zero warnings and zero terminal clutter.
+  - `BibleShell` lifecycle is deterministic and safely reusable in headless scripts, REPL sessions, and test fixtures.
+  - `./ralph.sh --help` and `-h` provide clear, self-documenting guidance for human and agent operators.
+  - Zero external dependencies preserved (ADR-003).

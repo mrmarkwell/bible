@@ -22,6 +22,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.6**: Implement automated pre-commit fast linter & doc-sync validator (`tools/doctor.py` / `bible doctor`) to verify zero-dependency AST and state machine integrity. *(Run 015)*
 - [x] **Task 0.7**: Implement Git pre-commit / pre-push hook automation (`tools/install_hooks.sh` and `bible doctor --install-hooks`) to enforce machine-level validation before pushing to remote. *(Run 021 / ADR-022)*
 - [x] **Task 0.8**: Establish Executive Summary & Project Trajectory Briefing cadence (every 10th iteration), on-demand CLI command (`./bible summary`), standalone tool (`tools/executive_summary.py`), and project skill (`skills/executive-summary/SKILL.md`) (ADR-017). *(Run 016)*
+- [x] **Task 0.9**: Implement interactive shell context management (`__enter__`/`__exit__`), clean test warning elimination, and autonomous runner `--help` self-documentation (ADR-026). *(Run 025)*
+
 
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)

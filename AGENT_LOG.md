@@ -836,6 +836,47 @@ This is an append-only log of work performed by autonomous agents during their e
     3. Verify 100% test pass and zero dependencies.
     4. Record ADR, update `ROADMAP.md` / `IDEAS.md`, log in `AGENT_LOG.md`, commit, and push.
 
+---
+
+## [Run 025] — 2026-09-07 (Senior Product Manager Cleanup Sprint)
+- **Agent**: Senior Product Manager & Meta-Architect (Ralph Loop Cadence: `25 % 5 == 0`)
+- **Phase**: Phase 0 — Repository Architecture & Autonomous Harness (Task 0.9 / ADR-026)
+- **Core Diagnostic Questions**:
+  1. *What is the weakest aspect of this project structure?*
+     - Resource lifecycle leakage in interactive test harnesses (`ResourceWarning: unclosed database in <sqlite3.Connection object>`), unclosed `BibleShell` instances holding active SQLite locks across tests, and noisy stdout leaking from batch prompt generators into test runs (`Generated 2 batch tagging prompt(s)...`, `Wrote prompt for Romans 8:1-2...`).
+  2. *What is preventing this from being more incredible?*
+     - Lack of explicit lifecycle and context management on `BibleShell` (`cli/shell.py`), forcing consumers and tests to manually manage or leak connections.
+     - Lack of comprehensive CLI self-documentation in the Ralph runner harness (`./ralph.sh --help` / `-h`), forcing users to inspect script source code to understand modes (`--loop [N]`, `-p`, `--cleanup`, `--summary`).
+     - Test suite divergence in `tests/test_core.py` (which only asserted Phase 1 public exports and omitted new Phase 2/3 symbols).
+- **Actions Taken**:
+  - **Interactive Shell Context Management & Dependency Injection (`cli/shell.py`)**:
+    - Implemented explicit `close()` method closing cached `Database` handles.
+    - Implemented Python context management protocol (`__enter__` returning `self`, `__exit__` closing).
+    - Added `database: Optional[Database] = None` dependency injection parameter to `BibleShell.__init__` allowing callers and tests to share existing database connections.
+    - Wrapped `launch_shell()` in `try...finally: shell.close()` to guarantee connection teardown upon exit.
+  - **Zero-Warning & Clean-Output Test Hygiene (`tests/`)**:
+    - Updated `tests/test_tags.py`, `tests/test_crossref.py`, and `tests/test_tag_prompts.py` to instantiate `BibleShell` inside context managers or inject existing fixture databases, completely eliminating `ResourceWarning: unclosed database`.
+    - Wrapped batch generator file-writing tests in `tests/test_tag_prompts.py` with `patch("sys.stdout", io.StringIO())`, silencing stdout leakage during unit test runs.
+    - Updated `tests/test_core.py` to assert comprehensive public exports across all phases (Phase 1, Phase 2, Phase 3).
+  - **Autonomous Runner Self-Documentation (`ralph.sh` & `tests/test_harness.py`)**:
+    - Implemented `show_help()` in `ralph.sh` with ANSI-formatted CLI usage, execution modes (`--loop [N]`, `-p`, `--summary`, `--cleanup`), and cadence documentation (Senior PM sprint every 5th run, Executive Briefing double milestone every 10th run).
+    - Added `-h` and `--help` flag interception before command dispatch.
+    - Added unit test `test_ralph_help_flags` in `tests/test_harness.py` asserting exit 0 and usage output.
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-026: Resource Lifecycle Integrity, Shell Context Management, and Autonomous Runner Self-Documentation** in `DECISIONS.md`.
+    - Promoted Rank A+ idea to `[DONE]` in `IDEAS.md`.
+    - Recorded Task 0.9 in `ROADMAP.md` under Phase 0.
+- **Verification**:
+  - `python3 -W error::ResourceWarning -m unittest discover tests`: All 301 tests passed 100% in 3.67s with **zero warnings** and zero terminal clutter.
+  - `./bible doctor`: All 6 diagnostic checks passed cleanly (`EXCELLENT`) in 2.84s (35 files audited, 0 dependencies, 289 tests dynamically discovered).
+  - `./ralph.sh --help` and `./ralph.sh -h`: Verified clean exit code 0 and full usage display.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Senior PM sprint is 100% complete, tested, and verified.
+  - Next cycle is **Run 026** (Standard Cycle).
+  - Next agent should return to the domain roadmap and claim **Task 3.4**: *Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring* in `core/tags.py`, CLI commands in `cli/main.py`, REPL commands in `cli/shell.py`, and unit tests in `tests/test_tags.py`.
+
+
 
 
 
