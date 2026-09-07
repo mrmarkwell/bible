@@ -445,3 +445,24 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.14 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: [DONE] (Implemented in `LICENSE`, `MANIFESTO.md`, `ROADMAP.md`, and ADR-041).
 
+### [VETTED] One-Shot ESV Semantic Understanding Database Compilation Pipeline (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a comprehensive, resumable, multi-pass batch analysis and compilation pipeline (`tools/build_semantic_db.py`) that systematically analyzes the complete text of the English Standard Version (ESV) to produce a sovereign, permanent semantic understanding database in local SQLite:
+  1. **Layered Semantic Extraction**: Extracts 6 core semantic dimensions across all 66 canonical books:
+     - *Discourse & Structural Hierarchy*: Pericopes (~2,800 units), literary genre, chiasm/parallelism, central exegetical propositions, and verse-level propositional rhetoric (ground, inference, purpose, contrast).
+     - *Dual-Horizon Theological Semantics*: Redemptive-historical storyline epochs (Creation to New Creation), canonical thematic ribbons (Temple, Covenant, Seed, Priesthood), and systematic theological loci (Justification, Atonement, Sovereign Grace) grounded in The Gospel Coalition (TGC) Foundation Documents.
+     - *Intertextual Graph*: Typological arcs connecting OT shadows to NT fulfillments with explicit theological correspondence, plus direct citations and allusions.
+     - *Entity & Agency Network*: Canonical character profiles, agent-action-patient semantic triples, and contextual divine titles.
+     - *Speech Acts & Devotional Tone*: Illocutionary force (imperative, promise, warning, indicative, lament, doxology) and emotional affect.
+     - *Vector Geometry*: Quantized dense vector embeddings for all 31,102 verses and pericopes for zero-shot conceptual search.
+  2. **Multi-Pass Quality Assurance & Verification**: Employs top-down book horizon context, low-temperature structured JSON prompting, an automated exegetical critic audit (checking canonical coordinate validity, anti-moralistic compliance, and entity normalization), and a resumable SQLite ledger.
+  3. **Offline Sovereignty & Legal Compliance**: Analyzes ESV text via one-time execution, storing derivative metadata, coordinates, and relational edges in SQLite without distributing raw copyrighted text files in the git repository (ADR-041).
+- **Rationale**: The Bible is a static, closed canon that does not change. Performing an elite, high-compute semantic extraction once and saving the verified results into an immutable local SQLite database equips the Bible Engine with permanent, microsecond-latency theological intelligence offline without recurring API dependencies.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (compiled SQLite database operates 100% offline).
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+  - Copyright compliant? Yes (derives metadata, tags, discourse graphs, and embeddings without redistributing raw text; complies with ADR-041).
+- **Proposed Roadmap Phase**: Phase 7 (Tasks 7.1–7.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [VETTED] / Scheduled (Phase 7).
+
+
