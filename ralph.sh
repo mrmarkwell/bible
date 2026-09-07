@@ -140,6 +140,13 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         else
             echo ""
             echo " [✓] Iteration #$ITERATION finished successfully."
+            # Run doctor automated health check to verify system integrity post-iteration
+            if [ -f "$REPO_DIR/tools/doctor.py" ]; then
+                echo " Running repository health check..."
+                if ! python3 "$REPO_DIR/tools/doctor.py"; then
+                    echo " [!] Doctor health check failed after iteration #$ITERATION!"
+                fi
+            fi
             echo " Cooldown: Waiting 5s before starting iteration #$((ITERATION + 1))..."
             sleep 5
         fi

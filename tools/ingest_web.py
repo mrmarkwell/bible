@@ -22,7 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 import time
 import urllib.request
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.db import Database, TranslationRecord, VerseRecord
 from core.reference import ALL_BOOKS, Book, BOOKS, get_book, verse_canonical_id
@@ -96,14 +96,16 @@ def ingest_web(
     raw_dir: Path = RAW_WEB_DIR,
     force_download: bool = False,
     verbose: bool = True,
+    books: Optional[Sequence[Book]] = None,
 ) -> int:
-    """Ingest full World English Bible (WEB) into target SQLite database.
+    """Ingest World English Bible (WEB) into target SQLite database.
 
     Args:
         db_path: Destination SQLite database file path.
         raw_dir: Cache directory for downloaded raw JSON files.
         force_download: If True, re-downloads even if already cached locally.
         verbose: If True, prints progress reporting to stdout.
+        books: Optional sequence of Book instances to ingest (defaults to all 66 books).
 
     Returns:
         Total number of verses ingested.
@@ -130,9 +132,10 @@ def ingest_web(
     )
 
     all_verse_records: List[VerseRecord] = []
-    total_books = len(ALL_BOOKS)
+    target_books = list(books) if books is not None else list(ALL_BOOKS)
+    total_books = len(target_books)
 
-    for idx, book in enumerate(ALL_BOOKS, start=1):
+    for idx, book in enumerate(target_books, start=1):
         fn = book_to_filename(book)
         if verbose:
             print(f"[{idx:02d}/{total_books:02d}] Processing {book.name} ({fn})...", end=" ", flush=True)

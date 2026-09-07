@@ -240,6 +240,6 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Constraints & Alignment**:
   - Offline-first? Yes.
   - Zero third-party dependencies? Yes (Python 3 standard library `ast`, `os`, `sys`, `re`, `pathlib`).
-- **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling.
-- **Status**: [SCHEDULED].
+- **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.6).
+- **Status**: [DONE] (Implemented in `tools/doctor.py`, integrated into CLI via `./bible doctor`, integrated into `ralph.sh`, tested in `tests/test_doctor.py`, and recorded in ADR-016).
 

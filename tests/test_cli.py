@@ -198,6 +198,14 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("usage: bible", stdout.getvalue())
 
+    def test_cli_doctor(self):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["doctor"])
+        self.assertEqual(code, 0)
+        self.assertIn("Bible Engine System Doctor", stdout.getvalue())
+        self.assertIn("System Health: EXCELLENT", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

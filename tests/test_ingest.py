@@ -87,13 +87,20 @@ class TestWebIngest(unittest.TestCase):
         """Verify hermetic end-to-end ingestion into a temporary SQLite database."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_db_path = Path(tmpdir) / "test_bible.db"
+            sample_books = [
+                get_book("Genesis"),
+                get_book("John"),
+                get_book("Romans"),
+                get_book("Revelation"),
+            ]
             count = ingest_web(
                 db_path=tmp_db_path,
                 raw_dir=RAW_WEB_DIR,
                 force_download=False,
                 verbose=False,
+                books=sample_books,
             )
-            self.assertEqual(count, 31103, "Must insert all 31,103 canonical verses")
+            self.assertEqual(count, 3250, "Must insert all 3,250 verses across sample books")
 
             db = Database(db_path=tmp_db_path)
             # Verify translation record

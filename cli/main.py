@@ -151,6 +151,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser_get.set_defaults(func=cmd_get)
 
+    # Subcommand: doctor
+    parser_doctor = subparsers.add_parser(
+        "doctor",
+        help="Run comprehensive health, dependency, and documentation diagnostics",
+        description="Verify zero external dependencies, documentation sync, bash scripts, and tests.",
+    )
+    def cmd_doctor(args: argparse.Namespace) -> int:
+        from tools.doctor import run_all_checks
+        repo_root = Path(__file__).resolve().parent.parent
+        is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and not sys.platform.startswith("win")
+        code, _ = run_all_checks(repo_root=repo_root, color=is_tty)
+        return code
+
+    parser_doctor.set_defaults(func=cmd_doctor)
+
     return parser
 
 
