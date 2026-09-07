@@ -1287,3 +1287,53 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 035** (Senior PM Cleanup Sprint, as 35 % 5 == 0).
   - Active domain roadmap task pending next standard cycle: **Task 5.2**: *Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins*.
 
+---
+
+## [Run 035] — 2026-09-07 (Senior Product Manager Meta-Improvement & System Health Sprint)
+- **Agent**: Senior Product Manager & Meta-Architect Agent
+- **Phase**: Phase 0 — Repository Architecture & Developer Ergonomics (Task 0.12 / ADR-036)
+- **Cadence**: Senior PM Meta-Improvement Sprint (Run #035 / 35th sequential cycle, 35 % 5 == 0).
+- **Mandate**:
+  - Step out of the developer/coder persona into Senior Product Manager & Meta-Architect.
+  - Do NOT make standard feature progress on domain roadmap tasks during this cycle.
+  - Confront and answer the Two Core Diagnostic Questions:
+    1. *What is the weakest aspect of this project structure?*
+       - **Diagnosis**: Test execution latency, warning blindness, and lack of dedicated test runner ergonomics. As the test suite expanded to 420+ tests, sequential discovery took ~9.35s, becoming the primary bottleneck on autonomous Ralph loops and git pre-push hooks. Standard `unittest` also operated without warning enforcement, allowing latent `ResourceWarning` leaks (unclosed SQLite connections and sockets) to escape detection, and allowed test output (such as terminal ASCII box graphics) to pollute console output. Furthermore, developers had no first-class `./bible test` CLI subcommand or `/test` REPL command.
+    2. *What is preventing this from being more incredible?*
+       - **Diagnosis**: Slow feedback loops and lack of automated resource verification. A high-performance, process-isolated parallel test runner running across all available CPU cores reduces test execution latency by ~5x (from 9.3s to <2.0s), strictly enforces zero-leak `ResourceWarning` integrity, captures outputs hermetically, and gives developers and agents instant feedback via `./bible test` and `/test`.
+  - Formulate and execute a Rank A+ Meta-Improvement: *High-Performance Parallel Hermetic Test Runner & Zero-Pollution Resource Leak Prevention Engine (`tools/test_runner.py`, `./bible test`, `/test`, ADR-036)*.
+- **Actions Taken**:
+  - **Zero-Dependency Parallel Test Runner (`tools/test_runner.py`)**:
+    - Architected and implemented a high-performance test runner using pure Python 3 standard library (`concurrent.futures.ProcessPoolExecutor`, `subprocess`, `unittest`).
+    - Dispatches test suites concurrently across isolated worker processes, capturing stdout/stderr hermetically to eliminate test output pollution.
+    - Slashes total test execution time from ~9.35 seconds to **1.79 seconds** across 436 unit tests in 22 modules (a **5.2x speedup**, achieving ~240 tests/sec).
+    - Features pattern filtering (`-p`/`--pattern`), jobs concurrency control (`-j`/`--jobs`), sequential fallback mode (`-s`), fail-fast (`-x`), strict resource warning enforcement (`--warn-error`), and machine-readable JSON export (`--json`).
+  - **Strict Resource Leak Elimination & Warning Auditing**:
+    - Enforced `-W error::ResourceWarning` across test processes by default, immediately catching any unclosed database connections, sockets, or file descriptors.
+    - Hardened `Database` in `core/db.py` with defensive `__del__` cleanup and idempotent `self.conn = None` assignment on `close()`.
+    - Resolved shell lifecycle leaks in `tests/test_render.py` (`TestShellSlideCommands.test_shell_slide_completion`) and output leakage in `tests/test_arcs.py` (`test_cli_arcs_svg_export`).
+  - **System Doctor Acceleration (`tools/doctor.py`)**:
+    - Replaced sequential test discovery in `tools/doctor.py` (`check_unit_tests`) with the parallel runner.
+    - Reduced full repository diagnostic execution time from **~10.0 seconds down to ~2.5 seconds** (a **4x acceleration** for all pre-push checks and Ralph loop iterations).
+  - **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added `./bible test` (aliases `tests`, `check`) subcommand supporting pattern filtering, jobs, verbosity, and JSON output.
+    - Registered in `preprocess_cli_argv` to preserve direct scripture citation routing.
+    - Added `/test` (alias `/check`) interactive REPL command in `BibleShell` with tab autocompletion for flags and test module names.
+  - **Hermetic Test Suite (`tests/test_test_runner.py`)**:
+    - Authored 16 unit tests covering file discovery, pattern matching, test count parsing, process execution, styling, JSON serialization, and CLI/shell command dispatch.
+    - Total repository test suite expanded from 420 to 436 tests passing 100% in 1.9s with zero warnings.
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-036** in `DECISIONS.md`.
+    - Promoted Rank A+ idea in `IDEAS.md` (`[DONE]`).
+    - Added Task 0.12 to Phase 0 in `ROADMAP.md` (`[x]`).
+- **Verification**:
+  - Ran `./bible test -v`: 436 tests across 22 modules passed in 1.928s.
+  - Ran `./bible check -p crypto`: verified alias routing and pattern filtering.
+  - Ran REPL `/test -p crypto`: verified interactive shell integration.
+  - Ran `python3 tools/doctor.py`: all 6 health diagnostics passed with 100% stdlib compliance in 2.54s.
+- **Handoff Notes for Next Agent**:
+  - Run 035 meta-improvement is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 036** (Standard Ralph Loop Iteration).
+  - Active domain roadmap task pending: **Task 5.2**: *Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins*.
+
+

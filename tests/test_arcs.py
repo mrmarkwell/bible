@@ -198,12 +198,20 @@ class TestArcCliAndShell(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out_svg = Path(tmpdir) / "output.svg"
             parsed = self.parser.parse_args(["arcs", "--svg", str(out_svg), "--type", "typology"])
-            ret = parsed.func(parsed)
-            self.assertEqual(ret, 0)
+            captured = io.StringIO()
+            import sys
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = captured
+                ret = parsed.func(parsed)
+                self.assertEqual(ret, 0)
+            finally:
+                sys.stdout = old_stdout
             self.assertTrue(out_svg.exists())
             self.assertGreater(out_svg.stat().st_size, 5000)
             content = out_svg.read_text(encoding="utf-8")
             self.assertIn("<svg", content)
+            self.assertIn("Exported pure vector SVG", captured.getvalue())
 
     def test_shell_arcs_and_autocomplete(self) -> None:
         out_buf = io.StringIO()

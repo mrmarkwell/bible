@@ -471,35 +471,33 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
 
 def check_unit_tests(repo_root: Path) -> CheckResult:
     """Discover and execute unit tests, verifying 100% pass rate in <5 seconds."""
-    import io
-    import unittest
+    from tools.test_runner import run_tests
 
     t0 = time.time()
-    stream = io.StringIO()
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-
-    # Discover and run all test modules in tests/
-    tests_dir = repo_root / "tests"
-    for test_file in sorted(tests_dir.glob("test_*.py")):
-        suite.addTests(loader.discover(str(tests_dir), pattern=test_file.name))
-
-    runner = unittest.TextTestRunner(stream=stream, verbosity=1)
-    res = runner.run(suite)
+    code, summary = run_tests(
+        repo_root=repo_root,
+        parallel=True,
+        warn_error=True,
+        quiet=True,
+    )
     dur = time.time() - t0
 
-    if not res.wasSuccessful():
+    if not summary.success:
+        failed_lines = []
+        for r in summary.results:
+            if not r.passed:
+                failed_lines.append(f"{r.module_name}: {r.error_message}")
         return CheckResult(
             "Hermetic Test Suite",
             False,
-            f"Test failures/errors ({len(res.failures)} failures, {len(res.errors)} errors):\n{stream.getvalue()}",
+            f"Test failures in {summary.failed_modules}/{summary.total_modules} modules:\n" + "\n".join(failed_lines),
             dur,
         )
 
     return CheckResult(
         "Hermetic Test Suite",
         True,
-        f"{res.testsRun} tests passing 100% in {dur:.3f}s",
+        f"{summary.total_tests} tests passing 100% across {summary.total_modules} modules in {dur:.3f}s",
         dur,
     )
 

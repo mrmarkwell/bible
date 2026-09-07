@@ -553,8 +553,18 @@ class Database:
 
     def close(self) -> None:
         """Close SQLite database connection."""
-        if self.conn:
-            self.conn.close()
+        if hasattr(self, "conn") and self.conn:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            self.conn = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> "Database":
         return self

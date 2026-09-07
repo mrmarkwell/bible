@@ -2530,6 +2530,99 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_slide.set_defaults(func=cmd_slide)
 
+    # Subcommand: test (aliases: tests, check)
+    parser_test = subparsers.add_parser(
+        "test",
+        aliases=["tests", "check"],
+        help="Run hermetic unit test suite in parallel with strict resource auditing",
+        description="Execute test modules in parallel with zero output leakage, sub-2-second velocity, and strict ResourceWarning checking.",
+    )
+    parser_test.add_argument(
+        "-p",
+        "--pattern",
+        type=str,
+        default=None,
+        help="Filter test modules by substring or wildcard (e.g. 'render', '*arc*', 'crypto,db')",
+    )
+    parser_test.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=None,
+        help="Number of concurrent worker processes (default: CPU core count)",
+    )
+    parser_test.add_argument(
+        "-s",
+        "--sequential",
+        action="store_true",
+        help="Run test modules sequentially instead of in parallel",
+    )
+    parser_test.add_argument(
+        "-w",
+        "--warn-error",
+        action="store_true",
+        default=True,
+        help="Treat ResourceWarning as test errors (default: True)",
+    )
+    parser_test.add_argument(
+        "--no-warn-error",
+        dest="warn_error",
+        action="store_false",
+        help="Do not treat ResourceWarning as fatal errors",
+    )
+    parser_test.add_argument(
+        "-x",
+        "--failfast",
+        action="store_true",
+        help="Stop execution on first module failure",
+    )
+    parser_test.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show per-module execution details and timings",
+    )
+    parser_test.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress output and exit with status code only",
+    )
+    parser_test.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI colors",
+    )
+    parser_test.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON summary",
+    )
+
+    def cmd_test(args: argparse.Namespace) -> int:
+        from tools.test_runner import REPO_ROOT, run_tests
+        is_tty = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and not args.no_color
+            and "NO_COLOR" not in os.environ
+        )
+        exit_code, _ = run_tests(
+            repo_root=REPO_ROOT,
+            pattern=args.pattern,
+            parallel=not args.sequential,
+            jobs=args.jobs,
+            warn_error=args.warn_error,
+            failfast=args.failfast,
+            verbose=args.verbose,
+            quiet=args.quiet,
+            color=is_tty,
+            output_json=args.json,
+        )
+        return exit_code
+
+    parser_test.set_defaults(func=cmd_test)
+
     return parser
 
 
@@ -2557,6 +2650,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "ribbon", "pericopes", "pericope", "chapters", "chapter",
         "arcs", "arc", "typology", "typologies",
         "slide", "render",
+        "test", "tests", "check",
     }
 
     pos_idx = -1

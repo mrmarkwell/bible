@@ -359,8 +359,11 @@ class TestShellSlideCommands(unittest.TestCase):
     def test_shell_slide_completion(self):
         from cli.shell import BibleShell
         shell = BibleShell(color=False)
-        matches = shell.complete_slide("ol", "/slide John 3:16 -t ol", 23, 25)
-        self.assertIn("oled_black", matches)
+        try:
+            matches = shell.complete_slide("ol", "/slide John 3:16 -t ol", 23, 25)
+            self.assertIn("oled_black", matches)
+        finally:
+            shell.close()
 
 
 if __name__ == "__main__":

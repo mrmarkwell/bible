@@ -1075,6 +1075,72 @@ class BibleShell(cmd.Cmd):
             stream=self.stdout,
         )
 
+    def do_test(self, arg: str) -> None:
+        """Run hermetic unit test suite in parallel: /test [-p pattern] [-v] [-s] [-x] [--json]"""
+        import shlex
+        from tools.test_runner import run_tests
+        repo_root = Path(__file__).resolve().parent.parent
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        pattern = None
+        verbose = False
+        sequential = False
+        failfast = False
+        output_json = False
+        warn_error = True
+
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok in ("-p", "--pattern") and i + 1 < len(tokens):
+                pattern = tokens[i + 1]
+                i += 2
+            elif tok in ("-v", "--verbose"):
+                verbose = True
+                i += 1
+            elif tok in ("-s", "--sequential"):
+                sequential = True
+                i += 1
+            elif tok in ("-x", "--failfast"):
+                failfast = True
+                i += 1
+            elif tok == "--json":
+                output_json = True
+                i += 1
+            elif tok in ("--no-warn", "--no-warn-error"):
+                warn_error = False
+                i += 1
+            elif not tok.startswith("-") and pattern is None:
+                pattern = tok
+                i += 1
+            else:
+                i += 1
+
+        run_tests(
+            repo_root=repo_root,
+            pattern=pattern,
+            parallel=not sequential,
+            warn_error=warn_error,
+            failfast=failfast,
+            verbose=verbose,
+            color=self.use_color,
+            output_json=output_json,
+            stream=self.stdout,
+        )
+
+    def do_check(self, arg: str) -> None:
+        """Alias for /test."""
+        self.do_test(arg)
+
+    def complete_test(self, text: str, line: str, start_index: int, end_index: int) -> List[str]:
+        """Autocompletion for /test command."""
+        options = ["-p", "--pattern", "-v", "--verbose", "-s", "--sequential", "-x", "--failfast", "--json"]
+        from tools.test_runner import discover_test_files
+        repo_root = Path(__file__).resolve().parent.parent
+        test_stems = [p.stem.replace("test_", "") for p in discover_test_files(repo_root)]
+        all_candidates = options + test_stems
+        return [c for c in all_candidates if c.startswith(text)]
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report
@@ -1254,6 +1320,7 @@ System & Web:
   /db [stats|optimize]    Inspect database storage statistics or optimize query planner
   /init [--force]         Bootstrap offline database and verify baseline datasets
   /serve [start|stop]     Start or stop built-in HTTP server and Web UI (alias: /server)
+  /test [pattern]         Run hermetic unit test suite in parallel (alias: /check)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report
   /clear                  Clear terminal screen
