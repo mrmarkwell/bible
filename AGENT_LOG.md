@@ -1625,6 +1625,54 @@ This is an append-only log of work performed by autonomous agents during their e
   - Phase 5 is 100% complete.
   - Next domain task on roadmap: **Task 2.5**: *Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041)*, OR **Task 6.1**: *Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback per ADR-003 and ADR-006)*.
 
+---
+
+## [Run 042] 2026-09-07 — Zero-Dependency ESV API Client, Compliant 500-Verse Ephemeral LRU Cache & ESV Primary Translation Architecture (Task 2.5 / ADR-045)
+- **Role**: Ralph Loop Autonomous Cycle (Standard Iteration).
+- **Phase**: Phase 2 — Command Line Interface & Translation Hierarchy (100% COMPLETE).
+- **Task**: Task 2.5 — Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041).
+- **Accomplishments & Deliverables**:
+  - **Zero-Dependency ESV API Client (`core/esv.py`)**:
+    - Architected and implemented a lean, high-reliability HTTP client targeting `https://api.esv.org/v3/passage/text/` using pure Python standard library (`urllib.request`, `json`).
+    - Configured multi-tier `ESV_API_KEY` discovery across explicit parameters, environment variables, `.env` files, `config/esv_api_key.txt`, and `~/.config/bible/esv_api_key`.
+    - Structured error hierarchy (`ESVAuthError`, `ESVRateLimitError`, `ESVNetworkError`, `ESVParseError`) with informative remediation advice.
+    - Added full Crossway legal compliance constants: `ESV_SHORT_ATTRIBUTION = "(ESV) - www.esv.org"`, `ESV_FULL_COPYRIGHT`, and `format_esv_attribution(style)`.
+  - **Robust ESV Passage Text Parser (`parse_esv_passage_text`)**:
+    - Parsed bracketed verse markers (`[16] For God so loved...`), cross-chapter spans, poetry line breaks, and unbracketed passages into canonical `VerseRecord` objects with canonical integer IDs (`BBCCCVVV`).
+  - **Crossway-Compliant 500-Verse Ephemeral LRU Cache (`core/db.py`)**:
+    - Added `esv_cache` table to SQLite schema with `last_accessed_at` index.
+    - Implemented `get_esv_cached_verses`: queries by canonical ID bounds and touches `last_accessed_at` for LRU freshness.
+    - Implemented `save_esv_cached_verses`: inserts/updates verses and enforces the strict 500-verse legal limit by evicting the oldest accessed rows (`DELETE WHERE canonical_verse_id IN (SELECT canonical_verse_id FROM esv_cache ORDER BY last_accessed_at ASC, canonical_verse_id ASC LIMIT overflow)`).
+    - Added `count_esv_cached_verses()`, `clear_esv_cache()`, and `get_esv_cache_stats()`.
+  - **Translation Hierarchy & Resilient Offline Cascading**:
+    - Set `DEFAULT_TRANSLATION = "ESV"`.
+    - Updated `Database.get_verses_with_fallback` and `Database.get_verses_by_reference` to prioritize `esv_cache` and live ESV API fetching when online/configured.
+    - When offline or unconfigured, queries cascade seamlessly to the bundled public-domain World English Bible (`WEB`) with clean fallback notices on explicit request.
+  - **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added `./bible esv` subcommand (aliases: `esv-api`, `esv-cache`) supporting actions `status` (default), `cache`, `clear`, `fetch`, and `--json`.
+    - Added `/esv` slash command to `BibleShell` with tab autocompletion (`complete_esv`) and `/help` documentation.
+    - Added `esv` subcommands to `preprocess_cli_argv` for direct CLI argument routing.
+  - **Hermetic Unit Test Suite (`tests/test_esv.py`)**:
+    - Authored 28 unit tests verifying key discovery, attribution formatting, response parsing, mocked HTTP transport, LRU cache touch, 500-verse overflow eviction, fallback cascades, and CLI subcommands.
+    - Verified 92.2% statement coverage on `core/esv.py`. Total test suite expanded to **556 tests across 27 modules passing 100% in 3.6s**.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-045** in `DECISIONS.md`.
+    - Marked **Task 2.5** complete in `ROADMAP.md` (Phase 2 now 100% complete!).
+- **Verification**:
+  - Ran `./bible test`: 556 tests across 27 modules passed in 3.667s.
+  - Ran `./bible doctor`: all 7 repository health checks passed in 4.62s.
+  - Ran `./bible doctor --fast`: all 5 fast pre-commit checks passed in 0.66s.
+  - Ran `./bible lint`: 58 files checked with 0 errors.
+  - Ran `./bible coverage -m core/esv.py -p test_esv`: verified 92.2% statement coverage.
+  - Ran `./bible esv`: verified formatted terminal status and Crossway legal attribution.
+  - Ran `./bible esv --json`: verified structured JSON metrics.
+  - Ran `./bible get "John 3:16"`: verified clean default resolution.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are all 100% complete.
+  - Next domain task on roadmap: **Task 6.1**: *Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041.*
+
+
 
 
 

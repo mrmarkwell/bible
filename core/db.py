@@ -494,6 +494,22 @@ CREATE TABLE IF NOT EXISTS theological_themes (
     description TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Ephemeral Crossway-compliant 500-verse LRU cache for ESV text (ADR-041)
+CREATE TABLE IF NOT EXISTS esv_cache (
+    canonical_verse_id INTEGER PRIMARY KEY,
+    book_id INTEGER NOT NULL,
+    chapter INTEGER NOT NULL,
+    verse INTEGER NOT NULL,
+    subverse TEXT DEFAULT '',
+    text TEXT NOT NULL,
+    osis_ref TEXT NOT NULL,
+    last_accessed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_esv_cache_accessed
+ON esv_cache(last_accessed_at);
 """
 
 
@@ -537,6 +553,7 @@ class Database:
 
         # Optimize SQLite performance for analytical reads and concurrent writes
         self._configure_pragmas()
+        self._esv_client: Optional[Any] = None
 
         if auto_init:
             self.init_schema()
@@ -825,6 +842,11 @@ class Database:
             ref = reference
 
         t_id = translation_id.strip().upper()
+        if t_id == "ESV":
+            cached = self.get_esv_cached_verses(ref)
+            if cached:
+                return cached
+
         start_id = ref.canonical_start_id
         end_id = ref.canonical_end_id
 
@@ -848,22 +870,71 @@ class Database:
     def get_verses_with_fallback(
         self,
         reference: Union[Reference, str],
-        translation_id: str = "WEB",
+        translation_id: str = "ESV",
         fallback_id: Optional[str] = "WEB",
+        allow_network: bool = True,
     ) -> Tuple[List[VerseRecord], str, bool]:
         """Retrieve verses for a reference with automatic fallback resolution.
 
+        Supports ESV 500-verse ephemeral LRU cache, live ESV API fetching, and graceful fallback to WEB.
+
         Args:
             reference: Reference object or canonical scripture citation string.
-            translation_id: Desired translation identifier (e.g. 'ESV', 'WEB').
-            fallback_id: Optional fallback translation ID (e.g. 'WEB') to use if the requested
-                translation has no matching verses in the database.
+            translation_id: Desired translation identifier (default: 'ESV').
+            fallback_id: Optional fallback translation ID (default: 'WEB') to use if the requested
+                translation has no matching verses in the database or cache.
+            allow_network: Whether to attempt live ESV API fetching if ESV verses are not cached.
 
         Returns:
             Tuple of (verses_list, effective_translation_id, is_fallback_used).
         """
+        if isinstance(reference, str):
+            ref = parse_reference(reference)
+        else:
+            ref = reference
+
         req_id = translation_id.strip().upper()
-        verses = self.get_verses_by_reference(reference, translation_id=req_id)
+
+        if req_id == "ESV":
+            # 1. Check ephemeral 500-verse LRU cache
+            cached = self.get_esv_cached_verses(ref)
+            if cached:
+                # If specific verse range, ensure complete coverage
+                if (
+                    ref.start_verse is not None
+                    and ref.end_verse is not None
+                    and ref.start_chapter == ref.end_chapter
+                ):
+                    expected_count = ref.end_verse - ref.start_verse + 1
+                    if len(cached) >= expected_count:
+                        return cached, "ESV", False
+                else:
+                    return cached, "ESV", False
+
+            # 2. Attempt live ESV API fetch if allowed
+            if allow_network:
+                client = self.get_esv_client()
+                if client.is_available():
+                    try:
+                        fetched = client.fetch_verses(ref)
+                        if fetched:
+                            self.save_esv_cached_verses(fetched)
+                            return fetched, "ESV", False
+                    except Exception:
+                        pass
+
+            # 3. If ESV unavailable, cascade to fallback
+            if fallback_id:
+                fb_id = fallback_id.strip().upper()
+                if fb_id != "ESV":
+                    fb_verses = self.get_verses_by_reference(ref, translation_id=fb_id)
+                    if fb_verses:
+                        return fb_verses, fb_id, True
+
+            return [], "ESV", False
+
+        # Non-ESV translations: standard database lookup
+        verses = self.get_verses_by_reference(ref, translation_id=req_id)
         if verses:
             return verses, req_id, False
 
@@ -930,6 +1001,178 @@ class Database:
             osis_ref=row["osis_ref"],
             canonical_verse_id=row["canonical_verse_id"],
         )
+
+    # --- ESV API & Ephemeral 500-Verse LRU Cache (ADR-041) ---
+
+    def get_esv_client(self) -> Any:
+        """Return or lazily initialize the zero-dependency ESV API Client."""
+        if getattr(self, "_esv_client", None) is None:
+            from core.esv import ESVClient
+            self._esv_client = ESVClient()
+        return self._esv_client
+
+    def set_esv_client(self, client: Any) -> None:
+        """Set custom ESVClient instance (useful for hermetic test mocking)."""
+        self._esv_client = client
+
+    def get_esv_cached_verses(
+        self,
+        reference: Union[Reference, str],
+    ) -> List[VerseRecord]:
+        """Retrieve cached ESV verses within reference bounds and touch last_accessed_at."""
+        if isinstance(reference, str):
+            ref = parse_reference(reference)
+        else:
+            ref = reference
+
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+        now = _utc_now_iso()
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT c.*, b.name as book_name
+            FROM esv_cache c
+            JOIN books b ON b.id = c.book_id
+            WHERE c.canonical_verse_id >= ?
+              AND c.canonical_verse_id <= ?
+            ORDER BY c.canonical_verse_id ASC, c.subverse ASC
+            """,
+            (start_id, end_id),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            cur.close()
+            return []
+
+        # Touch last_accessed_at for LRU freshness
+        with self.conn:
+            self.conn.execute(
+                """
+                UPDATE esv_cache
+                SET last_accessed_at = ?
+                WHERE canonical_verse_id >= ? AND canonical_verse_id <= ?
+                """,
+                (now, start_id, end_id),
+            )
+        cur.close()
+
+        return [
+            VerseRecord(
+                id=None,
+                translation_id="ESV",
+                book_id=row["book_id"],
+                book_name=row["book_name"],
+                chapter=row["chapter"],
+                verse=row["verse"],
+                subverse=row["subverse"],
+                text=row["text"],
+                osis_ref=row["osis_ref"],
+                canonical_verse_id=row["canonical_verse_id"],
+            )
+            for row in rows
+        ]
+
+    def save_esv_cached_verses(
+        self,
+        verses: Sequence[VerseRecord],
+        max_verses: int = 500,
+    ) -> int:
+        """Store ESV verses into ephemeral cache and enforce the strict 500-verse LRU limit."""
+        if not verses:
+            return 0
+
+        now = _utc_now_iso()
+        rows = []
+        for v in verses:
+            cid = (
+                v.canonical_verse_id
+                if v.canonical_verse_id is not None
+                else verse_canonical_id(v.book_id, v.chapter, v.verse)
+            )
+            b = BOOKS.get(v.book_id)
+            sub = v.subverse or ""
+            osis = v.osis_ref or (f"{b.osis}.{v.chapter}.{v.verse}{sub}" if b else "")
+            rows.append((
+                cid,
+                v.book_id,
+                v.chapter,
+                v.verse,
+                sub,
+                v.text.strip(),
+                osis,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO esv_cache (
+                    canonical_verse_id, book_id, chapter, verse, subverse, text, osis_ref, last_accessed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(canonical_verse_id) DO UPDATE SET
+                    text=excluded.text,
+                    last_accessed_at=excluded.last_accessed_at
+                """,
+                rows,
+            )
+
+            # Enforce 500-verse LRU eviction per Crossway compliance
+            cur = self.conn.execute("SELECT COUNT(*) FROM esv_cache")
+            total_count = cur.fetchone()[0]
+            if total_count > max_verses:
+                overflow = total_count - max_verses
+                self.conn.execute(
+                    """
+                    DELETE FROM esv_cache
+                    WHERE canonical_verse_id IN (
+                        SELECT canonical_verse_id FROM esv_cache
+                        ORDER BY last_accessed_at ASC, canonical_verse_id ASC
+                        LIMIT ?
+                    )
+                    """,
+                    (overflow,),
+                )
+
+        return len(rows)
+
+    def count_esv_cached_verses(self) -> int:
+        """Return count of verses currently in the ephemeral ESV cache."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM esv_cache")
+        count = cur.fetchone()[0]
+        cur.close()
+        return count
+
+    def clear_esv_cache(self) -> int:
+        """Clear all entries in the ephemeral ESV cache."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM esv_cache")
+            return cur.rowcount
+
+    def get_esv_cache_stats(self) -> Dict[str, Any]:
+        """Return diagnostic statistics about the ephemeral ESV cache."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) as total_verses,
+                MIN(last_accessed_at) as oldest_accessed,
+                MAX(last_accessed_at) as newest_accessed
+            FROM esv_cache
+            """
+        )
+        row = cur.fetchone()
+        cur.close()
+        total = row["total_verses"] if row else 0
+        return {
+            "cached_verses": total,
+            "max_capacity": 500,
+            "oldest_accessed_at": row["oldest_accessed"] if row else None,
+            "newest_accessed_at": row["newest_accessed"] if row else None,
+            "compliant": total <= 500,
+        }
 
     # --- Full-Text Search (FTS5) ---
 

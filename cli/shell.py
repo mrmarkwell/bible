@@ -1717,6 +1717,127 @@ class BibleShell(cmd.Cmd):
         options = ["-p", "--pattern", "-m", "--module", "-u", "--missed", "-s", "--sequential", "--json", "--html", "core", "cli", "tools", "web"]
         return [c for c in options if c.startswith(text)]
 
+    def do_esv(self, arg: str) -> None:
+        """Inspect ESV API configuration, ephemeral 500-verse LRU cache, and Crossway legal compliance.
+        Usage:
+          /esv [status]           Show configuration, quota, and cache metrics
+          /esv cache              List verses currently in the ephemeral cache
+          /esv clear              Evict all verses from the ephemeral cache
+          /esv fetch <ref>        Fetch and cache a passage via the ESV API
+        """
+        if self.db is None:
+            self._init_db()
+
+        from core.esv import (
+            ESV_FULL_COPYRIGHT,
+            ESV_MAX_CACHE_VERSES,
+            ESV_SHORT_ATTRIBUTION,
+            ESVError,
+            get_esv_api_key,
+        )
+
+        parts = arg.strip().split()
+        subcmd = parts[0].lower() if parts else "status"
+
+        api_key = get_esv_api_key()
+        has_key = bool(api_key and api_key.strip())
+        masked_key = f"...{api_key[-4:]}" if has_key and len(api_key) >= 8 else ("Configured" if has_key else "Unset")
+
+        if subcmd == "clear":
+            cleared = self.db.clear_esv_cache()
+            self.stdout.write(f"Cleared ephemeral ESV cache ({cleared} verses evicted).\n")
+            return
+
+        if subcmd == "fetch":
+            citation = " ".join(parts[1:]).strip()
+            if not citation:
+                self.stdout.write("Usage: /esv fetch <reference> (e.g. /esv fetch John 3:16)\n")
+                return
+
+            try:
+                ref = parse_reference(citation)
+            except Exception as exc:
+                self.stdout.write(f"Error parsing reference '{citation}': {exc}\n")
+                return
+
+            if not has_key:
+                self.stdout.write("ESV API key is not configured. Set ESV_API_KEY environment variable.\n")
+                return
+
+            client = self.db.get_esv_client()
+            try:
+                verses = client.fetch_verses(ref)
+            except ESVError as exc:
+                self.stdout.write(f"ESV API error: {exc}\n")
+                return
+
+            saved = self.db.save_esv_cached_verses(verses)
+            self.stdout.write(f"=== {ref.format()} (ESV) ===\n\n")
+            for v in verses:
+                self.stdout.write(f"[{v.verse}] {v.text}\n")
+            self.stdout.write(f"\nAttribution: {ESV_SHORT_ATTRIBUTION}\n")
+            self.stdout.write(f"(Saved {saved} verses to cache; total {self.db.count_esv_cached_verses()}/{ESV_MAX_CACHE_VERSES})\n")
+            return
+
+        if subcmd == "cache":
+            cur = self.db.conn.cursor()
+            cur.execute(
+                """
+                SELECT c.canonical_verse_id, b.name as book_name, c.chapter, c.verse, c.text, c.last_accessed_at
+                FROM esv_cache c
+                JOIN books b ON b.id = c.book_id
+                ORDER BY c.canonical_verse_id ASC
+                """
+            )
+            rows = cur.fetchall()
+            cur.close()
+            if not rows:
+                self.stdout.write("Ephemeral ESV cache is currently empty (0 / 500 verses).\n")
+                return
+
+            self.stdout.write(f"=== Ephemeral ESV Cache ({len(rows)} / {ESV_MAX_CACHE_VERSES} verses) ===\n")
+            self.stdout.write(f"{'Citation':<20} {'Last Accessed':<24} {'Text Snippet'}\n")
+            self.stdout.write(f"{'-' * 18} {'-' * 22} {'-' * 35}\n")
+            for r in rows[:30]:
+                cite = f"{r['book_name']} {r['chapter']}:{r['verse']}"
+                snippet = (r["text"][:32] + "...") if len(r["text"]) > 35 else r["text"]
+                self.stdout.write(f"{cite:<20} {r['last_accessed_at']:<24} {snippet}\n")
+            if len(rows) > 30:
+                self.stdout.write(f"... and {len(rows) - 30} more cached verses.\n")
+            return
+
+        # Default: status
+        stats = self.db.get_esv_cache_stats()
+        cached = stats["cached_verses"]
+        pct = (cached / ESV_MAX_CACHE_VERSES) * 100
+        comp_str = "COMPLIANT (<= 500 verses)" if stats["compliant"] else "NON-COMPLIANT"
+
+        key_status = f"Configured ({masked_key})" if has_key else "Not Configured (Set ESV_API_KEY)"
+        self.stdout.write(
+            "\n"
+            "======================================================================\n"
+            " Crossway ESV API & Ephemeral 500-Verse LRU Cache Status (ADR-041)\n"
+            "======================================================================\n"
+            f" ESV API Key:           {key_status}\n"
+            f" API Base Endpoint:     https://api.esv.org/v3/passage/text/\n"
+            f" Standard Rate Limits:  60 req/min, 5,000 req/day\n"
+            "----------------------------------------------------------------------\n"
+            f" Ephemeral Cache Usage: {cached} / {ESV_MAX_CACHE_VERSES} verses ({pct:.1f}%)\n"
+            f" Compliance Status:     {comp_str}\n"
+            f" Oldest Accessed:       {stats['oldest_accessed_at'] or 'N/A'}\n"
+            f" Newest Accessed:       {stats['newest_accessed_at'] or 'N/A'}\n"
+            "----------------------------------------------------------------------\n"
+            " Crossway Legal Attribution Notice:\n"
+            f" {ESV_FULL_COPYRIGHT}\n"
+            " Web: https://www.esv.org\n"
+            "======================================================================\n\n"
+        )
+
+    def complete_esv(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /esv command."""
+        options = ["status", "cache", "clear", "fetch"]
+        return [o for o in options if o.startswith(text.lower())]
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report
@@ -1897,6 +2018,7 @@ System & Web:
   /db [stats|optimize]    Inspect database storage statistics or optimize query planner
   /init [--force]         Bootstrap offline database and verify baseline datasets
   /serve [start|stop]     Start or stop built-in HTTP server and Web UI (alias: /server)
+  /esv [status|cache|clear] Manage Crossway ESV API & 500-verse LRU cache
   /test [pattern]         Run hermetic unit test suite in parallel (alias: /check)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report

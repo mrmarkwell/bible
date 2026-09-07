@@ -355,7 +355,8 @@ def cmd_get(args: argparse.Namespace) -> int:
         )
         return 1
 
-    requested_translations = parse_translation_ids(args.version, default="WEB")
+    has_explicit_version = args.version is not None
+    requested_translations = parse_translation_ids(args.version, default="ESV")
     fallback = (
         None
         if (getattr(args, "strict", False) or getattr(args, "no_fallback", False))
@@ -387,7 +388,7 @@ def cmd_get(args: argparse.Namespace) -> int:
                     ref, translation_id=req_id, fallback_id=fallback
                 )
 
-                if is_fb:
+                if is_fb and (has_explicit_version or getattr(args, "verbose", False)):
                     sys.stderr.write(
                         f"Notice: Translation '{req_id}' not available; falling back to '{eff_id}'.\n"
                     )
@@ -403,7 +404,7 @@ def cmd_get(args: argparse.Namespace) -> int:
                         )
                     return 1
 
-                fb_for = req_id if is_fb else None
+                fb_for = req_id if (is_fb and has_explicit_version) else None
                 formatted = format_verse_lines(
                     verses,
                     show_verse_numbers=show_nums,
@@ -3672,6 +3673,219 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_cov.set_defaults(func=cmd_coverage)
 
+    # Subcommand: esv
+    parser_esv = subparsers.add_parser(
+        "esv",
+        aliases=["esv-api", "esv-cache"],
+        help="Inspect ESV API configuration, 500-verse LRU cache, and Crossway legal compliance",
+        description="Inspect and manage the zero-dependency Crossway ESV API integration and 500-verse LRU cache (ADR-041).",
+    )
+    parser_esv.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "cache", "clear", "fetch"],
+        help="Action: 'status' (configuration & cache status), 'cache' (list cached verses), 'clear' (evict all cached verses), 'fetch' (fetch and cache a passage)",
+    )
+    parser_esv.add_argument(
+        "reference",
+        nargs="*",
+        help="Scripture citation when action is 'fetch' (e.g. 'John 3:16', 'Romans 8:28-30')",
+    )
+    parser_esv.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON metrics",
+    )
+
+    def cmd_esv(args: argparse.Namespace) -> int:
+        from core.esv import (
+            ESV_ATTRIBUTION_URL,
+            ESV_FULL_COPYRIGHT,
+            ESV_MAX_CACHE_VERSES,
+            ESV_SHORT_ATTRIBUTION,
+            ESVError,
+            get_esv_api_key,
+        )
+
+        action = getattr(args, "action", "status") or "status"
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        output_json = getattr(args, "json", False)
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+
+        api_key = get_esv_api_key()
+        has_key = bool(api_key and api_key.strip())
+        masked_key = f"...{api_key[-4:]}" if has_key and len(api_key) >= 8 else ("Configured" if has_key else "Unset")
+
+        if not db_path.exists():
+            if action == "status" and output_json:
+                print(json.dumps({
+                    "api_key_configured": has_key,
+                    "database_exists": False,
+                    "cached_verses": 0,
+                    "max_capacity": ESV_MAX_CACHE_VERSES,
+                    "compliant": True,
+                }, indent=2))
+                return 0
+            sys.stderr.write(f"Error: Database file not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+
+        try:
+            with Database(db_path, auto_init=False) as db:
+                if action == "clear":
+                    cleared_count = db.clear_esv_cache()
+                    if output_json:
+                        print(json.dumps({"cleared_verses": cleared_count, "remaining": 0}, indent=2))
+                    else:
+                        print(f"Successfully cleared ephemeral ESV cache ({cleared_count} verses evicted).")
+                    return 0
+
+                elif action == "fetch":
+                    raw_ref = " ".join(getattr(args, "reference", [])).strip()
+                    if not raw_ref:
+                        sys.stderr.write("Error: Reference citation required for 'fetch' action (e.g. './bible esv fetch John 3:16').\n")
+                        return 1
+
+                    try:
+                        ref = parse_reference(raw_ref)
+                    except Exception as exc:
+                        sys.stderr.write(f"Error parsing reference '{raw_ref}': {exc}\n")
+                        return 1
+
+                    if not has_key:
+                        sys.stderr.write(
+                            "Error: ESV API key is not configured. Set ESV_API_KEY environment variable "
+                            "or create a .env file with ESV_API_KEY=your_key.\n"
+                        )
+                        return 1
+
+                    client = db.get_esv_client()
+                    try:
+                        verses = client.fetch_verses(ref)
+                    except ESVError as exc:
+                        sys.stderr.write(f"ESV API error: {exc}\n")
+                        return 1
+
+                    saved = db.save_esv_cached_verses(verses)
+
+                    if output_json:
+                        print(json.dumps({
+                            "reference": ref.format(),
+                            "fetched_verses": len(verses),
+                            "cached_count": saved,
+                            "verses": [{"verse": v.verse, "text": v.text} for v in verses],
+                            "attribution": ESV_SHORT_ATTRIBUTION,
+                        }, indent=2))
+                    else:
+                        header = f"=== {ref.format()} (ESV) ==="
+                        print(header)
+                        print()
+                        for v in verses:
+                            print(f"[{v.verse}] {v.text}")
+                        print()
+                        print(f"Attribution: {ESV_SHORT_ATTRIBUTION}")
+                        print(f"(Cached {len(verses)} verses into ephemeral ESV cache; total: {db.count_esv_cached_verses()}/{ESV_MAX_CACHE_VERSES})")
+                    return 0
+
+                elif action == "cache":
+                    cur = db.conn.cursor()
+                    cur.execute(
+                        """
+                        SELECT c.canonical_verse_id, b.name as book_name, c.chapter, c.verse, c.text, c.last_accessed_at
+                        FROM esv_cache c
+                        JOIN books b ON b.id = c.book_id
+                        ORDER BY c.canonical_verse_id ASC
+                        """
+                    )
+                    rows = cur.fetchall()
+                    cur.close()
+
+                    if output_json:
+                        items = [
+                            {
+                                "canonical_id": r["canonical_verse_id"],
+                                "citation": f"{r['book_name']} {r['chapter']}:{r['verse']}",
+                                "text": r["text"],
+                                "last_accessed_at": r["last_accessed_at"],
+                            }
+                            for r in rows
+                        ]
+                        print(json.dumps({"total_cached": len(items), "verses": items}, indent=2))
+                        return 0
+
+                    if not rows:
+                        print("Ephemeral ESV cache is currently empty (0 / 500 verses).")
+                        return 0
+
+                    print(f"=== Ephemeral ESV Cache ({len(rows)} / {ESV_MAX_CACHE_VERSES} verses) ===")
+                    print(f"{'Citation':<20} {'Last Accessed':<24} {'Text Snippet'}")
+                    print(f"{'-' * 18} {'-' * 22} {'-' * 35}")
+                    for r in rows[:50]:
+                        cite = f"{r['book_name']} {r['chapter']}:{r['verse']}"
+                        snippet = (r["text"][:32] + "...") if len(r["text"]) > 35 else r["text"]
+                        print(f"{cite:<20} {r['last_accessed_at']:<24} {snippet}")
+                    if len(rows) > 50:
+                        print(f"... and {len(rows) - 50} more cached verses.")
+                    return 0
+
+                else:  # status
+                    stats = db.get_esv_cache_stats()
+                    cached_count = stats["cached_verses"]
+                    pct = (cached_count / ESV_MAX_CACHE_VERSES) * 100
+                    bar_len = 20
+                    filled = int(bar_len * (cached_count / ESV_MAX_CACHE_VERSES))
+                    bar = "█" * filled + "░" * (bar_len - filled)
+
+                    if output_json:
+                        print(json.dumps({
+                            "api_key_configured": has_key,
+                            "masked_key": masked_key,
+                            "base_url": "https://api.esv.org/v3/passage/text/",
+                            "rate_limits": "60 req/min, 5,000 req/day",
+                            "cache_stats": stats,
+                            "legal_attribution": ESV_SHORT_ATTRIBUTION,
+                            "copyright_url": ESV_ATTRIBUTION_URL,
+                        }, indent=2))
+                        return 0
+
+                    gold = "\033[1;33m" if color_enabled else ""
+                    cyan = "\033[36m" if color_enabled else ""
+                    dim = "\033[2m" if color_enabled else ""
+                    green = "\033[32m" if color_enabled else ""
+                    yellow = "\033[33m" if color_enabled else ""
+                    reset = "\033[0m" if color_enabled else ""
+
+                    print(f"{gold}======================================================================{reset}")
+                    print(f"{gold} Crossway ESV API & Ephemeral 500-Verse LRU Cache Status (ADR-041){reset}")
+                    print(f"{gold}======================================================================{reset}")
+                    key_status = f"{green}Configured ({masked_key}){reset}" if has_key else f"{yellow}Not Configured (Set ESV_API_KEY){reset}"
+                    print(f" ESV API Key:           {key_status}")
+                    print(f" API Base Endpoint:     https://api.esv.org/v3/passage/text/")
+                    print(f" Standard Rate Limits:  60 req/min, 5,000 req/day")
+                    print(f"----------------------------------------------------------------------")
+                    comp_str = f"{green}COMPLIANT (<= 500 verses){reset}" if stats["compliant"] else f"\033[31mNON-COMPLIANT{reset}"
+                    print(f" Ephemeral Cache Usage: {cached_count} / {ESV_MAX_CACHE_VERSES} verses ({pct:.1f}%)")
+                    print(f" Progress:              [{bar}]")
+                    print(f" Compliance Status:     {comp_str}")
+                    print(f" Oldest Accessed:       {stats['oldest_accessed_at'] or 'N/A'}")
+                    print(f" Newest Accessed:       {stats['newest_accessed_at'] or 'N/A'}")
+                    print(f"----------------------------------------------------------------------")
+                    print(f"{dim} Crossway Legal Attribution Notice:{reset}")
+                    print(f" {ESV_FULL_COPYRIGHT}")
+                    print(f" Web: {cyan}https://www.esv.org{reset}")
+                    print(f"{gold}======================================================================{reset}")
+                    return 0
+        except Exception as exc:
+            sys.stderr.write(f"Database error: {exc}\n")
+            return 1
+
+    parser_esv.set_defaults(func=cmd_esv)
+
     return parser
 
 
@@ -3703,6 +3917,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "test", "tests", "check",
         "lint", "linter", "check-style",
         "coverage", "cov", "test-coverage",
+        "esv", "esv-api", "esv-cache",
     }
 
     pos_idx = -1

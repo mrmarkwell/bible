@@ -1393,3 +1393,44 @@ This document is an append-only log of significant design and architectural deci
   - Completes Phase 5 (Task 5.5) in full.
   - Users can generate comprehensive 4K TV screensaver slide albums in seconds for Google Photos, Apple Photos, Chromecast, and USB media players.
   - Strictly preserves 100% Zero-Dependency compliance (stdlib only per ADR-003).
+
+---
+
+## ADR-045: Zero-Dependency ESV API Client, Crossway Compliant 500-Verse Ephemeral LRU Cache, and Resilient Default Fallback Architecture
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - In ADR-041, the architectural decision was established to designate the English Standard Version (ESV) as the primary default translation across all engine interfaces while strictly complying with Crossway's API Terms of Service (which permit ephemeral caching of up to 500 verses but strictly forbid permanent distribution or bundling of the full ESV corpus).
+  - To fulfill Task 2.5, the repository required a clean, hermetic, and zero-dependency implementation of the ESV API client, an ephemeral SQLite LRU cache table enforcing the 500-verse hard ceiling, official legal attribution formatting, seamless default translation routing, omnichannel CLI inspection (`./bible esv`), interactive REPL commands (`/esv`), and robust fallback cascading to the bundled public-domain World English Bible (`WEB`).
+- **Decision**:
+  1. **Zero-Dependency ESV API Client (`core/esv.py`)**:
+     - Built a pure Python 3 standard library HTTP client targeting `https://api.esv.org/v3/passage/text/` using `urllib.request` and `json`.
+     - Multi-tier API key discovery: checks explicit parameter, `ESV_API_KEY` environment variable, `.env` file, `config/esv_api_key.txt`, and `~/.config/bible/esv_api_key`.
+     - Configured query parameters (`include-verse-numbers=true`, `include-first-verse-numbers=true`, `include-footnotes=false`, `include-headings=false`, `line-length=0`).
+     - Standardized error hierarchy: `ESVAuthError` (HTTP 401/403), `ESVRateLimitError` (HTTP 429), `ESVNetworkError` (timeouts/connection drops), `ESVParseError` (JSON defects).
+  2. **Crossway Legal Compliance & Official Attribution**:
+     - Embedded official Crossway attribution notices and links (`ESV_SHORT_ATTRIBUTION = "(ESV) - www.esv.org"` and full copyright notice `ESV_FULL_COPYRIGHT`).
+     - Helper function `format_esv_attribution(style)` supporting `'short'`, `'notice'`, and `'full'`.
+  3. **Robust ESV Passage Text Parser (`parse_esv_passage_text`)**:
+     - Parses bracketed verse markers (e.g. `[16] For God so loved... [17] For God did not...`), cross-chapter spans, poetry line breaks, and unbracketed text into canonical `VerseRecord` objects with calculated canonical integer IDs (`BBCCCVVV`).
+  4. **Ephemeral 500-Verse LRU Cache (`esv_cache` in SQLite)**:
+     - Added `esv_cache` table to SQLite schema with `last_accessed_at` index.
+     - Implemented `get_esv_cached_verses` which queries by canonical ID range and touches `last_accessed_at` for LRU freshness.
+     - Implemented `save_esv_cached_verses`: saves verses and enforces the hard 500-verse ceiling by evicting the oldest accessed rows (`DELETE WHERE canonical_verse_id IN (SELECT canonical_verse_id FROM esv_cache ORDER BY last_accessed_at ASC, canonical_verse_id ASC LIMIT overflow)`).
+     - Added `count_esv_cached_verses()`, `clear_esv_cache()`, and `get_esv_cache_stats()`.
+  5. **Default Translation Hierarchy & Resilient Cascading**:
+     - Set default translation to `"ESV"`.
+     - Queries check `esv_cache` first. If missing, attempts live API fetch via `ESVClient` (if key configured and online).
+     - If offline or key unset, cascades gracefully to `WEB` (with fallback notice when explicitly requested, or seamless display when default).
+  6. **Omnichannel CLI & REPL Integration**:
+     - Added `./bible esv` (aliases: `esv-api`, `esv-cache`) supporting actions `status` (default), `cache`, `clear`, `fetch`, and `--json`.
+     - Added `/esv` slash command in `BibleShell` (`cli/shell.py`) with tab autocompletion (`complete_esv`).
+     - Registered `esv` subcommands in `preprocess_cli_argv` for direct CLI routing.
+  7. **Hermetic Unit Test Suite (`tests/test_esv.py`)**:
+     - Authored 28 comprehensive unit tests covering key discovery, attribution formatting, response parsing, mocked HTTP requests, LRU cache operations, 500-verse overflow eviction, fallback cascades, and CLI actions.
+     - Verified 92.2% statement coverage on `core/esv.py`. Total test suite expanded to **556 tests across 27 modules passing 100% in 3.6s**.
+- **Consequences**:
+  - Completes Phase 2 in full (100% complete across all Phase 2 tasks).
+  - Enables modern, word-for-word ESV scripture lookups, slides, and upcoming Gemini prompt building while adhering strictly to Crossway's legal terms of service.
+  - Guarantees 100% zero-dependency architecture (ADR-003) and offline-first resilience.
+

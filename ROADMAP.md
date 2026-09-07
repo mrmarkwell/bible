@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 2 (Task 2.5) & Phase 6 — Google Gemini LLM Client & Theological Guardrail Engine
-- **Overall Progress**: Phase 0, Phase 1, Phase 2 (core), Phase 3, Phase 4, and Phase 5 complete (100%); Phase 6 next
+- **Active Phase**: Phase 6 — Google Gemini LLM Client & Theological Guardrail Engine
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 complete (100%); Phase 6 next
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -44,7 +44,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks, parallel comparison subcommand (`bible compare`), and translations inspector (`bible translations`). *(Run 017)*
 - [x] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`). *(Run 018)*
 - [x] **Task 2.4**: Formatted terminal output (clean margins, text wrapping, optional verse numbers, paragraph breaks, colored ANSI styling using standard library). *(Run 019)*
-- [ ] **Task 2.5**: Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041).
+- [x] **Task 2.5**: Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041). *(Run 042 / ADR-045)*
 
 ### Phase 3: Semantic Tagging & Knowledge Database Engine
 - [x] **Task 3.1**: Create Tagging API allowing tags on individual verses or arbitrary verse spans (e.g., `Romans 8:1-11` -> `Holy Spirit`, `Sanctification`). *(Run 022 / ADR-023)*
