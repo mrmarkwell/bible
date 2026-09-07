@@ -243,3 +243,14 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.6).
 - **Status**: [DONE] (Implemented in `tools/doctor.py`, integrated into CLI via `./bible doctor`, integrated into `ralph.sh`, tested in `tests/test_doctor.py`, and recorded in ADR-016).
 
+### [SCHEDULED] Git Pre-Commit / Pre-Push Hook Automation (`bible doctor --install-hook`) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Provide automated git hook installation (`./bible doctor --install-hook` or `tools/install_hooks.sh`) that writes a zero-dependency pre-commit/pre-push script to `.git/hooks/pre-push`. The hook runs `python3 tools/doctor.py`, preventing any git push from completing if AST dependency violations, documentation desynchronization, or failing tests are detected.
+- **Rationale**: Eliminates human and agent oversight by physically preventing any non-compliant code or broken state from being pushed to `origin/main`.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (uses standard git hooks and Python standard library).
+- **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.7).
+- **Status**: [SCHEDULED].
+
+
