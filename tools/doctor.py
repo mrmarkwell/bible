@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, List, Optional, Sequence, Set, TextIO, Tuple
+from typing import Any, Callable, List, Optional, Sequence, Set, TextIO, Tuple
 
 # Base repository root directory
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -264,7 +264,7 @@ def uninstall_hooks(repo_root: Path) -> Tuple[bool, str]:
     return True, f"Removed git hooks: {', '.join(removed)}"
 
 
-def check_git_hooks(repo_root: Path) -> CheckResult:
+def check_git_hooks(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify presence and executable status of pre-commit and pre-push hooks."""
     t0 = time.time()
     git_dir = repo_root / ".git"
@@ -299,9 +299,20 @@ def check_git_hooks(repo_root: Path) -> CheckResult:
         if "doctor.py" not in text:
             issues.append(".git/hooks/pre-push does not invoke doctor.py")
 
+    if issues and fix:
+        ok, msg = install_hooks(repo_root)
+        dur = time.time() - t0
+        if ok:
+            return CheckResult(
+                "Git Hook Safeguards",
+                True,
+                "Active (pre-commit: fast linting, pre-push: full doctor - Auto-repaired)",
+                dur,
+            )
+
     dur = time.time() - t0
     if issues:
-        msg = f"Git hook safeguards inactive ({'; '.join(issues)}). Run './bible doctor --install-hooks' to activate."
+        msg = f"Git hook safeguards inactive ({'; '.join(issues)}). Run './bible doctor --install-hooks' or '--fix' to activate."
         return CheckResult("Git Hook Safeguards", False, msg, dur)
 
     return CheckResult(
@@ -339,15 +350,34 @@ def check_bash_scripts(repo_root: Path) -> CheckResult:
     return CheckResult("Shell Script Integrity", True, f"{script_names} valid syntax and executable", dur)
 
 
-def check_database_integrity(repo_root: Path) -> CheckResult:
+def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify bundled SQLite scripture database existence and schema integrity."""
     t0 = time.time()
     db_file = repo_root / "data" / "bible.db"
     if not db_file.exists():
+        if fix:
+            from core.bootstrap import bootstrap_database
+            rep = bootstrap_database(db_path=db_file, verbose=False)
+            dur = time.time() - t0
+            if rep.is_clean:
+                return CheckResult(
+                    "SQLite Scripture Database",
+                    True,
+                    f"OK (Auto-healed: {rep.verses_count:,} WEB verses compiled, FTS5 operational)",
+                    dur,
+                )
+            else:
+                return CheckResult(
+                    "SQLite Scripture Database",
+                    False,
+                    f"Database auto-heal failed: {rep.details}",
+                    dur,
+                )
+
         return CheckResult(
             "SQLite Scripture Database",
             False,
-            f"Database file missing at {db_file}. Run 'python3 tools/ingest_web.py' to compile.",
+            f"Database file missing at {db_file}. Run './bible init' or './bible doctor --fix' to bootstrap.",
             time.time() - t0,
         )
 
@@ -358,6 +388,18 @@ def check_database_integrity(repo_root: Path) -> CheckResult:
             cur.execute("PRAGMA quick_check")
             integrity = cur.fetchone()[0]
             if integrity != "ok":
+                if fix:
+                    from core.bootstrap import bootstrap_database
+                    rep = bootstrap_database(db_path=db_file, force=True, verbose=False)
+                    dur = time.time() - t0
+                    if rep.is_clean:
+                        return CheckResult(
+                            "SQLite Scripture Database",
+                            True,
+                            f"OK (Auto-rebuilt: {rep.verses_count:,} WEB verses compiled, FTS5 operational)",
+                            dur,
+                        )
+
                 return CheckResult(
                     "SQLite Scripture Database",
                     False,
@@ -367,6 +409,18 @@ def check_database_integrity(repo_root: Path) -> CheckResult:
 
             total_verses = db.count_verses(translation_id="WEB")
             if total_verses < 31000:
+                if fix:
+                    from core.bootstrap import bootstrap_database
+                    rep = bootstrap_database(db_path=db_file, force=True, verbose=False)
+                    dur = time.time() - t0
+                    if rep.is_clean:
+                        return CheckResult(
+                            "SQLite Scripture Database",
+                            True,
+                            f"OK (Auto-rebuilt: {rep.verses_count:,} WEB verses compiled, FTS5 operational)",
+                            dur,
+                        )
+
                 return CheckResult(
                     "SQLite Scripture Database",
                     False,
@@ -392,6 +446,21 @@ def check_database_integrity(repo_root: Path) -> CheckResult:
                 dur,
             )
     except Exception as exc:
+        if fix:
+            try:
+                from core.bootstrap import bootstrap_database
+                rep = bootstrap_database(db_path=db_file, force=True, verbose=False)
+                dur = time.time() - t0
+                if rep.is_clean:
+                    return CheckResult(
+                        "SQLite Scripture Database",
+                        True,
+                        f"OK (Auto-rebuilt: {rep.verses_count:,} WEB verses compiled, FTS5 operational)",
+                        dur,
+                    )
+            except Exception:
+                pass
+
         return CheckResult(
             "SQLite Scripture Database",
             False,
@@ -410,11 +479,9 @@ def check_unit_tests(repo_root: Path) -> CheckResult:
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
 
-    # Discover and run all test modules in tests/ except test_doctor to prevent recursion
+    # Discover and run all test modules in tests/
     tests_dir = repo_root / "tests"
     for test_file in sorted(tests_dir.glob("test_*.py")):
-        if test_file.name == "test_doctor.py":
-            continue
         suite.addTests(loader.discover(str(tests_dir), pattern=test_file.name))
 
     runner = unittest.TextTestRunner(stream=stream, verbosity=1)
@@ -443,6 +510,7 @@ def run_all_checks(
     verbose: bool = False,
     fast: bool = False,
     quiet: bool = False,
+    fix: bool = False,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
     """Execute all diagnostic checks and render styled report.
@@ -453,6 +521,7 @@ def run_all_checks(
         verbose: Verbose diagnostics flag.
         fast: If True, execute fast pre-commit checks only (<0.15s).
         quiet: If True, suppress console output and return status silently.
+        fix: If True, automatically repair fixable defects (install hooks, bootstrap database).
         stream: Optional custom stream (e.g. io.StringIO) for output.
 
     Returns:
@@ -468,46 +537,60 @@ def run_all_checks(
             target_stream.flush()
 
     title_suffix = " (Fast Pre-Commit Mode)" if fast else ""
+    if fix:
+        title_suffix += " [Self-Healing --fix Active]"
     emit(styler.bold("======================================================================"))
     emit(styler.bold(f" Bible Engine System Doctor & Pre-Commit Health Diagnostic{title_suffix}"))
     emit(styler.dim(f" Target Repository: {root}"))
     emit(styler.bold("======================================================================"))
 
-    if fast:
-        checks = [
-            check_zero_dependencies,
-            check_doc_synchronization,
-            check_bash_scripts,
-            check_git_hooks,
-        ]
-    else:
-        checks = [
-            check_zero_dependencies,
-            check_doc_synchronization,
-            check_bash_scripts,
-            check_git_hooks,
-            check_database_integrity,
-            check_unit_tests,
-        ]
-
     results: List[CheckResult] = []
     failed = False
     total_start = time.time()
 
-    for check_fn in checks:
-        res = check_fn(root)
+    # 1. Zero External Dependencies
+    res = check_zero_dependencies(root)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 2. Documentation State Sync
+    res = check_doc_synchronization(root)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 3. Shell Script Integrity
+    res = check_bash_scripts(root)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 4. Git Hook Safeguards
+    res = check_git_hooks(root, fix=fix)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # Fast mode stops here
+    if not fast:
+        # 5. SQLite Scripture Database
+        res = check_database_integrity(root, fix=fix)
         results.append(res)
+        _emit_check(res, styler, emit)
         if not res.passed:
             failed = True
-            badge = styler.red("[FAIL]")
-        else:
-            badge = styler.green("[PASS]")
 
-        emit(f" {badge} {styler.bold(res.name)} {styler.dim(f'({res.duration_sec:.3f}s)')}")
-        if res.passed:
-            emit(f"        {styler.dim(res.details)}")
-        else:
-            emit(f"        {styler.red(res.details)}")
+        # 6. Hermetic Test Suite
+        res = check_unit_tests(root)
+        results.append(res)
+        _emit_check(res, styler, emit)
+        if not res.passed:
+            failed = True
 
     total_dur = time.time() - total_start
     emit(styler.bold("----------------------------------------------------------------------"))
@@ -517,6 +600,20 @@ def run_all_checks(
     else:
         emit(styler.green(styler.bold(f" [✓] System Health: EXCELLENT (All checks passed in {total_dur:.2f}s)")))
         return 0, results
+
+
+def _emit_check(res: CheckResult, styler: DoctorStyler, emit: Callable[[str], None]) -> None:
+    """Helper to format and print check result lines."""
+    if not res.passed:
+        badge = styler.red("[FAIL]")
+    else:
+        badge = styler.green("[PASS]")
+
+    emit(f" {badge} {styler.bold(res.name)} {styler.dim(f'({res.duration_sec:.3f}s)')}")
+    if res.passed:
+        emit(f"        {styler.dim(res.details)}")
+    else:
+        emit(f"        {styler.red(res.details)}")
 
 
 if __name__ == "__main__":
@@ -529,6 +626,12 @@ if __name__ == "__main__":
         "--fast",
         action="store_true",
         help="Run fast pre-commit checks only (<0.15s: dependencies, doc sync, shell scripts, hook status)",
+    )
+    parser.add_argument(
+        "--fix",
+        "-f",
+        action="store_true",
+        help="Self-healing mode: automatically repair fixable defects (install git hooks, bootstrap database)",
     )
     parser.add_argument(
         "--install-hooks",
@@ -596,5 +699,6 @@ if __name__ == "__main__":
         color=is_tty,
         fast=args.fast,
         quiet=args.quiet,
+        fix=args.fix,
     )
     sys.exit(code)

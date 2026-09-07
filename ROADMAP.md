@@ -23,6 +23,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.7**: Implement Git pre-commit / pre-push hook automation (`tools/install_hooks.sh` and `bible doctor --install-hooks`) to enforce machine-level validation before pushing to remote. *(Run 021 / ADR-022)*
 - [x] **Task 0.8**: Establish Executive Summary & Project Trajectory Briefing cadence (every 10th iteration), on-demand CLI command (`./bible summary`), standalone tool (`tools/executive_summary.py`), and project skill (`skills/executive-summary/SKILL.md`) (ADR-017). *(Run 016)*
 - [x] **Task 0.9**: Implement interactive shell context management (`__enter__`/`__exit__`), clean test warning elimination, and autonomous runner `--help` self-documentation (ADR-026). *(Run 025)*
+- [x] **Task 0.10**: Implement Sovereign Cold-Start Bootstrapping, Unified Database Compilation & Lifecycle Engine (`bible init` / `bible db`), Self-Healing Doctor Diagnostics (`--fix`), and Comprehensive Repository Documentation (ADR-030). *(Run 029 / Senior PM Cleanup Sprint)*
 
 
 

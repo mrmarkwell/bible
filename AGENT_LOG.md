@@ -1026,3 +1026,51 @@ This is an append-only log of work performed by autonomous agents during their e
 
 
 
+
+---
+
+## [Run 029] — 2026-09-07 (Senior Product Manager Cleanup Sprint)
+- **Agent**: Senior Product Manager & Meta-Architect (Cadence Sprint)
+- **Phase**: Phase 0 — Repository Architecture & Autonomous Harness (Task 0.10 / ADR-030)
+- **Goal**: System Health Meta-Audit, Sovereign Cold-Start Bootstrapping Engine (`core/bootstrap.py`), Unified Database CLI (`./bible init` / `./bible db`), Self-Healing Doctor Diagnostics (`--fix`), and Comprehensive Repository Documentation (`README.md`).
+- **Core Diagnostic Inquiries**:
+  1. *What is the weakest aspect of this project structure?*
+     - **Diagnosis**: Fragmented cold-start onboarding and lack of unified database compilation. The scripture database (`data/bible.db`) is an unversioned, git-ignored artifact. A fresh clone or reset environment contained 0 verses, 0 tags, and 0 cross-references, requiring manual execution of 4 separate scripts/subcommands (`tools/ingest_web.py`, `tools/ingest_favorites.py`, `./bible tag seed`, `./bible crossref seed`). If `bible.db` was missing, CLI error messages pointed to outdated single-step scripts, with no unified CLI entry point (`init` / `db`) and no self-healing doctor capability. Furthermore, `tools/doctor.py` arbitrarily excluded `test_doctor.py` from its unit test suite check due to legacy fears of recursion, masking 14 tests from repo diagnostics. Finally, `README.md` was an empty 25-line placeholder lacking quickstarts, CLI references, REPL guides, or web server instructions.
+  2. *What is preventing this from being more incredible?*
+     - **Diagnosis**: The friction of manual environment setup and lack of self-healing autonomy. Any developer, CI pipeline, or autonomous Ralph loop agent encountering a clean or corrupted workspace had to know tribal knowledge to assemble the database. With a single `./bible init` or `./bible doctor --fix` command, the entire system can compile, index, optimize, and verify itself in `<0.5s` with zero human intervention.
+- **Actions Taken**:
+  - **Sovereign Cold-Start Bootstrapping Engine (`core/bootstrap.py`)**:
+    - Created `bootstrap_database()`: idempotent compilation of WEB verses (31,103 from cached raw JSON), curated favorites (829 passages, 50 starred), canonical TGC taxonomies (26 tags), canonical cross-references (43 edges), `PRAGMA optimize`, and git hooks.
+    - Added `get_db_stats()`: comprehensive reporting of database size, SQLite version, pragmas, page sizes, FTS5 status, verse breakdown by translation, tags, and cross-references.
+    - Exported public symbols in `core/__init__.py` (`BootstrapReport`, `bootstrap_database`, `get_db_stats`).
+  - **First-Class CLI Subcommands (`cli/main.py`)**:
+    - Added `./bible init` (aliases: `setup`, `bootstrap`): one-step idempotent compilation with `--force`, `--quick`, and `--no-hooks`.
+    - Added `./bible db` (aliases: `database`): subcommands `stats` / `status`, `init`, `optimize`, and `vacuum`.
+    - Updated missing database error messages across CLI subcommands to guide users directly to `./bible init` and `doctor --fix`.
+    - Added `"init"`, `"setup"`, `"bootstrap"`, `"db"`, `"database"` to `preprocess_cli_argv` registered command bypass.
+  - **Self-Healing Doctor Diagnostics (`tools/doctor.py` / `bible doctor --fix`)**:
+    - Added `--fix` (`-f`) flag to `tools/doctor.py` and `./bible doctor`. Automatically installs missing/inactive git hooks and automatically compiles/bootstraps missing or corrupted scripture databases.
+    - Removed arbitrary `test_doctor.py` exclusion in `check_unit_tests`: all 18 test modules (356 tests) are now discovered and validated with zero exclusions.
+  - **Interactive REPL Shell Integration (`cli/shell.py`)**:
+    - Added `/db` (`stats`, `status`, `optimize`, `vacuum`, `init`) and `/init` slash commands with tab autocompletion.
+    - Updated `/help` command reference.
+  - **Authoritative Engineering Guide (`README.md`)**:
+    - Transformed 25-line stub into an authoritative, illuminated manual: 30-second quickstarts, CLI command table, REPL slash command guide, Sacred-Modern web reader and REST API documentation, Zero-Dependency architectural invariants, and autonomous Ralph loop operations.
+  - **Hermetic Test Suite**:
+    - Authored `tests/test_bootstrap.py` (7 tests) verifying format size, stats, health checks, idempotent bootstrap, quick mode, and force rebuilds.
+    - Expanded `tests/test_cli.py` (58 tests), `tests/test_shell.py` (16 tests), and `tests/test_doctor.py` (14 tests). Total test suite expanded to 356 tests.
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-030: Sovereign Cold-Start Bootstrapping, Unified Database Compilation & Lifecycle Engine (`bible init` / `bible db`), Self-Healing Doctor Diagnostics (`--fix`), and Comprehensive Repository Documentation** in `DECISIONS.md`.
+    - Promoted Rank A+ idea to `[DONE]` in `IDEAS.md`.
+    - Marked Task 0.10 completed (`[x]`) in `ROADMAP.md`.
+- **Verification**:
+  - Ran `./bible init`: executed in 0.36s with clean summary output.
+  - Ran `./bible db stats`: returned complete storage diagnostics and table metrics.
+  - Ran `./bible doctor --fast --fix`: all 4 checks passed in 0.19s.
+  - Ran `python3 tools/doctor.py`: all 6 checks passed in 5.94s, discovering and testing all 356 tests with zero exclusions.
+  - Ran `python3 -W error::ResourceWarning -m unittest discover tests`: all 356 tests passed 100% with zero warnings.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Senior PM Cleanup Sprint is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 030** (Double Milestone: 10th-iteration Executive Briefing + Senior PM Meta-Sprint).
+  - Next domain task on the roadmap: **Task 4.3**: *Implement Canonical Redemptive Ribbon: pure SVG/Canvas Thematic Heatmap visualization across all 66 books of the Bible for any chosen tag/topic*.

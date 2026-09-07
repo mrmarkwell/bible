@@ -38,6 +38,11 @@ from core.reference import (
     verse_canonical_id,
 )
 
+from core.bootstrap import (
+    BootstrapReport,
+    bootstrap_database,
+    get_db_stats,
+)
 from core.crossref import (
     CANONICAL_CROSS_REFERENCES,
     CrossReferenceGraphNode,
@@ -164,5 +169,9 @@ __all__ = [
     "format_verse_relevance_table",
     "format_cross_references",
     "format_cross_reference_table",
+    # Bootstrap & Lifecycle
+    "BootstrapReport",
+    "bootstrap_database",
+    "get_db_stats",
 ]
 

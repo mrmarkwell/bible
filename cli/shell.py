@@ -863,6 +863,70 @@ class BibleShell(cmd.Cmd):
         """Alias for /serve."""
         self.do_serve(arg)
 
+    def do_db(self, arg: str) -> None:
+        """Database inspection and maintenance: /db [stats|status|optimize|vacuum|init]"""
+        parts = arg.strip().split()
+        sub = parts[0].lower() if parts else "stats"
+
+        if sub in ("stats", "status"):
+            from core.bootstrap import get_db_stats
+            target_path = self.db_path if self.db_path else DEFAULT_DB_PATH
+            stats = get_db_stats(target_path)
+            if not stats["exists"]:
+                self.stdout.write(f"Database does not exist at {stats['path']}. Use '/init' to create it.\n")
+                return
+
+            self.stdout.write("=================================================================\n")
+            self.stdout.write(" Bible Engine Database Storage Diagnostics\n")
+            self.stdout.write("=================================================================\n")
+            self.stdout.write(f" File Location:        {stats['path']}\n")
+            self.stdout.write(f" File Size:            {stats['size_human']} ({stats['size_bytes']:,} bytes)\n")
+            self.stdout.write(f" SQLite Version:       {stats['sqlite_version']}\n")
+            self.stdout.write(f" Integrity Check:      {stats['integrity_check']}\n")
+            self.stdout.write(f" Journal Mode:         {stats['journal_mode'].upper()}\n")
+            self.stdout.write(f" FTS5 Search Index:    {stats['fts5_status'].upper()}\n")
+            self.stdout.write("-----------------------------------------------------------------\n")
+            self.stdout.write(f" Total Verses:         {stats['total_verses']:,}\n")
+            for tr in stats["translations"]:
+                self.stdout.write(f"   - {tr['id']}: {tr['name']} ({tr['verse_count']:,} verses)\n")
+            self.stdout.write(f" Total Tags:           {stats['total_tags']} taxonomies\n")
+            self.stdout.write(f" Tagged Passages:      {stats['total_tagged_passages']} annotations\n")
+            self.stdout.write(f" Curated Favorites:    {stats['total_favorites']} ({stats['total_starred']} starred)\n")
+            self.stdout.write(f" Cross-References:     {stats['total_cross_references']} canonical links\n")
+            self.stdout.write("=================================================================\n")
+        elif sub == "optimize":
+            if self.db is None:
+                self._init_db()
+            self.db.optimize()
+            self.stdout.write("✓ Successfully ran PRAGMA optimize on database.\n")
+        elif sub == "vacuum":
+            if self.db is None:
+                self._init_db()
+            self.db.vacuum()
+            self.stdout.write("✓ Successfully vacuumed SQLite database.\n")
+        elif sub in ("init", "setup", "bootstrap"):
+            self.do_init(" ".join(parts[1:]))
+        else:
+            self.stdout.write(f"Unknown db action '{sub}'. Available: stats, status, optimize, vacuum, init\n")
+
+    def do_init(self, arg: str) -> None:
+        """Bootstrap or repair scripture database: /init [--force] [--quick]"""
+        from core.bootstrap import bootstrap_database
+        parts = arg.strip().split()
+        force = "--force" in parts or "-f" in parts
+        quick = "--quick" in parts
+
+        target_path = self.db_path if self.db_path else DEFAULT_DB_PATH
+        self.stdout.write("Bootstrapping scripture database...\n")
+        rep = bootstrap_database(
+            db_path=target_path,
+            force=force,
+            quick=quick,
+            verbose=False,
+        )
+        self.stdout.write(f"✓ Bootstrap complete in {rep.duration_sec:.2f}s: {rep.details}\n")
+        self.stdout.write(f"  Verses: {rep.verses_count:,} | Tags: {rep.tags_count} | Cross-Refs: {rep.cross_references_count}\n")
+
     # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
@@ -891,6 +955,8 @@ Session Settings:
   /box [on|off]           Toggle decorative header box
 
 System & Web:
+  /db [stats|optimize]    Inspect database storage statistics or optimize query planner
+  /init [--force]         Bootstrap offline database and verify baseline datasets
   /serve [start|stop]     Start or stop built-in HTTP server and Web UI (alias: /server)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report
@@ -916,6 +982,16 @@ System & Web:
     # --------------------------------------------------------------------------
     # Auto-Completion
     # --------------------------------------------------------------------------
+
+    def complete_db(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete db actions."""
+        options = ["stats", "status", "optimize", "vacuum", "init"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    def complete_init(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete init flags."""
+        options = ["--force", "--quick"]
+        return [o for o in options if o.startswith(text.lower())]
 
     def complete_doctor(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete doctor subcommands."""

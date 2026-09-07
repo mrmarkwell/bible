@@ -157,6 +157,45 @@ class TestDoctorChecks(unittest.TestCase):
             for r in results:
                 self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
 
+    def test_check_git_hooks_auto_repair(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            git_dir = tmp_path / ".git"
+            git_dir.mkdir()
+            # Without fix, it fails
+            res_fail = check_git_hooks(tmp_path, fix=False)
+            self.assertFalse(res_fail.passed)
+
+            # With fix, it automatically installs hooks and passes
+            res_fix = check_git_hooks(tmp_path, fix=True)
+            self.assertTrue(res_fix.passed)
+            self.assertIn("Auto-repaired", res_fix.details)
+            self.assertTrue((git_dir / "hooks" / "pre-commit").exists())
+
+    def test_check_database_integrity_auto_heal_mock(self):
+        from unittest.mock import patch
+        from core.bootstrap import BootstrapReport
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            mock_rep = BootstrapReport(
+                db_path=tmp_path / "data" / "bible.db",
+                duration_sec=0.1,
+                verses_count=31103,
+                translations_count=1,
+                favorites_count=829,
+                starred_count=50,
+                tags_count=26,
+                cross_references_count=43,
+                hooks_installed=True,
+                pragmas_optimized=True,
+                is_clean=True,
+                details="Auto-heal complete",
+            )
+            with patch("core.bootstrap.bootstrap_database", return_value=mock_rep):
+                res = check_database_integrity(tmp_path, fix=True)
+                self.assertTrue(res.passed)
+                self.assertIn("Auto-healed", res.details)
+
 
 if __name__ == "__main__":
     unittest.main()

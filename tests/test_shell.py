@@ -183,6 +183,34 @@ class TestShell(unittest.TestCase):
         self.assertIn("Fast Pre-Commit Mode", stdout.getvalue())
         self.assertIn("EXCELLENT", stdout.getvalue())
 
+    def test_shell_db_and_init_commands(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/db stats")
+        self.assertIn("Database Storage Diagnostics", stdout.getvalue())
+        self.assertIn("Total Verses:", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/db optimize")
+        self.assertIn("Successfully ran PRAGMA optimize", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/db vacuum")
+        self.assertIn("Successfully vacuumed", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/help")
+        self.assertIn("/db", stdout.getvalue())
+        self.assertIn("/init", stdout.getvalue())
+
+        # Autocompletion test
+        db_opts = shell.complete_db("op", "db op", 0, 0)
+        self.assertIn("optimize", db_opts)
+        init_opts = shell.complete_init("--fo", "init --fo", 0, 0)
+        self.assertIn("--force", init_opts)
+
 
 class TestDirectReferenceRouting(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -206,6 +234,8 @@ class TestDirectReferenceRouting(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["doctor"]), ["doctor"])
         self.assertEqual(preprocess_cli_argv(["summary"]), ["summary"])
         self.assertEqual(preprocess_cli_argv(["shell"]), ["shell"])
+        self.assertEqual(preprocess_cli_argv(["init"]), ["init"])
+        self.assertEqual(preprocess_cli_argv(["db", "stats"]), ["db", "stats"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

@@ -141,6 +141,10 @@ class TestCoreExports(unittest.TestCase):
             "format_verse_relevance_table",
             "format_cross_references",
             "format_cross_reference_table",
+            # Bootstrap & Lifecycle
+            "BootstrapReport",
+            "bootstrap_database",
+            "get_db_stats",
         ]
         for name in expected_names:
             self.assertIn(

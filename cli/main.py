@@ -351,7 +351,7 @@ def cmd_get(args: argparse.Namespace) -> int:
     if not db_path.exists():
         sys.stderr.write(
             f"Error: Database file not found at '{db_path}'.\n"
-            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
         )
         return 1
 
@@ -464,7 +464,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     if not db_path.exists():
         sys.stderr.write(
             f"Error: Database file not found at '{db_path}'.\n"
-            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
         )
         return 1
 
@@ -573,7 +573,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     if not db_path.exists():
         sys.stderr.write(
             f"Error: Database file not found at '{db_path}'.\n"
-            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
         )
         return 1
 
@@ -713,7 +713,10 @@ def cmd_translations(args: argparse.Namespace) -> int:
     """Handle 'translations' subcommand: list registered translations and verse totals."""
     db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
     if not db_path.exists():
-        sys.stderr.write(f"Error: Database file not found at '{db_path}'.\n")
+        sys.stderr.write(
+            f"Error: Database file not found at '{db_path}'.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
+        )
         return 1
 
     try:
@@ -748,7 +751,7 @@ def cmd_tag(args: argparse.Namespace) -> int:
     if not db_path.exists():
         sys.stderr.write(
             f"Error: Database file not found at '{db_path}'.\n"
-            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
         )
         return 1
 
@@ -1035,7 +1038,7 @@ def cmd_crossref(args: argparse.Namespace) -> int:
     if not db_path.exists():
         sys.stderr.write(
             f"Error: Database file not found at '{db_path}'.\n"
-            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+            f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap the offline scripture database.\n"
         )
         return 1
 
@@ -1765,6 +1768,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run fast pre-commit checks only (<0.15s: dependencies, doc sync, shell scripts, hook status)",
     )
     parser_doctor.add_argument(
+        "--fix",
+        "-f",
+        action="store_true",
+        help="Self-healing mode: automatically repair fixable defects (install git hooks, bootstrap database)",
+    )
+    parser_doctor.add_argument(
         "--install-hooks",
         "--install-hook",
         dest="install_hooks",
@@ -1811,7 +1820,14 @@ def build_parser() -> argparse.ArgumentParser:
         is_tty = hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and not sys.platform.startswith("win")
         fast_mode = getattr(args, "fast", False)
         quiet_mode = getattr(args, "quiet", False)
-        code, _ = run_all_checks(repo_root=repo_root, color=is_tty, fast=fast_mode, quiet=quiet_mode)
+        fix_mode = getattr(args, "fix", False)
+        code, _ = run_all_checks(
+            repo_root=repo_root,
+            color=is_tty,
+            fast=fast_mode,
+            quiet=quiet_mode,
+            fix=fix_mode,
+        )
         return code
 
     parser_doctor.set_defaults(func=cmd_doctor)
@@ -1956,6 +1972,150 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_serve.set_defaults(func=cmd_serve)
 
+    # Subcommand: init / setup / bootstrap
+    parser_init = subparsers.add_parser(
+        "init",
+        aliases=["setup", "bootstrap"],
+        help="Bootstrap and compile sovereign scripture database from raw sources",
+        description="Compile World English Bible (31,103 verses), favorites, canonical taxonomies, cross-references, and git hooks.",
+    )
+    parser_init.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Recompile and re-index database from scratch even if already initialized",
+    )
+    parser_init.add_argument(
+        "--quick",
+        action="store_true",
+        help="Fast sample bootstrap (Genesis, John, Romans, Revelation) for rapid testing",
+    )
+    parser_init.add_argument(
+        "--no-hooks",
+        action="store_true",
+        help="Skip automatic installation of git pre-commit and pre-push hooks",
+    )
+    parser_init.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Quiet mode: suppress progress output",
+    )
+
+    def cmd_init(args: argparse.Namespace) -> int:
+        from core.bootstrap import bootstrap_database
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        force = getattr(args, "force", False)
+        quick = getattr(args, "quick", False)
+        no_hooks = getattr(args, "no_hooks", False)
+        quiet = getattr(args, "quiet", False)
+
+        if not quiet:
+            mode_str = " (Quick/Sample Mode)" if quick else ""
+            if force:
+                mode_str += " [Rebuild --force]"
+            print(f"Bible Engine: Bootstrapping Sovereign Database{mode_str}...")
+
+        rep = bootstrap_database(
+            db_path=db_path,
+            force=force,
+            quick=quick,
+            install_git_hooks=not no_hooks,
+            verbose=not quiet,
+        )
+
+        if not quiet:
+            print("\n" + "=" * 65)
+            print(" Sovereign Database Bootstrap Complete")
+            print("=" * 65)
+            for line in rep.summary_lines():
+                print(f" {line}")
+            print("=" * 65 + "\n")
+
+        return 0 if rep.is_clean else 1
+
+    parser_init.set_defaults(func=cmd_init)
+
+    # Subcommand: db / database
+    parser_db = subparsers.add_parser(
+        "db",
+        aliases=["database"],
+        help="Inspect database health, table metrics, pragmas, and perform maintenance",
+        description="Database storage metrics, statistics, vacuum, and optimization.",
+    )
+    db_subparsers = parser_db.add_subparsers(dest="db_action", help="Database maintenance action")
+
+    p_db_stats = db_subparsers.add_parser("stats", aliases=["status"], help="Show database storage metrics, table row counts, and pragmas")
+    p_db_init = db_subparsers.add_parser("init", aliases=["setup", "bootstrap"], help="Bootstrap offline database from raw sources")
+    p_db_init.add_argument("--force", "-f", action="store_true", help="Recompile from scratch")
+    p_db_init.add_argument("--quick", action="store_true", help="Fast sample bootstrap")
+    p_db_init.add_argument("--no-hooks", action="store_true", help="Skip git hooks installation")
+    p_db_init.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
+
+    p_db_opt = db_subparsers.add_parser("optimize", help="Run SQLite PRAGMA optimize and update query planner statistics")
+    p_db_vac = db_subparsers.add_parser("vacuum", help="Reclaim unused disk space and defragment SQLite database")
+
+    def cmd_db(args: argparse.Namespace) -> int:
+        action = getattr(args, "db_action", None) or "stats"
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+
+        if action in ("init", "setup", "bootstrap"):
+            return cmd_init(args)
+
+        if action in ("stats", "status"):
+            from core.bootstrap import get_db_stats
+            stats = get_db_stats(db_path)
+            if not stats["exists"]:
+                sys.stderr.write(
+                    f"Error: Database file not found at '{db_path}'.\n"
+                    f"Run './bible init' (or 'python3 tools/doctor.py --fix') to bootstrap.\n"
+                )
+                return 1
+
+            print("=" * 65)
+            print(" Bible Engine Database Diagnostics & Storage Status")
+            print("=" * 65)
+            print(f" File Location:        {stats['path']}")
+            print(f" File Size:            {stats['size_human']} ({stats['size_bytes']:,} bytes)")
+            print(f" SQLite Version:       {stats['sqlite_version']}")
+            print(f" Integrity Check:      {stats['integrity_check']}")
+            print(f" Journal Mode:         {stats['journal_mode'].upper()}")
+            print(f" Page Size / Count:    {stats['page_size']} bytes / {stats['page_count']:,} pages")
+            print(f" FTS5 Search Index:    {stats['fts5_status'].upper()}")
+            print("-" * 65)
+            print(f" Total Verses:         {stats['total_verses']:,}")
+            for tr in stats["translations"]:
+                print(f"   - {tr['id']}: {tr['name']} ({tr['verse_count']:,} verses)")
+            print(f" Total Tags:           {stats['total_tags']} taxonomies")
+            print(f" Tagged Passages:      {stats['total_tagged_passages']} annotations")
+            print(f" Curated Favorites:    {stats['total_favorites']} passages ({stats['total_starred']} starred)")
+            print(f" Cross-References:     {stats['total_cross_references']} canonical links")
+            print("=" * 65)
+            return 0
+
+        if action == "optimize":
+            if not db_path.exists():
+                sys.stderr.write(f"Error: Database file not found at '{db_path}'.\n")
+                return 1
+            with Database(db_path) as db:
+                db.optimize()
+            print(f"Successfully optimized SQLite database query planner and statistics at '{db_path}'.")
+            return 0
+
+        if action == "vacuum":
+            if not db_path.exists():
+                sys.stderr.write(f"Error: Database file not found at '{db_path}'.\n")
+                return 1
+            with Database(db_path) as db:
+                db.vacuum()
+            print(f"Successfully vacuumed database and reclaimed unused storage at '{db_path}'.")
+            return 0
+
+        sys.stderr.write(f"Unknown db action '{action}'. Available: stats, status, init, optimize, vacuum\n")
+        return 1
+
+    parser_db.set_defaults(func=cmd_db)
+
     return parser
 
 
@@ -1979,6 +2139,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "tag", "tags", "crossref", "xref", "refs",
         "doctor", "summary", "shell", "interactive", "repl", "console",
         "serve", "server", "http", "web",
+        "init", "setup", "bootstrap", "db", "database",
     }
 
     pos_idx = -1

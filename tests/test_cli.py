@@ -741,6 +741,48 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(mock_launch.called)
 
+    def test_cli_db_stats(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "db", "stats"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Database Diagnostics & Storage Status", out)
+        self.assertIn("Total Verses:", out)
+        self.assertIn("WEB", out)
+
+    def test_cli_db_optimize_and_vacuum(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code_opt = main(["--db", str(self.db_path), "db", "optimize"])
+            code_vac = main(["--db", str(self.db_path), "db", "vacuum"])
+        self.assertEqual(code_opt, 0)
+        self.assertEqual(code_vac, 0)
+        self.assertIn("Successfully optimized", stdout.getvalue())
+        self.assertIn("Successfully vacuumed", stdout.getvalue())
+
+    def test_cli_init_idempotent(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = Path(tmpdir) / "test_init.db"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main(["--db", str(tmp_db), "init", "--quick", "--no-hooks"])
+            self.assertEqual(code, 0)
+            self.assertIn("Sovereign Database Bootstrap Complete", stdout.getvalue())
+            self.assertTrue(tmp_db.exists())
+
+    def test_cli_doctor_fix_flag(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["doctor", "--fast", "--fix"])
+        self.assertEqual(code, 0)
+        self.assertIn("[Self-Healing --fix Active]", stdout.getvalue())
+        self.assertIn("EXCELLENT", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
