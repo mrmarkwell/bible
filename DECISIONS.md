@@ -1587,3 +1587,50 @@ This document is an append-only log of significant design and architectural deci
   - Establishes an unshakeable, academically rigorous theological foundation for Phase 6, Phase 7, and Phase 8.
   - Satisfies Task 6.2 and Task 6.3 in `ROADMAP.md`.
   - Maintains 100% zero-dependency architecture (ADR-003).
+
+---
+
+## ADR-050: 6-Layer Semantic Database Architecture, Relational Exegetical Ontologies, and Packed Vector Embeddings
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler / ADR-042) requires an offline-first storage foundation capable of structuring rich theological, rhetorical, typological, and semantic relationships across all 31,102 verses of Scripture.
+  - As formalized in ADR-006, ADR-042, and ADR-049, biblical exegesis demands moving beyond flat keyword search and basic tagging into a multi-layered relational ontology that captures:
+    1. Pericope literary structures, genres, propositions, and redemptive summaries.
+    2. Discourse relations (ground, inference, purpose, contrast, condition) connecting propositions and verse clauses.
+    3. Verse-level theological classifications ("along" redemptive epochs and "across" systematic loci).
+    4. Typological arcs connecting Old Testament shadow types to New Testament Christological antitypes.
+    5. Semantic propositions detailing speech acts, divine/human agents, actions, and patients.
+    6. High-density packed vector embeddings for both individual verses and multi-verse pericopes.
+  - The implementation must adhere strictly to ADR-003 (Python 3 stdlib only, zero pip/npm packages, zero external vector DBs) while preserving 100% backward compatibility for existing SQLite databases (`data/bible.db`).
+- **Decision**:
+  1. **Extended Pericopes Table Schema & Automatic Migration**:
+     - Extended `PericopeRecord` with optional metadata: `genre`, `literary_structure`, and `central_proposition`.
+     - In `Database.init_schema()`, added dynamic `PRAGMA table_info(pericopes)` inspection and automatic `ALTER TABLE pericopes ADD COLUMN ...` execution to seamlessly upgrade existing databases without dropping tables or losing data.
+  2. **Discourse Relations Table (`discourse_relations`)**:
+     - Structured to map rhetorical logic between verses or clauses: `id`, `source_verse_id`, `target_verse_id`, `relation_type` (`ground`, `inference`, `purpose`, `contrast`, `condition`), `marker_text` (e.g. "for", "therefore", "in order that"), `greek_hebrew_marker` (e.g. "γάρ", "οὖν", "ἵνα"), and `notes`.
+     - Indexed by `source_verse_id`, `target_verse_id`, and `relation_type`.
+  3. **Verse Theology Classifications (`verse_theology`)**:
+     - Classifies canonical verses along the TGC theological ontologies established in ADR-049: `id`, `verse_id`, `storyline_epoch`, `thematic_ribbon`, `theological_locus`, `primary_doctrine`, `confidence`, `anti_moralistic_notes`.
+     - Indexed by `verse_id`, `storyline_epoch`, `theological_locus`, and `thematic_ribbon`.
+  4. **Typological Arcs Table (`typological_arcs`)**:
+     - Formalizes the historical-redemptive correspondence of types and antitypes: `id`, `type_ref`, `type_name`, `antitype_ref`, `antitype_name`, `theological_correspondence`, `biblical_warrant`, `confidence`.
+     - Indexed by `type_ref` and `antitype_ref`.
+  5. **Semantic Propositions Table (`semantic_propositions`)**:
+     - Stores micro-exegetical predicate logic: `id`, `verse_id`, `speech_act` (e.g. `assertion`, `command`, `promise`, `lament`, `praise`), `agent`, `action`, `patient`, `tone`, `clause_text`.
+     - Indexed by `verse_id`, `agent`, and `speech_act`.
+  6. **Vector Embeddings Storage (`verse_embeddings` & `pericope_embeddings`)**:
+     - Dedicated normalized tables for dense vector representations: `verse_id` / `pericope_id`, `embedding` (raw binary BLOB), `dimensions` (e.g. 768), `model_id`, and `created_at`.
+     - Optimized for direct packed byte extraction into memory for pure Python similarity ranking without serialization overhead.
+  7. **High-Performance CRUD & Batch API**:
+     - Implemented single and batch insert methods with `executemany` for all 6 layers.
+     - Implemented targeted retrieval, counting, and clearing methods in `Database` and service managers.
+     - Updated `core/bootstrap.py:get_db_stats` to track counts for all semantic tables.
+  8. **Comprehensive Hermetic Verification**:
+     - Added `TestPhase7SemanticArchitecture` in `tests/test_db.py` verifying all 6 layers, batch operations, foreign key integrity, and schema migrations.
+     - Verified 100% test pass rate across 635 tests in 4.02s.
+- **Consequences**:
+  - Provides the underlying database foundation for Phase 7 (Offline Semantic Compilation) and Phase 8 (Scripture RAG & Character Dialogue).
+  - Existing scripture databases seamlessly upgrade with zero downtime.
+  - Zero external database or vector dependencies needed (maintaining ADR-003).
+

@@ -84,6 +84,13 @@ class TestCoreExports(unittest.TestCase):
             "TagRecord",
             "VerseTagRecord",
             "CrossReferenceRecord",
+            "PericopeRecord",
+            "DiscourseRelationRecord",
+            "VerseTheologyRecord",
+            "TypologicalArcRecord",
+            "SemanticPropositionRecord",
+            "VerseEmbeddingRecord",
+            "PericopeEmbeddingRecord",
             "SearchResult",
             "sanitize_fts_query",
             # Crypto

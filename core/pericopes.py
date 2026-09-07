@@ -749,9 +749,19 @@ class PericopeService:
         reference: Union[Reference, str],
         title: str,
         redemptive_summary: Optional[str] = None,
+        genre: Optional[str] = None,
+        literary_structure: Optional[str] = None,
+        central_proposition: Optional[str] = None,
     ) -> PericopeRecord:
         """Insert a single pericope section into the database."""
-        return self.db.insert_pericope(reference, title, redemptive_summary)
+        return self.db.insert_pericope(
+            reference,
+            title,
+            redemptive_summary=redemptive_summary,
+            genre=genre,
+            literary_structure=literary_structure,
+            central_proposition=central_proposition,
+        )
 
     def get_pericopes_for_passage(
         self,

@@ -100,6 +100,13 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
             "total_cross_references": 0,
             "total_favorites": 0,
             "total_starred": 0,
+            "total_pericopes": 0,
+            "total_discourse_relations": 0,
+            "total_verse_theology": 0,
+            "total_typological_arcs": 0,
+            "total_semantic_propositions": 0,
+            "total_verse_embeddings": 0,
+            "total_pericope_embeddings": 0,
             "sqlite_version": "N/A",
             "integrity_check": "missing",
             "fts5_status": "inactive",
@@ -166,6 +173,25 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         p_row = db.execute_sql("SELECT count(*) FROM pericopes").fetchone()
         total_pericopes = p_row[0] if p_row else 0
 
+        # Phase 7 Semantic Architecture Tables
+        dr_row = db.execute_sql("SELECT count(*) FROM discourse_relations").fetchone()
+        total_discourse_relations = dr_row[0] if dr_row else 0
+
+        vt_row = db.execute_sql("SELECT count(*) FROM verse_theology").fetchone()
+        total_verse_theology = vt_row[0] if vt_row else 0
+
+        arc_row = db.execute_sql("SELECT count(*) FROM typological_arcs").fetchone()
+        total_typological_arcs = arc_row[0] if arc_row else 0
+
+        sp_row = db.execute_sql("SELECT count(*) FROM semantic_propositions").fetchone()
+        total_semantic_propositions = sp_row[0] if sp_row else 0
+
+        ve_row = db.execute_sql("SELECT count(*) FROM verse_embeddings").fetchone()
+        total_verse_embeddings = ve_row[0] if ve_row else 0
+
+        pe_row = db.execute_sql("SELECT count(*) FROM pericope_embeddings").fetchone()
+        total_pericope_embeddings = pe_row[0] if pe_row else 0
+
         # FTS5 Index status
         fts_row = db.execute_sql(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='verses_fts'"
@@ -185,6 +211,12 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         "total_favorites": total_favorites,
         "total_starred": total_starred,
         "total_pericopes": total_pericopes,
+        "total_discourse_relations": total_discourse_relations,
+        "total_verse_theology": total_verse_theology,
+        "total_typological_arcs": total_typological_arcs,
+        "total_semantic_propositions": total_semantic_propositions,
+        "total_verse_embeddings": total_verse_embeddings,
+        "total_pericope_embeddings": total_pericope_embeddings,
         "sqlite_version": sqlite_version,
         "integrity_check": integrity,
         "fts5_status": "active" if fts_active else "missing",

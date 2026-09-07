@@ -6,18 +6,26 @@ canonical indexing, tagging, and cross references.
 """
 
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 
 from core.db import (
     CrossReferenceRecord,
     Database,
+    DiscourseRelationRecord,
+    PericopeEmbeddingRecord,
+    PericopeRecord,
     SearchResult,
+    SemanticPropositionRecord,
     SpanRecord,
     TagRecord,
     TranslationRecord,
+    TypologicalArcRecord,
+    VerseEmbeddingRecord,
     VerseRecord,
     VerseTagRecord,
+    VerseTheologyRecord,
     sanitize_fts_query,
 )
 from core.reference import (
@@ -739,6 +747,334 @@ class TestCascadeAndEdgeCases(unittest.TestCase):
         assert fetched_a is not None and fetched_b is not None
         self.assertIn("great fear", fetched_a.text)
         self.assertIn("wind and the sea", fetched_b.text)
+        db.close()
+
+
+class TestPhase7SemanticArchitecture(unittest.TestCase):
+    """Hermetic unit tests for Phase 7 6-Layer Semantic Database Architecture (ADR-042)."""
+
+    def setUp(self):
+        self.db = Database(":memory:")
+        self.db.add_translation("WEB", "World English Bible")
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_pericopes_extended_attributes(self):
+        # Insert pericope with 6-layer metadata
+        p = self.db.insert_pericope(
+            reference="Romans 5:1-11",
+            title="Peace with God Through Faith",
+            redemptive_summary="Justification produces objective peace, joy in suffering, and assurance in Christ.",
+            genre="epistle",
+            literary_structure="Thesis (1-2) -> Progression through suffering (3-5) -> Ground in Christ's death (6-11)",
+            central_proposition="Since we have been justified by faith, we have peace with God through our Lord Jesus Christ.",
+        )
+        self.assertIsNotNone(p.id)
+        self.assertEqual(p.genre, "epistle")
+        self.assertEqual(p.literary_structure, "Thesis (1-2) -> Progression through suffering (3-5) -> Ground in Christ's death (6-11)")
+        self.assertEqual(p.central_proposition, "Since we have been justified by faith, we have peace with God through our Lord Jesus Christ.")
+
+        d = p.to_dict()
+        self.assertEqual(d["genre"], "epistle")
+        self.assertEqual(d["title"], "Peace with God Through Faith")
+
+        # Query overlapping reference
+        results = self.db.get_pericopes_for_reference("Romans 5:1")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].genre, "epistle")
+        self.assertEqual(results[0].central_proposition, p.central_proposition)
+
+        # Batch insert with mixed lengths
+        count = self.db.insert_pericopes_batch([
+            ("Romans 8:1-11", "Life in the Spirit", "No condemnation in Christ", "epistle", "Chiasm", "The Spirit of life sets us free"),
+            ("Romans 8:28-39", "God's Everlasting Love", "More than conquerors"),
+        ])
+        self.assertEqual(count, 2)
+        all_romans = self.db.get_pericopes_for_book("Romans")
+        self.assertEqual(len(all_romans), 3)
+        self.assertIsNone(all_romans[2].genre)
+
+    def test_discourse_relations(self):
+        # Insert single discourse relation: Romans 8:1 -> Romans 8:2
+        dr1 = self.db.insert_discourse_relation(
+            source_reference="Romans 8:2",
+            relation_type="ground",
+            target_reference="Romans 8:1",
+            marker_text="for",
+            greek_marker="γάρ",
+            notes="The law of the Spirit is the causal ground for no condemnation",
+        )
+        self.assertIsNotNone(dr1.id)
+        self.assertEqual(dr1.relation_type, "ground")
+        self.assertEqual(dr1.greek_marker, "γάρ")
+        d = dr1.to_dict()
+        self.assertEqual(d["relation_type"], "ground")
+
+        # Batch insert
+        count = self.db.insert_discourse_relations_batch([
+            ("Romans 12:1", "inference", None, "therefore", "οὖν", "Appeal based on mercies of God"),
+            ("Galatians 2:16", "contrast", None, "but", "ἐὰν μή", "Not by works of law but faith in Christ"),
+        ])
+        self.assertEqual(count, 2)
+        self.assertEqual(self.db.count_discourse_relations(), 3)
+        self.assertEqual(self.db.count_discourse_relations("ground"), 1)
+        self.assertEqual(self.db.count_discourse_relations("inference"), 1)
+
+        # Query for verse
+        rels_v1 = self.db.get_discourse_relations_for_verse("Romans 8:1")
+        self.assertEqual(len(rels_v1), 1)
+        self.assertEqual(rels_v1[0].marker_text, "for")
+
+        rels_type = self.db.get_discourse_relations_by_type("ground")
+        self.assertEqual(len(rels_type), 1)
+
+        # Clear
+        deleted = self.db.clear_discourse_relations()
+        self.assertEqual(deleted, 3)
+        self.assertEqual(self.db.count_discourse_relations(), 0)
+
+    def test_verse_theology(self):
+        # Single insert
+        vt1 = self.db.insert_verse_theology(
+            reference="Romans 3:21-26",
+            storyline_epoch="incarnation_resurrection",
+            theological_locus="soteriology",
+            primary_doctrine="Justification by grace through faith in Christ's propitiation",
+            thematic_ribbon="covenant_of_grace",
+            confidence=0.99,
+            anti_moralistic_notes="Righteousness is wholly imputed and received by faith apart from law-keeping",
+        )
+        self.assertIsNotNone(vt1.id)
+        self.assertEqual(vt1.theological_locus, "soteriology")
+        self.assertEqual(vt1.storyline_epoch, "incarnation_resurrection")
+        d = vt1.to_dict()
+        self.assertEqual(d["primary_doctrine"], "Justification by grace through faith in Christ's propitiation")
+
+        # Batch insert
+        count = self.db.insert_verse_theology_batch([
+            ("Genesis 1:1", "creation", "theology_proper", "Ex nihilo creation by God", "temple_presence", 1.0),
+            ("Genesis 3:15", "fall", "christology", "Protoevangelium seed of woman", "seed_of_woman", 0.95),
+            ("Hebrews 9:11-14", "incarnation_resurrection", "christology", "Eternal redemption by Christ's blood", "priesthood_mediation", 0.98),
+        ])
+        self.assertEqual(count, 3)
+        self.assertEqual(self.db.count_verse_theology(), 4)
+        self.assertEqual(self.db.count_verse_theology(theological_locus="christology"), 2)
+        self.assertEqual(self.db.count_verse_theology(storyline_epoch="creation"), 1)
+
+        # Query by reference
+        matches = self.db.get_verse_theology_for_reference("Romans 3:23")
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].theological_locus, "soteriology")
+
+        # Query by epoch, locus, ribbon
+        creation_records = self.db.get_verse_theology_by_epoch("creation")
+        self.assertEqual(len(creation_records), 1)
+
+        soteriology_records = self.db.get_verse_theology_by_locus("soteriology")
+        self.assertEqual(len(soteriology_records), 1)
+
+        priesthood_records = self.db.get_verse_theology_by_ribbon("priesthood_mediation")
+        self.assertEqual(len(priesthood_records), 1)
+
+        # Clear
+        deleted = self.db.clear_verse_theology()
+        self.assertEqual(deleted, 4)
+        self.assertEqual(self.db.count_verse_theology(), 0)
+
+    def test_typological_arcs(self):
+        # Single insert: Abraham offering Isaac prefiguring God offering His Son
+        arc1 = self.db.insert_typological_arc(
+            type_reference="Genesis 22:1-14",
+            antitype_reference="John 19:16-18",
+            theological_correspondence="The beloved only son carrying the wood up the mountain; God provides the substitute sacrifice",
+            warrant="apostolic_citation",
+            confidence=0.98,
+        )
+        self.assertIsNotNone(arc1.id)
+        self.assertEqual(arc1.type_human_ref, "Genesis 22:1-14")
+        self.assertEqual(arc1.warrant, "apostolic_citation")
+        d = arc1.to_dict()
+        self.assertEqual(d["antitype_human_ref"], "John 19:16-18")
+
+        # Batch insert
+        count = self.db.insert_typological_arcs_batch([
+            ("Exodus 12:1-13", "1 Corinthians 5:7", "Passover Lamb without blemish whose blood protects from wrath", "apostolic_citation", 1.0),
+            ("Numbers 21:8-9", "John 3:14-15", "Bronze serpent lifted up on pole for healing of deadly poison", "direct_claim", 1.0),
+        ])
+        self.assertEqual(count, 2)
+        self.assertEqual(self.db.count_typological_arcs(), 3)
+
+        # Query as type
+        type_matches = self.db.get_typological_arcs_for_reference("Genesis 22:2", as_type=True, as_antitype=False)
+        self.assertEqual(len(type_matches), 1)
+
+        # Query as antitype
+        antitype_matches = self.db.get_typological_arcs_for_reference("John 3:14", as_type=False, as_antitype=True)
+        self.assertEqual(len(antitype_matches), 1)
+        self.assertEqual(antitype_matches[0].type_human_ref, "Numbers 21:8-9")
+
+        # Clear
+        deleted = self.db.clear_typological_arcs()
+        self.assertEqual(deleted, 3)
+        self.assertEqual(self.db.count_typological_arcs(), 0)
+
+    def test_semantic_propositions(self):
+        # Single insert
+        sp1 = self.db.insert_semantic_proposition(
+            reference="John 3:16",
+            speech_act="doxology",
+            agent="God",
+            action="loved",
+            patient="the world",
+            tone="majestic",
+            clause_text="For God so loved the world",
+        )
+        self.assertIsNotNone(sp1.id)
+        self.assertEqual(sp1.agent, "God")
+        self.assertEqual(sp1.action, "loved")
+        self.assertEqual(sp1.patient, "the world")
+        d = sp1.to_dict()
+        self.assertEqual(d["speech_act"], "doxology")
+
+        # Batch insert
+        count = self.db.insert_semantic_propositions_batch([
+            ("Romans 8:33", "indicative", "God", "justifies", "the elect", "triumphant", "It is God who justifies"),
+            ("Micah 6:8", "imperative", "Lord", "requires", "man", "solemn", "What does the Lord require of you"),
+        ])
+        self.assertEqual(count, 2)
+        self.assertEqual(self.db.count_semantic_propositions(), 3)
+        self.assertEqual(self.db.count_semantic_propositions(agent="God"), 2)
+        self.assertEqual(self.db.count_semantic_propositions(speech_act="imperative"), 1)
+
+        # Query by verse
+        v_props = self.db.get_semantic_propositions_for_verse("John 3:16")
+        self.assertEqual(len(v_props), 1)
+        self.assertEqual(v_props[0].action, "loved")
+
+        # Query by agent
+        god_props = self.db.get_semantic_propositions_by_agent("God")
+        self.assertEqual(len(god_props), 2)
+
+        # Query by speech act
+        imp_props = self.db.get_semantic_propositions_by_speech_act("imperative")
+        self.assertEqual(len(imp_props), 1)
+
+        # Clear
+        deleted = self.db.clear_semantic_propositions()
+        self.assertEqual(deleted, 3)
+        self.assertEqual(self.db.count_semantic_propositions(), 0)
+
+    def test_vector_embeddings(self):
+        # Verse embeddings
+        dummy_bytes = b"\x00\x01\x02\x03" * 192  # 768 bytes
+        ve1 = self.db.save_verse_embedding(
+            reference="John 3:16",
+            model_id="text-embedding-004",
+            dimensions=768,
+            embedding=dummy_bytes,
+        )
+        self.assertEqual(ve1.dimensions, 768)
+        self.assertEqual(ve1.model_id, "text-embedding-004")
+        self.assertEqual(len(ve1.embedding), 768)
+        d = ve1.to_dict()
+        self.assertEqual(d["dimensions"], 768)
+
+        # Query single
+        fetched = self.db.get_verse_embedding("John 3:16")
+        self.assertIsNotNone(fetched)
+        assert fetched is not None
+        self.assertEqual(fetched.embedding, dummy_bytes)
+
+        # Batch save
+        dummy_bytes_2 = b"\x04\x05\x06\x07" * 192
+        batch_count = self.db.save_verse_embeddings_batch([
+            ("Romans 8:28", "text-embedding-004", 768, dummy_bytes_2),
+            ("Psalm 23:1", "text-embedding-004", 768, dummy_bytes),
+        ])
+        self.assertEqual(batch_count, 2)
+        self.assertEqual(self.db.count_verse_embeddings(), 3)
+
+        all_embs = self.db.get_all_verse_embeddings("text-embedding-004")
+        self.assertEqual(len(all_embs), 3)
+
+        # Clear verse embeddings
+        del_count = self.db.clear_verse_embeddings()
+        self.assertEqual(del_count, 3)
+        self.assertEqual(self.db.count_verse_embeddings(), 0)
+
+        # Pericope embeddings
+        p = self.db.insert_pericope("Romans 8:1-11", "Life in the Spirit")
+        pe1 = self.db.save_pericope_embedding(
+            pericope_id=p.id,
+            reference="Romans 8:1-11",
+            model_id="text-embedding-004",
+            dimensions=768,
+            embedding=dummy_bytes,
+        )
+        self.assertEqual(pe1.pericope_id, p.id)
+        d_pe = pe1.to_dict()
+        self.assertEqual(d_pe["pericope_id"], p.id)
+
+        fetched_pe = self.db.get_pericope_embedding(p.id)
+        self.assertIsNotNone(fetched_pe)
+        assert fetched_pe is not None
+        self.assertEqual(fetched_pe.embedding, dummy_bytes)
+
+        # Batch pericope embeddings
+        p2 = self.db.insert_pericope("Romans 8:28-39", "More Than Conquerors")
+        p_batch_count = self.db.save_pericope_embeddings_batch([
+            (p2.id, "Romans 8:28-39", "text-embedding-004", 768, dummy_bytes_2),
+        ])
+        self.assertEqual(p_batch_count, 1)
+        self.assertEqual(self.db.count_pericope_embeddings(), 2)
+
+        # Clear pericope embeddings
+        del_pe = self.db.clear_pericope_embeddings()
+        self.assertEqual(del_pe, 2)
+        self.assertEqual(self.db.count_pericope_embeddings(), 0)
+
+    def test_pericopes_schema_evolution(self):
+        # Create an in-memory database with an older pericopes table lacking genre
+        db_raw = sqlite3.connect(":memory:")
+        db_raw.row_factory = sqlite3.Row
+        db_raw.execute("""
+            CREATE TABLE pericopes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id INTEGER NOT NULL,
+                start_canonical_id INTEGER NOT NULL,
+                end_canonical_id INTEGER NOT NULL,
+                human_ref TEXT NOT NULL,
+                title TEXT NOT NULL,
+                redemptive_summary TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+        """)
+        db_raw.execute("""
+            INSERT INTO pericopes (book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary)
+            VALUES (45, 45001001, 45001007, 'Romans 1:1-7', 'Greeting', 'Paul servant of Christ');
+        """)
+        db_raw.commit()
+
+        # Wrap in Database class and invoke init_schema
+        db = Database(db_path=":memory:", auto_init=False)
+        db.conn.close()
+        db.conn = db_raw
+        db.init_schema()
+
+        # Assert columns now exist
+        cur = db.conn.cursor()
+        cur.execute("PRAGMA table_info(pericopes)")
+        cols = {row["name"] for row in cur.fetchall()}
+        self.assertIn("genre", cols)
+        self.assertIn("literary_structure", cols)
+        self.assertIn("central_proposition", cols)
+
+        # Check existing row preserved and can update
+        p = db.get_pericopes_for_reference("Romans 1:1")[0]
+        self.assertEqual(p.title, "Greeting")
+        self.assertIsNone(p.genre)
+
         db.close()
 
 

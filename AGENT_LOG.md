@@ -1871,6 +1871,56 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 047** (Standard Cadence).
   - Next domain task on roadmap: **Task 7.1**: *Extend SQLite database schema and records in `core/db.py` to support 6-layer semantic architecture: `pericopes` (genre, literary_structure, central_proposition, redemptive_summary), `discourse_relations` (ground, inference, purpose, contrast, condition), `verse_theology` (storyline_epoch, thematic_ribbon, theological_locus, primary_doctrine), `typological_arcs` (type, antitype, theological_correspondence, warrant), `semantic_propositions` (speech_act, agent, action, patient, tone), and `verse_embeddings` / `pericope_embeddings` (BLOB storage).*
 
+---
+
+## [Run 047] 2026-09-07 — 6-Layer Semantic Database Architecture & Exegetical Storage Engine (Task 7.1 / ADR-050)
+- **Role**: Ralph Loop Autonomous Domain Developer.
+- **Phase**: Phase 7 — Offline Theological Enrichment & Whole-Bible Semantic Database Compiler (ADR-042).
+- **Tasks Completed**:
+  - **Task 7.1**: Extend SQLite database schema and records in `core/db.py` to support 6-layer semantic architecture: `pericopes` (genre, literary_structure, central_proposition, redemptive_summary), `discourse_relations` (ground, inference, purpose, contrast, condition), `verse_theology` (storyline_epoch, thematic_ribbon, theological_locus, primary_doctrine), `typological_arcs` (type, antitype, theological_correspondence, warrant), `semantic_propositions` (speech_act, agent, action, patient, tone), and `verse_embeddings` / `pericope_embeddings` (BLOB storage).
+- **Accomplishments & Architecture**:
+  - **Extended Pericopes Table Schema & Dynamic Migration (`core/db.py`)**:
+    - Updated `PericopeRecord` with optional fields: `genre`, `literary_structure`, and `central_proposition`.
+    - Added automated schema evolution in `Database.init_schema()` inspecting table columns and performing non-destructive `ALTER TABLE pericopes ADD COLUMN ...` statements for backwards compatibility.
+    - Updated `insert_pericope`, `insert_pericopes_batch`, `get_pericopes_for_reference`, and `get_pericopes_for_book` to map extended fields.
+  - **Layer 2: Discourse Relations (`discourse_relations`)**:
+    - Record: `DiscourseRelationRecord(source_verse_id, target_verse_id, relation_type, marker_text, greek_hebrew_marker, notes)`.
+    - Implemented single and batch insert, query by verse / relation type, count, and clear.
+  - **Layer 3: Verse Theology (`verse_theology`)**:
+    - Record: `VerseTheologyRecord(verse_id, storyline_epoch, thematic_ribbon, theological_locus, primary_doctrine, confidence, anti_moralistic_notes)`.
+    - Implemented single and batch insert, query by verse reference / epoch / locus / ribbon, count, and clear.
+  - **Layer 4: Typological Arcs (`typological_arcs`)**:
+    - Record: `TypologicalArcRecord(type_ref, type_name, antitype_ref, antitype_name, theological_correspondence, biblical_warrant, confidence)`.
+    - Implemented single and batch insert, query by reference, count, and clear.
+  - **Layer 5: Semantic Propositions (`semantic_propositions`)**:
+    - Record: `SemanticPropositionRecord(verse_id, speech_act, agent, action, patient, tone, clause_text)`.
+    - Implemented single and batch insert, query by verse / agent / speech act, count, and clear.
+  - **Layer 6: Dense Vector Embeddings (`verse_embeddings` & `pericope_embeddings`)**:
+    - Records: `VerseEmbeddingRecord` & `PericopeEmbeddingRecord`.
+    - Raw binary BLOB storage for packed byte/float embeddings, dimensions, and model ID.
+    - Implemented single/batch upserts, lookup, full extraction (`get_all_verse_embeddings`, `get_all_pericope_embeddings`), count, and clear.
+  - **System Statistics & Package Exports**:
+    - Updated `core/__init__.py` exporting all 6 new records in `__all__`.
+    - Updated `core/bootstrap.py:get_db_stats` to compute and report record counts across all semantic tables.
+  - **Comprehensive Hermetic Verification**:
+    - Added `TestPhase7SemanticArchitecture` in `tests/test_db.py` (7 tests verifying schema, CRUD, batch execution, migrations, and query filters).
+    - Updated `tests/test_core.py` verifying module exports.
+    - Verified 100% test pass rate: **635 tests across 30 modules passed in 4.09s**.
+  - **Governance & Documentation**:
+    - Recorded **ADR-050** in `DECISIONS.md`.
+    - Marked Task 7.1 as completed in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: 635 tests across 30 modules passed in 4.090s.
+  - `./bible doctor`: All 8 diagnostic checks passed in 5.15s.
+  - `./bible doctor --fast`: All 6 pre-commit checks passed in 0.77s.
+  - `./bible lint`: 65 files inspected with 0 errors.
+  - 100% Zero-Dependency compliance verified.
+- **Handoff Notes for Next Agent**:
+  - Task 7.1 is 100% complete, verified, and pushed.
+  - Next cycle is **Run 048** (Standard Cadence).
+  - Next task on roadmap: **Task 7.2**: *Implement Zero-Dependency Vector Similarity Engine (`core/vector.py`) for packed byte embeddings, int8 quantization, and ultra-fast pure Python cosine similarity (<15ms across 31,102 vectors without numpy or external vector DBs).*
+
+
 
 
 

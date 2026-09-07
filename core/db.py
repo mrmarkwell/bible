@@ -212,6 +212,9 @@ class PericopeRecord:
     human_ref: str
     title: str
     redemptive_summary: Optional[str] = None
+    genre: Optional[str] = None
+    literary_structure: Optional[str] = None
+    central_proposition: Optional[str] = None
     created_at: Optional[str] = None
 
     @property
@@ -241,6 +244,187 @@ class PericopeRecord:
             "human_ref": self.human_ref,
             "title": self.title,
             "redemptive_summary": self.redemptive_summary,
+            "genre": self.genre,
+            "literary_structure": self.literary_structure,
+            "central_proposition": self.central_proposition,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class DiscourseRelationRecord:
+    """Represents a clause or verse-level discourse relation."""
+
+    id: Optional[int]
+    source_canonical_id: int
+    source_human_ref: str
+    relation_type: str  # ground, inference, purpose, contrast, condition, concession, result, temporal
+    target_canonical_id: Optional[int] = None
+    target_human_ref: Optional[str] = None
+    marker_text: Optional[str] = None
+    greek_marker: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert discourse relation record to dictionary representation."""
+        return {
+            "id": self.id,
+            "source_canonical_id": self.source_canonical_id,
+            "source_human_ref": self.source_human_ref,
+            "target_canonical_id": self.target_canonical_id,
+            "target_human_ref": self.target_human_ref,
+            "relation_type": self.relation_type,
+            "marker_text": self.marker_text,
+            "greek_marker": self.greek_marker,
+            "notes": self.notes,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class VerseTheologyRecord:
+    """Represents theological locus, storyline epoch, and thematic ribbon for a verse/passage."""
+
+    id: Optional[int]
+    start_canonical_id: int
+    end_canonical_id: int
+    human_ref: str
+    storyline_epoch: str
+    theological_locus: str
+    primary_doctrine: str
+    thematic_ribbon: Optional[str] = None
+    confidence: float = 1.0
+    anti_moralistic_notes: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert verse theology record to dictionary representation."""
+        return {
+            "id": self.id,
+            "start_canonical_id": self.start_canonical_id,
+            "end_canonical_id": self.end_canonical_id,
+            "human_ref": self.human_ref,
+            "storyline_epoch": self.storyline_epoch,
+            "theological_locus": self.theological_locus,
+            "primary_doctrine": self.primary_doctrine,
+            "thematic_ribbon": self.thematic_ribbon,
+            "confidence": self.confidence,
+            "anti_moralistic_notes": self.anti_moralistic_notes,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class TypologicalArcRecord:
+    """Represents a canonical typological arc linking Old Testament type to New Testament antitype."""
+
+    id: Optional[int]
+    type_start_id: int
+    type_end_id: int
+    type_human_ref: str
+    antitype_start_id: int
+    antitype_end_id: int
+    antitype_human_ref: str
+    theological_correspondence: str
+    warrant: Optional[str] = None
+    confidence: float = 1.0
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert typological arc record to dictionary representation."""
+        return {
+            "id": self.id,
+            "type_start_id": self.type_start_id,
+            "type_end_id": self.type_end_id,
+            "type_human_ref": self.type_human_ref,
+            "antitype_start_id": self.antitype_start_id,
+            "antitype_end_id": self.antitype_end_id,
+            "antitype_human_ref": self.antitype_human_ref,
+            "theological_correspondence": self.theological_correspondence,
+            "warrant": self.warrant,
+            "confidence": self.confidence,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class SemanticPropositionRecord:
+    """Represents an agent-action-patient semantic triple, speech act, and devotional tone."""
+
+    id: Optional[int]
+    canonical_verse_id: int
+    human_ref: str
+    speech_act: str
+    agent: str
+    action: str
+    patient: Optional[str] = None
+    tone: Optional[str] = None
+    clause_text: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert semantic proposition record to dictionary representation."""
+        return {
+            "id": self.id,
+            "canonical_verse_id": self.canonical_verse_id,
+            "human_ref": self.human_ref,
+            "speech_act": self.speech_act,
+            "agent": self.agent,
+            "action": self.action,
+            "patient": self.patient,
+            "tone": self.tone,
+            "clause_text": self.clause_text,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class VerseEmbeddingRecord:
+    """Represents a dense vector embedding stored as a binary BLOB for a canonical verse."""
+
+    canonical_verse_id: int
+    human_ref: str
+    model_id: str
+    dimensions: int
+    embedding: bytes
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert verse embedding record to dictionary representation."""
+        return {
+            "canonical_verse_id": self.canonical_verse_id,
+            "human_ref": self.human_ref,
+            "model_id": self.model_id,
+            "dimensions": self.dimensions,
+            "embedding_bytes": len(self.embedding),
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
+class PericopeEmbeddingRecord:
+    """Represents a dense vector embedding stored as a binary BLOB for a pericope unit."""
+
+    pericope_id: int
+    start_canonical_id: int
+    end_canonical_id: int
+    human_ref: str
+    model_id: str
+    dimensions: int
+    embedding: bytes
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert pericope embedding record to dictionary representation."""
+        return {
+            "pericope_id": self.pericope_id,
+            "start_canonical_id": self.start_canonical_id,
+            "end_canonical_id": self.end_canonical_id,
+            "human_ref": self.human_ref,
+            "model_id": self.model_id,
+            "dimensions": self.dimensions,
+            "embedding_bytes": len(self.embedding),
             "created_at": self.created_at,
         }
 
@@ -447,7 +631,9 @@ ON cross_references(target_start_id, target_end_id);
 CREATE INDEX IF NOT EXISTS idx_cross_ref_type
 ON cross_references(relationship_type);
 
--- Forward-compatible Phase 7 tables for theological knowledge graph
+-- Phase 7 6-Layer Semantic Architecture Tables (ADR-042)
+
+-- Layer 1: Pericopes with genre, literary structure, central proposition, and redemptive summary
 CREATE TABLE IF NOT EXISTS pericopes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     book_id INTEGER NOT NULL,
@@ -456,6 +642,9 @@ CREATE TABLE IF NOT EXISTS pericopes (
     human_ref TEXT NOT NULL,
     title TEXT NOT NULL,
     redemptive_summary TEXT,
+    genre TEXT,
+    literary_structure TEXT,
+    central_proposition TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE RESTRICT
 );
@@ -465,6 +654,77 @@ ON pericopes(book_id, start_canonical_id);
 
 CREATE INDEX IF NOT EXISTS idx_pericopes_range
 ON pericopes(start_canonical_id, end_canonical_id);
+
+-- Layer 1: Discourse Relations (ground, inference, purpose, contrast, condition, etc.)
+CREATE TABLE IF NOT EXISTS discourse_relations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_canonical_id INTEGER NOT NULL,
+    source_human_ref TEXT NOT NULL,
+    target_canonical_id INTEGER,
+    target_human_ref TEXT,
+    relation_type TEXT NOT NULL,
+    marker_text TEXT,
+    greek_marker TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_discourse_source
+ON discourse_relations(source_canonical_id);
+
+CREATE INDEX IF NOT EXISTS idx_discourse_target
+ON discourse_relations(target_canonical_id);
+
+CREATE INDEX IF NOT EXISTS idx_discourse_type
+ON discourse_relations(relation_type);
+
+-- Layer 2: Dual-Horizon Verse Theology (storyline epoch, thematic ribbon, theological locus, doctrine)
+CREATE TABLE IF NOT EXISTS verse_theology (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_canonical_id INTEGER NOT NULL,
+    end_canonical_id INTEGER NOT NULL,
+    human_ref TEXT NOT NULL,
+    storyline_epoch TEXT NOT NULL,
+    thematic_ribbon TEXT,
+    theological_locus TEXT NOT NULL,
+    primary_doctrine TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    anti_moralistic_notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_verse_theology_range
+ON verse_theology(start_canonical_id, end_canonical_id);
+
+CREATE INDEX IF NOT EXISTS idx_verse_theology_epoch
+ON verse_theology(storyline_epoch);
+
+CREATE INDEX IF NOT EXISTS idx_verse_theology_ribbon
+ON verse_theology(thematic_ribbon);
+
+CREATE INDEX IF NOT EXISTS idx_verse_theology_locus
+ON verse_theology(theological_locus);
+
+-- Layer 3: Typological Arcs (type, antitype, theological correspondence, warrant)
+CREATE TABLE IF NOT EXISTS typological_arcs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type_start_id INTEGER NOT NULL,
+    type_end_id INTEGER NOT NULL,
+    type_human_ref TEXT NOT NULL,
+    antitype_start_id INTEGER NOT NULL,
+    antitype_end_id INTEGER NOT NULL,
+    antitype_human_ref TEXT NOT NULL,
+    theological_correspondence TEXT NOT NULL,
+    warrant TEXT,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_typological_arcs_type
+ON typological_arcs(type_start_id, type_end_id);
+
+CREATE INDEX IF NOT EXISTS idx_typological_arcs_antitype
+ON typological_arcs(antitype_start_id, antitype_end_id);
 
 CREATE TABLE IF NOT EXISTS typology_edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -478,6 +738,7 @@ CREATE TABLE IF NOT EXISTS typology_edges (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Layer 4 & 5: Entity Character Profiles, Theological Themes & Semantic Propositions
 CREATE TABLE IF NOT EXISTS character_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -494,6 +755,56 @@ CREATE TABLE IF NOT EXISTS theological_themes (
     description TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS semantic_propositions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_verse_id INTEGER NOT NULL,
+    human_ref TEXT NOT NULL,
+    speech_act TEXT NOT NULL,
+    agent TEXT NOT NULL,
+    action TEXT NOT NULL,
+    patient TEXT,
+    tone TEXT,
+    clause_text TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_propositions_verse
+ON semantic_propositions(canonical_verse_id);
+
+CREATE INDEX IF NOT EXISTS idx_propositions_agent
+ON semantic_propositions(agent);
+
+CREATE INDEX IF NOT EXISTS idx_propositions_action
+ON semantic_propositions(action);
+
+CREATE INDEX IF NOT EXISTS idx_propositions_speech_act
+ON semantic_propositions(speech_act);
+
+-- Layer 6: Dense Vector Embeddings for Verses and Pericopes (BLOB storage)
+CREATE TABLE IF NOT EXISTS verse_embeddings (
+    canonical_verse_id INTEGER PRIMARY KEY,
+    human_ref TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pericope_embeddings (
+    pericope_id INTEGER PRIMARY KEY,
+    start_canonical_id INTEGER NOT NULL,
+    end_canonical_id INTEGER NOT NULL,
+    human_ref TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    dimensions INTEGER NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (pericope_id) REFERENCES pericopes(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pericope_embeddings_range
+ON pericope_embeddings(start_canonical_id, end_canonical_id);
 
 -- Ephemeral Crossway-compliant 500-verse LRU cache for ESV text (ADR-041)
 CREATE TABLE IF NOT EXISTS esv_cache (
@@ -631,6 +942,16 @@ class Database:
                         book.total_chapters,
                     ),
                 )
+        # Ensure pericopes schema evolution for existing databases
+        cur.execute("PRAGMA table_info(pericopes)")
+        p_cols = {row[1] for row in cur.fetchall()}
+        if "genre" not in p_cols:
+            cur.execute("ALTER TABLE pericopes ADD COLUMN genre TEXT")
+        if "literary_structure" not in p_cols:
+            cur.execute("ALTER TABLE pericopes ADD COLUMN literary_structure TEXT")
+        if "central_proposition" not in p_cols:
+            cur.execute("ALTER TABLE pericopes ADD COLUMN central_proposition TEXT")
+
         self.conn.commit()
         cur.close()
 
@@ -2017,6 +2338,9 @@ class Database:
         reference: Union[Reference, str],
         title: str,
         redemptive_summary: Optional[str] = None,
+        genre: Optional[str] = None,
+        literary_structure: Optional[str] = None,
+        central_proposition: Optional[str] = None,
     ) -> PericopeRecord:
         """Insert a canonical scripture pericope section with heading and summary.
 
@@ -2024,6 +2348,9 @@ class Database:
             reference: Passage reference (e.g. 'Romans 8:1-11').
             title: Section title / pericope heading.
             redemptive_summary: Optional redemptive-historical theological summary.
+            genre: Optional literary genre (e.g. 'epistle', 'narrative', 'prophecy').
+            literary_structure: Optional structural outline or chiasm notes.
+            central_proposition: Optional central theological proposition.
 
         Returns:
             Created PericopeRecord instance.
@@ -2040,8 +2367,8 @@ class Database:
                 """
                 INSERT INTO pericopes (
                     book_id, start_canonical_id, end_canonical_id, human_ref,
-                    title, redemptive_summary, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    title, redemptive_summary, genre, literary_structure, central_proposition, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     book_id,
@@ -2050,6 +2377,9 @@ class Database:
                     human,
                     title.strip(),
                     redemptive_summary.strip() if redemptive_summary else None,
+                    genre.strip() if genre else None,
+                    literary_structure.strip() if literary_structure else None,
+                    central_proposition.strip() if central_proposition else None,
                     now,
                 ),
             )
@@ -2063,17 +2393,34 @@ class Database:
             human_ref=human,
             title=title.strip(),
             redemptive_summary=redemptive_summary.strip() if redemptive_summary else None,
+            genre=genre.strip() if genre else None,
+            literary_structure=literary_structure.strip() if literary_structure else None,
+            central_proposition=central_proposition.strip() if central_proposition else None,
             created_at=now,
         )
 
     def insert_pericopes_batch(
         self,
-        items: Sequence[Tuple[Union[Reference, str], str, Optional[str]]],
+        items: Sequence[Tuple[Any, ...]],
     ) -> int:
-        """Batch insert multiple pericope headings inside a single transaction."""
+        """Batch insert multiple pericope headings inside a single transaction.
+
+        Supports tuples of:
+        - (reference, title, redemptive_summary)
+        - (reference, title, redemptive_summary, genre)
+        - (reference, title, redemptive_summary, genre, literary_structure)
+        - (reference, title, redemptive_summary, genre, literary_structure, central_proposition)
+        """
         now = _utc_now_iso()
         rows: List[Tuple[Any, ...]] = []
-        for ref_input, title, summary in items:
+        for item in items:
+            ref_input = item[0]
+            title = item[1]
+            summary = item[2] if len(item) > 2 else None
+            genre = item[3] if len(item) > 3 else None
+            structure = item[4] if len(item) > 4 else None
+            prop = item[5] if len(item) > 5 else None
+
             ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
             rows.append((
                 ref.book.number,
@@ -2082,6 +2429,9 @@ class Database:
                 ref.format(),
                 title.strip(),
                 summary.strip() if summary else None,
+                genre.strip() if genre else None,
+                structure.strip() if structure else None,
+                prop.strip() if prop else None,
                 now,
             ))
 
@@ -2090,8 +2440,8 @@ class Database:
                 """
                 INSERT INTO pericopes (
                     book_id, start_canonical_id, end_canonical_id, human_ref,
-                    title, redemptive_summary, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    title, redemptive_summary, genre, literary_structure, central_proposition, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -2109,7 +2459,8 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
-            SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+            SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
+                   redemptive_summary, genre, literary_structure, central_proposition, created_at
             FROM pericopes
             WHERE start_canonical_id <= ? AND end_canonical_id >= ?
             ORDER BY start_canonical_id ASC, id ASC
@@ -2127,6 +2478,9 @@ class Database:
                 human_ref=r["human_ref"],
                 title=r["title"],
                 redemptive_summary=r["redemptive_summary"],
+                genre=r["genre"],
+                literary_structure=r["literary_structure"],
+                central_proposition=r["central_proposition"],
                 created_at=r["created_at"],
             )
             for r in rows
@@ -2145,7 +2499,8 @@ class Database:
             c_end = verse_canonical_id(b.number, chapter, 999)
             cur.execute(
                 """
-                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
+                       redemptive_summary, genre, literary_structure, central_proposition, created_at
                 FROM pericopes
                 WHERE book_id = ? AND start_canonical_id <= ? AND end_canonical_id >= ?
                 ORDER BY start_canonical_id ASC, id ASC
@@ -2155,7 +2510,8 @@ class Database:
         else:
             cur.execute(
                 """
-                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title, redemptive_summary, created_at
+                SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
+                       redemptive_summary, genre, literary_structure, central_proposition, created_at
                 FROM pericopes
                 WHERE book_id = ?
                 ORDER BY start_canonical_id ASC, id ASC
@@ -2173,6 +2529,9 @@ class Database:
                 human_ref=r["human_ref"],
                 title=r["title"],
                 redemptive_summary=r["redemptive_summary"],
+                genre=r["genre"],
+                literary_structure=r["literary_structure"],
+                central_proposition=r["central_proposition"],
                 created_at=r["created_at"],
             )
             for r in rows
@@ -2196,4 +2555,1203 @@ class Database:
                 cur = self.conn.execute("DELETE FROM pericopes WHERE book_id = ?", (book_id,))
             else:
                 cur = self.conn.execute("DELETE FROM pericopes")
+            return cur.rowcount
+
+    # --- Discourse Relations API (Phase 7 / ADR-042) ---
+
+    def insert_discourse_relation(
+        self,
+        source_reference: Union[Reference, str],
+        relation_type: str,
+        target_reference: Optional[Union[Reference, str]] = None,
+        marker_text: Optional[str] = None,
+        greek_marker: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> DiscourseRelationRecord:
+        """Insert a discourse relation connecting verses or clauses."""
+        s_ref = parse_reference(source_reference) if isinstance(source_reference, str) else source_reference
+        s_id = s_ref.canonical_start_id
+        s_human = s_ref.format()
+
+        t_id = None
+        t_human = None
+        if target_reference:
+            t_ref = parse_reference(target_reference) if isinstance(target_reference, str) else target_reference
+            t_id = t_ref.canonical_start_id
+            t_human = t_ref.format()
+
+        now = _utc_now_iso()
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO discourse_relations (
+                    source_canonical_id, source_human_ref, target_canonical_id, target_human_ref,
+                    relation_type, marker_text, greek_marker, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    s_id,
+                    s_human,
+                    t_id,
+                    t_human,
+                    relation_type.strip().lower(),
+                    marker_text.strip() if marker_text else None,
+                    greek_marker.strip() if greek_marker else None,
+                    notes.strip() if notes else None,
+                    now,
+                ),
+            )
+            d_id = cur.lastrowid
+
+        return DiscourseRelationRecord(
+            id=d_id,
+            source_canonical_id=s_id,
+            source_human_ref=s_human,
+            target_canonical_id=t_id,
+            target_human_ref=t_human,
+            relation_type=relation_type.strip().lower(),
+            marker_text=marker_text.strip() if marker_text else None,
+            greek_marker=greek_marker.strip() if greek_marker else None,
+            notes=notes.strip() if notes else None,
+            created_at=now,
+        )
+
+    def insert_discourse_relations_batch(
+        self,
+        items: Sequence[Tuple[Any, ...]],
+    ) -> int:
+        """Batch insert multiple discourse relations inside a single transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for item in items:
+            s_ref_input = item[0]
+            rel_type = item[1]
+            t_ref_input = item[2] if len(item) > 2 else None
+            marker_text = item[3] if len(item) > 3 else None
+            greek_marker = item[4] if len(item) > 4 else None
+            notes = item[5] if len(item) > 5 else None
+
+            s_ref = parse_reference(s_ref_input) if isinstance(s_ref_input, str) else s_ref_input
+            s_id = s_ref.canonical_start_id
+            s_human = s_ref.format()
+
+            t_id = None
+            t_human = None
+            if t_ref_input:
+                t_ref = parse_reference(t_ref_input) if isinstance(t_ref_input, str) else t_ref_input
+                t_id = t_ref.canonical_start_id
+                t_human = t_ref.format()
+
+            rows.append((
+                s_id,
+                s_human,
+                t_id,
+                t_human,
+                rel_type.strip().lower(),
+                marker_text.strip() if marker_text else None,
+                greek_marker.strip() if greek_marker else None,
+                notes.strip() if notes else None,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO discourse_relations (
+                    source_canonical_id, source_human_ref, target_canonical_id, target_human_ref,
+                    relation_type, marker_text, greek_marker, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_discourse_relations_for_verse(
+        self,
+        reference: Union[Reference, str],
+    ) -> List[DiscourseRelationRecord]:
+        """Fetch discourse relations where the given verse/range is either source or target."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, source_canonical_id, source_human_ref, target_canonical_id, target_human_ref,
+                   relation_type, marker_text, greek_marker, notes, created_at
+            FROM discourse_relations
+            WHERE (source_canonical_id >= ? AND source_canonical_id <= ?)
+               OR (target_canonical_id >= ? AND target_canonical_id <= ?)
+            ORDER BY source_canonical_id ASC, id ASC
+            """,
+            (start_id, end_id, start_id, end_id),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            DiscourseRelationRecord(
+                id=r["id"],
+                source_canonical_id=r["source_canonical_id"],
+                source_human_ref=r["source_human_ref"],
+                target_canonical_id=r["target_canonical_id"],
+                target_human_ref=r["target_human_ref"],
+                relation_type=r["relation_type"],
+                marker_text=r["marker_text"],
+                greek_marker=r["greek_marker"],
+                notes=r["notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_discourse_relations_by_type(
+        self,
+        relation_type: str,
+        limit: int = 100,
+    ) -> List[DiscourseRelationRecord]:
+        """Retrieve discourse relations filtered by relation type."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, source_canonical_id, source_human_ref, target_canonical_id, target_human_ref,
+                   relation_type, marker_text, greek_marker, notes, created_at
+            FROM discourse_relations
+            WHERE relation_type = ?
+            ORDER BY source_canonical_id ASC, id ASC
+            LIMIT ?
+            """,
+            (relation_type.strip().lower(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            DiscourseRelationRecord(
+                id=r["id"],
+                source_canonical_id=r["source_canonical_id"],
+                source_human_ref=r["source_human_ref"],
+                target_canonical_id=r["target_canonical_id"],
+                target_human_ref=r["target_human_ref"],
+                relation_type=r["relation_type"],
+                marker_text=r["marker_text"],
+                greek_marker=r["greek_marker"],
+                notes=r["notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_discourse_relations(self, relation_type: Optional[str] = None) -> int:
+        """Count discourse relations, optionally filtered by type."""
+        cur = self.conn.cursor()
+        if relation_type:
+            cur.execute(
+                "SELECT count(*) FROM discourse_relations WHERE relation_type = ?",
+                (relation_type.strip().lower(),),
+            )
+        else:
+            cur.execute("SELECT count(*) FROM discourse_relations")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_discourse_relations(self) -> int:
+        """Remove all discourse relations from database."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM discourse_relations")
+            return cur.rowcount
+
+    # --- Verse Theology API (Phase 7 / ADR-042) ---
+
+    def insert_verse_theology(
+        self,
+        reference: Union[Reference, str],
+        storyline_epoch: str,
+        theological_locus: str,
+        primary_doctrine: str,
+        thematic_ribbon: Optional[str] = None,
+        confidence: float = 1.0,
+        anti_moralistic_notes: Optional[str] = None,
+    ) -> VerseTheologyRecord:
+        """Insert theological locus, epoch, and ribbon annotation for a passage."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        s_id = ref.canonical_start_id
+        e_id = ref.canonical_end_id
+        human = ref.format()
+        now = _utc_now_iso()
+
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO verse_theology (
+                    start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                    anti_moralistic_notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    s_id,
+                    e_id,
+                    human,
+                    storyline_epoch.strip(),
+                    thematic_ribbon.strip() if thematic_ribbon else None,
+                    theological_locus.strip(),
+                    primary_doctrine.strip(),
+                    confidence,
+                    anti_moralistic_notes.strip() if anti_moralistic_notes else None,
+                    now,
+                ),
+            )
+            vt_id = cur.lastrowid
+
+        return VerseTheologyRecord(
+            id=vt_id,
+            start_canonical_id=s_id,
+            end_canonical_id=e_id,
+            human_ref=human,
+            storyline_epoch=storyline_epoch.strip(),
+            theological_locus=theological_locus.strip(),
+            primary_doctrine=primary_doctrine.strip(),
+            thematic_ribbon=thematic_ribbon.strip() if thematic_ribbon else None,
+            confidence=confidence,
+            anti_moralistic_notes=anti_moralistic_notes.strip() if anti_moralistic_notes else None,
+            created_at=now,
+        )
+
+    def insert_verse_theology_batch(
+        self,
+        items: Sequence[Tuple[Any, ...]],
+    ) -> int:
+        """Batch insert multiple verse theology annotations in a transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for item in items:
+            ref_input = item[0]
+            epoch = item[1]
+            locus = item[2]
+            doctrine = item[3]
+            ribbon = item[4] if len(item) > 4 else None
+            conf = item[5] if len(item) > 5 else 1.0
+            notes = item[6] if len(item) > 6 else None
+
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append((
+                ref.canonical_start_id,
+                ref.canonical_end_id,
+                ref.format(),
+                epoch.strip(),
+                ribbon.strip() if ribbon else None,
+                locus.strip(),
+                doctrine.strip(),
+                conf,
+                notes.strip() if notes else None,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO verse_theology (
+                    start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                    anti_moralistic_notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_verse_theology_for_reference(
+        self,
+        reference: Union[Reference, str],
+    ) -> List[VerseTheologyRecord]:
+        """Retrieve theological annotations overlapping with the specified reference."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                   thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                   anti_moralistic_notes, created_at
+            FROM verse_theology
+            WHERE start_canonical_id <= ? AND end_canonical_id >= ?
+            ORDER BY start_canonical_id ASC, id ASC
+            """,
+            (end_id, start_id),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseTheologyRecord(
+                id=r["id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                storyline_epoch=r["storyline_epoch"],
+                thematic_ribbon=r["thematic_ribbon"],
+                theological_locus=r["theological_locus"],
+                primary_doctrine=r["primary_doctrine"],
+                confidence=r["confidence"],
+                anti_moralistic_notes=r["anti_moralistic_notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_verse_theology_by_epoch(
+        self,
+        storyline_epoch: str,
+        limit: int = 100,
+    ) -> List[VerseTheologyRecord]:
+        """Fetch theology annotations by redemptive storyline epoch."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                   thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                   anti_moralistic_notes, created_at
+            FROM verse_theology
+            WHERE storyline_epoch = ?
+            ORDER BY start_canonical_id ASC, id ASC
+            LIMIT ?
+            """,
+            (storyline_epoch.strip(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseTheologyRecord(
+                id=r["id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                storyline_epoch=r["storyline_epoch"],
+                thematic_ribbon=r["thematic_ribbon"],
+                theological_locus=r["theological_locus"],
+                primary_doctrine=r["primary_doctrine"],
+                confidence=r["confidence"],
+                anti_moralistic_notes=r["anti_moralistic_notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_verse_theology_by_locus(
+        self,
+        theological_locus: str,
+        limit: int = 100,
+    ) -> List[VerseTheologyRecord]:
+        """Fetch theology annotations by systematic theological locus."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                   thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                   anti_moralistic_notes, created_at
+            FROM verse_theology
+            WHERE theological_locus = ?
+            ORDER BY start_canonical_id ASC, id ASC
+            LIMIT ?
+            """,
+            (theological_locus.strip(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseTheologyRecord(
+                id=r["id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                storyline_epoch=r["storyline_epoch"],
+                thematic_ribbon=r["thematic_ribbon"],
+                theological_locus=r["theological_locus"],
+                primary_doctrine=r["primary_doctrine"],
+                confidence=r["confidence"],
+                anti_moralistic_notes=r["anti_moralistic_notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_verse_theology_by_ribbon(
+        self,
+        thematic_ribbon: str,
+        limit: int = 100,
+    ) -> List[VerseTheologyRecord]:
+        """Fetch theology annotations by canonical thematic ribbon."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                   thematic_ribbon, theological_locus, primary_doctrine, confidence,
+                   anti_moralistic_notes, created_at
+            FROM verse_theology
+            WHERE thematic_ribbon = ?
+            ORDER BY start_canonical_id ASC, id ASC
+            LIMIT ?
+            """,
+            (thematic_ribbon.strip(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseTheologyRecord(
+                id=r["id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                storyline_epoch=r["storyline_epoch"],
+                thematic_ribbon=r["thematic_ribbon"],
+                theological_locus=r["theological_locus"],
+                primary_doctrine=r["primary_doctrine"],
+                confidence=r["confidence"],
+                anti_moralistic_notes=r["anti_moralistic_notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_verse_theology(
+        self,
+        storyline_epoch: Optional[str] = None,
+        theological_locus: Optional[str] = None,
+    ) -> int:
+        """Count total theology annotations with optional filtering."""
+        cur = self.conn.cursor()
+        if storyline_epoch and theological_locus:
+            cur.execute(
+                "SELECT count(*) FROM verse_theology WHERE storyline_epoch = ? AND theological_locus = ?",
+                (storyline_epoch.strip(), theological_locus.strip()),
+            )
+        elif storyline_epoch:
+            cur.execute("SELECT count(*) FROM verse_theology WHERE storyline_epoch = ?", (storyline_epoch.strip(),))
+        elif theological_locus:
+            cur.execute("SELECT count(*) FROM verse_theology WHERE theological_locus = ?", (theological_locus.strip(),))
+        else:
+            cur.execute("SELECT count(*) FROM verse_theology")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_verse_theology(self) -> int:
+        """Remove all verse theology rows."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM verse_theology")
+            return cur.rowcount
+
+    # --- Typological Arcs API (Phase 7 / ADR-042) ---
+
+    def insert_typological_arc(
+        self,
+        type_reference: Union[Reference, str],
+        antitype_reference: Union[Reference, str],
+        theological_correspondence: str,
+        warrant: Optional[str] = None,
+        confidence: float = 1.0,
+    ) -> TypologicalArcRecord:
+        """Insert a canonical typological arc linking OT type to NT antitype."""
+        type_ref = parse_reference(type_reference) if isinstance(type_reference, str) else type_reference
+        antitype_ref = parse_reference(antitype_reference) if isinstance(antitype_reference, str) else antitype_reference
+        now = _utc_now_iso()
+
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO typological_arcs (
+                    type_start_id, type_end_id, type_human_ref,
+                    antitype_start_id, antitype_end_id, antitype_human_ref,
+                    theological_correspondence, warrant, confidence, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    type_ref.canonical_start_id,
+                    type_ref.canonical_end_id,
+                    type_ref.format(),
+                    antitype_ref.canonical_start_id,
+                    antitype_ref.canonical_end_id,
+                    antitype_ref.format(),
+                    theological_correspondence.strip(),
+                    warrant.strip() if warrant else None,
+                    confidence,
+                    now,
+                ),
+            )
+            arc_id = cur.lastrowid
+
+        return TypologicalArcRecord(
+            id=arc_id,
+            type_start_id=type_ref.canonical_start_id,
+            type_end_id=type_ref.canonical_end_id,
+            type_human_ref=type_ref.format(),
+            antitype_start_id=antitype_ref.canonical_start_id,
+            antitype_end_id=antitype_ref.canonical_end_id,
+            antitype_human_ref=antitype_ref.format(),
+            theological_correspondence=theological_correspondence.strip(),
+            warrant=warrant.strip() if warrant else None,
+            confidence=confidence,
+            created_at=now,
+        )
+
+    def insert_typological_arcs_batch(
+        self,
+        items: Sequence[Tuple[Any, ...]],
+    ) -> int:
+        """Batch insert typological arcs in a transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for item in items:
+            t_input = item[0]
+            at_input = item[1]
+            corr = item[2]
+            warrant = item[3] if len(item) > 3 else None
+            conf = item[4] if len(item) > 4 else 1.0
+
+            t_ref = parse_reference(t_input) if isinstance(t_input, str) else t_input
+            at_ref = parse_reference(at_input) if isinstance(at_input, str) else at_input
+
+            rows.append((
+                t_ref.canonical_start_id,
+                t_ref.canonical_end_id,
+                t_ref.format(),
+                at_ref.canonical_start_id,
+                at_ref.canonical_end_id,
+                at_ref.format(),
+                corr.strip(),
+                warrant.strip() if warrant else None,
+                conf,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO typological_arcs (
+                    type_start_id, type_end_id, type_human_ref,
+                    antitype_start_id, antitype_end_id, antitype_human_ref,
+                    theological_correspondence, warrant, confidence, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_typological_arcs_for_reference(
+        self,
+        reference: Union[Reference, str],
+        as_type: bool = True,
+        as_antitype: bool = True,
+    ) -> List[TypologicalArcRecord]:
+        """Fetch typological arcs overlapping with reference as either type or antitype."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+
+        clauses = []
+        params: List[Any] = []
+        if as_type:
+            clauses.append("(type_start_id <= ? AND type_end_id >= ?)")
+            params.extend([end_id, start_id])
+        if as_antitype:
+            clauses.append("(antitype_start_id <= ? AND antitype_end_id >= ?)")
+            params.extend([end_id, start_id])
+
+        if not clauses:
+            return []
+
+        where_sql = " OR ".join(clauses)
+        cur = self.conn.cursor()
+        cur.execute(
+            f"""
+            SELECT id, type_start_id, type_end_id, type_human_ref,
+                   antitype_start_id, antitype_end_id, antitype_human_ref,
+                   theological_correspondence, warrant, confidence, created_at
+            FROM typological_arcs
+            WHERE {where_sql}
+            ORDER BY confidence DESC, id ASC
+            """,
+            params,
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            TypologicalArcRecord(
+                id=r["id"],
+                type_start_id=r["type_start_id"],
+                type_end_id=r["type_end_id"],
+                type_human_ref=r["type_human_ref"],
+                antitype_start_id=r["antitype_start_id"],
+                antitype_end_id=r["antitype_end_id"],
+                antitype_human_ref=r["antitype_human_ref"],
+                theological_correspondence=r["theological_correspondence"],
+                warrant=r["warrant"],
+                confidence=r["confidence"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_typological_arcs(self) -> int:
+        """Count total typological arcs."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT count(*) FROM typological_arcs")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_typological_arcs(self) -> int:
+        """Remove all typological arcs."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM typological_arcs")
+            return cur.rowcount
+
+    # --- Semantic Propositions API (Phase 7 / ADR-042) ---
+
+    def insert_semantic_proposition(
+        self,
+        reference: Union[Reference, str],
+        speech_act: str,
+        agent: str,
+        action: str,
+        patient: Optional[str] = None,
+        tone: Optional[str] = None,
+        clause_text: Optional[str] = None,
+    ) -> SemanticPropositionRecord:
+        """Insert a semantic proposition agent-action-patient triple and speech act."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        vid = ref.canonical_start_id
+        human = ref.format()
+        now = _utc_now_iso()
+
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO semantic_propositions (
+                    canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    vid,
+                    human,
+                    speech_act.strip().lower(),
+                    agent.strip(),
+                    action.strip(),
+                    patient.strip() if patient else None,
+                    tone.strip().lower() if tone else None,
+                    clause_text.strip() if clause_text else None,
+                    now,
+                ),
+            )
+            sp_id = cur.lastrowid
+
+        return SemanticPropositionRecord(
+            id=sp_id,
+            canonical_verse_id=vid,
+            human_ref=human,
+            speech_act=speech_act.strip().lower(),
+            agent=agent.strip(),
+            action=action.strip(),
+            patient=patient.strip() if patient else None,
+            tone=tone.strip().lower() if tone else None,
+            clause_text=clause_text.strip() if clause_text else None,
+            created_at=now,
+        )
+
+    def insert_semantic_propositions_batch(
+        self,
+        items: Sequence[Tuple[Any, ...]],
+    ) -> int:
+        """Batch insert semantic propositions in a transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for item in items:
+            ref_input = item[0]
+            speech_act = item[1]
+            agent = item[2]
+            action = item[3]
+            patient = item[4] if len(item) > 4 else None
+            tone = item[5] if len(item) > 5 else None
+            clause = item[6] if len(item) > 6 else None
+
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append((
+                ref.canonical_start_id,
+                ref.format(),
+                speech_act.strip().lower(),
+                agent.strip(),
+                action.strip(),
+                patient.strip() if patient else None,
+                tone.strip().lower() if tone else None,
+                clause.strip() if clause else None,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO semantic_propositions (
+                    canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_semantic_propositions_for_verse(
+        self,
+        reference: Union[Reference, str],
+    ) -> List[SemanticPropositionRecord]:
+        """Fetch semantic propositions for a specific verse or range."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        start_id = ref.canonical_start_id
+        end_id = ref.canonical_end_id
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+            FROM semantic_propositions
+            WHERE canonical_verse_id >= ? AND canonical_verse_id <= ?
+            ORDER BY canonical_verse_id ASC, id ASC
+            """,
+            (start_id, end_id),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            SemanticPropositionRecord(
+                id=r["id"],
+                canonical_verse_id=r["canonical_verse_id"],
+                human_ref=r["human_ref"],
+                speech_act=r["speech_act"],
+                agent=r["agent"],
+                action=r["action"],
+                patient=r["patient"],
+                tone=r["tone"],
+                clause_text=r["clause_text"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_semantic_propositions_by_agent(
+        self,
+        agent: str,
+        limit: int = 100,
+    ) -> List[SemanticPropositionRecord]:
+        """Fetch propositions by agent (e.g. 'God', 'Jesus', 'Paul')."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+            FROM semantic_propositions
+            WHERE agent = ? COLLATE NOCASE
+            ORDER BY canonical_verse_id ASC, id ASC
+            LIMIT ?
+            """,
+            (agent.strip(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            SemanticPropositionRecord(
+                id=r["id"],
+                canonical_verse_id=r["canonical_verse_id"],
+                human_ref=r["human_ref"],
+                speech_act=r["speech_act"],
+                agent=r["agent"],
+                action=r["action"],
+                patient=r["patient"],
+                tone=r["tone"],
+                clause_text=r["clause_text"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def get_semantic_propositions_by_speech_act(
+        self,
+        speech_act: str,
+        limit: int = 100,
+    ) -> List[SemanticPropositionRecord]:
+        """Fetch propositions by speech act (e.g. 'promise', 'command', 'imperative')."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+            FROM semantic_propositions
+            WHERE speech_act = ? COLLATE NOCASE
+            ORDER BY canonical_verse_id ASC, id ASC
+            LIMIT ?
+            """,
+            (speech_act.strip().lower(), limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            SemanticPropositionRecord(
+                id=r["id"],
+                canonical_verse_id=r["canonical_verse_id"],
+                human_ref=r["human_ref"],
+                speech_act=r["speech_act"],
+                agent=r["agent"],
+                action=r["action"],
+                patient=r["patient"],
+                tone=r["tone"],
+                clause_text=r["clause_text"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_semantic_propositions(
+        self,
+        agent: Optional[str] = None,
+        speech_act: Optional[str] = None,
+    ) -> int:
+        """Count semantic propositions with optional filtering."""
+        cur = self.conn.cursor()
+        if agent and speech_act:
+            cur.execute(
+                "SELECT count(*) FROM semantic_propositions WHERE agent = ? COLLATE NOCASE AND speech_act = ? COLLATE NOCASE",
+                (agent.strip(), speech_act.strip().lower()),
+            )
+        elif agent:
+            cur.execute("SELECT count(*) FROM semantic_propositions WHERE agent = ? COLLATE NOCASE", (agent.strip(),))
+        elif speech_act:
+            cur.execute("SELECT count(*) FROM semantic_propositions WHERE speech_act = ? COLLATE NOCASE", (speech_act.strip().lower(),))
+        else:
+            cur.execute("SELECT count(*) FROM semantic_propositions")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_semantic_propositions(self) -> int:
+        """Remove all semantic propositions."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM semantic_propositions")
+            return cur.rowcount
+
+    # --- Vector Embeddings API (Phase 7 / ADR-042) ---
+
+    def save_verse_embedding(
+        self,
+        reference: Union[Reference, str],
+        model_id: str,
+        dimensions: int,
+        embedding: bytes,
+    ) -> VerseEmbeddingRecord:
+        """Save a dense vector embedding as binary bytes for a canonical verse."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        vid = ref.canonical_start_id
+        human = ref.format()
+        now = _utc_now_iso()
+
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO verse_embeddings (
+                    canonical_verse_id, human_ref, model_id, dimensions, embedding, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(canonical_verse_id) DO UPDATE SET
+                    model_id=excluded.model_id,
+                    dimensions=excluded.dimensions,
+                    embedding=excluded.embedding,
+                    created_at=excluded.created_at
+                """,
+                (vid, human, model_id.strip(), dimensions, embedding, now),
+            )
+
+        return VerseEmbeddingRecord(
+            canonical_verse_id=vid,
+            human_ref=human,
+            model_id=model_id.strip(),
+            dimensions=dimensions,
+            embedding=embedding,
+            created_at=now,
+        )
+
+    def save_verse_embeddings_batch(
+        self,
+        items: Sequence[Tuple[Union[Reference, str], str, int, bytes]],
+    ) -> int:
+        """Batch save verse embeddings in a transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for ref_input, model_id, dims, emb in items:
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append((
+                ref.canonical_start_id,
+                ref.format(),
+                model_id.strip(),
+                dims,
+                emb,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO verse_embeddings (
+                    canonical_verse_id, human_ref, model_id, dimensions, embedding, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(canonical_verse_id) DO UPDATE SET
+                    model_id=excluded.model_id,
+                    dimensions=excluded.dimensions,
+                    embedding=excluded.embedding,
+                    created_at=excluded.created_at
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_verse_embedding(
+        self,
+        reference: Union[Reference, str],
+    ) -> Optional[VerseEmbeddingRecord]:
+        """Fetch vector embedding for a canonical verse."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        vid = ref.canonical_start_id
+
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT canonical_verse_id, human_ref, model_id, dimensions, embedding, created_at
+            FROM verse_embeddings
+            WHERE canonical_verse_id = ?
+            """,
+            (vid,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return None
+        return VerseEmbeddingRecord(
+            canonical_verse_id=row["canonical_verse_id"],
+            human_ref=row["human_ref"],
+            model_id=row["model_id"],
+            dimensions=row["dimensions"],
+            embedding=row["embedding"],
+            created_at=row["created_at"],
+        )
+
+    def get_all_verse_embeddings(
+        self,
+        model_id: Optional[str] = None,
+    ) -> List[VerseEmbeddingRecord]:
+        """Retrieve all stored verse embeddings, optionally filtered by model."""
+        cur = self.conn.cursor()
+        if model_id:
+            cur.execute(
+                """
+                SELECT canonical_verse_id, human_ref, model_id, dimensions, embedding, created_at
+                FROM verse_embeddings
+                WHERE model_id = ?
+                ORDER BY canonical_verse_id ASC
+                """,
+                (model_id.strip(),),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT canonical_verse_id, human_ref, model_id, dimensions, embedding, created_at
+                FROM verse_embeddings
+                ORDER BY canonical_verse_id ASC
+                """
+            )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseEmbeddingRecord(
+                canonical_verse_id=r["canonical_verse_id"],
+                human_ref=r["human_ref"],
+                model_id=r["model_id"],
+                dimensions=r["dimensions"],
+                embedding=r["embedding"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_verse_embeddings(self) -> int:
+        """Count total stored verse embeddings."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT count(*) FROM verse_embeddings")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_verse_embeddings(self) -> int:
+        """Remove all verse embeddings."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM verse_embeddings")
+            return cur.rowcount
+
+    def save_pericope_embedding(
+        self,
+        pericope_id: int,
+        reference: Union[Reference, str],
+        model_id: str,
+        dimensions: int,
+        embedding: bytes,
+    ) -> PericopeEmbeddingRecord:
+        """Save a dense vector embedding as binary bytes for a pericope unit."""
+        ref = parse_reference(reference) if isinstance(reference, str) else reference
+        s_id = ref.canonical_start_id
+        e_id = ref.canonical_end_id
+        human = ref.format()
+        now = _utc_now_iso()
+
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO pericope_embeddings (
+                    pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pericope_id) DO UPDATE SET
+                    start_canonical_id=excluded.start_canonical_id,
+                    end_canonical_id=excluded.end_canonical_id,
+                    human_ref=excluded.human_ref,
+                    model_id=excluded.model_id,
+                    dimensions=excluded.dimensions,
+                    embedding=excluded.embedding,
+                    created_at=excluded.created_at
+                """,
+                (pericope_id, s_id, e_id, human, model_id.strip(), dimensions, embedding, now),
+            )
+
+        return PericopeEmbeddingRecord(
+            pericope_id=pericope_id,
+            start_canonical_id=s_id,
+            end_canonical_id=e_id,
+            human_ref=human,
+            model_id=model_id.strip(),
+            dimensions=dimensions,
+            embedding=embedding,
+            created_at=now,
+        )
+
+    def save_pericope_embeddings_batch(
+        self,
+        items: Sequence[Tuple[int, Union[Reference, str], str, int, bytes]],
+    ) -> int:
+        """Batch save pericope embeddings in a transaction."""
+        now = _utc_now_iso()
+        rows = []
+        for pid, ref_input, model_id, dims, emb in items:
+            ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+            rows.append((
+                pid,
+                ref.canonical_start_id,
+                ref.canonical_end_id,
+                ref.format(),
+                model_id.strip(),
+                dims,
+                emb,
+                now,
+            ))
+
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO pericope_embeddings (
+                    pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pericope_id) DO UPDATE SET
+                    start_canonical_id=excluded.start_canonical_id,
+                    end_canonical_id=excluded.end_canonical_id,
+                    human_ref=excluded.human_ref,
+                    model_id=excluded.model_id,
+                    dimensions=excluded.dimensions,
+                    embedding=excluded.embedding,
+                    created_at=excluded.created_at
+                """,
+                rows,
+            )
+        return len(rows)
+
+    def get_pericope_embedding(
+        self,
+        pericope_id: int,
+    ) -> Optional[PericopeEmbeddingRecord]:
+        """Fetch vector embedding for a pericope by ID."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+            FROM pericope_embeddings
+            WHERE pericope_id = ?
+            """,
+            (pericope_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return None
+        return PericopeEmbeddingRecord(
+            pericope_id=row["pericope_id"],
+            start_canonical_id=row["start_canonical_id"],
+            end_canonical_id=row["end_canonical_id"],
+            human_ref=row["human_ref"],
+            model_id=row["model_id"],
+            dimensions=row["dimensions"],
+            embedding=row["embedding"],
+            created_at=row["created_at"],
+        )
+
+    def get_all_pericope_embeddings(
+        self,
+        model_id: Optional[str] = None,
+    ) -> List[PericopeEmbeddingRecord]:
+        """Retrieve all stored pericope embeddings, optionally filtered by model."""
+        cur = self.conn.cursor()
+        if model_id:
+            cur.execute(
+                """
+                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                FROM pericope_embeddings
+                WHERE model_id = ?
+                ORDER BY pericope_id ASC
+                """,
+                (model_id.strip(),),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                FROM pericope_embeddings
+                ORDER BY pericope_id ASC
+                """
+            )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            PericopeEmbeddingRecord(
+                pericope_id=r["pericope_id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                model_id=r["model_id"],
+                dimensions=r["dimensions"],
+                embedding=r["embedding"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def count_pericope_embeddings(self) -> int:
+        """Count total stored pericope embeddings."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT count(*) FROM pericope_embeddings")
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
+    def clear_pericope_embeddings(self) -> int:
+        """Remove all pericope embeddings."""
+        with self.conn:
+            cur = self.conn.execute("DELETE FROM pericope_embeddings")
             return cur.rowcount
