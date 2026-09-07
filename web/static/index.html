@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="obsidian">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,46 +10,100 @@
   <div class="app-layout">
     <!-- Top Bar Header -->
     <header class="top-header">
-      <div class="brand">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            <line x1="12" y1="6" x2="12" y2="14"/>
-            <line x1="8" y1="9" x2="16" y2="9"/>
+      <div class="header-left">
+        <button class="icon-btn sidebar-toggle-btn" id="btn-toggle-sidebar" title="Toggle Navigation Sidebar ( [ )" aria-label="Toggle Sidebar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
-        </div>
-        <div class="brand-text">
-          <span class="brand-title">BIBLE ENGINE</span>
-          <span class="brand-subtitle">Sacred-Modern Scripture Explorer & Knowledge Graph</span>
+        </button>
+
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <line x1="12" y1="6" x2="12" y2="14"/>
+              <line x1="8" y1="9" x2="16" y2="9"/>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">BIBLE ENGINE</span>
+            <span class="brand-subtitle">Sacred-Modern Scripture Explorer &amp; Knowledge Graph</span>
+          </div>
         </div>
       </div>
 
-      <div class="header-status">
-        <div class="status-indicator">
-          <span class="pulse-dot" id="health-dot"></span>
-          <span class="status-label" id="health-status">Connecting...</span>
+      <!-- Quick Global Search in Header -->
+      <div class="header-search-bar">
+        <div class="quick-search-box">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="header-quick-input" placeholder="Jump to reference or search ( / )..." autocomplete="off" spellcheck="false">
+          <kbd class="shortcut-hint">/</kbd>
         </div>
-        <div class="badge badge-version" id="version-badge">WEB</div>
-        <div class="badge badge-count" id="verses-badge">... verses</div>
+      </div>
+
+      <!-- Header Right: Reader Controls & Status -->
+      <div class="header-right">
+        <!-- Theme Selector -->
+        <div class="theme-selector-dropdown">
+          <select id="select-theme" title="Select Visual Sacred-Modern Theme">
+            <option value="obsidian" selected>✦ Obsidian Dark</option>
+            <option value="scriptorium">📜 Scriptorium</option>
+            <option value="monastery">🏛 Monastery Light</option>
+          </select>
+        </div>
+
+        <!-- Typography Controls -->
+        <div class="header-tool-group">
+          <button class="icon-btn" id="btn-font-dec" title="Decrease Font Size ( - )" aria-label="Decrease Font Size">A−</button>
+          <button class="icon-btn" id="btn-font-inc" title="Increase Font Size ( + )" aria-label="Increase Font Size">A+</button>
+          <button class="icon-btn" id="btn-toggle-flow" title="Toggle Paragraph Flow / Verse List ( f )" aria-label="Toggle Paragraph Flow">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="15" y2="12"/>
+              <line x1="3" y1="18" x2="18" y2="18"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-shortcuts" title="Keyboard Shortcuts ( ? )" aria-label="Keyboard Shortcuts">?</button>
+        </div>
+
+        <!-- System Health Badges -->
+        <div class="header-status">
+          <div class="status-indicator">
+            <span class="pulse-dot" id="health-dot"></span>
+            <span class="status-label" id="health-status">Connecting...</span>
+          </div>
+          <div class="badge badge-version" id="version-badge">WEB</div>
+          <div class="badge badge-count" id="verses-badge">... verses</div>
+        </div>
       </div>
     </header>
+
+    <!-- Mobile Drawer Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
     <!-- Main Content Split Pane -->
     <div class="main-container">
       <!-- Left Sidebar: Navigation & Query Inputs -->
-      <aside class="sidebar">
+      <aside class="sidebar" id="sidebar">
         <!-- Tab Navigation -->
-        <nav class="nav-tabs">
-          <button class="nav-tab active" data-view="passage">Passage</button>
-          <button class="nav-tab" data-view="search">Search</button>
-          <button class="nav-tab" data-view="topics">Topics</button>
-          <button class="nav-tab" data-view="crossref">Cross-Refs</button>
-          <button class="nav-tab" data-view="api">REST API</button>
+        <nav class="nav-tabs" role="tablist">
+          <button class="nav-tab active" data-view="passage" role="tab" aria-selected="true">Passage</button>
+          <button class="nav-tab" data-view="search" role="tab" aria-selected="false">Search</button>
+          <button class="nav-tab" data-view="topics" role="tab" aria-selected="false">Topics</button>
+          <button class="nav-tab" data-view="crossref" role="tab" aria-selected="false">Cross-Refs</button>
+          <button class="nav-tab" data-view="ribbon" role="tab" aria-selected="false">Canon</button>
+          <button class="nav-tab" data-view="api" role="tab" aria-selected="false">API</button>
         </nav>
 
         <!-- View Controls Container -->
-        <div class="view-panel" id="panel-passage">
+        <!-- Tab 1: Passage -->
+        <div class="view-panel" id="panel-passage" role="tabpanel">
           <div class="form-group">
             <label for="input-ref">Scripture Reference</label>
             <div class="input-with-action">
@@ -62,6 +116,8 @@
               <span class="chip" data-ref="Isaiah 53:4-6">Isa 53:4-6</span>
               <span class="chip" data-ref="John 1:1-14">John 1:1-14</span>
               <span class="chip" data-ref="Romans 8:28-39">Rom 8:28-39</span>
+              <span class="chip" data-ref="Philippians 2:5-11">Phil 2:5-11</span>
+              <span class="chip" data-ref="Revelation 21:1-7">Rev 21:1-7</span>
             </div>
           </div>
 
@@ -79,92 +135,210 @@
               <option value="WEB" selected>World English Bible (WEB)</option>
             </select>
           </div>
+
+          <div class="panel-section-divider"></div>
+
+          <div class="user-favorites-box">
+            <div class="box-title">
+              <span>★ Curated Favorites</span>
+              <span class="count-pill">829</span>
+            </div>
+            <p class="box-caption">Pre-indexed sovereign passages with theological curation tags.</p>
+            <div class="quick-chips">
+              <span class="chip chip-gold" data-ref="2 Samuel 7:12-16">2 Sam 7 (Covenant)</span>
+              <span class="chip chip-gold" data-ref="Psalm 110:1-4">Ps 110 (Melchizedek)</span>
+              <span class="chip chip-gold" data-ref="Hebrews 1:1-4">Heb 1:1-4 (Christ)</span>
+            </div>
+          </div>
         </div>
 
-        <div class="view-panel hidden" id="panel-search">
+        <!-- Tab 2: Full-Text Search (FTS5) -->
+        <div class="view-panel hidden" id="panel-search" role="tabpanel">
           <div class="form-group">
-            <label for="input-search">Full-Text Search (FTS5)</label>
+            <label for="input-search">Full-Text Search (SQLite FTS5)</label>
             <div class="input-with-action">
               <input type="text" id="input-search" placeholder="e.g. light of the world, grace" value="light of the world" spellcheck="false" autocomplete="off">
               <button class="btn btn-primary" id="btn-search">Search</button>
             </div>
           </div>
           <div class="form-group">
-            <label for="search-testament">Testament Filter</label>
+            <label for="search-testament">Testament Scope</label>
             <select id="search-testament">
-              <option value="">All Canon (66 Books)</option>
+              <option value="">All Canon (66 Books · 31,103 Verses)</option>
               <option value="OT">Old Testament (39 Books)</option>
               <option value="NT">New Testament (27 Books)</option>
             </select>
           </div>
+          <div class="search-stats-bar hidden" id="search-stats-bar">
+            <span id="search-results-count">0 matches</span>
+          </div>
+          <div class="search-results-list" id="search-results-list"></div>
         </div>
 
-        <div class="view-panel hidden" id="panel-topics">
+        <!-- Tab 3: Semantic Topics & Taxonomies -->
+        <div class="view-panel hidden" id="panel-topics" role="tabpanel">
           <div class="form-group">
             <label for="input-tag-filter">Filter Semantic Tags</label>
-            <input type="text" id="input-tag-filter" placeholder="Filter tags..." autocomplete="off">
+            <input type="text" id="input-tag-filter" placeholder="Filter themes, doctrine, motifs..." autocomplete="off">
+          </div>
+          <div class="category-filter-bar" id="category-filter-bar">
+            <button class="filter-pill active" data-cat="">All</button>
+            <button class="filter-pill" data-cat="theological">Theological</button>
+            <button class="filter-pill" data-cat="thematic">Thematic</button>
+            <button class="filter-pill" data-cat="curation">Curation</button>
+            <button class="filter-pill" data-cat="prophecy">Prophecy</button>
+            <button class="filter-pill" data-cat="typology">Typology</button>
           </div>
           <div class="tag-cloud" id="tag-cloud-container">
             <div class="loading-spinner">Loading semantic taxonomy...</div>
           </div>
         </div>
 
-        <div class="view-panel hidden" id="panel-crossref">
+        <!-- Tab 4: Cross References -->
+        <div class="view-panel hidden" id="panel-crossref" role="tabpanel">
           <div class="form-group">
             <label for="input-xref">Passage for Cross-References</label>
             <div class="input-with-action">
-              <input type="text" id="input-xref" placeholder="e.g. Genesis 1:1, Psalm 22:1" value="Genesis 1:1" spellcheck="false" autocomplete="off">
-              <button class="btn btn-primary" id="btn-xref">Find Refs</button>
+              <input type="text" id="input-xref" placeholder="e.g. Genesis 1:1, Isaiah 53:5" value="Genesis 3:15" spellcheck="false" autocomplete="off">
+              <button class="btn btn-primary" id="btn-xref">Explore</button>
             </div>
           </div>
           <div class="stats-card" id="xref-stats-card">
-            <h4>Knowledge Graph Statistics</h4>
-            <div id="xref-stats-content">Loading...</div>
+            <h4>Canonical Knowledge Graph</h4>
+            <div id="xref-stats-content">Loading statistics...</div>
           </div>
         </div>
 
-        <div class="view-panel hidden" id="panel-api">
+        <!-- Tab 5: Canonical Ribbon Visualizer -->
+        <div class="view-panel hidden" id="panel-ribbon" role="tabpanel">
+          <div class="canon-summary-card">
+            <h4>66 Canonical Books</h4>
+            <p class="canon-summary-text">Browse the canonical division of Old and New Testament scriptures.</p>
+          </div>
+          <div class="canon-group-header">Old Testament (39 Books)</div>
+          <div class="canon-book-grid" id="ot-book-grid"></div>
+          <div class="canon-group-header" style="margin-top: 16px;">New Testament (27 Books)</div>
+          <div class="canon-book-grid" id="nt-book-grid"></div>
+        </div>
+
+        <!-- Tab 6: REST API Documentation -->
+        <div class="view-panel hidden" id="panel-api" role="tabpanel">
           <div class="api-doc-list">
-            <h4>Built-in REST API Endpoints</h4>
+            <h4>Built-in Zero-Dependency REST API</h4>
+            <p class="api-doc-intro">Offline endpoints served directly from embedded Python SQLite backend.</p>
             <ul>
-              <li><a href="/api/health" target="_blank"><code>GET /api/health</code></a> — System status</li>
-              <li><a href="/api/books" target="_blank"><code>GET /api/books</code></a> — Canonical catalog</li>
-              <li><a href="/api/passage?ref=John+3:16" target="_blank"><code>GET /api/passage</code></a> — Verse lookup</li>
-              <li><a href="/api/search?q=grace" target="_blank"><code>GET /api/search</code></a> — FTS5 Search</li>
-              <li><a href="/api/translations" target="_blank"><code>GET /api/translations</code></a> — Translations</li>
-              <li><a href="/api/tags" target="_blank"><code>GET /api/tags</code></a> — Semantic tags</li>
-              <li><a href="/api/tags/density" target="_blank"><code>GET /api/tags/density</code></a> — Book density</li>
-              <li><a href="/api/tags/co-occurrence" target="_blank"><code>GET /api/tags/co-occurrence</code></a> — Co-occurrence</li>
-              <li><a href="/api/crossref?ref=Genesis+1:1" target="_blank"><code>GET /api/crossref</code></a> — Cross-references</li>
-              <li><a href="/api/stats" target="_blank"><code>GET /api/stats</code></a> — Overall statistics</li>
+              <li><a href="/api/health" target="_blank"><code>GET /api/health</code></a> <span>System diagnostics</span></li>
+              <li><a href="/api/books" target="_blank"><code>GET /api/books</code></a> <span>Canonical 66 books catalog</span></li>
+              <li><a href="/api/passage?ref=John+3:16" target="_blank"><code>GET /api/passage</code></a> <span>Scripture lookup &amp; tags</span></li>
+              <li><a href="/api/verses?book=GEN&amp;chapter=1" target="_blank"><code>GET /api/verses</code></a> <span>Direct chapter verses</span></li>
+              <li><a href="/api/search?q=grace" target="_blank"><code>GET /api/search</code></a> <span>SQLite FTS5 full-text search</span></li>
+              <li><a href="/api/translations" target="_blank"><code>GET /api/translations</code></a> <span>Installed translations</span></li>
+              <li><a href="/api/tags" target="_blank"><code>GET /api/tags</code></a> <span>Semantic taxonomies</span></li>
+              <li><a href="/api/tags/density" target="_blank"><code>GET /api/tags/density</code></a> <span>Topic density per book</span></li>
+              <li><a href="/api/tags/co-occurrence" target="_blank"><code>GET /api/tags/co-occurrence</code></a> <span>Jaccard &amp; Dice matrix</span></li>
+              <li><a href="/api/tags/relevance?tags=favorites" target="_blank"><code>GET /api/tags/relevance</code></a> <span>Multi-tag relevance ranking</span></li>
+              <li><a href="/api/crossref?ref=Genesis+1:1" target="_blank"><code>GET /api/crossref</code></a> <span>Passage cross-references</span></li>
+              <li><a href="/api/crossref/stats" target="_blank"><code>GET /api/crossref/stats</code></a> <span>Knowledge graph metrics</span></li>
+              <li><a href="/api/stats" target="_blank"><code>GET /api/stats</code></a> <span>Corpus aggregate metrics</span></li>
             </ul>
           </div>
         </div>
       </aside>
 
-      <!-- Right Main Panel: Display & Reader -->
-      <main class="reader-stage">
+      <!-- Right Main Panel: Display & Reader Stage -->
+      <main class="reader-stage" id="reader-stage">
+        <!-- Canonical Chapter Navigation Bar -->
+        <div class="chapter-nav-bar">
+          <button class="nav-arrow-btn" id="btn-prev-chapter" title="Previous Chapter ( Left Arrow )">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="prev-chapter-label">Prev</span>
+          </button>
+
+          <div class="chapter-breadcrumbs" id="chapter-breadcrumbs">
+            <span class="bc-testament" id="bc-testament">New Testament</span>
+            <span class="bc-sep">/</span>
+            <span class="bc-book" id="bc-book">Romans</span>
+            <span class="bc-sep">/</span>
+            <span class="bc-chapter" id="bc-chapter">Chapter 8</span>
+          </div>
+
+          <button class="nav-arrow-btn" id="btn-next-chapter" title="Next Chapter ( Right Arrow )">
+            <span id="next-chapter-label">Next</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Stage Header & Metadata -->
         <div class="stage-header">
-          <div class="citation-title" id="display-citation">Romans 8:28-39</div>
-          <div class="citation-meta" id="display-meta">World English Bible (WEB)</div>
+          <div class="citation-row">
+            <h1 class="citation-title" id="display-citation">Romans 8:28-39</h1>
+            <div class="reader-actions">
+              <button class="action-btn" id="btn-copy-passage" title="Copy Passage with Citation ( c )">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>Copy</span>
+              </button>
+              <button class="action-btn" id="btn-toggle-numbers" title="Toggle Verse Numbers">
+                <span id="verse-numbers-label">Numbers: On</span>
+              </button>
+            </div>
+          </div>
+          <div class="citation-meta" id="display-meta">World English Bible (WEB) · 12 verses</div>
         </div>
 
         <!-- Tag badges container for active passage -->
         <div class="passage-tags" id="passage-tags-container"></div>
 
         <!-- Scripture verses reader container -->
-        <div class="scripture-flow" id="scripture-container">
-          <div class="loading-state">Loading passage...</div>
+        <div class="scripture-viewport">
+          <div class="scripture-flow" id="scripture-container">
+            <div class="loading-state">Loading passage...</div>
+          </div>
         </div>
 
         <!-- Relationship edges / Cross-references tray -->
         <section class="crossref-tray hidden" id="crossref-section">
-          <h3 class="section-title">Canonical Cross-References & Relationship Edges</h3>
+          <div class="crossref-section-header">
+            <h3 class="section-title">Canonical Cross-References &amp; Typological Edges</h3>
+            <span class="count-badge" id="crossref-count-badge">0 edges</span>
+          </div>
           <div class="crossref-list" id="crossref-list"></div>
         </section>
       </main>
     </div>
   </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div class="modal-backdrop hidden" id="shortcuts-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Keyboard Navigation &amp; Shortcuts</h3>
+        <button class="icon-btn" id="btn-close-modal" aria-label="Close Shortcuts Modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <tr><td><kbd>/</kbd> or <kbd>s</kbd></td><td>Focus search / jump to reference</td></tr>
+          <tr><td><kbd>[</kbd></td><td>Toggle sidebar navigation pane</td></tr>
+          <tr><td><kbd>f</kbd></td><td>Toggle paragraph flow / verse list</td></tr>
+          <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>Increase / decrease scripture font size</td></tr>
+          <tr><td><kbd>&larr;</kbd> / <kbd>&rarr;</kbd></td><td>Navigate to previous / next chapter</td></tr>
+          <tr><td><kbd>t</kbd></td><td>Cycle theme (Obsidian / Scriptorium / Monastery)</td></tr>
+          <tr><td><kbd>c</kbd></td><td>Copy current passage to clipboard</td></tr>
+          <tr><td><kbd>?</kbd></td><td>Toggle this keyboard shortcuts dialog</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close dialogs or clear inputs</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast hidden" id="toast"></div>
 
   <script src="app.js"></script>
 </body>

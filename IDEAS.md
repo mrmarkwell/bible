@@ -323,7 +323,7 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 3, Task 3.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [DONE] (Implemented in `core/tags.py`, `core/terminal.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_tags.py`, `tests/test_core.py`, and recorded in ADR-027).
 
-### Offline Web UI History & Sovereign Reading State via LocalStorage (Rank A+)
+### [VETTED] Offline Web UI History & Sovereign Reading State via LocalStorage (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
 - **Summary**: Implement a sovereign, client-side offline persistence layer in `web/static/app.js` using the browser's native `localStorage` API. Retains recently looked-up scripture references, FTS5 search queries, starred passage bookmarks, and reader typography preferences (font scale, layout style) without requiring server-side session cookies or external database mutations. Features a dedicated "History & Bookmarks" drawer in the Sacred-Modern UI sidebar with instant one-click navigation and offline data export/clearing.
 - **Rationale**: Elevates the built-in Web UI into a personalized scripture study workstation while adhering strictly to Manifesto Pillar I (Offline-First & Sovereign Data) and ADR-003 (Zero External Dependencies, vanilla JavaScript). Works seamlessly even when entirely disconnected from network access.
@@ -331,6 +331,18 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes (100% browser-native client storage).
   - Zero third-party dependencies? Yes (native browser `localStorage`, vanilla JS).
 - **Proposed Roadmap Phase**: Phase 4, Task 4.2 / 4.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [VETTED] (Core reader theme, typography scale, flow mode, and verse number state persisted via `localStorage` in Run 028 / ADR-029; bookmarks and history drawer queued for Task 4.4).
+
+### [SCHEDULED] Canonical Redemptive Ribbon Heatmap & Native SVG Macro-Visualizer (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Build the macro-scale visual scripture heatmap across all 66 Protestant canonical books using pure native SVG and browser Canvas (zero npm/d3 dependencies). Color-codes all 1,189 canonical chapter cells by thematic frequency or semantic tag density (retrieved from `/api/tags/density`), with smooth hover tooltips displaying chapter references and click-to-load direct navigation into the reader stage.
+- **Rationale**: Provides instant macro-level insight into the thematic topography of Scripture (e.g. visualizing where Covenant or Justification concentrates across OT Law, Prophets, Gospels, and Epistles) directly on the client canvas without any third-party visualization libraries.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (runs 100% client-side via native browser SVG/Canvas).
+  - Zero third-party dependencies? Yes (native browser DOM APIs, zero npm packages per ADR-003).
+- **Proposed Roadmap Phase**: Phase 4, Task 4.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [SCHEDULED] (Queued as Task 4.3).
+
 
 
 

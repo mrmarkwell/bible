@@ -831,3 +831,37 @@ This document is an append-only log of significant design and architectural deci
   - Establishes the foundational server and web application architecture for Phase 4 (Web UI & Visualizations).
   - Maintains 100% Zero External Dependencies compliance (stdlib only per ADR-003).
 
+---
+
+## ADR-029: Sacred-Modern Design System, Multi-Theme Obsidian/Scriptorium/Monastery Palette, and Editorial Typography Reader Architecture
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 4 (Task 4.2), the Bible Engine requires a cohesive, beautiful, and distraction-free visual design system ("Sacred-Modern") to accompany the built-in HTTP server and API. Scripture reading demands rigorous typographic care: optimal column measure (65–75 characters / ~780px), hierarchical serif typography, graceful paragraph flow, customizable scaling, and high-contrast night/day modes. Per Manifesto Pillars I (Offline-First & Sovereign Data) and Zero-Dependency ADR-003, the design system must be 100% self-contained in pure CSS3 and Vanilla ES6+ without external CDNs, npm packages, web font CDNs, or CSS frameworks.
+- **Decision**:
+  1. **Tri-Theme Sacred-Modern Color Palette (`web/static/style.css`)**:
+     - **Obsidian Dark Mode** (`[data-theme="obsidian"]`, default): Abyssal background `#0D0E11`, elevated card surfaces `#14171F` and `#1B202B`, with radial gradient header `#181C26` to `#0D0E11`.
+     - **Scriptorium Warm Charcoal** (`[data-theme="scriptorium"]`): Deep warm charcoal `#12100E` with sepia undertones `#1A1714` and muted gold accents.
+     - **Monastery Light Parchment** (`[data-theme="monastery"]`): Illuminated manuscript parchment `#F7F4EB`, elevated `#EFE9DC`, warm antique ink `#211D19`, and burnished gold `#B89025`.
+     - **Illuminated Gold Hierarchy**: Canonical Byzantine primary gold `#D4AF37`, luminous leaf halo `#F5E08F`, burnished gold `#997E24`, and linear gold gradients (`linear-gradient(135deg, #F5E08F 0%, #D4AF37 50%, #997E24 100%)`).
+     - **Semantic Category Color System**: Distinct accent borders for semantic taxonomies (`theological` Sapphire `#4A90E2`, `thematic` Tyrian Purple `#9B51E0`, `curation` Pure Gold `#F1C40F`, `prophecy` Emerald `#2ECC71`, `typology` Amber `#F39C12`, `historical` Ochre `#E67E22`, `liturgical` Crimson `#E74C3C`).
+  2. **Editorial Typography & Reader Ergonomics (`web/static/style.css` & `app.js`)**:
+     - Standardized serif stack: `"Cardo", "Charter", "Georgia", "Iowan Old Style", "Palatino Linotype", "Liberation Serif", serif`.
+     - Dynamic font scaling controls (`A-` / `A+`, keyboard shortcuts `-` / `+`) dynamically updating `--reader-font-size` between 15px and 30px, persisted in `localStorage`.
+     - Dual presentation modes:
+       - **Verse List Mode** (default): Line-by-line verses with right-aligned monospace verse numbers and hanging indents.
+       - **Paragraph Flow Mode** (`.flow-mode`, keyboard shortcut `f`): Continuous editorial prose with subtle inline superscript verse numerals.
+     - Verse number visibility toggle (`Numbers: On` / `Numbers: Off`).
+     - One-click copy passage (`btn-copy-passage`, keyboard shortcut `c`) generating clean markdown/text citations with version attribution.
+  3. **Responsive Split-Pane Layout & Visual Components (`index.html` & `app.js`)**:
+     - Collapsible sidebar (`#sidebar.collapsed`, keyboard shortcut `[`) for distraction-free Zen scripture study.
+     - Mobile drawer mode (`@media (max-width: 900px)`): transforms sidebar into a slide-over off-canvas drawer with darkened backdrop overlay.
+     - **Canonical Ribbon Grid**: Visual interactive navigator across all 66 Protestant canonical books grouped by Old Testament (39 books) and New Testament (27 books), enabling instant chapter jumping.
+     - **Canonical Chapter Navigation Bar**: Quick `< Prev Chapter` and `Next Chapter >` buttons with dynamic breadcrumbs (`Testament / Book / Chapter`) that automatically navigate across book boundaries.
+     - Global search preprocessor in top header (`#header-quick-input`, shortcut `/`): automatically detects whether input is a citation or full-text search query.
+     - Comprehensive keyboard shortcut navigation subsystem with accessible modal dialog (`?`).
+  4. **Hermetic Test Suite (`tests/test_server.py`)**:
+     - Expanded tests verifying CSS theme tokens, HTML layout containers, chapter breadcrumb elements, shortcuts modal, and client capability functions. Total test count expanded to 342 tests passing 100% in 5.39s with zero warnings.
+- **Consequences**:
+  - Completes Phase 4 Task 4.2 in full.
+  - Elevates the Bible Engine web interface to an editorial, sacred-modern reading standard.
+  - Maintains 100% Zero External Dependencies compliance (pure HTML/CSS/JS, zero npm/pip packages per ADR-003).

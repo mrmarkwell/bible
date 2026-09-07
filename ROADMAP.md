@@ -49,7 +49,7 @@ This document is the single source of truth for current project status, active t
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*
-- [ ] **Task 4.2**: Implement Sacred-Modern design system (obsidian dark mode `#0D0E11`, illuminated gold accents `#D4AF37`, editorial typography, responsive split-pane layout).
+- [x] **Task 4.2**: Implement Sacred-Modern design system (obsidian dark mode `#0D0E11`, illuminated gold accents `#D4AF37`, editorial typography, responsive split-pane layout). *(Run 028 / ADR-029)*
 - [ ] **Task 4.3**: Implement Canonical Redemptive Ribbon: pure SVG/Canvas Thematic Heatmap visualization across all 66 books of the Bible for any chosen tag/topic.
 - [ ] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags.
 - [ ] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments.

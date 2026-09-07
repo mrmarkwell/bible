@@ -97,6 +97,43 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("javascript", headers.get("Content-Type", "").lower())
         self.assertIn(b"DOMContentLoaded", body)
 
+    def test_sacred_modern_design_system_tokens_in_css(self) -> None:
+        status, _, body = self._get("/style.css")
+        self.assertEqual(status, 200)
+        css_text = body.decode("utf-8")
+        self.assertIn("--bg-obsidian: #0D0E11", css_text)
+        self.assertIn("--gold-primary: #D4AF37", css_text)
+        self.assertIn('[data-theme="obsidian"]', css_text)
+        self.assertIn('[data-theme="scriptorium"]', css_text)
+        self.assertIn('[data-theme="monastery"]', css_text)
+        self.assertIn(".flow-mode", css_text)
+        self.assertIn(".chapter-nav-bar", css_text)
+        self.assertIn(".shortcuts-table", css_text)
+
+    def test_sacred_modern_html_elements(self) -> None:
+        status, _, body = self._get("/")
+        self.assertEqual(status, 200)
+        html_text = body.decode("utf-8")
+        self.assertIn('data-theme="obsidian"', html_text)
+        self.assertIn('id="select-theme"', html_text)
+        self.assertIn('id="btn-toggle-flow"', html_text)
+        self.assertIn('id="btn-copy-passage"', html_text)
+        self.assertIn('id="chapter-breadcrumbs"', html_text)
+        self.assertIn('id="shortcuts-modal"', html_text)
+        self.assertIn('id="ot-book-grid"', html_text)
+        self.assertIn('id="nt-book-grid"', html_text)
+
+    def test_sacred_modern_js_capabilities(self) -> None:
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("setTheme", js_text)
+        self.assertIn("cycleTheme", js_text)
+        self.assertIn("copyCurrentPassage", js_text)
+        self.assertIn("toggleFlowMode", js_text)
+        self.assertIn("renderCanonicalRibbon", js_text)
+        self.assertIn("shortcutsModal", js_text)
+
     def test_serve_missing_file_returns_404(self) -> None:
         status, _, _ = self._get("/nonexistent_asset_404.txt")
         self.assertEqual(status, 404)
