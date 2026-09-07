@@ -1275,5 +1275,39 @@ This document is an append-only log of significant design and architectural deci
   - Instant offline visualizations preserved across all 66 books.
   - Beautiful, accurate ESV text across CLI, TV slides, and LLM reasoning.
 
+---
+
+## ADR-042: One-Shot ESV Semantic Understanding Database Architecture, Multi-Pass Exegetical Pipeline, and 6-Layer Relational Knowledge Graph
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: The repository owner requested a comprehensive architectural system to build out a permanent, high-quality "Semantic Understanding Database" of the whole Bible analyzed from the English Standard Version (ESV). Because the biblical text is a closed, unchanging canon (66 Protestant books, 1,189 chapters, 31,102 verses), this extraction process should execute once to generate the database at an elite, rigorous standard, saving the verified results into local SQLite. The system requires clear definitions of the types of information to store and the multi-stage generation methodology, while adhering strictly to ADR-003 (Zero External Dependencies), ADR-006 (Google Gemini LLM & TGC Hermeneutical Framework), and ADR-041 (Crossway legal compliance and public open-source licensing).
+- **Decision**:
+  1. **6-Layer Semantic Taxonomy & Ontology**:
+     - *Layer 1 (Structural & Discourse Hierarchy)*: Pericopes (~2,800 canonical thought units) with literary genre, chiasm/parallelism structure, and central exegetical propositions; verse-level propositional rhetoric (ground `γάρ`, inference `οὖν`, purpose `ἵνα`, concession, contrast, condition).
+     - *Layer 2 (Dual-Horizon Theological Semantics)*: Redemptive-historical storyline epochs (*Creation -> Fall -> Redemption -> Consummation*) and canonical thematic ribbons (*Temple, Seed, Covenant, Priesthood, Sabbath, Exile*) paired with systematic theological loci (*Justification, Substitutionary Atonement, Sovereign Grace*) enforcing anti-moralistic exegesis per TGC Foundation Documents.
+     - *Layer 3 (Intertextual Knowledge Graph)*: Typological arcs (*Type -> Antitype*) with explicit theological correspondence, direct quotations with introductory formulas and hermeneutical usage categories, allusions, and prophetic fulfillment trajectories.
+     - *Layer 4 (Entity, Character & Agency Triples)*: Normalized canonical persona profiles, character faith/failure arcs, agent-action-patient semantic triples (`[Subject] -> [Predicate] -> [Object]`), and contextual divine titles.
+     - *Layer 5 (Speech Acts & Devotional Tone)*: Illocutionary force (indicative, imperative, promise, warning, lament, doxology) and emotional affect.
+     - *Layer 6 (Dense Vector Geometry)*: Pre-computed 768-dimensional vector embeddings for all 31,102 verses and pericopes stored as quantized `int8` byte blobs (~24 MB) in SQLite for zero-dependency conceptual similarity search.
+  2. **Multi-Pass Generation Pipeline (`tools/build_semantic_db.py`)**:
+     - *Stage 1 (Book Horizon Context)*: Pre-generates canonical macro-context for all 66 books, injected into every pericope prompt to prevent isolated proof-texting.
+     - *Stage 2 (Pericope-by-Pericope Exegetical Extraction)*: Low-temperature (0.1) structured JSON Schema prompts extracting propositions, discourse logic, theological tags, and character triples.
+     - *Stage 3 (Cross-Canonical Synthesis)*: Global synthesis linking OT types to NT antitypes and standardizing cross-references.
+     - *Stage 4 (Embeddings Generation)*: Computes dense vector embeddings using Google's embedding model, packed into SQLite `BLOB` columns.
+     - *Stage 5 (Multi-Agent Exegetical Critic)*: Automated audit validating canonical coordinate integrity (`BBCCCVVV`), entity normalization, and anti-moralistic compliance before committing to SQLite.
+     - *Stage 6 (Resumable SQLite Checkpoint Ledger)*: Tracks progress pericope-by-pericope; can be safely paused and resumed without re-running or wasting tokens.
+  3. **Zero-Dependency Vector Similarity Engine (`core/vector.py`)**:
+     - Implement packed binary byte buffer packing/unpacking and dot-product / cosine similarity in pure Python 3 standard library (`struct`, `math`).
+     - Evaluates 31,102 quantized vectors in <15ms without numpy, faiss, or external vector databases.
+  4. **Legal & Sovereign Decoupling (ADR-041)**:
+     - The compilation script operates on ESV text to derive the factual, theological, relational, and vector metadata.
+     - The resulting SQLite knowledge database contains derived metadata, coordinates, and relational edges, which are 100% sovereign and redistributable under the MIT License without violating Crossway's text redistribution limits.
+- **Consequences**:
+  - Equips the Bible Engine with permanent, deep theological and semantic intelligence operating offline at microsecond speeds.
+  - Eliminates the need for real-time external LLM calls for standard exegesis, semantic search, thematic ribbons, or cross-referencing.
+  - Strictly preserves 100% zero-dependency Python standard library compliance (ADR-003).
+  - Establishes a concrete, verifiable implementation roadmap for Phase 7.
+
+
 
 

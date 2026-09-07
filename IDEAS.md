@@ -462,7 +462,40 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes (compiled SQLite database operates 100% offline).
   - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
   - Copyright compliant? Yes (derives metadata, tags, discourse graphs, and embeddings without redistributing raw text; complies with ADR-041).
-- **Proposed Roadmap Phase**: Phase 7 (Tasks 7.1–7.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
-- **Status**: [VETTED] / Scheduled (Phase 7).
+- **Proposed Roadmap Phase**: Phase 7 (Tasks 7.1–7.6 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md); ADR-042).
+- **Status**: [SCHEDULED] (Phase 7).
+
+#### Detailed Technical Specifications & Implementation Instructions for Agents:
+
+##### 1. Database Schema Specifications (`core/db.py`)
+Add the following tables and indices to `core/db.py`:
+- `pericopes`: `(id, book_id, start_canonical_id, end_canonical_id, human_ref, title, genre, literary_structure, central_proposition, redemptive_summary, created_at)`
+- `discourse_relations`: `(id, source_canonical_id, target_canonical_id, relation_type, connective_word, explanation)` where `relation_type IN ('ground', 'inference', 'purpose', 'concession', 'contrast', 'condition')`
+- `verse_theology`: `(id, start_canonical_id, end_canonical_id, theological_locus, primary_doctrine, storyline_epoch, thematic_ribbon, confidence, warrant_notes, created_at)`
+- `typological_arcs`: `(id, type_start_id, type_end_id, type_label, antitype_start_id, antitype_end_id, antitype_label, theological_correspondence, warrant_level, created_at)` where `warrant_level IN ('explicit_nt_citation', 'canonical_thematic_pattern')`
+- `semantic_propositions`: `(id, canonical_verse_id, speech_act, agent, action, patient, affect_tone, notes)` where `speech_act IN ('indicative', 'imperative', 'promise', 'warning', 'doxology', 'lament', 'prayer')`
+- `verse_embeddings` & `pericope_embeddings`: `(id/canonical_id, model, dimensions, quantization, vector_blob BLOB)`
+
+##### 2. Zero-Dependency Vector Engine (`core/vector.py`)
+- Standard library `struct` packing (`int8` signed bytes: `b = struct.pack(f"{len(vec)}b", *quantized)`).
+- Normalization: Scale float embeddings to unit norm, multiply by 127.0, and round to integer.
+- Cosine similarity: Computed via integer dot-product: `sim = sum(a[i] * b[i]) / (127.0 * 127.0)`.
+- Performance: Evaluates 31,102 verses in <15ms using pure standard library list comprehensions.
+
+##### 3. Multi-Pass Batch Compilation Pipeline (`tools/build_semantic_db.py`)
+- **Stage 1 (Book Horizons)**: Compute macro-outlines for each book (historical context, central theological message, authorial intent) cached in a staging dictionary.
+- **Stage 2 (Pericope Processing)**: Iterate through all ~2,800 pericopes. For each pericope, construct prompt with: (a) Book Horizon, (b) Immediate preceding/following context, (c) Target ESV pericope text.
+- **Stage 3 (Global Typology & Citations)**: Link OT types with NT fulfillments; map explicit NT citations of the OT.
+- **Stage 4 (Vectorization)**: Compute dense embeddings using `text-embedding-004` and write quantized blobs to `verse_embeddings` and `pericope_embeddings`.
+- **Stage 5 (Audit & Critic Gate)**: Run `core/semantic_audit.py` to verify:
+  - 100% of generated verse coordinates match canonical ranges in `core/reference.py`.
+  - Zero moralistic reductionism violations (asserts TGC Christ-centered framework).
+  - Entity deduplication across persona names.
+- **Stage 6 (Checkpoint Ledger)**: Maintain a table `compilation_ledger (pericope_id, status, error, updated_at)` enabling graceful pause, retry on transient HTTP errors, and immediate resumption.
+
+##### 4. Verification & Testing Protocol
+- Hermetic mock unit tests in `tests/test_semantic_db.py` verifying schema migrations, DTO serialization, vector search accuracy, and audit constraints on representative test passages (Genesis 1-3, Isaiah 53, Romans 8, Revelation 21-22).
+- Zero third-party dependencies maintained (100% Python 3 standard library per ADR-003).
+
 
 

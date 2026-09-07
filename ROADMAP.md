@@ -76,10 +76,14 @@ This document is the single source of truth for current project status, active t
 - [ ] **Task 6.2**: Implement TGC Hermeneutical Framework & System Prompt Generator in `core/theology.py` (codifying The Gospel Coalition Confessional Statement and Theological Vision for Ministry: dual-horizon hermeneutics, Christ-centered typology, non-moralistic interpretation, justification by faith alone).
 - [ ] **Task 6.3**: Write hermetic unit tests with mock HTTP responses for `core/llm.py` and theological prompts in `tests/test_llm.py`.
 
-### Phase 7: Offline Theological Enrichment & Knowledge Graph Generator
-- [ ] **Task 7.1**: Extend SQLite database schema in `core/db.py` to support `pericopes` (range, title, redemptive_summary), `typology_edges` (type_ref, antitype_ref, theological_connection), `character_profiles` (name, canonical_spans, historical_context, theological_role), and `theological_themes` (along_canon vs. across_doctrine).
-- [ ] **Task 7.2**: Implement CLI batch enrichment tool `tools/enrich.py` (`./bible enrich [--book=GEN] [--type=pericopes|typology|characters|themes]`) using Gemini with rate-limiting, progress checkpoints, and local SQLite persistence.
-- [ ] **Task 7.3**: Ingest pre-computed canonical pericope headings, primary typological links, and character dossiers into bundled SQLite pack so the system is immediately rich and 100% functional offline without an API key.
+### Phase 7: Offline Theological Enrichment & Whole-Bible Semantic Database Compiler (ADR-042)
+- [ ] **Task 7.1**: Extend SQLite database schema and records in `core/db.py` to support 6-layer semantic architecture: `pericopes` (genre, literary_structure, central_proposition, redemptive_summary), `discourse_relations` (ground, inference, purpose, contrast, condition), `verse_theology` (storyline_epoch, thematic_ribbon, theological_locus, primary_doctrine), `typological_arcs` (type, antitype, theological_correspondence, warrant), `semantic_propositions` (speech_act, agent, action, patient, tone), and `verse_embeddings` / `pericope_embeddings` (BLOB storage).
+- [ ] **Task 7.2**: Implement Zero-Dependency Vector Similarity Engine (`core/vector.py`) for packed byte embeddings, int8 quantization, and ultra-fast pure Python cosine similarity (<15ms across 31,102 vectors without numpy or external vector DBs).
+- [ ] **Task 7.3**: Implement Stratified Exegetical Prompt Architecture & TGC Hermeneutical System in `core/semantic_prompts.py` (macro-book context injection, pericope propositions, discourse rhetoric, along/across theological loci, and agent triples).
+- [ ] **Task 7.4**: Implement Automated Exegetical Critic & Quality Audit Suite (`core/semantic_audit.py`) validating canonical coordinate boundaries (`BBCCCVVV`), anti-moralistic compliance, character entity deduplication, and 100% whole-Bible verse coverage.
+- [ ] **Task 7.5**: Implement Resumable Batch Semantic Compilation Engine (`tools/build_semantic_db.py` / `./bible build-semantic`) featuring a SQLite checkpoint ledger, rate limiting, book-by-book resume, and progress telemetry.
+- [ ] **Task 7.6**: Execute one-shot compilation over the ESV corpus to generate and compile the complete, permanent semantic database pack into `data/bible.db`, verifying 100% offline queryability, FTS5 sync, and vector search.
+
 
 ### Phase 8: Online Scripture RAG & Biblical Character Dialogue Studio
 - [ ] **Task 8.1**: Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows).
