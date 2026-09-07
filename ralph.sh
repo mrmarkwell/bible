@@ -129,11 +129,6 @@ Examples:
 EOF
 }
 
-if [ ! -x "$JETSKI_CLI" ]; then
-    echo "Error: Jetski CLI binary not found or not executable at $JETSKI_CLI" >&2
-    exit 1
-fi
-
 # Guard execution if sourced as a library by tests or subshells
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
@@ -141,6 +136,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     show_help
     exit 0
+fi
+
+if [ ! -x "$JETSKI_CLI" ]; then
+    echo "Error: Jetski CLI binary not found or not executable at $JETSKI_CLI" >&2
+    exit 1
 fi
 
 # Continuous Loop Mode (--loop / -l [max_iterations])
