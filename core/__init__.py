@@ -67,6 +67,18 @@ from core.llm import (
     build_passage_context,
     get_gemini_api_key,
 )
+from core.theology import (
+    RedemptiveEpoch,
+    TGC_CONFESSIONAL_ARTICLES,
+    TGC_MINISTRY_VISION_PRINCIPLES,
+    TGCTheologyEngine,
+    ThematicRibbon,
+    TheologicalGuardrails,
+    TheologicalLocus,
+    audit_theology,
+    get_master_system_prompt,
+    get_theology_engine,
+)
 from core.pericopes import (
     CANONICAL_PERICOPES,
     PericopeService,
@@ -375,4 +387,15 @@ __all__ = [
     "GeminiClient",
     "get_gemini_api_key",
     "build_passage_context",
+    # TGC Theological Framework & Guardrails
+    "RedemptiveEpoch",
+    "TheologicalLocus",
+    "ThematicRibbon",
+    "TGC_CONFESSIONAL_ARTICLES",
+    "TGC_MINISTRY_VISION_PRINCIPLES",
+    "TheologicalGuardrails",
+    "TGCTheologyEngine",
+    "get_master_system_prompt",
+    "get_theology_engine",
+    "audit_theology",
 ]

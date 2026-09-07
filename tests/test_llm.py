@@ -453,10 +453,6 @@ class TestGeminiClientJSONAndEmbeddings(unittest.TestCase):
         self.assertEqual(vectors[1], [-0.3, 0.4])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestGeminiEdgeCasesAndDTOs(unittest.TestCase):
     """Test DTO serialization, stream errors, and edge case coverage."""
 
@@ -543,3 +539,85 @@ class TestGeminiEdgeCasesAndDTOs(unittest.TestCase):
         client = GeminiClient(api_key="key", opener=mock_opener)
         with self.assertRaises(LLMResponseError):
             client.embed_content("Text")
+
+
+class TestGeminiTheologicalPrompts(unittest.TestCase):
+    """Test GeminiClient integration with TGC system prompts and pericope analysis."""
+
+    def test_generate_with_tgc_master_system_instruction(self):
+        from core.theology import get_master_system_prompt
+
+        mock_opener = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = json.dumps({
+            "candidates": [{
+                "content": {"parts": [{"text": "The covenant promises point forward to Christ."}]},
+                "finishReason": "STOP",
+            }],
+            "usageMetadata": {"promptTokenCount": 150, "candidatesTokenCount": 20, "totalTokenCount": 170},
+        }).encode("utf-8")
+        mock_resp.headers.get_content_charset.return_value = "utf-8"
+        mock_opener.open.return_value.__enter__.return_value = mock_resp
+
+        client = GeminiClient(api_key="mock_key", opener=mock_opener)
+        master_prompt = get_master_system_prompt()
+        res = client.generate(
+            prompt="Explain the Abrahamic covenant in Genesis 12:1-3",
+            system_instruction=master_prompt,
+        )
+
+        self.assertEqual(res.text, "The covenant promises point forward to Christ.")
+        req = mock_opener.open.call_args[0][0]
+        payload = json.loads(req.data.decode("utf-8"))
+        self.assertIn("system_instruction", payload)
+        self.assertIn("The Gospel Coalition", payload["system_instruction"]["parts"][0]["text"])
+
+    def test_generate_pericope_analysis_structured_json(self):
+        from core.theology import get_theology_engine
+
+        engine = get_theology_engine()
+        prompt = engine.generate_pericope_analysis_prompt(
+            reference="Romans 3:21-26",
+            passage_text="But now the righteousness of God has been manifested apart from the law...",
+            translation_id="ESV",
+        )
+
+        mock_opener = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_payload = {
+            "reference": "Romans 3:21-26",
+            "storyline_epoch": "incarnation_climax",
+            "theological_loci": ["soteriology", "christology"],
+            "thematic_ribbons": ["covenant_grace", "sacrifice_atonement"],
+            "central_proposition": "God justifies ungodly sinners by grace alone through faith alone in Jesus Christ.",
+            "christological_fulfillment": "Christ is put forward as a propitiation by His blood.",
+            "anti_moralistic_summary": "Righteousness is imputed, not earned through legal performance.",
+            "discourse_rhetoric": [{"connective": "apart from the law", "relation": "contrast", "explanation": "Contrasts grace with works."}],
+            "typological_arcs": [{"type_or_shadow": "Mercy Seat / Hilasterion", "antitype_fulfillment": "Christ crucified", "nt_reference": "Romans 3:25", "theological_warrant": "Propitiation"}],
+        }
+        mock_resp.read.return_value = json.dumps({
+            "candidates": [{
+                "content": {"parts": [{"text": json.dumps(mock_payload)}]},
+                "finishReason": "STOP",
+            }],
+        }).encode("utf-8")
+        mock_resp.headers.get_content_charset.return_value = "utf-8"
+        mock_opener.open.return_value.__enter__.return_value = mock_resp
+
+        client = GeminiClient(api_key="mock_key", opener=mock_opener)
+        parsed_data, res = client.generate_json(
+            prompt=prompt,
+            system_instruction=engine.get_master_system_prompt(),
+        )
+
+        self.assertEqual(parsed_data["reference"], "Romans 3:21-26")
+        self.assertEqual(parsed_data["storyline_epoch"], "incarnation_climax")
+        self.assertIn("soteriology", parsed_data["theological_loci"])
+        self.assertIn("covenant_grace", parsed_data["thematic_ribbons"])
+
+
+if __name__ == "__main__":
+    unittest.main()
+

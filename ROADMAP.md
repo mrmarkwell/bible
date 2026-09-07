@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 6 — Google Gemini LLM Client & Theological Guardrail Engine
-- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 complete (100%); Phase 6 next
+- **Active Phase**: Phase 7 — Offline Theological Enrichment & Whole-Bible Semantic Database Compiler (ADR-042)
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 complete (100%); Phase 7 next
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -76,8 +76,8 @@ This document is the single source of truth for current project status, active t
 
 ### Phase 6: Google Gemini LLM Client & Theological Guardrail Engine (Zero-Dependencies)
 - [x] **Task 6.1**: Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback, zero pip dependencies per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041. *(Run 043 / ADR-046)*
-- [ ] **Task 6.2**: Implement TGC Hermeneutical Framework & System Prompt Generator in `core/theology.py` (codifying The Gospel Coalition Confessional Statement and Theological Vision for Ministry: dual-horizon hermeneutics, Christ-centered typology, non-moralistic interpretation, justification by faith alone).
-- [ ] **Task 6.3**: Write hermetic unit tests with mock HTTP responses for `core/llm.py` and theological prompts in `tests/test_llm.py`.
+- [x] **Task 6.2**: Implement TGC Hermeneutical Framework & System Prompt Generator in `core/theology.py` (codifying The Gospel Coalition Confessional Statement and Theological Vision for Ministry: dual-horizon hermeneutics, Christ-centered typology, non-moralistic interpretation, justification by faith alone). *(Run 046 / ADR-049)*
+- [x] **Task 6.3**: Write hermetic unit tests with mock HTTP responses for `core/llm.py` and theological prompts in `tests/test_llm.py` and `tests/test_theology.py`. *(Run 046 / ADR-049)*
 
 ### Phase 7: Offline Theological Enrichment & Whole-Bible Semantic Database Compiler (ADR-042)
 - [ ] **Task 7.1**: Extend SQLite database schema and records in `core/db.py` to support 6-layer semantic architecture: `pericopes` (genre, literary_structure, central_proposition, redemptive_summary), `discourse_relations` (ground, inference, purpose, contrast, condition), `verse_theology` (storyline_epoch, thematic_ribbon, theological_locus, primary_doctrine), `typological_arcs` (type, antitype, theological_correspondence, warrant), `semantic_propositions` (speech_act, agent, action, patient, tone), and `verse_embeddings` / `pericope_embeddings` (BLOB storage).

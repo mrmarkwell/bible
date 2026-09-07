@@ -1543,9 +1543,47 @@ This document is an append-only log of significant design and architectural deci
      - Confirms invocation of core test and diagnostic utilities.
      - Integrated into both fast pre-commit mode and full diagnostic runs.
   4. **Hermetic Unit Test Suite (`tests/test_doctor.py`)**:
-     - Expanded `tests/test_doctor.py` with `test_check_ci_workflows_clean_in_repo` and `test_check_ci_workflows_anomalies` (testing missing directory, empty directory, and invalid key structures).
-     - Verified 100% test pass rate across 18 doctor test cases.
+      - Expanded `tests/test_doctor.py` with `test_check_ci_workflows_clean_in_repo` and `test_check_ci_workflows_anomalies` (testing missing directory, empty directory, and invalid key structures).
+      - Verified 100% test pass rate across 18 doctor test cases.
 - **Consequences**:
   - Eliminates the blind spot between local hooks and the remote GitHub repository.
   - Guarantees that every commit is validated across Python 3.10, 3.11, and 3.12 across all 6 quality dimensions.
   - Maintains 100% zero-dependency architecture (ADR-003) and offline-first integrity.
+
+---
+
+## ADR-049: The Gospel Coalition (TGC) Hermeneutical Framework & System Prompt Generator Architecture
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - Following the implementation of the zero-dependency Google Gemini LLM Client in Run 043 (Task 6.1 / ADR-046), the project required formalizing the theological and hermeneutical guardrails mandated by ADR-006 for all subsequent AI reasoning.
+  - As defined in ADR-006, all theological and hermeneutical principles in the Bible Engine must adhere to The Gospel Coalition (TGC) Foundation Documents (Confessional Statement and Theological Vision for Ministry).
+  - Without a standardized theological framework and prompt generator, subsequent offline enrichment (Phase 7 / ADR-042), whole-Bible semantic compilation, online Scripture RAG (Phase 8), and biblical character dialogue would risk falling into moralistic reductionism ("Dare to be a Daniel"), proof-texting without canonical context, or theological departures from justification by grace alone through faith alone.
+  - The framework must be implemented in pure Python 3 standard library with zero external dependencies (ADR-003).
+- **Decision**:
+  1. **Core Theological & Storyline Ontologies (`core/theology.py`)**:
+     - *RedemptiveStoryline Epochs (`RedemptiveEpoch`)*: 11 canonical epochs tracing the unfolding drama of redemption ("Reading Along"): Creation, Fall, Patriarchal Covenant, Exodus & Wilderness, Conquest & Judges, United Davidic Monarchy, Divided Kingdom & Exile, Post-Exilic Restoration, Incarnation/Cross/Resurrection Climax, Apostolic Church, and Consummation.
+     - *Systematic Theological Loci (`TheologicalLocus`)*: 8 classical loci grounded in the TGC Confessional Statement ("Reading Across"): Theology Proper, Bibliology, Anthropology & Hamartiology, Christology, Pneumatology, Soteriology, Ecclesiology, and Eschatology.
+     - *Canonical Thematic Ribbons (`ThematicRibbon`)*: 12 cross-canonical typological and thematic threads: Temple Presence, Seed/Offspring, Covenant of Grace, Priesthood Mediation, Kingship Reign, Prophetic Word, Sacrifice/Atonement, Sabbath Rest, Exodus Deliverance, Exile/Pilgrimage, City of God, and Bride/Union.
+  2. **Codification of TGC Foundation Documents**:
+     - Codified all 9 articles of the TGC Confessional Statement (`TGC_CONFESSIONAL_ARTICLES`).
+     - Codified core ministry vision hermeneutical axioms (`TGC_MINISTRY_VISION_PRINCIPLES`): Dual-Horizon Hermeneutics, Christ-Centered Teleology, Anti-Moralistic Interpretation, and Grace-Driven Sanctification.
+  3. **Configurable Guardrail Enforcer (`TheologicalGuardrails`)**:
+     - Encapsulates discrete boolean guardrail flags: `dual_horizon`, `christocentric`, `anti_moralistic`, `justification_by_faith`, `inerrancy_sufficiency`, and `historical_confession`.
+     - Dynamically renders structured markdown directive blocks injected into LLM system instructions.
+  4. **Specialized Prompt Generators (`TGCTheologyEngine`)**:
+     - *Master System Prompt (`get_master_system_prompt`)*: Complete foundation prompt setting role, confessional summary, and hermeneutical guardrails.
+     - *Pericope Exegetical Analysis Prompt (`generate_pericope_analysis_prompt`)*: Injects passage citation, text, and asks for 6-layer metadata (epoch, loci, ribbons, proposition, Christological fulfillment, anti-moralism, discourse rhetoric, typological arcs) conforming to strict JSON schema.
+     - *Scripture RAG System Prompt (`generate_rag_system_prompt`)*: Governs online conversational RAG (`bible ask`).
+     - *Canonical Biblical Character Persona Prompt (`generate_character_persona_prompt`)*: Enforces strict canonical horizon constraints, anti-moralistic realism (admitting biblical sins and failures), and Christocentric longing for dialogue simulation (`bible chat`).
+  5. **Automated Anti-Moralistic Auditing (`audit_theological_compliance`)**:
+     - Rule-based regex scanner identifying moralistic tropes ("Dare to be a Daniel", earning divine favor, folk religion, works contributing to justification).
+     - Confirms presence of positive gospel-centered markers (Grace, Faith, Christ-centered, Covenant, Justification, Atonement).
+     - Emits compliance scores and actionable issue descriptions.
+  6. **Hermetic Test Suite (`tests/test_theology.py`) & LLM Integration (`tests/test_llm.py`)**:
+     - Authored 16 unit tests in `tests/test_theology.py` verifying enums, text formatting, prompt contracts, guardrail toggles, and audit detection.
+     - Added theological integration tests in `tests/test_llm.py` mocking Gemini API calls with master prompt and pericope analysis schema.
+- **Consequences**:
+  - Establishes an unshakeable, academically rigorous theological foundation for Phase 6, Phase 7, and Phase 8.
+  - Satisfies Task 6.2 and Task 6.3 in `ROADMAP.md`.
+  - Maintains 100% zero-dependency architecture (ADR-003).
