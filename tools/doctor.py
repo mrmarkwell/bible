@@ -528,6 +528,31 @@ def check_unit_tests(repo_root: Path) -> CheckResult:
     )
 
 
+def check_test_coverage(
+    repo_root: Path,
+    threshold: float = 70.0,
+    target_module: Optional[str] = None,
+) -> CheckResult:
+    """Verify test coverage percentage against minimum quality threshold."""
+    t0 = time.time()
+    try:
+        from tools.coverage import collect_coverage
+        report = collect_coverage(repo_root=repo_root, target_module=target_module, parallel=True)
+        dur = time.time() - t0
+        passed = report.overall_coverage_pct >= threshold
+        msg = (
+            f"Overall coverage: {report.overall_coverage_pct:.1f}% "
+            f"({report.total_executed:,}/{report.total_executable:,} statements covered across {len(report.files)} files, "
+            f"threshold: {threshold:.1f}%)"
+            if passed
+            else f"Coverage {report.overall_coverage_pct:.1f}% fell below required threshold {threshold:.1f}% "
+            f"({report.total_missed} statements missed)"
+        )
+        return CheckResult("Code Coverage & Test Gaps", passed, msg, dur)
+    except Exception as exc:
+        return CheckResult("Code Coverage & Test Gaps", False, f"Coverage audit error: {exc}", time.time() - t0)
+
+
 def run_all_checks(
     repo_root: Optional[Path] = None,
     color: bool = True,
@@ -535,6 +560,8 @@ def run_all_checks(
     fast: bool = False,
     quiet: bool = False,
     fix: bool = False,
+    coverage: bool = False,
+    coverage_threshold: float = 70.0,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
     """Execute all diagnostic checks and render styled report.
@@ -623,6 +650,14 @@ def run_all_checks(
         if not res.passed:
             failed = True
 
+        # 8. Test Coverage (Optional or when --coverage requested)
+        if coverage:
+            res = check_test_coverage(root, threshold=coverage_threshold)
+            results.append(res)
+            _emit_check(res, styler, emit)
+            if not res.passed:
+                failed = True
+
     total_dur = time.time() - total_start
     emit(styler.bold("----------------------------------------------------------------------"))
     if failed:
@@ -682,6 +717,17 @@ if __name__ == "__main__":
         help="Check git hook safeguards status only",
     )
     parser.add_argument(
+        "--coverage",
+        action="store_true",
+        help="Include sovereign zero-dependency test coverage audit in diagnostics",
+    )
+    parser.add_argument(
+        "--coverage-threshold",
+        type=float,
+        default=70.0,
+        help="Minimum coverage percentage required when --coverage is enabled (default: 70%%)",
+    )
+    parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -731,5 +777,7 @@ if __name__ == "__main__":
         fast=args.fast,
         quiet=args.quiet,
         fix=args.fix,
+        coverage=args.coverage,
+        coverage_threshold=args.coverage_threshold,
     )
     sys.exit(code)

@@ -1423,6 +1423,80 @@ class BibleShell(cmd.Cmd):
         options = ["-p", "--pattern", "-f", "--fix", "-v", "--verbose", "--strict", "--json"]
         return [c for c in options if c.startswith(text)]
 
+    def do_coverage(self, arg: str) -> None:
+        """Audit test coverage across repository modules: /coverage [-p pattern] [-m module] [-u] [--json] [--html path]"""
+        import shlex
+        from tools.coverage import collect_coverage, format_terminal_table, generate_html_report
+        repo_root = Path(__file__).resolve().parent.parent
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        pattern = None
+        target_module = None
+        missed_only = False
+        output_json = False
+        html_path = None
+        sequential = False
+
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok in ("-p", "--pattern") and i + 1 < len(tokens):
+                pattern = tokens[i + 1]
+                i += 2
+            elif tok in ("-m", "--module") and i + 1 < len(tokens):
+                target_module = tokens[i + 1]
+                i += 2
+            elif tok in ("--html",) and i + 1 < len(tokens):
+                html_path = tokens[i + 1]
+                i += 2
+            elif tok in ("-u", "--uncovered", "--missed"):
+                missed_only = True
+                i += 1
+            elif tok in ("-s", "--sequential"):
+                sequential = True
+                i += 1
+            elif tok == "--json":
+                output_json = True
+                i += 1
+            elif not tok.startswith("-") and target_module is None:
+                target_module = tok
+                i += 1
+            else:
+                i += 1
+
+        report = collect_coverage(
+            repo_root=repo_root,
+            test_pattern=pattern,
+            target_module=target_module,
+            parallel=not sequential,
+        )
+        if html_path:
+            generate_html_report(report, Path(html_path).resolve())
+
+        if output_json:
+            self.stdout.write(report.to_json(indent=2) + "\n")
+        else:
+            self.stdout.write(
+                "\n"
+                + format_terminal_table(
+                    report,
+                    color=self.use_color,
+                    show_missed_only=missed_only,
+                )
+                + "\n"
+            )
+            if html_path:
+                self.stdout.write(f"[HTML Report] Saved to {Path(html_path).resolve()}\n")
+
+    def do_cov(self, arg: str) -> None:
+        """Alias for /coverage."""
+        self.do_coverage(arg)
+
+    def complete_coverage(self, text: str, line: str, start_index: int, end_index: int) -> List[str]:
+        """Autocompletion for /coverage command."""
+        options = ["-p", "--pattern", "-m", "--module", "-u", "--missed", "-s", "--sequential", "--json", "--html", "core", "cli", "tools", "web"]
+        return [c for c in options if c.startswith(text)]
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report

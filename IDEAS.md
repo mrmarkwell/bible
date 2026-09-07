@@ -497,5 +497,17 @@ Add the following tables and indices to `core/db.py`:
 - Hermetic mock unit tests in `tests/test_semantic_db.py` verifying schema migrations, DTO serialization, vector search accuracy, and audit constraints on representative test passages (Genesis 1-3, Isaiah 53, Romans 8, Revelation 21-22).
 - Zero third-party dependencies maintained (100% Python 3 standard library per ADR-003).
 
+---
+
+### [VETTED] Sovereign Zero-Dependency Code Coverage & Test Gap Detection Engine
+- **Summary**: Build a pure Python 3 standard library code coverage engine (`tools/coverage.py`) that uses bytecode inspection (`code.co_lines()`) to discover executable statements across production files and traces test execution across parallel worker processes. Generates high-contrast ANSI terminal progress bars, calculates missing line intervals (e.g. `44, 46, 115-116`), enforces quality thresholds (`--fail-under`), and exports standalone Sacred-Modern HTML reports without any third-party pip packages.
+- **Rationale**: Strict zero-dependency architecture (ADR-003) prevents using pip-installed coverage tools like `pytest-cov` or `coverage.py`. Without automated coverage metrics, developers and autonomous agents operate blind regarding which code paths are actually verified versus completely untested. A native standard library coverage tool provides instant visibility and enforces test coverage gates in CI and developer workflows.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (operates 100% offline).
+  - Zero third-party dependencies? Yes (Python 3 standard library `trace`, `compile`, and `ProcessPoolExecutor` only).
+  - High performance? Yes (parallel multi-process tracing audits all test suites in ~12 seconds).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.15; ADR-043).
+- **Status**: [VETTED] (Implemented via Run 040 / ADR-043).
+
 
 

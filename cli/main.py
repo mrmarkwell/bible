@@ -2899,6 +2899,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output structured JSON summary",
     )
+    parser_test.add_argument(
+        "--coverage",
+        action="store_true",
+        help="Run tests with sovereign zero-dependency code coverage report",
+    )
+    parser_test.add_argument(
+        "--fail-under",
+        dest="coverage_threshold",
+        type=float,
+        default=None,
+        help="Fail if coverage percentage is below threshold (requires --coverage)",
+    )
 
     def cmd_test(args: argparse.Namespace) -> int:
         from tools.test_runner import REPO_ROOT, run_tests
@@ -2920,6 +2932,26 @@ def build_parser() -> argparse.ArgumentParser:
             color=is_tty,
             output_json=args.json,
         )
+        if exit_code == 0 and getattr(args, "coverage", False):
+            from tools.coverage import collect_coverage, format_terminal_table
+            cov_report = collect_coverage(
+                repo_root=REPO_ROOT,
+                test_pattern=args.pattern,
+                parallel=not args.sequential,
+                jobs=args.jobs,
+            )
+            if not args.quiet:
+                print()
+                print(format_terminal_table(cov_report, color=is_tty))
+            if (
+                args.coverage_threshold is not None
+                and cov_report.overall_coverage_pct < args.coverage_threshold
+            ):
+                sys.stderr.write(
+                    f"\nERROR: Overall coverage {cov_report.overall_coverage_pct:.1f}% is below required threshold of {args.coverage_threshold:.1f}%\n"
+                )
+                return 1
+
         return exit_code
 
     parser_test.set_defaults(func=cmd_test)
@@ -2994,6 +3026,124 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_lint.set_defaults(func=cmd_lint)
 
+    # Subcommand: coverage (aliases: cov, test-coverage)
+    parser_cov = subparsers.add_parser(
+        "coverage",
+        aliases=["cov", "test-coverage"],
+        help="Audit test coverage and test gaps across repository modules (zero-dependency)",
+        description="Sovereign zero-dependency code coverage & test gap detection engine using Python stdlib bytecode inspection.",
+    )
+    parser_cov.add_argument(
+        "-p",
+        "--pattern",
+        type=str,
+        default=None,
+        help="Filter test modules by pattern (e.g. 'test_render' or '*crypto*')",
+    )
+    parser_cov.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default=None,
+        help="Limit audit to specific module or directory (e.g. 'core' or 'core/render.py')",
+    )
+    parser_cov.add_argument(
+        "-s",
+        "--sequential",
+        action="store_true",
+        help="Run test tracing sequentially instead of parallel",
+    )
+    parser_cov.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=None,
+        help="Number of concurrent worker processes",
+    )
+    parser_cov.add_argument(
+        "--fail-under",
+        "--threshold",
+        dest="threshold",
+        type=float,
+        default=None,
+        help="Fail with exit code 1 if total coverage is under threshold percentage",
+    )
+    parser_cov.add_argument(
+        "-u",
+        "--uncovered",
+        "--missed",
+        dest="missed_only",
+        action="store_true",
+        help="Only display files with missed statements in table",
+    )
+    parser_cov.add_argument(
+        "--json",
+        action="store_true",
+        help="Output coverage report in structured JSON format",
+    )
+    parser_cov.add_argument(
+        "--html",
+        type=str,
+        default=None,
+        help="Generate standalone Sacred-Modern HTML coverage report at specified path",
+    )
+    parser_cov.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress terminal table output",
+    )
+    parser_cov.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI terminal colors",
+    )
+
+    def cmd_coverage(args: argparse.Namespace) -> int:
+        from tools.coverage import (
+            REPO_ROOT,
+            collect_coverage,
+            format_terminal_table,
+            generate_html_report,
+        )
+        is_tty = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and not args.no_color
+            and "NO_COLOR" not in os.environ
+        )
+        report = collect_coverage(
+            repo_root=REPO_ROOT,
+            test_pattern=args.pattern,
+            target_module=args.module,
+            parallel=not args.sequential,
+            jobs=args.jobs,
+        )
+        if args.html:
+            generate_html_report(report, Path(args.html).resolve())
+
+        if args.json:
+            print(report.to_json(indent=2))
+        elif not args.quiet:
+            print(
+                format_terminal_table(
+                    report,
+                    color=is_tty,
+                    show_missed_only=args.missed_only,
+                )
+            )
+            if args.html:
+                print(f"\n[HTML Report] Saved to {Path(args.html).resolve()}")
+
+        if args.threshold is not None and report.overall_coverage_pct < args.threshold:
+            sys.stderr.write(
+                f"\nERROR: Overall coverage {report.overall_coverage_pct:.1f}% is below required threshold of {args.threshold:.1f}%\n"
+            )
+            return 1
+        return 0
+
+    parser_cov.set_defaults(func=cmd_coverage)
+
     return parser
 
 
@@ -3023,6 +3173,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "slide", "render",
         "test", "tests", "check",
         "lint", "linter", "check-style",
+        "coverage", "cov", "test-coverage",
     }
 
     pos_idx = -1

@@ -12,9 +12,8 @@ Zero-dependency test orchestrator (Python 3 standard library only per ADR-003):
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
-from dataclasses import asdict, dataclass, field
-import glob
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
@@ -22,7 +21,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # Base repository root directory
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -283,19 +282,19 @@ def run_tests_parallel(
     failed_count = 0
     aborted = False
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
         future_to_path = {
             executor.submit(
                 run_single_test_module,
-                path,
+                p,
                 repo_root,
-                warn_error=warn_error,
-                failfast=failfast,
-            ): path
-            for path in test_files
+                warn_error,
+                failfast,
+            ): p
+            for p in test_files
         }
 
-        for future in concurrent.futures.as_completed(future_to_path):
+        for future in as_completed(future_to_path):
             path = future_to_path[future]
             try:
                 res = future.result()
@@ -598,6 +597,18 @@ def main() -> int:
         help="Output structured JSON summary",
     )
     parser.add_argument(
+        "--coverage",
+        action="store_true",
+        help="Run tests under sovereign zero-dependency code coverage and display coverage table",
+    )
+    parser.add_argument(
+        "--fail-under",
+        dest="coverage_threshold",
+        type=float,
+        default=None,
+        help="Fail if coverage percentage is below this threshold (requires --coverage)",
+    )
+    parser.add_argument(
         "--repo",
         type=str,
         default=None,
@@ -626,6 +637,27 @@ def main() -> int:
         color=is_tty,
         output_json=args.json,
     )
+
+    if exit_code == 0 and args.coverage:
+        from tools.coverage import collect_coverage, format_terminal_table
+        cov_report = collect_coverage(
+            repo_root=target_repo,
+            test_pattern=args.pattern,
+            parallel=not args.sequential,
+            jobs=args.jobs,
+        )
+        if not args.quiet:
+            print()
+            print(format_terminal_table(cov_report, color=is_tty))
+        if (
+            args.coverage_threshold is not None
+            and cov_report.overall_coverage_pct < args.coverage_threshold
+        ):
+            sys.stderr.write(
+                f"\nERROR: Overall coverage {cov_report.overall_coverage_pct:.1f}% is below required threshold of {args.coverage_threshold:.1f}%\n"
+            )
+            return 1
+
     return exit_code
 
 

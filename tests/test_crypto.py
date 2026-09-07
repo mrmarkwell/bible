@@ -1,6 +1,7 @@
 """Hermetic unit tests for core/crypto.py (Zero External Dependencies)."""
 
 import os
+import tempfile
 import unittest
 from core.crypto import (
     MAGIC_HEADER,
@@ -177,18 +178,14 @@ class TestTextPackFileOperations(unittest.TestCase):
     """Test text pack bundle encryption and decryption on filesystem."""
 
     def setUp(self):
-        self.test_dir = "/tmp/bible_test_crypto"
-        os.makedirs(self.test_dir, exist_ok=True)
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.test_dir = self.tmpdir.name
         self.plain_path = os.path.join(self.test_dir, "sample.txt")
         self.enc_path = os.path.join(self.test_dir, "sample.bpack")
         self.dec_path = os.path.join(self.test_dir, "sample_dec.txt")
 
     def tearDown(self):
-        for p in (self.plain_path, self.enc_path, self.dec_path):
-            if os.path.exists(p):
-                os.remove(p)
-        if os.path.exists(self.test_dir):
-            os.rmdir(self.test_dir)
+        self.tmpdir.cleanup()
 
     def test_file_pack_roundtrip(self):
         sample_corpus = (
