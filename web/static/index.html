@@ -98,6 +98,7 @@
           <button class="nav-tab" data-view="topics" role="tab" aria-selected="false">Topics</button>
           <button class="nav-tab" data-view="crossref" role="tab" aria-selected="false">Cross-Refs</button>
           <button class="nav-tab" data-view="ribbon" role="tab" aria-selected="false">Canon</button>
+          <button class="nav-tab" data-view="arcs" role="tab" aria-selected="false">Arcs</button>
           <button class="nav-tab" data-view="api" role="tab" aria-selected="false">API</button>
         </nav>
 
@@ -253,7 +254,57 @@
           </div>
         </div>
 
-        <!-- Tab 6: REST API Documentation -->
+        <!-- Tab 6: Typological Arc Network Controls -->
+        <div class="view-panel hidden" id="panel-arcs" role="tabpanel">
+          <div class="canon-summary-card">
+            <h4>Typological Arc Network</h4>
+            <p class="canon-summary-text">Interactive Bézier curves linking Old Testament shadows to New Testament Christological fulfillments.</p>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="select-arc-type">Relationship Category</label>
+            <select id="select-arc-type">
+              <option value="" selected>★ All Canonical Relationships (67 Edges)</option>
+              <option value="typology">🏛 Typology (Shadow &amp; Substance)</option>
+              <option value="prophecy_fulfillment">⚡ Prophecy &amp; Fulfillment</option>
+              <option value="quotation">📜 Direct Apostolic Quotation</option>
+              <option value="thematic">🔗 Thematic Covenant Motif</option>
+              <option value="allusion">✨ Scriptural Allusion / Echo</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="select-arc-book">Focus by Canonical Book</label>
+            <select id="select-arc-book">
+              <option value="" selected>All 66 Canonical Books</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="select-arc-scope">Scope &amp; Trajectory</label>
+            <select id="select-arc-scope">
+              <option value="OT-NT" selected>Old Testament ➔ New Testament Fulfillments</option>
+              <option value="all">All Canonical Connections</option>
+            </select>
+          </div>
+
+          <div class="stats-card" id="arc-stats-sidebar-card">
+            <h4>Network Topography</h4>
+            <div id="arc-stats-sidebar-content">Loading arc metrics...</div>
+          </div>
+
+          <div class="panel-section-divider"></div>
+
+          <div class="arc-sidebar-connections-box">
+            <div class="box-title">
+              <span>Canonical Arcs</span>
+              <span class="count-pill" id="arc-sidebar-count-pill">0</span>
+            </div>
+            <div class="arc-sidebar-list" id="arc-sidebar-list"></div>
+          </div>
+        </div>
+
+        <!-- Tab 7: REST API Documentation -->
         <div class="view-panel hidden" id="panel-api" role="tabpanel">
           <div class="api-doc-list">
             <h4>Built-in Zero-Dependency REST API</h4>
@@ -273,6 +324,8 @@
               <li><a href="/api/tags/relevance?tags=favorites" target="_blank"><code>GET /api/tags/relevance</code></a> <span>Multi-tag relevance ranking</span></li>
               <li><a href="/api/crossref?ref=Genesis+1:1" target="_blank"><code>GET /api/crossref</code></a> <span>Passage cross-references</span></li>
               <li><a href="/api/crossref/stats" target="_blank"><code>GET /api/crossref/stats</code></a> <span>Knowledge graph metrics</span></li>
+              <li><a href="/api/crossref/arcs" target="_blank"><code>GET /api/crossref/arcs</code></a> <span>Typological arc graph data</span></li>
+              <li><a href="/api/crossref/arcs.svg" target="_blank"><code>GET /api/crossref/arcs.svg</code></a> <span>Pure vector SVG arc rendering</span></li>
               <li><a href="/api/stats" target="_blank"><code>GET /api/stats</code></a> <span>Corpus aggregate metrics</span></li>
             </ul>
           </div>
@@ -356,6 +409,58 @@
             <span class="count-badge" id="crossref-count-badge">0 edges</span>
           </div>
           <div class="crossref-list" id="crossref-list"></div>
+        </section>
+
+        <!-- Panoramic Typological Arc Network Canvas Stage (active in 'arcs' view) -->
+        <section class="arc-visualizer-stage hidden" id="arc-visualizer-stage">
+          <div class="arc-stage-header">
+            <div class="arc-stage-titles">
+              <h2 class="arc-stage-heading">Typological Arc Network &amp; Cross-Reference Graph</h2>
+              <p class="arc-stage-subheading">Interactive Bézier curves connecting Old Testament types and shadows to New Testament Christological fulfillments.</p>
+            </div>
+            <div class="arc-stage-actions">
+              <button class="action-btn btn-gold" id="btn-stage-download-svg" title="Download High-Resolution Vector SVG">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Export SVG</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SVG Canvas Container -->
+          <div class="arc-svg-viewport" id="arc-svg-viewport">
+            <div class="loading-state">Generating Typological Arc Network vector geometry...</div>
+          </div>
+
+          <!-- Active Arc Detail Card below SVG -->
+          <div class="arc-active-detail-card" id="arc-active-detail-card">
+            <div class="arc-card-header">
+              <div class="arc-card-badges">
+                <span class="arc-pill-rel" id="arc-card-type">🏛 Typology (Shadow &amp; Substance)</span>
+                <span class="arc-pill-dist" id="arc-card-distance">Click or hover an arc to inspect</span>
+              </div>
+              <button class="btn btn-sm btn-primary" id="btn-read-arc-passage">
+                <span>Read Connected Passage &rarr;</span>
+              </button>
+            </div>
+            <div class="arc-card-endpoints">
+              <div class="arc-endpoint-box arc-source-box">
+                <span class="arc-ep-label">OLD TESTAMENT SHADOW</span>
+                <span class="arc-ep-ref" id="arc-card-source">Genesis 3:15</span>
+              </div>
+              <div class="arc-arrow-divider">➔</div>
+              <div class="arc-endpoint-box arc-target-box">
+                <span class="arc-ep-label">NEW TESTAMENT FULFILLMENT</span>
+                <span class="arc-ep-ref" id="arc-card-target">Galatians 4:4-5</span>
+              </div>
+            </div>
+            <div class="arc-card-notes" id="arc-card-notes">
+              Hover over or click any curved arc in the panoramic canvas above to inspect theological connections, canonical distances, and redemptive notes.
+            </div>
+          </div>
         </section>
       </main>
     </div>

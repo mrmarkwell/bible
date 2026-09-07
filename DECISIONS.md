@@ -968,4 +968,38 @@ This document is an append-only log of significant design and architectural deci
   - Seamlessly bridges the macro (66 books), intermediate (chapters & pericopes), and micro (verses & tags) dimensions of scripture study.
   - Retains 100% Zero-Dependency architecture (pure Python 3 stdlib, vanilla HTML/CSS/JS, zero pip/npm packages).
 
+---
 
+## ADR-033: Pure Vector SVG Typological Arc Network, Cross-Reference Graph & Curated Christological Knowledge Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Prior to Task 4.5, the Bible Engine provided linear scripture reading, pericope outline navigation, and book/chapter thematic heatmaps (ADR-031, ADR-032). However, scripture's deep organic unity—specifically redemptive typology connecting Old Testament shadows (sacrifices, covenants, high priesthood, the rock, manna, Joseph, Boaz, Jonah) to New Testament fulfillments in Christ—was invisible to the eye. Users could not visualize how canonical books across millennia intertwine in unified redemptive history, nor export publication-grade vector graphics or interactively trace connections in the terminal or browser.
+- **Decision**:
+  1. **Pure SVG Arc Network Layout Engine (`core/arcs.py`)**:
+     - Engineered a mathematical layout mapping the 66 canonical books onto an SVG horizontal axis with sub-chapter and verse precise positioning (`get_reference_x()`).
+     - Added an intertestamental visual pause between Malachi (OT book 39) and Matthew (NT book 40).
+     - Generated smooth cubic Bézier curves (`M sx,y_base C sx,y_ctrl tx,y_ctrl tx,y_base`) where arc peak height scales proportionally with canonical distance between endpoints.
+     - Built Sacred-Modern color themes (`obsidian`, `scriptorium`, `monastery`, `transparent`) and categorized relationship styling: `typology` (amber `#F39C12`), `prophecy_fulfillment` (emerald `#2ECC71`), `quotation` (sapphire `#4A90E2`), `thematic` (purple `#9B51E0`), `allusion` (rose `#E056FD`), and `parallel` (slate `#747D8C`).
+     - Implemented both standalone vector SVG generation (`render_svg()`) and terminal visualizer (`render_terminal_summary()`).
+  2. **Canonical Typological Knowledge Base Expansion (`core/crossref.py`)**:
+     - Expanded `CANONICAL_CROSS_REFERENCES` with 24 foundational Christological typologies (Adam/Christ, Noah's Ark, Abraham & Isaac, Melchizedek, Jacob's Ladder, Joseph's Betrayal & Deliverance, Burning Bush, Passover Lamb, Manna from Heaven, Water from the Rock, Bronze Serpent, Tabernacle, High Priest Aaron, Day of Atonement, Cities of Refuge, Boaz Kinsman-Redeemer, Davidic King, Jonah 3 Days/Nights, etc.).
+     - Expanded total cross-reference edges from 43 to 67 edges (with 66 Old-to-New Testament fulfillment trajectories).
+  3. **REST API & Standalone SVG Endpoints (`web/server.py`)**:
+     - Added `send_svg()` HTTP response handler with `image/svg+xml` content type and caching headers.
+     - Added `GET /api/crossref/arcs` and `GET /api/arcs` returning JSON graph data (nodes, book marks, Bézier paths).
+     - Added `GET /api/crossref/arcs.svg` and `GET /api/arcs.svg` dynamically serving standalone vector SVG graphics supporting query filters (`?theme=obsidian&type=typology&book=Genesis`).
+  4. **Interactive Sacred-Modern Visualizer UI (`web/static/`)**:
+     - Added `Arcs` navigation tab, `#panel-arcs` sidebar with interactive relationship filters, canonical book dropdown, scope filters, and connection list.
+     - Created `#arc-visualizer-stage` panoramic view with responsive SVG viewport `#arc-svg-viewport` and active connection detail inspector `#arc-active-detail-card`.
+     - Added click and hover event listeners in `app.js` with instant glowing highlight effects and direct navigation to open connected scripture passages in the reader.
+     - Integrated single-click standalone SVG export download (`btnStageDownloadSvg`).
+  5. **CLI & REPL Shell Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Added `./bible arcs` subcommand (with aliases `arc`, `typology`, `typologies`) supporting `--type`, `--book`, `--testament`, `--svg <path>`, `--theme`, `--width`, `--height`, and `--json`.
+     - Added `/arcs` interactive REPL command in `BibleShell` with command autocompletion and dynamic parameter parsing.
+  6. **Hermetic Test Suite (`tests/test_arcs.py`)**:
+     - Authored 21 dedicated unit tests validating mathematical geometry, Bézier control points, filter semantics, SVG XML validity, JSON serialization, CLI execution, REPL commands, and HTTP/SVG endpoints.
+     - All 390 repository tests pass 100% in 8.3s with zero warnings.
+- **Consequences**:
+  - Completes Roadmap Phase 4 (Task 4.5) and concludes the Web UI & Visualizations phase.
+  - Bridges redemptive-historical biblical theology with pure vector graphic rendering.
+  - Retains 100% Zero-Dependency compliance per ADR-003 (Python 3 stdlib, vanilla SVG/ES6+/CSS3, zero npm/pip dependencies).

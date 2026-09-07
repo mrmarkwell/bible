@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import urllib.parse
 import webbrowser
 
+from core.arcs import ArcTheme, build_arc_network
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database, PericopeRecord
 from core.pericopes import PericopeService
@@ -89,6 +90,18 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def send_svg(self, svg_content: str, status: int = 200) -> None:
+        """Send a standalone pure vector SVG image response."""
+        payload = svg_content.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_OPTIONS(self) -> None:
         """Handle CORS pre-flight requests."""
         self.send_response(204)
@@ -144,6 +157,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_crossref(query)
         elif clean_path == "/api/crossref/stats":
             self.handle_crossref_stats()
+        elif clean_path in ("/api/crossref/arcs", "/api/arcs"):
+            self.handle_arcs(query)
+        elif clean_path in ("/api/crossref/arcs.svg", "/api/arcs.svg"):
+            self.handle_arcs_svg(query)
         elif clean_path == "/api/stats":
             self.handle_stats()
         else:
@@ -761,6 +778,58 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             })
         except Exception as exc:
             self.send_json_error(f"Failed to retrieve cross-reference statistics: {exc}", status=500)
+
+    def handle_arcs(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/crossref/arcs — Retrieve graph nodes, edges, and Bézier arc coordinates in JSON."""
+        rel_type = query.get("type", query.get("rel_type", [None]))[0]
+        book = query.get("book", [None])[0]
+        testament = query.get("testament", [None])[0]
+        theme = query.get("theme", ["obsidian"])[0]
+        try:
+            width = int(query.get("width", [1200])[0])
+            height = int(query.get("height", [520])[0])
+        except (ValueError, TypeError):
+            width, height = 1200, 520
+
+        try:
+            net = build_arc_network(
+                self.db,
+                relationship_type=rel_type,
+                book_filter=book,
+                testament_filter=testament,
+                theme=theme,
+                width=width,
+                height=height,
+            )
+            self.send_json(net.to_dict())
+        except Exception as exc:
+            self.send_json_error(f"Failed to generate arc network: {exc}", status=500)
+
+    def handle_arcs_svg(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/crossref/arcs.svg — Pure vector SVG rendering of typological arc network."""
+        rel_type = query.get("type", query.get("rel_type", [None]))[0]
+        book = query.get("book", [None])[0]
+        testament = query.get("testament", [None])[0]
+        theme = query.get("theme", ["obsidian"])[0]
+        try:
+            width = int(query.get("width", [1200])[0])
+            height = int(query.get("height", [520])[0])
+        except (ValueError, TypeError):
+            width, height = 1200, 520
+
+        try:
+            net = build_arc_network(
+                self.db,
+                relationship_type=rel_type,
+                book_filter=book,
+                testament_filter=testament,
+                theme=theme,
+                width=width,
+                height=height,
+            )
+            self.send_svg(net.render_svg(standalone=True, interactive=True))
+        except Exception as exc:
+            self.send_json_error(f"Failed to render arc SVG: {exc}", status=500)
 
     def handle_stats(self) -> None:
         """GET /api/stats — Global database aggregate statistics."""

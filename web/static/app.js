@@ -87,12 +87,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const crossrefList = document.getElementById("crossref-list");
   const crossrefCountBadge = document.getElementById("crossref-count-badge");
 
+  // DOM Elements - Arcs Tab & Panoramic Stage
+  const selectArcType = document.getElementById("select-arc-type");
+  const selectArcBook = document.getElementById("select-arc-book");
+  const selectArcScope = document.getElementById("select-arc-scope");
+  const arcStatsSidebarContent = document.getElementById("arc-stats-sidebar-content");
+  const arcSidebarCountPill = document.getElementById("arc-sidebar-count-pill");
+  const arcSidebarList = document.getElementById("arc-sidebar-list");
+  const arcVisualizerStage = document.getElementById("arc-visualizer-stage");
+  const arcSvgViewport = document.getElementById("arc-svg-viewport");
+  const btnStageDownloadSvg = document.getElementById("btn-stage-download-svg");
+  const arcActiveDetailCard = document.getElementById("arc-active-detail-card");
+  const arcCardType = document.getElementById("arc-card-type");
+  const arcCardDistance = document.getElementById("arc-card-distance");
+  const arcCardSource = document.getElementById("arc-card-source");
+  const arcCardTarget = document.getElementById("arc-card-target");
+  const arcCardNotes = document.getElementById("arc-card-notes");
+  const btnReadArcPassage = document.getElementById("btn-read-arc-passage");
+
   // Modals & Toast
   const shortcutsModal = document.getElementById("shortcuts-modal");
   const btnCloseModal = document.getElementById("btn-close-modal");
   const toast = document.getElementById("toast");
 
   // State
+  let arcNetworkData = null;
+  let activeArcId = null;
   let allBooks = [];
   let allTags = [];
   let currentPassageData = null;
@@ -211,6 +231,7 @@ document.addEventListener("DOMContentLoaded", () => {
     topics: document.getElementById("panel-topics"),
     crossref: document.getElementById("panel-crossref"),
     ribbon: document.getElementById("panel-ribbon"),
+    arcs: document.getElementById("panel-arcs"),
     api: document.getElementById("panel-api"),
   };
 
@@ -231,6 +252,30 @@ document.addEventListener("DOMContentLoaded", () => {
           viewPanels[k].classList.add("hidden");
         }
       });
+
+      // Toggle Reader Stage vs. Panoramic Arc Stage
+      const chapterNavBar = document.querySelector(".chapter-nav-bar");
+      const stageHeader = document.querySelector(".stage-header");
+      const scriptureViewport = document.querySelector(".scripture-viewport");
+
+      if (view === "arcs") {
+        if (chapterNavBar) chapterNavBar.classList.add("hidden");
+        if (stageHeader) stageHeader.classList.add("hidden");
+        if (passageTags) passageTags.classList.add("hidden");
+        if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+        if (scriptureViewport) scriptureViewport.classList.add("hidden");
+        if (crossrefSection) crossrefSection.classList.add("hidden");
+        if (arcVisualizerStage) arcVisualizerStage.classList.remove("hidden");
+
+        populateArcBookSelector();
+        loadArcNetwork();
+      } else {
+        if (chapterNavBar) chapterNavBar.classList.remove("hidden");
+        if (stageHeader) stageHeader.classList.remove("hidden");
+        if (passageTags) passageTags.classList.remove("hidden");
+        if (scriptureViewport) scriptureViewport.classList.remove("hidden");
+        if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
+      }
 
       if (view === "topics" && allTags.length === 0) {
         loadTags();
@@ -997,12 +1042,214 @@ document.addEventListener("DOMContentLoaded", () => {
           fetchPassage(xref.target_ref);
           closeMobileSidebar();
         });
-        scriptureContainer.appendChild(div);
-      });
+  // -------------------------------------------------------------------------
+  // Typological Arc Network & Cross-Reference Graph Subsystem
+  // -------------------------------------------------------------------------
+  function populateArcBookSelector() {
+    if (!selectArcBook || selectArcBook.children.length > 1) return;
+    selectArcBook.innerHTML = '<option value="" selected>All 66 Canonical Books</option>';
+    allBooks.forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.name;
+      opt.textContent = `${b.number}. ${b.name} (${b.testament})`;
+      selectArcBook.appendChild(opt);
+    });
+  }
+
+  function getActiveThemeName() {
+    const rootTheme = document.documentElement.getAttribute("data-theme") || "obsidian";
+    if (rootTheme === "scriptorium") return "scriptorium";
+    if (rootTheme === "monastery") return "monastery";
+    return "obsidian";
+  }
+
+  async function loadArcNetwork() {
+    const relType = selectArcType ? selectArcType.value : "";
+    const book = selectArcBook ? selectArcBook.value : "";
+    const scope = selectArcScope ? selectArcScope.value : "OT-NT";
+    const theme = getActiveThemeName();
+
+    const params = new URLSearchParams();
+    if (relType) params.append("type", relType);
+    if (book) params.append("book", book);
+    if (scope) params.append("testament", scope);
+    params.append("theme", theme);
+    params.append("width", "1200");
+    params.append("height", "520");
+
+    try {
+      arcSvgViewport.innerHTML = `<div class="loading-state">Generating Typological Arc Network vector geometry...</div>`;
+
+      const [jsonRes, svgRes] = await Promise.all([
+        fetch(`/api/crossref/arcs?${params.toString()}`),
+        fetch(`/api/crossref/arcs.svg?${params.toString()}`)
+      ]);
+
+      if (!jsonRes.ok || !svgRes.ok) throw new Error("Failed to fetch arc network");
+
+      arcNetworkData = await jsonRes.json();
+      const svgText = await svgRes.text();
+
+      arcSvgViewport.innerHTML = svgText;
+
+      if (arcStatsSidebarContent) {
+        const typeBreakdown = Object.entries(arcNetworkData.connections_by_type || {})
+          .map(([k, v]) => `<span>${k}: <strong>${v}</strong></span>`)
+          .join(" · ");
+        arcStatsSidebarContent.innerHTML = `
+          <p style="font-size: 12.5px; color: var(--text-primary); margin-bottom: 4px;">
+            <strong>${arcNetworkData.total_connections}</strong> canonical connections (${arcNetworkData.ot_to_nt_count} OT ➔ NT)
+          </p>
+          <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5;">${typeBreakdown}</div>
+        `;
+      }
+
+      if (arcSidebarCountPill) {
+        arcSidebarCountPill.textContent = arcNetworkData.total_connections;
+      }
+
+      renderArcSidebarList(arcNetworkData.arcs || []);
+      wireSvgArcInteractions();
+
+      if (arcNetworkData.arcs && arcNetworkData.arcs.length > 0) {
+        inspectArc(arcNetworkData.arcs[0]);
+      }
     } catch (err) {
-      scriptureContainer.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed: ${err.message}</div>`;
+      arcSvgViewport.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed to load Arc Network: ${escapeHtml(err.message)}</div>`;
     }
-  });
+  }
+
+  function wireSvgArcInteractions() {
+    const paths = arcSvgViewport.querySelectorAll(".arc-path");
+    paths.forEach((path) => {
+      path.addEventListener("mouseenter", () => {
+        const arcId = parseInt(path.getAttribute("data-id"), 10);
+        const arc = (arcNetworkData.arcs || []).find((a) => a.id === arcId);
+        if (arc) inspectArc(arc);
+      });
+
+      path.addEventListener("click", () => {
+        const arcId = parseInt(path.getAttribute("data-id"), 10);
+        const arc = (arcNetworkData.arcs || []).find((a) => a.id === arcId);
+        if (arc) {
+          inspectArc(arc);
+          highlightSidebarArc(arcId);
+        }
+      });
+    });
+  }
+
+  function inspectArc(arc) {
+    if (!arc) return;
+    activeArcId = arc.id;
+
+    if (arcCardType) {
+      arcCardType.textContent = `${arc.relationship_label}`;
+      arcCardType.style.borderColor = arc.color;
+      arcCardType.style.color = arc.color;
+    }
+    if (arcCardDistance) {
+      arcCardDistance.textContent = `${arc.distance_books} books span (${arc.is_ot_to_nt ? 'OT ➔ NT' : 'Canonical'})`;
+    }
+    if (arcCardSource) arcCardSource.textContent = arc.source_ref;
+    if (arcCardTarget) arcCardTarget.textContent = arc.target_ref;
+    if (arcCardNotes) arcCardNotes.textContent = arc.notes || "Canonical Scripture relationship connecting prophecy/type to apostolic fulfillment.";
+
+    if (arcActiveDetailCard) arcActiveDetailCard.classList.remove("hidden");
+  }
+
+  function renderArcSidebarList(arcs) {
+    if (!arcSidebarList) return;
+    arcSidebarList.innerHTML = "";
+    if (arcs.length === 0) {
+      arcSidebarList.innerHTML = `<div style="font-size: 11.5px; color: var(--text-muted); padding: 8px;">No matching arcs found.</div>`;
+      return;
+    }
+
+    arcs.forEach((arc) => {
+      const item = document.createElement("div");
+      item.className = "arc-sidebar-item";
+      item.setAttribute("data-id", arc.id);
+      item.innerHTML = `
+        <div class="arc-sb-top">
+          <span class="arc-sb-src">${escapeHtml(arc.source_ref)}</span>
+          <span style="color: var(--gold-primary);">➔</span>
+          <span class="arc-sb-tgt">${escapeHtml(arc.target_ref)}</span>
+        </div>
+        <div class="arc-sb-type" style="color: ${arc.color};">${escapeHtml(arc.relationship_label)} (${arc.distance_books} bks)</div>
+      `;
+      item.addEventListener("click", () => {
+        inspectArc(arc);
+        highlightSidebarArc(arc.id);
+
+        const svgPath = arcSvgViewport.querySelector(`.arc-path[data-id="${arc.id}"]`);
+        if (svgPath) {
+          arcSvgViewport.querySelectorAll(".arc-path").forEach((p) => {
+            p.style.strokeWidth = "";
+            p.style.strokeOpacity = "";
+          });
+          svgPath.style.strokeWidth = "4px";
+          svgPath.style.strokeOpacity = "1";
+        }
+      });
+      arcSidebarList.appendChild(item);
+    });
+  }
+
+  function highlightSidebarArc(arcId) {
+    if (!arcSidebarList) return;
+    arcSidebarList.querySelectorAll(".arc-sidebar-item").forEach((it) => {
+      if (parseInt(it.getAttribute("data-id"), 10) === arcId) {
+        it.classList.add("selected");
+        it.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } else {
+        it.classList.remove("selected");
+      }
+    });
+  }
+
+  if (selectArcType) selectArcType.addEventListener("change", loadArcNetwork);
+  if (selectArcBook) selectArcBook.addEventListener("change", loadArcNetwork);
+  if (selectArcScope) selectArcScope.addEventListener("change", loadArcNetwork);
+
+  if (btnStageDownloadSvg) {
+    btnStageDownloadSvg.addEventListener("click", () => {
+      const relType = selectArcType ? selectArcType.value : "";
+      const book = selectArcBook ? selectArcBook.value : "";
+      const scope = selectArcScope ? selectArcScope.value : "OT-NT";
+      const theme = getActiveThemeName();
+
+      const params = new URLSearchParams();
+      if (relType) params.append("type", relType);
+      if (book) params.append("book", book);
+      if (scope) params.append("testament", scope);
+      params.append("theme", theme);
+      params.append("width", "1600");
+      params.append("height", "700");
+
+      const link = document.createElement("a");
+      link.href = `/api/crossref/arcs.svg?${params.toString()}`;
+      link.download = "bible_typological_arcs.svg";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast("Downloading high-resolution vector SVG...");
+    });
+  }
+
+  if (btnReadArcPassage) {
+    btnReadArcPassage.addEventListener("click", () => {
+      if (!arcNetworkData || !activeArcId) return;
+      const arc = (arcNetworkData.arcs || []).find((a) => a.id === activeArcId);
+      if (arc) {
+        const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+        if (passageTab) passageTab.click();
+        inputRef.value = arc.target_ref;
+        fetchPassage(arc.target_ref);
+        showToast(`Loaded ${arc.target_ref}`);
+      }
+    });
+  }
 
   // -------------------------------------------------------------------------
   // Keyboard Shortcuts Subsystem

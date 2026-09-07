@@ -2267,6 +2267,84 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_chapters.set_defaults(func=cmd_chapters)
 
+    # Subcommand: arcs (aliases: arc, typology, typologies)
+    parser_arcs = subparsers.add_parser(
+        "arcs",
+        aliases=["arc", "typology", "typologies"],
+        help="Render pure vector SVG Typological Arc Network & explore Old/New Testament fulfillments",
+        description="Visualize Old Testament shadows connected to New Testament fulfillments via pure vector Bézier SVG curves and terminal bridge diagrams.",
+    )
+    parser_arcs.add_argument("book_or_type", nargs="?", default=None, help="Optional topic, relationship type (e.g. 'typology', 'prophecy'), or book name")
+    parser_arcs.add_argument("--type", "-t", help="Filter by relationship type (e.g. 'typology', 'prophecy_fulfillment', 'quotation', 'thematic')")
+    parser_arcs.add_argument("--book", "-b", help="Filter arcs connected to a specific canonical book (e.g. 'Genesis', 'Hebrews')")
+    parser_arcs.add_argument("--testament", "-T", choices=["OT-NT", "all", "ot-nt", "ALL"], default="OT-NT", help="Filter scope (default: 'OT-NT' for inter-testament fulfillments)")
+    parser_arcs.add_argument("--svg", "-o", help="Export high-resolution standalone vector SVG to specified file path (e.g. 'arcs.svg')")
+    parser_arcs.add_argument("--theme", choices=["obsidian", "scriptorium", "monastery", "transparent"], default="obsidian", help="Aesthetic visual theme for SVG (default: obsidian)")
+    parser_arcs.add_argument("--width", type=int, default=1200, help="Width in pixels for generated SVG (default: 1200)")
+    parser_arcs.add_argument("--height", type=int, default=520, help="Height in pixels for generated SVG (default: 520)")
+    parser_arcs.add_argument("--json", action="store_true", help="Output raw arc network data in JSON format")
+    parser_arcs.add_argument("--color", action="store_true", default=None, help="Force enable ANSI color styling")
+    parser_arcs.add_argument("--no-color", action="store_true", help="Disable ANSI color styling")
+
+    def cmd_arcs(args: argparse.Namespace) -> int:
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+
+        with Database(db_path) as db:
+            from core.arcs import build_arc_network
+            from core.crossref import RelationshipType
+            from core.reference import get_book
+
+            pos_val = getattr(args, "book_or_type", None)
+            rel_type = getattr(args, "type", None)
+            book = getattr(args, "book", None)
+
+            if pos_val and not rel_type and not book:
+                if RelationshipType.is_valid(pos_val):
+                    rel_type = pos_val
+                elif get_book(pos_val):
+                    book = pos_val
+                elif pos_val.lower() in ("prophecy", "prophecies"):
+                    rel_type = "prophecy_fulfillment"
+                else:
+                    rel_type = pos_val
+
+            testament = getattr(args, "testament", "OT-NT")
+            theme = getattr(args, "theme", "obsidian")
+            width = getattr(args, "width", 1200)
+            height = getattr(args, "height", 520)
+            svg_out = getattr(args, "svg", None)
+            color_enabled = False if getattr(args, "no_color", False) else (True if getattr(args, "color", None) else should_use_color())
+
+            net = build_arc_network(
+                db,
+                relationship_type=rel_type,
+                book_filter=book,
+                testament_filter=testament,
+                theme=theme,
+                width=width,
+                height=height,
+            )
+
+            if getattr(args, "json", False):
+                print(json.dumps(net.to_dict(), indent=2))
+                return 0
+
+            if svg_out:
+                svg_content = net.render_svg(standalone=True, interactive=True)
+                out_path = Path(svg_out).resolve()
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(svg_content, encoding="utf-8")
+                size_str = f"{len(svg_content.encode('utf-8')):,} bytes"
+                print(f"Exported pure vector SVG Typological Arc Network to '{out_path}' ({size_str})")
+
+            print(net.render_terminal_summary(color=color_enabled))
+            return 0
+
+    parser_arcs.set_defaults(func=cmd_arcs)
+
     return parser
 
 
@@ -2292,6 +2370,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "serve", "server", "http", "web",
         "init", "setup", "bootstrap", "db", "database",
         "ribbon", "pericopes", "pericope", "chapters", "chapter",
+        "arcs", "arc", "typology", "typologies",
     }
 
     pos_idx = -1

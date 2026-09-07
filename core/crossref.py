@@ -415,6 +415,214 @@ CANONICAL_CROSS_REFERENCES: List[Tuple[str, str, str, float, str]] = [
         0.95,
         "Behold, he is coming with clouds, and every eye will see him, even those who pierced him.",
     ),
+
+    # 15. The First Adam and the Last Adam
+    (
+        "Genesis 1:26-27",
+        "Colossians 1:15",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "Man created in the image of God; Christ is the exact image of the invisible God, the firstborn of all creation.",
+    ),
+    (
+        "Genesis 2:7",
+        "1 Corinthians 15:45",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "The first man Adam became a living being; the last Adam became a life-giving spirit.",
+    ),
+    (
+        "Genesis 3:1-6",
+        "Romans 5:14-19",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "Adam was a type of the one to come: through one man's disobedience the many were made sinners, through one man's obedience the many will be made righteous.",
+    ),
+
+    # 16. Noah's Ark & Deliverance Through Water
+    (
+        "Genesis 7:1-23",
+        "1 Peter 3:20-21",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "Eight souls brought safely through water in the ark, corresponding to baptism which now saves you through the resurrection of Christ.",
+    ),
+
+    # 17. Jacob's Ladder
+    (
+        "Genesis 28:12",
+        "John 1:51",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The ladder set up on earth reaching to heaven with angels ascending and descending, fulfilled in the Son of Man as the sole mediator.",
+    ),
+
+    # 18. Joseph: Rejected and Exalted Savior
+    (
+        "Genesis 45:4-8",
+        "Acts 7:9-14",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The patriarchs sold Joseph into Egypt out of jealousy, but God was with him to preserve life, prefiguring Christ rejected by his brothers then exalted as Savior.",
+    ),
+
+    # 19. The Burning Bush & Divine Name
+    (
+        "Exodus 3:14",
+        "John 8:58",
+        RelationshipType.THEMATIC,
+        1.0,
+        "God reveals his covenant name 'I AM WHO I AM' to Moses; Jesus declares 'Before Abraham was, I AM.'",
+    ),
+
+    # 20. The Wilderness Manna (Bread of Life)
+    (
+        "Exodus 16:4-15",
+        "John 6:32-35",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "The bread from heaven given in the wilderness; Jesus is the true Bread of Life who comes down from heaven and gives life to the world.",
+    ),
+
+    # 21. Water from the Struck Rock
+    (
+        "Exodus 17:6",
+        "1 Corinthians 10:4",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "Moses struck the rock in Horeb to give water; Paul reveals 'they drank from the spiritual Rock that followed them, and the Rock was Christ.'",
+    ),
+
+    # 22. The Tabernacle & Holy Dwelling
+    (
+        "Exodus 25:8-9",
+        "John 1:14",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "'Make me a sanctuary that I may dwell among them' fulfilled when the Word became flesh and tabernacled among us.",
+    ),
+    (
+        "Exodus 40:34-35",
+        "Hebrews 9:11-12",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "The glory filling the earthly tent; Christ entered once for all into the holy places through the greater and more perfect tent not made with hands.",
+    ),
+
+    # 23. The High Priesthood of Aaron
+    (
+        "Exodus 28:1-3",
+        "Hebrews 4:14-16",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "Aaron the high priest with the names of Israel over his heart; Christ our great High Priest who sympathizes with our weaknesses.",
+    ),
+
+    # 24. Day of Atonement (Yom Kippur) & Scapegoat
+    (
+        "Leviticus 16:15-16",
+        "Hebrews 9:11-14",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "The annual blood of goats sprinkled on the mercy seat; Christ offered his own unblemished blood to purify our conscience from dead works.",
+    ),
+
+    # 25. Cities of Refuge
+    (
+        "Numbers 35:11-15",
+        "Hebrews 6:18",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The six cities of refuge protecting the fugitive from the avenger of blood, typifying our strong encouragement to flee for refuge in Christ.",
+    ),
+
+    # 26. Boaz the Kinsman-Redeemer (Goel)
+    (
+        "Ruth 4:9-10",
+        "Galatians 4:4-5",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "Boaz redeems the lost inheritance and takes the Gentile Ruth as his bride, foreshadowing Christ redeeming those under the law to receive adoption.",
+    ),
+
+    # 27. Jonah & The Resurrection on the Third Day
+    (
+        "Jonah 1:17",
+        "Matthew 12:40",
+        RelationshipType.TYPOLOGY,
+        1.0,
+        "Jonah three days and three nights in the belly of the great fish; the Son of Man three days and three nights in the heart of the earth.",
+    ),
+
+    # 28. Light to Galilee & The Prince of Peace
+    (
+        "Isaiah 9:1-2",
+        "Matthew 4:14-16",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "The people walking in darkness have seen a great light in Galilee of the Gentiles.",
+    ),
+    (
+        "Isaiah 9:6-7",
+        "Luke 1:32-33",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "To us a child is born, his name Wonderful Counselor, Mighty God; he will reign on the throne of David forever.",
+    ),
+
+    # 29. The Root and Branch of Jesse
+    (
+        "Isaiah 11:1-2",
+        "Romans 15:12",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "A shoot will come from the stump of Jesse; the root of Jesse will arise to rule the Gentiles, and in him the Gentiles will hope.",
+    ),
+
+    # 30. The Precious Cornerstone in Zion
+    (
+        "Isaiah 28:16",
+        "1 Peter 2:6",
+        RelationshipType.QUOTATION,
+        1.0,
+        "Behold, I lay in Zion a stone, a cornerstone chosen and precious, and whoever believes in him will never be put to shame.",
+    ),
+
+    # 31. The Righteous Branch
+    (
+        "Jeremiah 23:5-6",
+        "1 Corinthians 1:30",
+        RelationshipType.THEMATIC,
+        1.0,
+        "The Righteous Branch of David: 'The Lord our Righteousness', fulfilled in Christ who became to us righteousness, sanctification, and redemption.",
+    ),
+
+    # 32. The Son of Man Coming on the Clouds
+    (
+        "Daniel 7:13-14",
+        "Mark 14:62",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "One like a son of man coming with the clouds of heaven given everlasting dominion; Jesus testifies before the high priest: 'You will see the Son of Man seated at the right hand of Power.'",
+    ),
+
+    # 33. The Humble King on a Donkey
+    (
+        "Zechariah 9:9",
+        "Matthew 21:4-5",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "Rejoice greatly, O daughter of Zion! Behold, your King comes to you, righteous and having salvation, gentle and mounted on a donkey.",
+    ),
+
+    # 34. Thirty Pieces of Silver
+    (
+        "Zechariah 11:12-13",
+        "Matthew 27:9-10",
+        RelationshipType.PROPHECY_FULFILLMENT,
+        1.0,
+        "They weighed out thirty pieces of silver, the handsome price at which I was valued, and threw them to the potter in the house of the Lord.",
+    ),
 ]
 
 

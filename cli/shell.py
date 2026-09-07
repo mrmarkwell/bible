@@ -736,6 +736,81 @@ class BibleShell(cmd.Cmd):
         """Alias for /crossref."""
         self.do_crossref(arg)
 
+    def do_arcs(self, arg: str) -> None:
+        """Render pure vector SVG Typological Arc Network & explore fulfillments: /arcs [-t TYPE] [-b BOOK] [--svg OUT.svg]"""
+        if self.db is None:
+            self._init_db()
+
+        from core.arcs import build_arc_network
+        from core.crossref import RelationshipType
+        from core.reference import ALL_BOOKS, get_book
+
+        rel_type = None
+        book = None
+        svg_out = None
+        theme = "obsidian"
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        idx = 0
+        while idx < len(tokens):
+            tok = tokens[idx]
+            if tok in ("-t", "--type") and idx + 1 < len(tokens):
+                rel_type = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-b", "--book") and idx + 1 < len(tokens):
+                book = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-o", "--svg") and idx + 1 < len(tokens):
+                svg_out = tokens[idx + 1]
+                idx += 2
+            elif tok in ("--theme",) and idx + 1 < len(tokens):
+                theme = tokens[idx + 1]
+                idx += 2
+            elif not tok.startswith("-") and rel_type is None:
+                if RelationshipType.is_valid(tok):
+                    rel_type = tok
+                elif get_book(tok):
+                    book = tok
+                elif tok.lower() in ("prophecy", "prophecies"):
+                    rel_type = "prophecy_fulfillment"
+                else:
+                    rel_type = tok
+                idx += 1
+            else:
+                idx += 1
+
+        net = build_arc_network(
+            self.db,
+            relationship_type=rel_type,
+            book_filter=book,
+            theme=theme,
+        )
+
+        if svg_out:
+            svg_content = net.render_svg(standalone=True, interactive=True)
+            out_p = Path(svg_out).resolve()
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(svg_content, encoding="utf-8")
+            self.stdout.write(f"Exported vector SVG ({len(svg_content):,} bytes) to '{out_p}'.\n\n")
+
+        self.stdout.write("\n" + net.render_terminal_summary(color=self.use_color) + "\n\n")
+
+    def do_arc(self, arg: str) -> None:
+        """Alias for /arcs."""
+        self.do_arcs(arg)
+
+    def do_typology(self, arg: str) -> None:
+        """Alias for /arcs -t typology."""
+        self.do_arcs("-t typology " + arg)
+
+    def complete_arcs(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /arcs command."""
+        from core.reference import ALL_BOOKS
+        types = ["typology", "prophecy_fulfillment", "quotation", "thematic", "allusion"]
+        books = [b.name for b in ALL_BOOKS]
+        opts = types + books + ["--svg", "--type", "--book", "--theme", "--testament"]
+        return [o for o in opts if o.lower().startswith(text.lower())]
+
     # --------------------------------------------------------------------------
     # Session Configuration Commands
     # --------------------------------------------------------------------------
@@ -1036,6 +1111,7 @@ Study & Search:
   /tag <action> [args]    Semantic tagging and passage annotations (aliases: /tags)
   /ribbon [tag]           Display visual Redemptive Ribbon topical heatmap across 66 books
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
+  /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)

@@ -48,6 +48,16 @@ from core.bootstrap import (
     bootstrap_database,
     get_db_stats,
 )
+from core.arcs import (
+    ArcEndpoint,
+    ArcNetwork,
+    ArcPath,
+    ArcTheme,
+    BookAxisMark,
+    RELATIONSHIP_COLORS,
+    build_arc_network,
+    get_reference_x,
+)
 from core.crossref import (
     CANONICAL_CROSS_REFERENCES,
     CrossReferenceGraphNode,
@@ -145,12 +155,20 @@ __all__ = [
     "generate_batch_tagging_prompts",
     "parse_tagging_response",
     "format_prompt_for_gemini_api",
-    # Cross References
+    # Cross References & Typological Arcs
     "RelationshipType",
     "CrossReferenceService",
     "HydratedCrossReference",
     "CrossReferenceSummary",
     "CANONICAL_CROSS_REFERENCES",
+    "ArcEndpoint",
+    "ArcNetwork",
+    "ArcPath",
+    "ArcTheme",
+    "BookAxisMark",
+    "RELATIONSHIP_COLORS",
+    "build_arc_network",
+    "get_reference_x",
     # Crypto
     "ChaCha20",
     "CryptoError",

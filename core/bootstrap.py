@@ -232,7 +232,7 @@ def bootstrap_database(
     2. Compiles World English Bible (31,103 verses) from cached raw JSON.
     3. Ingests curated favorite verses (829 passages, 50 starred).
     4. Seeds canonical theological and redemptive-historical taxonomies (26 tags).
-    5. Seeds curated canonical OT/NT typological cross-reference links (43 edges).
+    5. Seeds curated canonical OT/NT typological cross-reference links (67 edges).
     6. Optimizes SQLite storage via PRAGMA optimize & ANALYZE.
     7. Optionally installs automated git hook safeguards (pre-commit & pre-push).
 
