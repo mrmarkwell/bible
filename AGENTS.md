@@ -152,22 +152,28 @@ True blockers are strictly defined as:
 3. Commit `BLOCKED.md` with message `chore: record blocker in BLOCKED.md` and immediately push (`git push origin main`).
 4. Self-terminate cleanly.
 
-#### 6. Logging, Handoff & Self-Termination
+#### 6. Logging, Handoff & Explicit Post-Summary Ingestion
 When your task is complete and verified:
 1. **Update `ROADMAP.md`**:
    - Mark the completed task as `[DONE]`.
    - Add any newly discovered subtasks or refine existing backlog items.
-2. **Promote Rank A+ Ideas to Feature Requests**:
-   - If any improvement idea conceived during this cycle is self-evaluated as rank **A+** (unambiguously a good idea for improvement), automatically append it as a formalized feature request in `IDEAS.md` (and decompose into atomic tasks in `ROADMAP.md` if appropriate) as part of your final step before committing.
-3. **Append to `AGENT_LOG.md`**:
+2. **Append to `AGENT_LOG.md`**:
    - Add a new entry with timestamp, summary of accomplishments, tests verified, and explicit handoff notes for the next agent.
-4. **Commit & Push State**:
+3. **Commit & Push Task State**:
    - Ensure working directory is clean (`git status` clean).
    - Push all commits to the remote repository immediately (`git push origin main`).
-5. **User Summary / Human Briefing**:
-   - Conclude every turn or loop iteration with a high-level **Human Executive Briefing** (see protocol below).
+4. **Emit Human Executive Briefing**:
+   - Output the structured **Human Executive Briefing** (see protocol below), including letter-grading 1–3 brainstormed ideas in Section 4.
+5. **MANDATORY POST-BRIEFING STEP: Ingest & Push Any Rank A+ Ideas**:
+   - **CRITICAL**: **DO NOT STOP OR SELF-TERMINATE AFTER WRITING THE SUMMARY**.
+   - Review the brainstormed ideas from Section 4 of your briefing.
+   - If **ANY** idea was assigned a letter grade of **A+** (unambiguously a good idea for improvement):
+     1. You **MUST** execute a file edit tool call immediately to append the formalized feature request into `IDEAS.md` (and decompose into atomic tasks in `ROADMAP.md` if appropriate).
+     2. You **MUST** commit the addition (`git commit -m "docs: promote Rank A+ idea <name> to IDEAS.md"`).
+     3. You **MUST** immediately run `git push origin main`.
+   - **Self-Correction Rule**: An agent turn is NOT complete until all Rank A+ ideas mentioned in the summary are physically written to `IDEAS.md`, committed, and pushed. Never state that an A+ idea was added unless the tool call has succeeded and pushed.
 6. **Self-Terminate**:
-   - End your execution so the next fresh agent can take over without context baggage.
+   - Only after Step 5 is fully executed (with working tree clean and pushed to `origin/main`), end your execution so the next fresh agent can take over cleanly.
 
 ---
 
@@ -186,7 +192,7 @@ Because this is a **near-zero maintenance project** where the human author rarel
 4. **Key Ideas & Opportunities for Improvement (with Mandatory Letter Grades)**:
    - Proactively brainstorm and highlight 1–3 high-leverage ideas for project enhancement (e.g. UX polish, new capabilities, architectural safeguards).
    - **Mandatory Letter Grades**: Every idea MUST be evaluated and assigned an explicit letter grade (e.g., `A+`, `A`, `A-`, `B+`, etc.).
-   - **Automatic A+ Feature Promotion**: If any idea is self-evaluated as rank **A+** (unambiguously a good idea for improvement), it MUST be automatically added as a feature request to `IDEAS.md` as part of your final step before completion.
+   - **Mandatory Post-Briefing Execution**: If ANY idea is self-evaluated as rank **A+**, you MUST execute Step 5 above (calling tools to append to `IDEAS.md`, committing, and pushing) immediately after emitting this briefing. Do not let the turn end without executing this step.
 5. **Maintenance & Hygiene Health**:
    - Confirm 100% Zero-Dependency compliance (no pip, no npm) and clean remote push synchronization.
 

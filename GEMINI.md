@@ -18,7 +18,7 @@ In this mode:
    - Record vetted concepts in [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md) or break them into atomic `[ ]` tasks in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
    - If an idea introduces a new architectural paradigm, record an ADR in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
    - **Immediately commit and push** all documentation updates (`git push origin main`).
-5. **Human Executive Briefing**: Conclude with a clear status report on blockers (`BLOCKED.md`), active trajectory, key improvement ideas with mandatory letter grades (ranking all ideas, with any A+ ideas automatically promoted to `IDEAS.md`), and zero-dependency health.
+5. **Human Executive Briefing & Mandatory Post-Briefing Promotion**: Conclude with a clear status report on blockers (`BLOCKED.md`), active trajectory, and key improvement ideas with mandatory letter grades. **CRITICAL POST-BRIEFING STEP**: If ANY idea is evaluated as rank **A+**, you MUST NOT stop; you MUST immediately call tools to append it to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md), commit, and push (`git push origin main`) before finishing.
 
 ---
 
@@ -43,6 +43,7 @@ In this mode:
      - Implement feature & hermetic unit tests (`tests/test_*.py`).
 4. **Implement & Test**: Work strictly within [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity) (Python 3 stdlib only, zero pip/npm packages). Verify 100% test pass (`python3 -m unittest discover tests`).
 5. **No Questions Asked**: Resolve ambiguities autonomously, recording decisions in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
-6. **Promote Rank A+ Ideas**: Rank all brainstormed improvement ideas with letter grades. If any idea is rank **A+** (unambiguously a good idea for improvement), automatically append it to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md) as a feature request before completing the cycle.
-7. **Handoff & Push**: Mark completed items in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
-8. **Executive Briefing & Self-Termination**: Conclude with a user-facing summary reporting blocker status (`BLOCKED.md`), accomplishments, current trajectory, letter-graded improvement ideas, and hygiene, then terminate cleanly.
+6. **Handoff & Push**: Mark completed items in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
+7. **Emit Executive Briefing**: Conclude with a user-facing summary reporting blocker status (`BLOCKED.md`), accomplishments, current trajectory, letter-graded improvement ideas, and hygiene.
+8. **MANDATORY POST-BRIEFING A+ PROMOTION STEP**: Review the ideas in Section 4 of the emitted briefing. If ANY idea is self-evaluated as rank **A+**, you MUST NOT stop; you MUST immediately call tools to append the formalized feature request to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md), commit (`git commit -m "docs: promote Rank A+ idea <name> to IDEAS.md"`), and immediately run `git push origin main`. Never terminate without executing this step.
+9. **Self-Termination**: Cleanly exit only after Step 8 completes.

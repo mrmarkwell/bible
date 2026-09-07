@@ -229,3 +229,17 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0, Task 0.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [DONE] (Formalized in `ralph.sh`, `AGENTS.md`, `GEMINI.md`, and recorded in ADR-015).
 
+### [SCHEDULED] Automated Pre-Commit Fast Linter & Doc-Sync Validator (`tools/doctor.py` / `bible doctor`) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a zero-dependency diagnostic utility (`tools/doctor.py` or `./bible doctor`) that runs pre-commit / pre-push health checks in <1 second:
+  1. Validates 100% Zero-Dependency compliance (inspects AST of all `.py` files to ensure no third-party non-standard library modules are imported).
+  2. Validates state machine synchronization: verifies all ADRs referenced in code/logs exist in `DECISIONS.md`, all tasks marked `[DONE]` in `ROADMAP.md` exist, and `AGENT_LOG.md` run numbers are sequential.
+  3. Validates that every Rank A+ idea in `IDEAS.md` has an associated roadmap task or completed status.
+  4. Checks that bash scripts pass `bash -n` and unit test discovery discovers all test suites cleanly.
+- **Rationale**: Eliminates human and agent oversight by turning process rules, dependency boundaries, and documentation integrity into automated, deterministic assertions that can run in pre-commit hooks or the Ralph loop.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library `ast`, `os`, `sys`, `re`, `pathlib`).
+- **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling.
+- **Status**: [SCHEDULED].
+
