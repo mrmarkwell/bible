@@ -39,17 +39,21 @@ class TestHarness(unittest.TestCase):
         self.assertIn("get_next_run_number", content)
 
     def test_cleanup_run_math_and_detection(self):
-        """Verify the 5th-iteration cadence logic directly."""
-        def is_cleanup(n: int) -> bool:
-            return n > 0 and (n % 5 == 0)
+        """Verify the 5th-iteration cadence logic directly via bash function."""
+        import subprocess
 
-        # Multiples of 5 should trigger cleanup sprint
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+
         for run_num in [5, 10, 15, 20, 25, 100]:
-            self.assertTrue(is_cleanup(run_num), f"Run {run_num} should be a cleanup sprint")
+            cmd = f'source "{ralph_path}" 2>/dev/null || true; is_cleanup_run {run_num} && echo "YES" || echo "NO"'
+            res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+            self.assertEqual(res.stdout.strip(), "YES", f"Bash is_cleanup_run {run_num} should return YES")
 
-        # Non-multiples should be standard cycles
         for run_num in [1, 2, 3, 4, 6, 7, 8, 9, 11, 14, 16, 99]:
-            self.assertFalse(is_cleanup(run_num), f"Run {run_num} should not be a cleanup sprint")
+            cmd = f'source "{ralph_path}" 2>/dev/null || true; is_cleanup_run {run_num} && echo "YES" || echo "NO"'
+            res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+            self.assertEqual(res.stdout.strip(), "NO", f"Bash is_cleanup_run {run_num} should return NO")
 
     def test_ralph_script_pipestatus_handling(self):
         """Verify ralph.sh safely captures PIPESTATUS array without tripping set -u."""
@@ -60,6 +64,7 @@ class TestHarness(unittest.TestCase):
 
         # PIPESTATUS array should be captured into a variable before indexing
         self.assertIn('PIPE_STATUSES=("${PIPESTATUS[@]}")', content)
+
     def test_summary_prompt_contents(self):
         """Verify ralph.sh contains the Executive Summary prompt, Senior PM role, and options."""
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -75,15 +80,21 @@ class TestHarness(unittest.TestCase):
         self.assertIn("is_summary_run", content)
 
     def test_summary_run_math_and_detection(self):
-        """Verify the 10th-iteration executive summary cadence logic."""
-        def is_summary(n: int) -> bool:
-            return n > 0 and (n % 10 == 0)
+        """Verify the 10th-iteration executive summary cadence logic directly via bash function."""
+        import subprocess
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
 
         for run_num in [10, 20, 30, 40, 50, 100]:
-            self.assertTrue(is_summary(run_num), f"Run {run_num} should be an executive summary run")
+            cmd = f'source "{ralph_path}" 2>/dev/null || true; is_summary_run {run_num} && echo "YES" || echo "NO"'
+            res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+            self.assertEqual(res.stdout.strip(), "YES", f"Bash is_summary_run {run_num} should return YES")
 
         for run_num in [1, 2, 5, 9, 11, 15, 19, 25, 99]:
-            self.assertFalse(is_summary(run_num), f"Run {run_num} should not be an executive summary run")
+            cmd = f'source "{ralph_path}" 2>/dev/null || true; is_summary_run {run_num} && echo "YES" || echo "NO"'
+            res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
+            self.assertEqual(res.stdout.strip(), "NO", f"Bash is_summary_run {run_num} should return NO")
 
 
 if __name__ == "__main__":

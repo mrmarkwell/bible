@@ -1,0 +1,192 @@
+"""Hermetic unit tests for the interactive Scripture REPL Shell and direct citation routing.
+
+Zero external dependencies (Python 3 standard library only per ADR-003).
+"""
+
+import io
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from cli.main import preprocess_cli_argv, main
+from cli.shell import BibleShell, launch_shell
+from core.db import Database, VerseRecord
+
+
+class TestShell(unittest.TestCase):
+    """Hermetic unit tests for BibleShell."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_dir = tempfile.TemporaryDirectory()
+        cls.db_path = Path(cls.temp_dir.name) / "test_shell.db"
+        cls.db = Database(cls.db_path, auto_init=True)
+        cls.db.add_translation("WEB", "World English Bible")
+        cls.db.add_translation("KJV", "King James Version")
+        cls.db.insert_verses(
+            [
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=1,
+                    chapter=1,
+                    verse=1,
+                    text="In the beginning, God created the heavens and the earth.",
+                ),
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=43,
+                    chapter=3,
+                    verse=16,
+                    text="For God so loved the world, that he gave his one and only Son.",
+                ),
+                VerseRecord(
+                    translation_id="KJV",
+                    book_id=43,
+                    chapter=3,
+                    verse=16,
+                    text="For God so loved the world, that he gave his only begotten Son.",
+                ),
+            ]
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.db.close()
+        cls.temp_dir.cleanup()
+
+    def _create_shell(self, theme="plain", margin=0, box=False, color=False):
+        stdout = io.StringIO()
+        shell = BibleShell(
+            db_path=self.db_path,
+            translation_id="WEB",
+            theme=theme,
+            margin=margin,
+            box=box,
+            color=color,
+            stdout=stdout,
+        )
+        return shell, stdout
+
+    def test_shell_direct_reference(self):
+        shell, stdout = self._create_shell()
+        shell.default("John 3:16")
+        out = stdout.getvalue()
+        self.assertIn("John 3:16 (WEB)", out)
+        self.assertIn("one and only Son", out)
+
+    def test_shell_slash_get(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/get Genesis 1:1")
+        out = stdout.getvalue()
+        self.assertIn("Genesis 1:1 (WEB)", out)
+        self.assertIn("created the heavens and the earth", out)
+
+    def test_shell_slash_search(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/search world")
+        out = stdout.getvalue()
+        self.assertIn('Scripture Search: "world" (WEB)', out)
+        self.assertIn("John 3:16 (WEB)", out)
+
+    def test_shell_slash_compare(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/compare 'John 3:16' WEB,KJV")
+        out = stdout.getvalue()
+        self.assertIn("Compare: John 3:16", out)
+        self.assertIn("[WEB]", out)
+        self.assertIn("[KJV]", out)
+
+    def test_shell_version_management(self):
+        shell, stdout = self._create_shell()
+        # List versions
+        shell.onecmd("/versions")
+        out = stdout.getvalue()
+        self.assertIn("WEB", out)
+        self.assertIn("KJV", out)
+
+        # Switch version
+        shell.onecmd("/version KJV")
+        self.assertEqual(shell.translation_id, "KJV")
+        self.assertIn("Switched session translation to KJV", stdout.getvalue())
+
+    def test_shell_theme_switching(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/theme amber")
+        self.assertEqual(shell.theme, "amber")
+        self.assertIn("Switched theme to 'amber'", stdout.getvalue())
+
+        shell.onecmd("/theme invalid_theme")
+        self.assertIn("Unknown theme", stdout.getvalue())
+
+    def test_shell_margin_and_flow_and_box(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/margin 4")
+        self.assertEqual(shell.margin, 4)
+
+        shell.onecmd("/flow on")
+        self.assertTrue(shell.flow)
+        shell.onecmd("/flow off")
+        self.assertFalse(shell.flow)
+
+        shell.onecmd("/box on")
+        self.assertTrue(shell.box)
+        shell.onecmd("/box off")
+        self.assertFalse(shell.box)
+
+    def test_shell_help_and_exit(self):
+        shell, stdout = self._create_shell()
+        shell.onecmd("/help")
+        self.assertIn("Command Reference", stdout.getvalue())
+
+        res = shell.onecmd("exit")
+        self.assertTrue(res)
+        self.assertIn("Grace and peace", stdout.getvalue())
+
+    def test_shell_autocompletion(self):
+        shell, _ = self._create_shell()
+        themes = shell.complete_theme("sa", "theme sa", 0, 0)
+        self.assertIn("sacred", themes)
+
+        versions = shell.complete_version("W", "version W", 0, 0)
+        self.assertIn("WEB", versions)
+
+        names = shell.completenames("sea")
+        self.assertIn("search", names)
+        self.assertIn("/search", names)
+
+        # Book autocompletion
+        gen = shell.completenames("Gen")
+        self.assertIn("Genesis", gen)
+
+
+class TestDirectReferenceRouting(unittest.TestCase):
+    """Hermetic tests for direct citation CLI preprocessing."""
+
+    def test_preprocess_direct_citation_simple(self):
+        res = preprocess_cli_argv(["John 3:16"])
+        self.assertEqual(res, ["get", "John 3:16"])
+
+    def test_preprocess_direct_citation_with_flags(self):
+        res = preprocess_cli_argv(["Romans 8:28-30", "--flow", "--margin=4"])
+        self.assertEqual(res, ["get", "Romans 8:28-30", "--flow", "--margin=4"])
+
+    def test_preprocess_with_db_flag_first(self):
+        res = preprocess_cli_argv(["--db", "data/bible.db", "Psalm 23", "--box"])
+        self.assertEqual(res, ["--db", "data/bible.db", "get", "Psalm 23", "--box"])
+
+    def test_preprocess_preserves_subcommands(self):
+        self.assertEqual(preprocess_cli_argv(["get", "John 3:16"]), ["get", "John 3:16"])
+        self.assertEqual(preprocess_cli_argv(["search", "light"]), ["search", "light"])
+        self.assertEqual(preprocess_cli_argv(["compare", "John 1:1"]), ["compare", "John 1:1"])
+        self.assertEqual(preprocess_cli_argv(["doctor"]), ["doctor"])
+        self.assertEqual(preprocess_cli_argv(["summary"]), ["summary"])
+        self.assertEqual(preprocess_cli_argv(["shell"]), ["shell"])
+
+    def test_preprocess_preserves_empty_and_unknown(self):
+        self.assertEqual(preprocess_cli_argv([]), [])
+        self.assertEqual(preprocess_cli_argv(["nonexistent_subcommand"]), ["nonexistent_subcommand"])
+
+
+if __name__ == "__main__":
+    unittest.main()

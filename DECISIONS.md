@@ -519,3 +519,34 @@ This document is an append-only log of significant design and architectural deci
   - Delivers a contemplative, sacred reading experience directly in the terminal with zero external dependencies.
   - Maintains strict standard library compliance (ADR-003) and 100% test coverage.
   - Automatically respects user environments (`NO_COLOR`, redirection pipes, CI logs).
+
+---
+
+## ADR-021: Sovereign Interactive Scripture REPL Shell, Direct Reference CLI Routing & Test Velocity Optimization
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: During the Run 020 Senior Product Manager Meta-Audit, two primary system friction points and growth opportunities were identified:
+  1. *CLI Friction & Lack of Direct Citation Routing*: Users running `./bible "John 3:16"` encountered an `argparse` choice error because citations required the explicit `get` subcommand. Scripture lookup is the primary human interaction; canonical citations should resolve directly and transparently.
+  2. *Lack of an Interactive Study Environment*: Every query required re-invoking the process from bash. A sovereign, persistent interactive REPL shell (`bible shell`) enables fluid, continuous Scripture exploration, search, and translation comparison without process startup overhead.
+  3. *Test Suite Velocity & Diagnostic Drift*: The test suite was approaching 5.0 seconds due to redundant disk database creation across 33 CLI tests and recursive test discovery in `test_doctor.py`. Additionally, `tools/doctor.py` had a hardcoded test list that missed several newly created test suites.
+- **Decision**:
+  1. **Direct Scripture Reference Routing (`cli/main.py`)**:
+     - Implemented `preprocess_cli_argv(argv)`: automatically inspects positional arguments prior to `argparse` parsing. If the first positional argument is not a registered subcommand or option flag, and safely parses as a valid canonical scripture citation (`parse_reference`), the CLI transparently prepends `get`.
+     - Flags such as `--flow`, `--margin`, `--box`, `--theme`, and `--version` are seamlessly forwarded to the passage renderer.
+  2. **Interactive Scripture Study REPL Shell (`cli/shell.py`)**:
+     - Built `BibleShell` subclassing Python standard library `cmd.Cmd` with `readline` support (history navigation and tab completion).
+     - Provides instant direct citation evaluation (e.g. typing `John 3:16` or `Romans 8:28-30` immediately displays formatted scripture).
+     - Provides slash and subcommand helpers: `/search <query>`, `/compare <ref> [versions]`, `/version <id>`, `/versions`, `/theme <name>`, `/margin <n>`, `/flow [on|off]`, `/box [on|off]`, `/doctor`, `/summary`, `/clear`, `/help`, and `exit`.
+     - Supported via `./bible shell` (aliases: `interactive`, `repl`, `console`) and top-level `-i` / `--interactive` flag.
+  3. **Test Velocity & Doctor Comprehensive Coverage Optimization**:
+     - Optimized `tests/test_cli.py`: converted per-test disk database creation in `setUp` to a shared class-level fixture (`setUpClass`), slashing CLI test execution time from 1.92s to 0.15s (>12x speedup).
+     - Hermetically isolated `tests/test_doctor.py` using sample temp directories and mocked checks, eliminating recursive multi-run test overhead and reducing execution from 2.09s to 0.05s.
+     - Upgraded `tools/doctor.py` `check_unit_tests` to dynamically discover all `test_*.py` files in `tests/` (excluding only `test_doctor.py` to prevent self-recursion), expanding live doctor coverage from 133 to 212 tests.
+     - Overall repository test suite runtime dropped from 4.95s to 2.44s across 220 hermetic tests (a >50% acceleration).
+  4. **Autonomous Harness Cadence Fix (`ralph.sh`)**:
+     - Fixed `is_summary_run` variable expansion and integrated double-milestone prompt dispatch into continuous `--loop` mode.
+- **Consequences**:
+  - Delivers an intuitive, sovereign interactive Scripture study environment with zero external dependencies.
+  - Slashes test latency in half while expanding automated health check coverage to 100% of test suites.
+  - Guarantees seamless CLI ergonomics for direct citation queries.
+

@@ -735,6 +735,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version="%(prog)s 0.2.0 (Phase 2)",
     )
+    parser.add_argument(
+        "-i",
+        "--interactive",
+        action="store_true",
+        help="Launch interactive scripture study REPL shell",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
 
@@ -1059,16 +1065,125 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_summary.set_defaults(func=cmd_summary)
 
+    # Subcommand: shell (aliases: interactive, repl, console)
+    parser_shell = subparsers.add_parser(
+        "shell",
+        aliases=["interactive", "repl", "console"],
+        help="Launch interactive scripture study REPL shell",
+        description="Interactive zero-dependency terminal shell with instant lookup, search, comparison, and theme customization.",
+    )
+    parser_shell.add_argument(
+        "--version",
+        "-t",
+        default="WEB",
+        help="Initial active translation ID (default: WEB)",
+    )
+    parser_shell.add_argument(
+        "--theme",
+        choices=["sacred", "amber", "cyan", "plain"],
+        default="sacred",
+        help="Initial ANSI color theme (default: sacred)",
+    )
+    parser_shell.add_argument(
+        "--margin",
+        "-m",
+        type=int,
+        default=2,
+        help="Initial left indentation margin (default: 2)",
+    )
+    parser_shell.add_argument(
+        "--flow",
+        action="store_true",
+        help="Start in continuous paragraph reader mode",
+    )
+    parser_shell.add_argument(
+        "--no-box",
+        action="store_true",
+        help="Disable decorative unicode box header",
+    )
+
+    def cmd_shell(args: argparse.Namespace) -> int:
+        from cli.shell import launch_shell
+        db_path = Path(args.db).resolve() if args.db else None
+        return launch_shell(
+            db_path=db_path,
+            translation_id=args.version,
+            theme=args.theme,
+            margin=args.margin,
+            flow=args.flow,
+            box=not args.no_box,
+        )
+
+    parser_shell.set_defaults(func=cmd_shell)
+
     return parser
+
+
+def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
+    """Preprocess CLI arguments to route direct passage citations to the 'get' subcommand.
+
+    If the first positional argument is not a registered subcommand or flag,
+    and parses successfully as a canonical scripture reference (e.g. 'John 3:16', 'Rom 8:28-30'),
+    'get' is automatically prepended to provide seamless citation ergonomics.
+    """
+    if argv is None:
+        raw_args = list(sys.argv[1:])
+    else:
+        raw_args = list(argv)
+
+    if not raw_args:
+        return raw_args
+
+    registered_commands = {
+        "get", "compare", "search", "find", "translations", "versions",
+        "doctor", "summary", "shell", "interactive", "repl", "console",
+    }
+
+    pos_idx = -1
+    skip_next = False
+    for i, token in enumerate(raw_args):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--":
+            if i + 1 < len(raw_args):
+                pos_idx = i + 1
+            break
+        if token in ("--db", "-w", "--width", "-m", "--margin", "--theme", "-t", "--version", "--window"):
+            skip_next = True
+            continue
+        if token.startswith("-"):
+            continue
+        pos_idx = i
+        break
+
+    if pos_idx != -1:
+        first_pos = raw_args[pos_idx]
+        if first_pos.lower() not in registered_commands:
+            try:
+                ref = parse_reference(first_pos)
+            except (ValueError, TypeError):
+                ref = None
+            if ref is not None:
+                raw_args.insert(pos_idx, "get")
+
+    return raw_args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI execution entry point."""
+    processed_argv = preprocess_cli_argv(argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(processed_argv)
+
+    if getattr(args, "interactive", False):
+        from cli.shell import launch_shell
+        db_path = Path(args.db).resolve() if args.db else None
+        return launch_shell(db_path=db_path)
 
     if not hasattr(args, "func") or args.func is None:
         parser.print_help()
+        print("\nTip: Run './bible shell' for interactive scripture exploration.")
         return 0
 
     return args.func(args)

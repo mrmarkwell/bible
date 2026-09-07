@@ -215,13 +215,14 @@ class TestCliFormatting(unittest.TestCase):
 class TestCliExecution(unittest.TestCase):
     """Test CLI execution and command-line parsing hermetically."""
 
-    def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.db_path = Path(self.temp_dir.name) / "test_bible.db"
-        self.db = Database(self.db_path, auto_init=True)
-        self.db.add_translation("WEB", "World English Bible")
-        self.db.add_translation("KJV", "King James Version")
-        self.db.insert_verses(
+    @classmethod
+    def setUpClass(cls):
+        cls.temp_dir = tempfile.TemporaryDirectory()
+        cls.db_path = Path(cls.temp_dir.name) / "test_bible.db"
+        cls.db = Database(cls.db_path, auto_init=True)
+        cls.db.add_translation("WEB", "World English Bible")
+        cls.db.add_translation("KJV", "King James Version")
+        cls.db.insert_verses(
             [
                 VerseRecord(
                     translation_id="WEB",
@@ -261,9 +262,10 @@ class TestCliExecution(unittest.TestCase):
             ]
         )
 
-    def tearDown(self):
-        self.db.close()
-        self.temp_dir.cleanup()
+    @classmethod
+    def tearDownClass(cls):
+        cls.db.close()
+        cls.temp_dir.cleanup()
 
     def test_cli_get_single_verse(self):
         stdout = io.StringIO()
@@ -335,21 +337,34 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("usage: bible", stdout.getvalue())
 
-    def test_cli_doctor(self):
+    @patch("tools.doctor.run_all_checks", return_value=(0, []))
+    def test_cli_doctor(self, mock_doctor):
         stdout = io.StringIO()
         with patch("sys.stdout", stdout):
             code = main(["doctor"])
         self.assertEqual(code, 0)
-        self.assertIn("Bible Engine System Doctor", stdout.getvalue())
-        self.assertIn("System Health: EXCELLENT", stdout.getvalue())
+        self.assertTrue(mock_doctor.called)
 
-    def test_cli_summary(self):
+    @patch("tools.executive_summary.generate_summary")
+    def test_cli_summary(self, mock_summary):
+        from tools.executive_summary import ExecutiveReport, RoadmapStats
+        mock_summary.return_value = ExecutiveReport(
+            start_run=1,
+            end_run=5,
+            run_count=5,
+            runs=[],
+            roadmap_stats=RoadmapStats(total_tasks=10, completed_tasks=5),
+            avg_velocity_tasks_per_run=1.0,
+            estimated_runs_remaining=5,
+            system_health_status="EXCELLENT",
+            system_health_details=["Zero dependencies OK"],
+        )
         stdout = io.StringIO()
         with patch("sys.stdout", stdout):
             code = main(["summary", "--window", "5"])
         self.assertEqual(code, 0)
         self.assertIn("Executive Summary & Trajectory Briefing", stdout.getvalue())
-        self.assertIn("Overall Project Completion", stdout.getvalue())
+        self.assertTrue(mock_summary.called)
 
     def test_cli_get_multi_translation(self):
         stdout = io.StringIO()
@@ -647,7 +662,46 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("[WEB]", out)
         self.assertIn("[KJV]", out)
 
+    def test_cli_direct_citation_routing(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "John 3:16",
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("=== John 3:16 (WEB) ===", stdout.getvalue())
+        self.assertIn("one and only Son", stdout.getvalue())
+
+    def test_cli_direct_citation_with_flags(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "John 3:16-17",
+                "--margin", "4",
+                "--flow",
+                "--box",
+                "--no-color",
+            ])
+        self.assertEqual(code, 0)
+        self.assertIn("┌", stdout.getvalue())
+        self.assertIn("John 3:16-17 (WEB)", stdout.getvalue())
+
+    @patch("cli.shell.launch_shell", return_value=0)
+    def test_cli_shell_command(self, mock_launch):
+        code = main(["shell"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_launch.called)
+
+    @patch("cli.shell.launch_shell", return_value=0)
+    def test_cli_interactive_flag(self, mock_launch):
+        code = main(["-i"])
+        self.assertEqual(code, 0)
+        self.assertTrue(mock_launch.called)
+
 
 if __name__ == "__main__":
     unittest.main()
-

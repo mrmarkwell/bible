@@ -76,8 +76,8 @@ get_next_run_number() {
 
 # Helper: Check if a given run or iteration number is an executive summary run (every 10th iteration)
 is_summary_run() {
-    local num="0"
-    if [ "" -gt 0 ] && [ 0 -eq 0 ]; then
+    local num="${1:-0}"
+    if [ "$num" -gt 0 ] && [ $((num % 10)) -eq 0 ]; then
         return 0
     else
         return 1
@@ -98,6 +98,9 @@ if [ ! -x "$JETSKI_CLI" ]; then
     echo "Error: Jetski CLI binary not found or not executable at $JETSKI_CLI" >&2
     exit 1
 fi
+
+# Guard execution if sourced as a library by tests or subshells
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
 # Continuous Loop Mode (--loop / -l [max_iterations])
 if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
@@ -147,7 +150,10 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         CYCLE_PROMPT="$DEFAULT_PROMPT"
         SPRINT_BANNER="Standard Cycle (Roadmap Task Execution)"
 
-        if is_cleanup_run "$NEXT_RUN" || is_cleanup_run "$ITERATION"; then
+        if is_summary_run "$NEXT_RUN" || is_summary_run "$ITERATION"; then
+            CYCLE_PROMPT="$SUMMARY_PROMPT"
+            SPRINT_BANNER="DOUBLE MILESTONE (Senior PM Meta-Improvement & 10th-Iteration Executive Briefing)"
+        elif is_cleanup_run "$NEXT_RUN" || is_cleanup_run "$ITERATION"; then
             CYCLE_PROMPT="$CLEANUP_PROMPT"
             SPRINT_BANNER="CLEANUP SPRINT (Senior Product Manager Meta-Improvement & System Health)"
         fi
@@ -251,7 +257,10 @@ if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
     if [ "$#" -eq 0 ]; then
-        if is_cleanup_run "$NEXT_RUN"; then
+        if is_summary_run "$NEXT_RUN"; then
+            echo " [!] Run #$NEXT_RUN is a double milestone: triggering Senior PM Meta-Improvement & Executive Briefing."
+            PROMPT="$SUMMARY_PROMPT"
+        elif is_cleanup_run "$NEXT_RUN"; then
             echo " [!] Run #$NEXT_RUN is a multiple of 5: triggering Senior PM Cleanup Sprint."
             PROMPT="$CLEANUP_PROMPT"
         else
@@ -276,7 +285,12 @@ fi
 # If no arguments provided, launch interactively
 if [ "$#" -eq 0 ]; then
     NEXT_RUN=$(get_next_run_number)
-    if is_cleanup_run "$NEXT_RUN"; then
+    if is_summary_run "$NEXT_RUN"; then
+        echo "======================================================================"
+        echo " Launching Ralph Loop Run #$NEXT_RUN (Cadence: Double Milestone: Senior PM & Summary)"
+        echo "======================================================================"
+        exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$SUMMARY_PROMPT"
+    elif is_cleanup_run "$NEXT_RUN"; then
         echo "======================================================================"
         echo " Launching Ralph Loop Run #$NEXT_RUN (Cadence: Senior PM Cleanup Sprint)"
         echo "======================================================================"
@@ -295,3 +309,6 @@ fi
 
 # Otherwise forward flags directly
 exec "$JETSKI_CLI" --dangerously-skip-permissions "$@"
+
+fi # End of source guard
+

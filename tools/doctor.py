@@ -289,18 +289,12 @@ def check_unit_tests(repo_root: Path) -> CheckResult:
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
 
-    # Discover and run all test modules except test_doctor and test_cli to prevent recursion
-    for module_pattern in [
-        "test_reference.py",
-        "test_db.py",
-        "test_favorites.py",
-        "test_crypto.py",
-        "test_stream_runner.py",
-        "test_harness.py",
-        "test_ingest.py",
-        "test_core.py",
-    ]:
-        suite.addTests(loader.discover(str(repo_root / "tests"), pattern=module_pattern))
+    # Discover and run all test modules in tests/ except test_doctor to prevent recursion
+    tests_dir = repo_root / "tests"
+    for test_file in sorted(tests_dir.glob("test_*.py")):
+        if test_file.name == "test_doctor.py":
+            continue
+        suite.addTests(loader.discover(str(tests_dir), pattern=test_file.name))
 
     runner = unittest.TextTestRunner(stream=stream, verbosity=1)
     res = runner.run(suite)

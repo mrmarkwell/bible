@@ -70,16 +70,27 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertIn("WEB verses", res.details)
 
     def test_check_unit_tests_clean(self):
-        res = check_unit_tests(REPO_ROOT)
-        self.assertTrue(res.passed, f"Unit test execution failed: {res.details}")
-        self.assertIn("passing 100%", res.details)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            tests_dir = tmp_path / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_sample.py").write_text(
+                "import unittest\n\nclass SampleTest(unittest.TestCase):\n    def test_sample(self):\n        self.assertTrue(True)\n",
+                encoding="utf-8",
+            )
+            res = check_unit_tests(tmp_path)
+            self.assertTrue(res.passed, f"Unit test execution failed: {res.details}")
+            self.assertIn("1 tests passing 100%", res.details)
 
     def test_run_all_checks_e2e(self):
-        code, results = run_all_checks(repo_root=REPO_ROOT, color=False)
-        self.assertEqual(code, 0)
-        self.assertEqual(len(results), 5)
-        for r in results:
-            self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
+        from unittest.mock import patch
+        with patch("tools.doctor.check_unit_tests") as mock_test_check:
+            mock_test_check.return_value = CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.01)
+            code, results = run_all_checks(repo_root=REPO_ROOT, color=False)
+            self.assertEqual(code, 0)
+            self.assertEqual(len(results), 5)
+            for r in results:
+                self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
 
 
 if __name__ == "__main__":

@@ -263,5 +263,19 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0, Task 0.8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [DONE] (Implemented in `tools/executive_summary.py`, `skills/executive-summary/SKILL.md`, CLI `./bible summary`, `ralph.sh`, and recorded in ADR-017).
 
+### [VETTED] Sovereign Interactive Scripture REPL Shell, Direct Citation Routing & Test Velocity Engine (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a sovereign interactive Scripture study REPL shell (`bible shell`, `bible interactive`), automatic direct citation command routing (`./bible "John 3:16"` without requiring explicit `get`), and test suite velocity acceleration:
+  1. **Direct Citation Routing**: Users typing `./bible "John 3:16"` or `./bible "Rom 8:28-30" --flow` are automatically routed to the scripture renderer, eliminating CLI choice errors for natural citations.
+  2. **Interactive REPL Shell (`cli/shell.py`)**: Zero-dependency study shell powered by `cmd.Cmd` and `readline` with colored prompt, history, direct passage lookup, `/search`, `/compare`, session theme/version switching (`/theme`, `/version`), margin/flow toggles, and live diagnostics (`/doctor`, `/summary`).
+  3. **Test Velocity & Doctor Comprehensive Discovery**: Slashing test suite latency from 4.95s to 2.44s via class-level fixture optimization and hermetic mock isolation, while upgrading `tools/doctor.py` to dynamically discover all test suites.
+- **Rationale**: Eliminates primary user friction in scripture lookup, provides a delightful persistent exploration environment, and preserves sub-3-second test feedback.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library `cmd`, `readline`, `shlex`, `unittest`).
+- **Proposed Roadmap Phase**: Phase 0 & Phase 2.
+- **Status**: [DONE] (Implemented in `cli/shell.py`, `cli/main.py`, `tests/test_shell.py`, `tools/doctor.py`, and recorded in ADR-021).
+
+
 
 

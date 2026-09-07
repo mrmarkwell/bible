@@ -587,3 +587,53 @@ This is an append-only log of work performed by autonomous agents during their e
     2. Conceive and execute a Rank A+ meta-improvement.
     3. Run `./bible summary` (`tools/executive_summary.py`) to curate accomplishments across the last 10 runs (Runs 011–020) and project trajectory.
     4. Emit the Executive Briefing and ingest any new Rank A+ ideas before finishing.
+
+---
+
+## [Run 020] — 2026-09-07
+- **Agent**: Senior Product Manager & Meta-Architect (Double Milestone: 5th/10th Cadence Sprint)
+- **Phase**: Senior Product Manager Meta-Improvement & System Health Sprint + 10th-Iteration Executive Briefing
+- **Task**: System Health Meta-Audit, Sovereign Interactive Scripture Shell (`cli/shell.py`), Direct Citation CLI Preprocessor, and Test Velocity Acceleration
+- **Core Diagnostic Inquiries**:
+  1. *What is the weakest aspect of this project structure?*
+     - Diagnostic and test velocity degradation: The test suite was creeping up to ~5.0 seconds due to redundant disk database creation across 33 CLI tests in `setUp` and recursive test discovery in `test_doctor.py`. Furthermore, `tools/doctor.py` had a hardcoded test list that had drifted out of sync, testing only 133 tests and omitting `test_cli.py`, `test_terminal.py`, `test_executive_summary.py`, and `test_doctor.py`.
+     - CLI citation friction: Users running `./bible "John 3:16"` received an argument choice error because the CLI strictly demanded the `get` keyword. In Scripture tooling, direct reference lookup is the primary human intent.
+  2. *What is preventing this from being more incredible?*
+     - Lack of a persistent, interactive study environment: Every interaction required restarting the CLI from bash. An interactive, sovereign Scripture REPL shell allows fluid, continuous Scripture exploration, search, comparison, and theme switching without process restart latency.
+     - Autonomous harness defect: `ralph.sh` had broken variable expansion in `is_summary_run` and lacked double-milestone prompt dispatch in continuous loop mode.
+- **Actions Taken**:
+  - **Direct Citation CLI Preprocessing (`cli/main.py`)**:
+    - Implemented `preprocess_cli_argv(argv)`: inspects positional arguments prior to `argparse`. If the first positional argument is not a registered subcommand or flag, and parses as a valid canonical scripture citation via `parse_reference`, it transparently prepends `get`.
+    - Supports `./bible "John 3:16"`, `./bible "Romans 8:28-30" --flow --margin=4`, and `./bible "Gen 1:1" -t KJV`.
+    - Added top-level `-i` / `--interactive` flag to launch the shell directly.
+  - **Sovereign Interactive Scripture REPL Shell (`cli/shell.py`)**:
+    - Implemented `BibleShell` subclassing Python standard library `cmd.Cmd` with `readline` command history and auto-completion.
+    - Direct reference resolution: typing `John 3:16` or `Psalm 23` immediately displays formatted scripture.
+    - Slash commands: `/search <query>` (full-text search with highlighting), `/compare <ref> [versions]`, `/version <id>`, `/versions`, `/theme <name>`, `/margin <n>`, `/flow [on|off]`, `/box [on|off]`, `/doctor`, `/summary`, `/clear`, `/help`, and `exit` (`Grace and peace to you.`).
+    - Tab autocompletion for slash commands, themes, installed versions, and Protestant book names.
+    - Subcommand wired into `cli/main.py`: `bible shell` (aliases: `interactive`, `repl`, `console`).
+  - **Test Velocity & Doctor Discovery Optimization**:
+    - Converted `TestCliExecution` in `tests/test_cli.py` to `setUpClass`, dropping CLI test time from 1.92s to 0.15s (>12x speedup).
+    - Mock-isolated `tests/test_doctor.py` using hermetic temp sample tests, reducing execution from 2.09s to 0.05s.
+    - Updated `tools/doctor.py` to dynamically discover all `test_*.py` files in `tests/` (excluding only `test_doctor.py`), expanding doctor coverage to 212 tests.
+    - Slashed total test suite runtime from 4.95s to 2.44s across 220 hermetic tests (>50% acceleration).
+  - **Autonomous Harness Cadence Fix (`ralph.sh` & `tests/test_harness.py`)**:
+    - Fixed `is_summary_run` and guarded execution if sourced as a library.
+    - Added continuous loop dispatch for double-milestone prompts.
+    - Added direct bash invocation assertions in `test_harness.py`.
+  - Authored hermetic unit tests in `tests/test_shell.py` (14 tests) and expanded `tests/test_cli.py` (50 tests).
+  - Recorded **ADR-021: Sovereign Interactive Scripture REPL Shell, Direct Reference CLI Routing & Test Velocity Optimization** in `DECISIONS.md`.
+  - Promoted Rank A+ feature in `IDEAS.md`.
+- **Verification**:
+  - Ran `./bible doctor`: All 5 checks passed cleanly (`EXCELLENT`) in 1.98s, testing 212 unit tests dynamically.
+  - Ran `python3 -m unittest discover tests`: All 220 tests passing 100% in 2.44s.
+  - Verified `./bible "John 3:16"`: returned formatted passage without requiring `get`.
+  - Verified `./bible "Romans 8:28-30" --flow --margin=4 --box`: returned beautifully styled reading layout.
+  - Verified `./bible shell` with piped commands (`John 3:16`, `/theme`, `/version`, `/search`, `/help`, `exit`): executed flawlessly.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Double Milestone (Senior PM Sprint & 10th-Iteration Executive Briefing) is 100% complete, verified, and pushed.
+  - Next cycle is **Run 021** (standard roadmap cycle).
+  - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
+  - Next priority on the roadmap is **Task 3.1**: Schema design for semantic tags and cross-reference associations (`core/db.py`).
+
