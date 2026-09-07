@@ -738,5 +738,53 @@ This is an append-only log of work performed by autonomous agents during their e
   - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
   - Next priority on the roadmap is **Task 3.2**: Implement verse-to-verse cross-referencing and relationship edges (thematic, prophecy-fulfillment, quotation).
 
+---
+
+## [Run 023] — 2026-09-07
+- **Agent**: Autonomous Developer (Ralph Loop)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
+- **Task**: Scripture Cross-Referencing, Typological Arc Graph & Canonical Relationship Engine (Task 3.2 / ADR-024)
+- **Actions Taken**:
+  - **Relational Domain Engine (`core/crossref.py`)**:
+    - Implemented `CrossReferenceService` managing scripture cross-references, directional/bidirectional queries, multi-hop BFS pathfinding, and summary graph statistics.
+    - Defined `RelationshipType` with standardized canonical edge types: `quotation`, `prophecy_fulfillment`, `typology`, `thematic`, `allusion`, `parallel` with human labels and decorative Unicode icons (📜, ⚡, 🏛, 🔗, ✨, ⚖).
+    - Codified `CANONICAL_CROSS_REFERENCES` with 43 hand-curated foundational canonical edges connecting Old Testament types, shadows, covenants, and prophecies to New Testament fulfillments in Christ.
+    - Implemented `HydratedCrossReference` providing contextual direction (`outgoing`, `incoming`, `loop`) relative to queries, along with hydrated `VerseRecord` sequences from any installed Bible translation.
+    - Added `CrossReferenceGraphNode` and `CrossReferenceSummary` for graph exploration.
+  - **Terminal Formatting & Typography (`core/terminal.py`)**:
+    - Implemented `format_cross_references`: renders hydrated cards with relationship icons, directional arrows, confidence weights, flowing verse prose, and theological notes.
+    - Implemented `format_cross_reference_table`: renders aligned, terminal-width-aware tables for edge listings.
+  - **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Added `./bible crossref` (aliases: `xref`, `refs`) with 7 subcommands: `for`, `link`, `unlink`, `list`, `path`, `stats`, `seed`.
+    - Enhanced `./bible get`: added `--refs` / `--cross-refs` flag to render connected cross-references directly beneath passage lookups.
+    - Updated `preprocess_cli_argv` to recognize `crossref`, `xref`, `refs`, `tag`, and `tags` commands.
+    - Enhanced `BibleShell`: added `/crossref` (and `/xref`, `/refs`) with full subcommands, argument handling, and tab auto-completion (`complete_crossref`).
+  - **Core Package Exports (`core/__init__.py`)**:
+    - Exported all new cross-reference classes, functions, and formatting utilities.
+  - **Production Database Seeding (`data/bible.db`)**:
+    - Seeded all 43 canonical cross-reference edges into `data/bible.db` verified via `./bible crossref stats` (73 distinct passages connected).
+  - **Hermetic Unit Tests (`tests/test_crossref.py`)**:
+    - Authored 20 hermetic tests covering edge validation, linking, unlinking, hydration, BFS multi-hop pathfinding, seed idempotency, terminal rendering, CLI subcommands, and REPL interactions.
+    - Full test suite expanded to 276 tests passing 100% in 3.41s.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-024: Scripture Cross-Referencing, Typological Arc Graph & Canonical Relationship Engine** in `DECISIONS.md`.
+    - Updated `ROADMAP.md` marking Task 3.2 as completed (`[x]`), bringing Phase 3 to 50% completion (2/4 tasks).
+    - Updated `IDEAS.md` promoting Cross-Reference Graph Ingestion to `[DONE]`.
+- **Verification**:
+  - Ran `python3 tools/doctor.py --fast`: all 4 fast checks passed in 0.12s.
+  - Ran `python3 -m unittest discover tests`: all 276 tests passed 100% in 3.41s.
+  - Ran `./bible doctor`: all 6 diagnostic checks passed cleanly (`EXCELLENT`) in 2.25s.
+  - Verified `./bible crossref for "Genesis 3:15"`: displayed connected NT fulfillments.
+  - Verified `./bible get "Genesis 3:15" --refs`: displayed passage and cross-references.
+  - Verified `./bible crossref path "Genesis 12:1-3" "Galatians 3:16"`: returned path.
+  - Verified `./bible crossref stats`: 43 edges across 73 passages.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 3.2 is 100% complete, tested, and verified.
+  - Next cycle is **Run 024** (standard roadmap cycle).
+  - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
+  - Next priority on the roadmap is **Task 3.3**: Create batch LLM tagging tool/prompt generator to classify and tag scripture into predefined and dynamic semantic taxonomies (`tools/tag_generator.py` / `core/tag_prompts.py`).
+
+
 
 

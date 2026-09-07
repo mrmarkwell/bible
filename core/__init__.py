@@ -38,6 +38,14 @@ from core.reference import (
     verse_canonical_id,
 )
 
+from core.crossref import (
+    CANONICAL_CROSS_REFERENCES,
+    CrossReferenceGraphNode,
+    CrossReferenceService,
+    CrossReferenceSummary,
+    HydratedCrossReference,
+    RelationshipType,
+)
 from core.tags import (
     CANONICAL_TAXONOMY,
     TagCategory,
@@ -50,6 +58,8 @@ from core.terminal import (
     THEMES,
     format_aligned_comparison_styled,
     format_citation_header,
+    format_cross_reference_table,
+    format_cross_references,
     format_scripture_passage,
     format_tag_table,
     format_tagged_passages,
@@ -88,6 +98,12 @@ __all__ = [
     "TaggedPassage",
     "TaggingService",
     "CANONICAL_TAXONOMY",
+    # Cross References
+    "RelationshipType",
+    "CrossReferenceService",
+    "HydratedCrossReference",
+    "CrossReferenceSummary",
+    "CANONICAL_CROSS_REFERENCES",
     # Crypto
     "ChaCha20",
     "CryptoError",
@@ -114,5 +130,7 @@ __all__ = [
     "format_tags_badge",
     "format_tag_table",
     "format_tagged_passages",
+    "format_cross_references",
+    "format_cross_reference_table",
 ]
 

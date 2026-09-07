@@ -424,6 +424,20 @@ def cmd_get(args: argparse.Namespace) -> int:
                     if tags_found:
                         badge = format_tags_badge(tags_found, styling=color_enabled)
                         formatted += f"\n\n{' ' * margin_width}{badge}"
+
+                if getattr(args, "refs", False) or getattr(args, "cross_refs", False):
+                    from core.crossref import CrossReferenceService
+                    from core.terminal import format_cross_references
+                    xr_svc = CrossReferenceService(db)
+                    hydrated = xr_svc.get_hydrated_cross_references(
+                        ref,
+                        translation_id=req_id,
+                        bidirectional=True,
+                    )
+                    if hydrated:
+                        formatted_xr = format_cross_references(hydrated, styling=color_enabled, max_width=wrap_width)
+                        formatted += f"\n\n{' ' * margin_width}── Cross References ──\n{formatted_xr}"
+
                 outputs.append(formatted)
 
             print("\n\n".join(outputs))
@@ -917,6 +931,230 @@ def cmd_tag(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_crossref(args: argparse.Namespace) -> int:
+    """Handle 'crossref' (and 'xref', 'refs') subcommand."""
+    action = getattr(args, "ref_action", None)
+    if not action:
+        sys.stderr.write("Error: Cross-reference action required (for, link, unlink, list, path, stats, seed).\n")
+        return 1
+
+    db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+    if not db_path.exists():
+        sys.stderr.write(
+            f"Error: Database file not found at '{db_path}'.\n"
+            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+        )
+        return 1
+
+    try:
+        with Database(db_path, auto_init=False) as db:
+            from core.crossref import (
+                CrossReferenceService,
+                RelationshipType,
+            )
+            from core.terminal import (
+                format_cross_reference_table,
+                format_cross_references,
+                should_use_color,
+            )
+
+            color_enabled = should_use_color()
+            svc = CrossReferenceService(db)
+
+            if action == "for":
+                raw_ref = args.reference
+                try:
+                    ref = parse_reference(raw_ref)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing reference '{raw_ref}': {exc}\n")
+                    return 1
+
+                rel_type = getattr(args, "type", None)
+                trans_id = getattr(args, "version", "WEB")
+                as_json = getattr(args, "json", False)
+                min_wt = getattr(args, "min_weight", 0.0)
+
+                hydrated = svc.get_hydrated_cross_references(
+                    reference=ref,
+                    translation_id=trans_id,
+                    relationship_type=rel_type,
+                    bidirectional=True,
+                    min_weight=min_wt,
+                )
+
+                if as_json:
+                    print(json.dumps([h.to_dict() for h in hydrated], indent=2))
+                else:
+                    if not hydrated:
+                        type_str = f" of type '{rel_type}'" if rel_type else ""
+                        print(f"No cross-references found for {ref.format()}{type_str}.")
+                    else:
+                        print(f"Cross-References for {ref.format()} ({len(hydrated)} connected passage{'s' if len(hydrated) != 1 else ''}):\n")
+                        print(format_cross_references(hydrated, styling=color_enabled))
+                return 0
+
+            elif action == "link":
+                raw_src = args.source
+                raw_tgt = args.target
+                try:
+                    src_ref = parse_reference(raw_src)
+                    tgt_ref = parse_reference(raw_tgt)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing scripture references: {exc}\n")
+                    return 1
+
+                rel_type = getattr(args, "type", RelationshipType.THEMATIC)
+                weight = getattr(args, "weight", 1.0)
+                notes = getattr(args, "notes", None)
+
+                record = svc.link_passages(
+                    source=src_ref,
+                    target=tgt_ref,
+                    relationship_type=rel_type,
+                    weight=weight,
+                    notes=notes,
+                )
+                print(
+                    f"Linked {record.source_human_ref} ➜ {record.target_human_ref} "
+                    f"[{record.relationship_type}] (id: {record.id}, weight: {record.weight:.2f})"
+                )
+                return 0
+
+            elif action == "unlink":
+                raw_src = args.source
+                raw_tgt = args.target
+                try:
+                    src_ref = parse_reference(raw_src)
+                    tgt_ref = parse_reference(raw_tgt)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing scripture references: {exc}\n")
+                    return 1
+
+                rel_type = getattr(args, "type", None)
+                deleted = svc.unlink_passages(src_ref, tgt_ref, relationship_type=rel_type)
+                if deleted > 0:
+                    print(f"Removed {deleted} cross-reference edge(s) between {src_ref.format()} and {tgt_ref.format()}.")
+                else:
+                    print(f"No cross-reference edges found between {src_ref.format()} and {tgt_ref.format()}.")
+                return 0
+
+            elif action == "list":
+                rel_type = getattr(args, "type", None)
+                limit = getattr(args, "limit", 100)
+                as_json = getattr(args, "json", False)
+                edges = svc.list_all_cross_references(relationship_type=rel_type, limit=limit)
+
+                if as_json:
+                    print(
+                        json.dumps(
+                            [
+                                {
+                                    "id": e.id,
+                                    "source": e.source_human_ref,
+                                    "target": e.target_human_ref,
+                                    "relationship_type": e.relationship_type,
+                                    "weight": e.weight,
+                                    "notes": e.notes,
+                                }
+                                for e in edges
+                            ],
+                            indent=2,
+                        )
+                    )
+                else:
+                    print(format_cross_reference_table(edges, styling=color_enabled))
+                return 0
+
+            elif action == "path":
+                raw_src = args.source
+                raw_tgt = args.target
+                try:
+                    src_ref = parse_reference(raw_src)
+                    tgt_ref = parse_reference(raw_tgt)
+                except Exception as exc:
+                    sys.stderr.write(f"Error parsing scripture references: {exc}\n")
+                    return 1
+
+                depth = getattr(args, "max_depth", 3)
+                as_json = getattr(args, "json", False)
+                path = svc.find_path(src_ref, tgt_ref, max_depth=depth)
+
+                if as_json:
+                    print(
+                        json.dumps(
+                            [
+                                {
+                                    "id": p.id,
+                                    "source": p.source_human_ref,
+                                    "target": p.target_human_ref,
+                                    "relationship_type": p.relationship_type,
+                                    "weight": p.weight,
+                                    "notes": p.notes,
+                                }
+                                for p in (path or [])
+                            ],
+                            indent=2,
+                        )
+                    )
+                else:
+                    if not path:
+                        print(f"No cross-reference path found connecting {src_ref.format()} and {tgt_ref.format()} within depth {depth}.")
+                    else:
+                        print(f"Cross-Reference Path connecting {src_ref.format()} and {tgt_ref.format()} ({len(path)} hop{'s' if len(path) != 1 else ''}):\n")
+                        for idx, step in enumerate(path, 1):
+                            icon = RelationshipType.get_icon(step.relationship_type)
+                            label = RelationshipType.get_label(step.relationship_type)
+                            print(f"  {idx}. {step.source_human_ref} ➜ {step.target_human_ref}  {icon} [{label}]")
+                            if step.notes:
+                                print(f"     Note: {step.notes}")
+                return 0
+
+            elif action == "stats":
+                as_json = getattr(args, "json", False)
+                summary = svc.get_summary_statistics()
+
+                if as_json:
+                    print(
+                        json.dumps(
+                            {
+                                "total_edges": summary.total_edges,
+                                "by_relationship_type": summary.by_relationship_type,
+                                "testament_connections": summary.testament_connections,
+                                "distinct_sources": summary.distinct_sources,
+                                "distinct_targets": summary.distinct_targets,
+                            },
+                            indent=2,
+                        )
+                    )
+                else:
+                    print("Cross-Reference Knowledge Graph Statistics:")
+                    print("============================================")
+                    print(f"  Total Relational Edges:  {summary.total_edges}")
+                    print(f"  Distinct Passages:       {summary.distinct_sources + summary.distinct_targets} ({summary.distinct_sources} sources, {summary.distinct_targets} targets)")
+                    print("\nBy Relationship Type:")
+                    for rel, cnt in summary.by_relationship_type.items():
+                        icon = RelationshipType.get_icon(rel)
+                        label = RelationshipType.get_label(rel)
+                        print(f"  {icon}  {label:<30} {cnt:>5}")
+                    print("\nTestament Trajectories:")
+                    for t_conn, cnt in summary.testament_connections.items():
+                        print(f"  {t_conn:<12} {cnt:>5}")
+                return 0
+
+            elif action == "seed":
+                count = svc.seed_canonical_cross_references()
+                print(f"Successfully seeded {count} canonical cross-reference edge(s).")
+                return 0
+
+            else:
+                sys.stderr.write(f"Unknown cross-reference action: {action}\n")
+                return 1
+
+    except Exception as exc:
+        sys.stderr.write(f"Cross-reference error: {exc}\n")
+        return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct argument parser for Bible Engine CLI."""
     parser = argparse.ArgumentParser(
@@ -1034,6 +1272,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--tags",
         action="store_true",
         help="Display semantic tags associated with this passage",
+    )
+    parser_get.add_argument(
+        "--refs",
+        "--cross-refs",
+        dest="refs",
+        action="store_true",
+        help="Display related cross-references with hydrated verse texts",
     )
     parser_get.set_defaults(func=cmd_get)
 
@@ -1291,6 +1536,59 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_tag.set_defaults(func=cmd_tag)
 
+    # Subcommand: crossref (aliases: xref, refs)
+    parser_crossref = subparsers.add_parser(
+        "crossref",
+        aliases=["xref", "refs"],
+        help="Scripture cross-referencing, typological arcs, and relationship edges",
+        description="Query, explore, link, and analyze relational connections across scripture.",
+    )
+    xref_subparsers = parser_crossref.add_subparsers(dest="ref_action", help="Cross-reference action to perform")
+
+    # crossref for
+    p_xr_for = xref_subparsers.add_parser("for", help="Display all cross-references connected to a passage citation")
+    p_xr_for.add_argument("reference", help="Scripture citation or span (e.g. 'Genesis 3:15', 'John 3:16')")
+    p_xr_for.add_argument("--type", "-T", help="Filter by relationship type (thematic, prophecy_fulfillment, typology, quotation, allusion, parallel)")
+    p_xr_for.add_argument("--version", "-t", default="WEB", help="Scripture translation for related verse texts (default: WEB)")
+    p_xr_for.add_argument("--min-weight", type=float, default=0.0, help="Minimum relationship weight threshold (default: 0.0)")
+    p_xr_for.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # crossref link
+    p_xr_link = xref_subparsers.add_parser("link", help="Create a relationship edge between two scripture passages")
+    p_xr_link.add_argument("source", help="Source scripture citation or span (e.g. 'Genesis 3:15')")
+    p_xr_link.add_argument("target", help="Target scripture citation or span (e.g. 'Galatians 4:4-5')")
+    p_xr_link.add_argument("--type", "-T", default="thematic", help="Relationship type (thematic, prophecy_fulfillment, typology, quotation, allusion, parallel)")
+    p_xr_link.add_argument("--weight", "-w", type=float, default=1.0, help="Relationship confidence/prominence weight (0.0 to 1.0, default: 1.0)")
+    p_xr_link.add_argument("--notes", help="Theological rationale or scholarly note explaining the connection")
+
+    # crossref unlink
+    p_xr_unlink = xref_subparsers.add_parser("unlink", help="Remove relationship edge(s) between two scripture passages")
+    p_xr_unlink.add_argument("source", help="Source scripture citation or span")
+    p_xr_unlink.add_argument("target", help="Target scripture citation or span")
+    p_xr_unlink.add_argument("--type", "-T", help="Filter by specific relationship type to delete")
+
+    # crossref list
+    p_xr_list = xref_subparsers.add_parser("list", help="List all stored cross-reference relationship edges")
+    p_xr_list.add_argument("--type", "-T", help="Filter by relationship type")
+    p_xr_list.add_argument("--limit", "-n", type=int, default=100, help="Maximum edges to display (default: 100)")
+    p_xr_list.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # crossref path
+    p_xr_path = xref_subparsers.add_parser("path", help="Find multi-hop cross-reference chain connecting two scripture passages")
+    p_xr_path.add_argument("source", help="Starting scripture citation (e.g. 'Genesis 12:1-3')")
+    p_xr_path.add_argument("target", help="Destination scripture citation (e.g. 'Galatians 3:16')")
+    p_xr_path.add_argument("--max-depth", "-d", type=int, default=3, help="Maximum search depth (default: 3 hops)")
+    p_xr_path.add_argument("--json", action="store_true", help="Output path in JSON format")
+
+    # crossref stats
+    p_xr_stats = xref_subparsers.add_parser("stats", help="Display summary statistics of cross-reference knowledge graph")
+    p_xr_stats.add_argument("--json", action="store_true", help="Output statistics in JSON format")
+
+    # crossref seed
+    p_xr_seed = xref_subparsers.add_parser("seed", help="Seed curated canonical OT/NT cross-reference edges")
+
+    parser_crossref.set_defaults(func=cmd_crossref)
+
     # Subcommand: doctor
     parser_doctor = subparsers.add_parser(
         "doctor",
@@ -1452,6 +1750,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
 
     registered_commands = {
         "get", "compare", "search", "find", "translations", "versions",
+        "tag", "tags", "crossref", "xref", "refs",
         "doctor", "summary", "shell", "interactive", "repl", "console",
     }
 

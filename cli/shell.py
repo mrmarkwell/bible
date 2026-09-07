@@ -434,6 +434,147 @@ class BibleShell(cmd.Cmd):
         self.do_tag(arg)
 
     # --------------------------------------------------------------------------
+    # Cross-Reference Commands
+    # --------------------------------------------------------------------------
+
+    def do_crossref(self, arg: str) -> None:
+        """Cross-reference explorer: /crossref [for|link|unlink|list|path|stats|seed] ..."""
+        if self.db is None:
+            self._init_db()
+
+        from core.crossref import CrossReferenceService, RelationshipType
+        from core.terminal import format_cross_references, format_cross_reference_table
+
+        try:
+            tokens = shlex.split(arg) if arg else []
+        except ValueError:
+            tokens = arg.split()
+
+        if not tokens:
+            self.stdout.write(
+                "Usage: /crossref <action> [args]\n"
+                "Actions: for <ref>, link <src> <tgt> [type], unlink <src> <tgt>, list, path <src> <tgt>, stats, seed\n"
+            )
+            return
+
+        action = tokens[0].lower()
+        svc = CrossReferenceService(self.db)
+
+        if action == "for":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /crossref for <reference> [relationship_type]\n")
+                return
+            # Allow multi-word citations if unquoted e.g. /crossref for Genesis 3:15
+            # If last token matches a relationship type, treat as type
+            if len(tokens) >= 3 and RelationshipType.is_valid(tokens[-1]):
+                rel_type = tokens[-1].lower()
+                ref_str = " ".join(tokens[1:-1])
+            else:
+                rel_type = None
+                ref_str = " ".join(tokens[1:])
+            try:
+                ref = parse_reference(ref_str)
+            except Exception:
+                ref = None
+            if not ref:
+                self.stdout.write(f"Could not parse '{ref_str}' as a scripture reference.\n")
+            hydrated = svc.get_hydrated_cross_references(
+                reference=ref,
+                translation_id=self.translation_id,
+                relationship_type=rel_type,
+                bidirectional=True,
+            )
+            if not hydrated:
+                self.stdout.write(f"No cross-references found for {ref.format()}.\n")
+            else:
+                self.stdout.write(f"Cross-References for {ref.format()} ({len(hydrated)} passages):\n\n")
+                self.stdout.write(format_cross_references(hydrated, styling=self.use_color) + "\n\n")
+
+        elif action == "link":
+            if len(tokens) < 3:
+                self.stdout.write("Usage: /crossref link <source_ref> <target_ref> [type]\n")
+                return
+            try:
+                src_ref = parse_reference(tokens[1])
+                tgt_ref = parse_reference(tokens[2])
+            except Exception as exc:
+                self.stdout.write(f"Error parsing scripture references: {exc}\n")
+                return
+            rel_type = tokens[3].lower() if len(tokens) > 3 else "thematic"
+            try:
+                rec = svc.link_passages(src_ref, tgt_ref, relationship_type=rel_type)
+                self.stdout.write(f"Linked {rec.source_human_ref} ➜ {rec.target_human_ref} [{rec.relationship_type}] (id: {rec.id})\n")
+            except Exception as exc:
+                self.stdout.write(f"Link error: {exc}\n")
+
+        elif action == "unlink":
+            if len(tokens) < 3:
+                self.stdout.write("Usage: /crossref unlink <source_ref> <target_ref>\n")
+                return
+            try:
+                src_ref = parse_reference(tokens[1])
+                tgt_ref = parse_reference(tokens[2])
+            except Exception as exc:
+                self.stdout.write(f"Error parsing scripture references: {exc}\n")
+                return
+            deleted = svc.unlink_passages(src_ref, tgt_ref)
+            if deleted > 0:
+                self.stdout.write(f"Removed {deleted} cross-reference edge(s) between {src_ref.format()} and {tgt_ref.format()}.\n")
+            else:
+                self.stdout.write(f"No cross-reference edges found between {src_ref.format()} and {tgt_ref.format()}.\n")
+
+        elif action == "list":
+            rel_type = tokens[1].lower() if len(tokens) > 1 else None
+            edges = svc.list_all_cross_references(relationship_type=rel_type, limit=50)
+            self.stdout.write(format_cross_reference_table(edges, styling=self.use_color) + "\n")
+
+        elif action == "path":
+            if len(tokens) < 3:
+                self.stdout.write("Usage: /crossref path <source_ref> <target_ref> [max_depth]\n")
+                return
+            try:
+                src_ref = parse_reference(tokens[1])
+                tgt_ref = parse_reference(tokens[2])
+            except Exception as exc:
+                self.stdout.write(f"Error parsing scripture references: {exc}\n")
+                return
+            depth = int(tokens[3]) if len(tokens) > 3 and tokens[3].isdigit() else 3
+            path = svc.find_path(src_ref, tgt_ref, max_depth=depth)
+            if not path:
+                self.stdout.write(f"No cross-reference path found connecting {src_ref.format()} and {tgt_ref.format()} within depth {depth}.\n")
+            else:
+                self.stdout.write(f"Cross-Reference Path ({len(path)} hop{'s' if len(path) != 1 else ''}):\n")
+                for idx, step in enumerate(path, 1):
+                    icon = RelationshipType.get_icon(step.relationship_type)
+                    label = RelationshipType.get_label(step.relationship_type)
+                    self.stdout.write(f"  {idx}. {step.source_human_ref} ➜ {step.target_human_ref}  {icon} [{label}]\n")
+                self.stdout.write("\n")
+
+        elif action == "stats":
+            summary = svc.get_summary_statistics()
+            self.stdout.write("Cross-Reference Knowledge Graph Statistics:\n")
+            self.stdout.write(f"  Total Edges:       {summary.total_edges}\n")
+            self.stdout.write(f"  Distinct Passages: {summary.distinct_sources + summary.distinct_targets}\n")
+            for rel, cnt in summary.by_relationship_type.items():
+                self.stdout.write(f"  - {rel}: {cnt}\n")
+            self.stdout.write("\n")
+
+        elif action == "seed":
+            count = svc.seed_canonical_cross_references()
+            self.stdout.write(f"Successfully seeded {count} canonical cross-reference edge(s).\n")
+
+        else:
+            self.stdout.write(f"Unknown crossref action '{action}'. Available: for, link, unlink, list, path, stats, seed\n")
+
+    def do_xref(self, arg: str) -> None:
+        """Alias for /crossref."""
+        self.do_crossref(arg)
+
+    def do_refs(self, arg: str) -> None:
+        """Alias for /crossref."""
+        self.do_crossref(arg)
+
+    # --------------------------------------------------------------------------
     # Session Configuration Commands
     # --------------------------------------------------------------------------
 
@@ -595,6 +736,8 @@ Study & Search:
   /get <citation>         Lookup passage explicitly
   /search <query>         Full-text scripture search (aliases: /find)
   /compare <ref> [ver]    Compare passage across translations (e.g. /compare 'John 1:1' WEB,KJV)
+  /tag <action> [args]    Semantic tagging and passage annotations (aliases: /tags)
+  /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)
@@ -656,6 +799,28 @@ System:
     def complete_tags(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /tags alias."""
         return self.complete_tag(text, line, begidx, endidx)
+
+    def complete_crossref(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete crossref subcommands and relationship types."""
+        subcommands = ["for", "link", "unlink", "list", "path", "stats", "seed"]
+        parts = line.split()
+        if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
+            return [c for c in subcommands if c.startswith(text.lower())]
+
+        action = parts[1].lower() if len(parts) > 1 else ""
+        if action in ("for", "list") or (action == "link" and len(parts) >= 4):
+            from core.crossref import RelationshipType
+            return [r for r in RelationshipType.ALL if r.startswith(text.lower())]
+
+        return []
+
+    def complete_xref(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /xref alias."""
+        return self.complete_crossref(text, line, begidx, endidx)
+
+    def complete_refs(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /refs alias."""
+        return self.complete_crossref(text, line, begidx, endidx)
 
     def complete_theme(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete theme names."""

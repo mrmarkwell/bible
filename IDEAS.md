@@ -276,16 +276,17 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 & Phase 2.
 - **Status**: [DONE] (Implemented in `cli/shell.py`, `cli/main.py`, `tests/test_shell.py`, `tools/doctor.py`, and recorded in ADR-021).
 
-### [VETTED] Automated Cross-Reference Graph Ingestion & Relationship Edge Compiler (Rank A+)
+### [DONE] Automated Cross-Reference Graph Ingestion & Relationship Edge Compiler (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
-- **Summary**: Implement an automated cross-reference ingestion tool (`tools/ingest_cross_references.py`) and schema populator for Phase 3 Task 3.2. While the database schema (`cross_references`) and relational query methods exist in `core/db.py`, having a bundled zero-dependency compiler that ingests open-domain scripture cross-reference datasets (e.g. Treasury of Scripture Knowledge / OpenBible dataset, mapping source citation, target citation, relationship type [thematic, prophecy-fulfillment, quotation, typology], and confidence weight) into the offline SQLite database makes cross-referencing immediately operational offline with thousands of curated connections.
+- **Summary**: Implement a zero-dependency cross-reference engine (`core/crossref.py`), relationship edge compiler, canonical seed dataset, and interactive CLI/REPL tools for Phase 3 Task 3.2. Provides canonical relationship types (`quotation`, `prophecy_fulfillment`, `typology`, `thematic`, `allusion`, `parallel`), directional and bidirectional querying, multi-hop BFS pathfinding, hydrated verse texts, summary statistics, and CLI commands (`./bible crossref`, `./bible get --refs`).
 - **Rationale**: Multiplies the depth of Scripture study offline; fulfills Task 3.2 acceptance criteria; enables rich typological arc visualizations in Phase 4 and grounded RAG retrieval expansion in Phase 8.
 - **Constraints & Alignment**:
   - Offline-first? Yes (compiles offline dataset into bundled SQLite database).
   - Zero third-party dependencies? Yes (Python 3 standard library `csv`, `sqlite3`, `pathlib`).
-  - Copyright compliant? Yes (public domain Treasury of Scripture Knowledge cross-reference data).
+  - Copyright compliant? Yes (public domain cross-reference data).
 - **Proposed Roadmap Phase**: Phase 3 (Task 3.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
-- **Status**: [SCHEDULED] for Phase 3 Task 3.2.
+- **Status**: [DONE] (Implemented in `core/crossref.py`, `core/terminal.py`, `cli/main.py`, `cli/shell.py`, verified in `tests/test_crossref.py`, and recorded in ADR-024).
+
 
 
 

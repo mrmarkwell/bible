@@ -625,3 +625,61 @@ This document is an append-only log of significant design and architectural deci
   - Multi-resolution hierarchical querying bridges individual verses to broader redemptive-historical and systematic themes.
   - 100% test coverage and full integration across CLI and interactive REPL.
 
+---
+
+## ADR-024: Scripture Cross-Referencing, Typological Arc Graph & Canonical Relationship Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 3 (Task 3.2), the Bible Engine requires a relational scripture knowledge graph connecting passages across the biblical canon. Scripture is not merely an isolated set of verses; it is an organic, intertextual web of direct citations, Messianic prophecies and fulfillments, typological shadows and realities, literary allusions, and parallel historical accounts. Users and downstream tools (such as Phase 4 visual SVG typological arcs and Phase 8 Gemini RAG retrieval) need to query passage connections, navigate multi-hop thematic paths across testaments, inspect hydrated scripture texts on both ends of an edge, filter by relationship types, and manage connections via the CLI (`./bible crossref` / `./bible get --refs`) and interactive REPL (`/crossref`).
+- **Decision**:
+  1. **Canonical Relationship Taxonomy (`core/crossref.py`)**:
+     - Codified standardized relationship edge types in `RelationshipType`:
+       - `quotation`: Direct canonical quotation (e.g., NT citing OT).
+       - `prophecy_fulfillment`: Messianic/eschatological prediction and historical fulfillment in Christ.
+       - `typology`: Old Testament shadow/pattern realized in New Testament substance.
+       - `thematic`: Shared theological or redemptive-historical motif.
+       - `allusion`: Verbal, structural, or conceptual literary echo.
+       - `parallel`: Synoptic Gospel parallel or historical cross-account.
+     - Provided human-readable labels and decorative icons (📜, ⚡, 🏛, 🔗, ✨, ⚖) for terminal and UI presentation.
+  2. **Domain Service & Graph Operations (`CrossReferenceService`)**:
+     - `link_passages`: Link two scripture references with relationship type, confidence weight (0.0 to 1.0), and theological notes.
+     - `link_passages_batch`: Atomic batch insertion of relational edges inside a transaction.
+     - `unlink_passages` & `delete_edge_by_id`: Scoped removal of relationship edges.
+     - `get_cross_references`: Fetch raw relational records with directional or bidirectional filtering and minimum weight thresholds.
+     - `get_hydrated_cross_references`: Hydrate cross-reference records with full verse texts from any installed translation, computing contextual direction (`outgoing`, `incoming`, `loop`) relative to the queried citation.
+     - `find_path`: Breadth-first search (BFS) traversing the relational graph to discover multi-hop paths connecting distant passages up to a specified maximum depth.
+     - `get_summary_statistics`: Aggregates graph metrics, distribution by relationship type, distinct passages, and cross-testament trajectories (e.g. `OT->NT`).
+  3. **Curated Canonical Seed Dataset (`CANONICAL_CROSS_REFERENCES`)**:
+     - Hand-curated 43 foundational canonical edges grounded in The Gospel Coalition (TGC) foundation documents:
+       - Protoevangelium (Genesis 3:15 -> Galatians 4:4-5, Romans 16:20, Revelation 12).
+       - Abrahamic Covenant & Faith (Genesis 12:1-3, 15:6 -> Galatians 3, Romans 4).
+       - The Akedah & Isaac (Genesis 22 -> John 3:16, John 1:29, Hebrews 11).
+       - Melchizedek (Genesis 14, Psalm 110:4 -> Hebrews 7).
+       - Passover & Bronze Serpent (Exodus 12 -> 1 Cor 5:7, John 19:36; Numbers 21 -> John 3:14-15).
+       - Prophet like Moses (Deuteronomy 18 -> Acts 3:22, John 1:45).
+       - Davidic Covenant (2 Samuel 7 -> Luke 1:32, Hebrews 1:5).
+       - Royal & Suffering Psalms (Psalms 2, 16, 22, 110, 118 -> Gospels & Acts).
+       - The Suffering Servant (Isaiah 53 -> 1 Peter 2, Matthew 8, Acts 8, Romans 4, Luke 22).
+       - Virgin Birth, New Covenant, Spirit Outpouring, and Pierced Messiah (Isaiah 7:14, Micah 5:2, Jeremiah 31:31-34, Joel 2:28-32, Zechariah 12:10).
+     - Built idempotent seeding method (`seed_canonical_cross_references`) ensuring zero duplicate rows upon repeated executions.
+  4. **Terminal Formatting & Typography (`core/terminal.py`)**:
+     - Implemented `format_cross_references`: Renders rich hydrated cards with icons, directional arrows, relationship labels, weights, flowing verse prose, and theological notes.
+     - Implemented `format_cross_reference_table`: Displays responsive tabular edge lists.
+  5. **CLI & Interactive REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Created `./bible crossref` (aliases: `xref`, `refs`) with 7 subcommands:
+       - `for <ref>`: Query cross-references connected to a passage, supporting `--type`, `--version`, `--min-weight`, and `--json`.
+       - `link <source> <target>`: Create edge with `--type`, `--weight`, `--notes`.
+       - `unlink <source> <target>`: Delete edge(s) with optional `--type`.
+       - `list`: Tabular list of stored edges with `--type`, `--limit`, `--json`.
+       - `path <source> <target>`: Multi-hop graph pathfinding with `--max-depth` and `--json`.
+       - `stats`: Output knowledge graph statistics and testament trajectory counts.
+       - `seed`: Populate canonical seed dataset.
+     - Upgraded `./bible get`: added `--refs` / `--cross-refs` flag to render connected cross-references directly beneath passage lookups.
+     - Added `/crossref` (and `/xref`, `/refs`) to `BibleShell` with full argument parsing and tab auto-completion (`complete_crossref`).
+  6. **Hermetic Test Suite (`tests/test_crossref.py`)**:
+     - 20 unit and integration tests covering RelationshipType validation, linking/unlinking, hydration, seed dataset idempotency, BFS pathfinding, summary statistics, terminal formatting, CLI subcommands, and REPL interactions.
+- **Consequences**:
+  - Completes Phase 3 Task 3.2 cleanly with 100% test pass rate and Zero External Dependencies (ADR-003).
+  - Establishes the foundational graph engine required for Phase 4 typological visual SVG arcs and Phase 8 RAG context generation.
+
+

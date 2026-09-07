@@ -603,3 +603,153 @@ def format_tagged_passages(
 
     return "\n\n".join(blocks)
 
+
+# ==============================================================================
+# Cross-Reference Formatting Utilities
+# ==============================================================================
+
+
+def format_cross_references(
+    hydrated_refs: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+) -> str:
+    """Format a sequence of HydratedCrossReference objects for terminal presentation."""
+    if not hydrated_refs:
+        return "No cross-references found."
+
+    term_width = max_width or get_terminal_width()
+    blocks: List[str] = []
+
+    for idx, xr in enumerate(hydrated_refs, 1):
+        lines: List[str] = []
+        icon = getattr(xr, "icon", "🔗")
+        label = getattr(xr, "relationship_label", "Cross-Reference")
+        rel_type = getattr(xr, "relationship_type", "thematic")
+        related_ref = getattr(xr, "related_ref", "")
+        direction = getattr(xr, "direction", "outgoing")
+        arrow = "➜" if direction == "outgoing" else ("⬅" if direction == "incoming" else "↔")
+        weight = getattr(xr, "weight", 1.0)
+        notes = getattr(xr, "notes", None)
+
+        if styling:
+            header = (
+                f"{BOLD_GOLD}{icon}  {related_ref}{RESET}  "
+                f"{DIM}{arrow} [{label}]{RESET}  "
+                f"{DIM}(weight: {weight:.2f}){RESET}"
+            )
+            rule = f"{DIM}─" * min(60, term_width) + f"{RESET}"
+        else:
+            header = f"{icon}  {related_ref}  {arrow} [{label}] (weight: {weight:.2f})"
+            rule = "─" * min(60, term_width)
+
+        lines.append(header)
+        lines.append(rule)
+
+        verses = getattr(xr, "related_verses", [])
+        if verses:
+            passage_lines = format_scripture_passage(
+                verses=verses,
+                show_verse_numbers=True,
+                show_header=False,
+                width=term_width,
+                flow=True,
+                margin=2,
+                color=styling,
+            )
+            lines.append(passage_lines)
+        else:
+            rel_text = getattr(xr, "related_text", "")
+            if rel_text:
+                lines.append(f"  {rel_text}")
+
+        if notes:
+            if styling:
+                lines.append(f"  {DIM}Note: {notes}{RESET}")
+            else:
+                lines.append(f"  Note: {notes}")
+
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks)
+
+
+def format_cross_reference_table(
+    edges: Sequence[Any],
+    styling: bool = True,
+) -> str:
+    """Format a collection of CrossReferenceRecord objects into a clean tabular layout."""
+    if not edges:
+        return "No cross-references recorded."
+
+    headers = ["ID", "Source", "Target", "Type", "Weight", "Notes"]
+    rows: List[List[str]] = []
+    for e in edges:
+        notes_str = e.notes or ""
+        rows.append([
+            str(e.id or ""),
+            e.source_human_ref,
+            e.target_human_ref,
+            e.relationship_type,
+            f"{e.weight:.2f}",
+            notes_str,
+        ])
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(5):
+            col_widths[i] = max(col_widths[i], len(r[i]))
+        col_widths[5] = max(col_widths[5], min(40, len(r[5])))
+
+    term_width = get_terminal_width()
+    desc_width = max(15, term_width - sum(col_widths[:5]) - 14)
+    col_widths[5] = min(col_widths[5], desc_width)
+
+    lines: List[str] = []
+    header_line = (
+        f"{headers[0]:<{col_widths[0]}}  "
+        f"{headers[1]:<{col_widths[1]}}  "
+        f"{headers[2]:<{col_widths[2]}}  "
+        f"{headers[3]:<{col_widths[3]}}  "
+        f"{headers[4]:>{col_widths[4]}}  "
+        f"{headers[5]}"
+    )
+
+    if styling:
+        lines.append(f"{BOLD_CYAN}{header_line}{RESET}")
+        sep = "  ".join("─" * w for w in col_widths[:5]) + f"  {'─' * col_widths[5]}"
+        lines.append(f"{DIM}{sep}{RESET}")
+        for r in rows:
+            notes = r[5]
+            if len(notes) > col_widths[5]:
+                notes = notes[: col_widths[5] - 3] + "..."
+            line = (
+                f"{DIM}{r[0]:<{col_widths[0]}}{RESET}  "
+                f"{BOLD_GOLD}{r[1]:<{col_widths[1]}}{RESET}  "
+                f"{BOLD_GOLD}{r[2]:<{col_widths[2]}}{RESET}  "
+                f"{r[3]:<{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}  "
+                f"{DIM}{notes}{RESET}"
+            )
+            lines.append(line)
+    else:
+        lines.append(header_line)
+        sep = "  ".join("─" * w for w in col_widths[:5]) + f"  {'─' * col_widths[5]}"
+        lines.append(sep)
+        for r in rows:
+            notes = r[5]
+            if len(notes) > col_widths[5]:
+                notes = notes[: col_widths[5] - 3] + "..."
+            line = (
+                f"{r[0]:<{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:<{col_widths[2]}}  "
+                f"{r[3]:<{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}  "
+                f"{notes}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
