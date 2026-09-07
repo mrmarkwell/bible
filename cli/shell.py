@@ -459,8 +459,33 @@ class BibleShell(cmd.Cmd):
             except Exception as exc:
                 self.stdout.write(f"Error generating prompt: {exc}\n")
 
+        elif action == "density":
+            from core.terminal import format_topic_density_table
+            tag_name = tokens[1] if len(tokens) > 1 else None
+            densities = svc.get_topic_density_per_book(tag_name=tag_name, min_passages=1)
+            filter_str = f" for '{tag_name}'" if tag_name else ""
+            self.stdout.write(f"Topic Density Distribution{filter_str}:\n\n")
+            self.stdout.write(format_topic_density_table(densities, styling=self.use_color) + "\n\n")
+
+        elif action in ("co-occurrence", "co-occur", "matrix"):
+            from core.terminal import format_tag_co_occurrence_table
+            tags_filter = tokens[1:] if len(tokens) > 1 else None
+            matrix_res = svc.get_tag_co_occurrences(tags=tags_filter, min_co_occurrences=1)
+            self.stdout.write("Tag Co-Occurrence Analysis:\n\n")
+            self.stdout.write(format_tag_co_occurrence_table(matrix_res.pair_metrics, styling=self.use_color) + "\n\n")
+
+        elif action in ("relevance", "rank"):
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /tag relevance <tag1> [tag2 ...]\n")
+                return
+            from core.terminal import format_verse_relevance_table
+            tags_list = tokens[1:]
+            rankings = svc.score_verse_relevance(tags=tags_list, translation_id=self.translation_id, limit=10)
+            self.stdout.write(f"Scripture Passage Relevance Rankings for {tags_list}:\n\n")
+            self.stdout.write(format_verse_relevance_table(rankings, styling=self.use_color) + "\n\n")
+
         else:
-            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, seed, prompt\n")
+            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, density, co-occurrence, relevance, seed, prompt\n")
 
     def do_tags(self, arg: str) -> None:
         """Alias for /tag."""
@@ -813,13 +838,16 @@ System:
 
     def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete tag subcommands and tag names."""
-        subcommands = ["add", "list", "show", "for", "remove", "delete", "stats", "seed", "prompt"]
+        subcommands = [
+            "add", "list", "show", "for", "remove", "delete", "stats",
+            "density", "co-occurrence", "relevance", "seed", "prompt",
+        ]
         parts = line.split()
         if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
             return [c for c in subcommands if c.startswith(text.lower())]
 
         action = parts[1].lower() if len(parts) > 1 else ""
-        if action in ("show", "delete", "stats") or (action == "remove" and len(parts) >= 3):
+        if action in ("show", "delete", "stats", "density", "relevance", "co-occurrence") or (action == "remove" and len(parts) >= 3):
             if self.db is None:
                 self._init_db()
             from core.tags import TaggingService

@@ -761,7 +761,13 @@ def cmd_tag(args: argparse.Namespace) -> int:
     try:
         with Database(db_path, auto_init=False) as db:
             from core.tags import TaggingService
-            from core.terminal import format_tag_table, format_tagged_passages
+            from core.terminal import (
+                format_tag_table,
+                format_tagged_passages,
+                format_topic_density_table,
+                format_tag_co_occurrence_table,
+                format_verse_relevance_table,
+            )
             svc = TaggingService(db)
 
             if tag_action == "add":
@@ -915,6 +921,77 @@ def cmd_tag(args: argparse.Namespace) -> int:
                             if s['description']:
                                 print(f"  Description: {s['description']}")
                             print()
+                return 0
+
+            elif tag_action == "density":
+                tag_name = getattr(args, "tag", None)
+                cat = getattr(args, "category", None)
+                testament = getattr(args, "testament", None)
+                min_passages = getattr(args, "min_passages", 0)
+                as_json = getattr(args, "json", False)
+
+                densities = svc.get_topic_density_per_book(
+                    tag_name=tag_name,
+                    category=cat,
+                    testament=testament,
+                    min_passages=min_passages,
+                )
+                if as_json:
+                    print(json.dumps([d.to_dict() for d in densities], indent=2))
+                else:
+                    filter_info = []
+                    if tag_name:
+                        filter_info.append(f"Tag: '{tag_name}'")
+                    if cat:
+                        filter_info.append(f"Category: '{cat}'")
+                    if testament:
+                        filter_info.append(f"Testament: {testament.upper()}")
+                    filter_str = f" ({', '.join(filter_info)})" if filter_info else ""
+                    print(f"Topic Density Distribution Across Books{filter_str}:\n")
+                    print(format_topic_density_table(densities, styling=color_enabled))
+                return 0
+
+            elif tag_action in ("co-occurrence", "co-occur", "matrix"):
+                tags_filter = getattr(args, "tags", None)
+                cat = getattr(args, "category", None)
+                min_co = getattr(args, "min_shared", 1)
+                as_json = getattr(args, "json", False)
+
+                matrix_res = svc.get_tag_co_occurrences(
+                    tags=tags_filter,
+                    category=cat,
+                    min_co_occurrences=min_co,
+                )
+                if as_json:
+                    print(json.dumps(matrix_res.to_dict(), indent=2))
+                else:
+                    print(f"Tag Co-Occurrence Analysis (min shared passages: {min_co}):\n")
+                    print(format_tag_co_occurrence_table(matrix_res.pair_metrics, styling=color_enabled))
+                return 0
+
+            elif tag_action in ("relevance", "rank"):
+                tags_list = args.tags
+                version = getattr(args, "version", "WEB") or "WEB"
+                starred_only = getattr(args, "starred_only", False)
+                min_score = getattr(args, "min_score", 0.0)
+                limit = getattr(args, "limit", 20)
+                as_json = getattr(args, "json", False)
+                no_text = getattr(args, "no_text", False)
+
+                rankings = svc.score_verse_relevance(
+                    tags=tags_list,
+                    translation_id=version,
+                    starred_only=starred_only,
+                    min_score=min_score,
+                    limit=limit,
+                    hydrate_verses=not no_text,
+                )
+                if as_json:
+                    print(json.dumps([r.to_dict() for r in rankings], indent=2))
+                else:
+                    tags_str = ", ".join(tags_list)
+                    print(f"Scripture Passage Relevance Rankings for [{tags_str}] ({len(rankings)} results):\n")
+                    print(format_verse_relevance_table(rankings, styling=color_enabled, show_text=not no_text))
                 return 0
 
             elif tag_action == "seed":
@@ -1595,6 +1672,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_tag_batch.add_argument("--max-tags", type=int, default=6, help="Maximum tags per passage")
     p_tag_batch.add_argument("--format", choices=["jsonl", "json"], default="jsonl", help="Batch output format")
     p_tag_batch.add_argument("--output", "-o", help="Write batch output to file")
+
+    # tag density
+    p_tag_density = tag_subparsers.add_parser("density", help="Compute topic density across canonical books")
+    p_tag_density.add_argument("tag", nargs="?", default=None, help="Optional tag name to filter distribution")
+    p_tag_density.add_argument("--category", "-c", help="Filter tags by category (thematic, theological, etc.)")
+    p_tag_density.add_argument("--testament", "-T", choices=["OT", "NT", "ot", "nt"], help="Filter by Old or New Testament")
+    p_tag_density.add_argument("--min-passages", type=int, default=0, help="Minimum passage count threshold (default: 0)")
+    p_tag_density.add_argument("--json", action="store_true", help="Output results in JSON format")
+
+    # tag co-occurrence (aliases: co-occur, matrix)
+    p_tag_cooccur = tag_subparsers.add_parser("co-occurrence", aliases=["co-occur", "matrix"], help="Compute tag co-occurrence matrix and similarity indices")
+    p_tag_cooccur.add_argument("tags", nargs="*", default=None, help="Optional specific tags to restrict matrix")
+    p_tag_cooccur.add_argument("--category", "-c", help="Filter tags by category")
+    p_tag_cooccur.add_argument("--min-shared", type=int, default=1, help="Minimum shared passages threshold (default: 1)")
+    p_tag_cooccur.add_argument("--json", action="store_true", help="Output matrix in JSON format")
+
+    # tag relevance (aliases: rank)
+    p_tag_rel = tag_subparsers.add_parser("relevance", aliases=["rank"], help="Rank scripture passages matching query tags by relevance")
+    p_tag_rel.add_argument("tags", nargs="+", help="One or more topic tag names to score (e.g. 'Atonement' 'Redemption')")
+    p_tag_rel.add_argument("--version", "-t", default="WEB", help="Scripture translation for text hydration (default: WEB)")
+    p_tag_rel.add_argument("--starred-only", action="store_true", help="Only rank starred passages")
+    p_tag_rel.add_argument("--min-score", type=float, default=0.0, help="Minimum relevance score threshold (0.0 to 1.0, default: 0.0)")
+    p_tag_rel.add_argument("--limit", "-n", type=int, default=20, help="Maximum ranked results to display (default: 20)")
+    p_tag_rel.add_argument("--no-text", action="store_true", help="Omit scripture text snippet from output")
+    p_tag_rel.add_argument("--json", action="store_true", help="Output rankings in JSON format")
 
     parser_tag.set_defaults(func=cmd_tag)
 

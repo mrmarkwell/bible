@@ -747,3 +747,39 @@ This document is an append-only log of significant design and architectural deci
   - `BibleShell` lifecycle is deterministic and safely reusable in headless scripts, REPL sessions, and test fixtures.
   - `./ralph.sh --help` and `-h` provide clear, self-documenting guidance for human and agent operators.
   - Zero external dependencies preserved (ADR-003).
+
+---
+
+## ADR-027: Semantic Tag Aggregation Queries, Co-Occurrence Matrix, and Verse Relevance Scoring Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Phase 3 establishes semantic tagging, knowledge graph relationships, and hermeneutical tagging pipelines. To support Phase 4 visualizations (the Canonical Redemptive Ribbon heatmap and typological exploration) and Phase 8 RAG retrieval, the platform requires statistical aggregation queries over the semantic tag corpus:
+  1. **Topic Density Distribution**: Visualizing how themes and theological concepts are distributed across the 66 canonical books (OT vs. NT, passage frequency, starred proportions, top tags).
+  2. **Tag Co-Occurrence Analysis**: Quantifying semantic proximity and pairing patterns between tags (e.g. how often `Sanctification` and `Grace` co-occur on the same or overlapping scripture spans), complete with mathematical association indices (Jaccard similarity and Sørensen–Dice coefficient).
+  3. **Verse Relevance Scoring & Multi-Tag Ranking**: A principled ranking algorithm to score scripture passages against arbitrary sets of query tags, balancing tag coverage ratio, association confidence, user curation priority (starred boost), and passage specificity.
+- **Decision**:
+  1. **Data Models & Analytical Records (`core/tags.py`)**:
+     - Defined `BookTopicDensity`: Captures canonical book order, total chapters, distinct passages, starred passages, distinct tags, and tag frequency breakdown.
+     - Defined `TagCoOccurrence`: Captures tag pairs, shared passage counts, Jaccard similarity index, Dice coefficient, and category metadata.
+     - Defined `TagCoOccurrenceMatrix`: Grid matrix and ranked pairwise metrics.
+     - Defined `VerseRelevance`: Scored passage ranking with match ratio, average confidence, starred boost, specificity bonus, and hydrated verse texts.
+  2. **Domain Service Aggregation Methods (`TaggingService`)**:
+     - `get_topic_density_per_book(tag_name, category, testament, min_passages)`: Computes distribution across the 66 canonical books using canonical ID arithmetic (`start_canonical_id / 1000000 = book_id`), deduplicating passages by span key `(start_canonical_id, end_canonical_id)`.
+     - `get_tag_co_occurrences(tags, category, min_co_occurrences)`: Evaluates overlapping passage boundaries in `verse_tags` (`vt1.start <= vt2.end AND vt1.end >= vt2.start`), computing Jaccard index `|A ∩ B| / |A ∪ B|` and Dice coefficient `2|A ∩ B| / (|A| + |B|)`.
+     - `score_verse_relevance(tags, translation_id, starred_only, min_score, limit, hydrate_verses)`: Composite scoring function weighting match ratio (0.60), full match bonus (0.20), starred boost (0.10), and span specificity (0.10).
+  3. **Terminal Presentation & Table Formatters (`core/terminal.py`)**:
+     - `format_topic_density_table`: Aligned tabular presentation showing book name, testament, chapters, passage counts, starred counts, distinct tags, and top tag breakdowns.
+     - `format_tag_co_occurrence_table`: Aligned pairwise co-occurrence table with shared counts, Jaccard, and Dice metrics.
+     - `format_verse_relevance_table`: Ranked score listing with percentage match, active tag badges, and flowing verse text.
+  4. **CLI & Interactive REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Added `./bible tag density [--category] [--testament] [--min-passages] [--json]`.
+     - Added `./bible tag co-occurrence [tags...] [--category] [--min-shared] [--json]` (aliases `co-occur`, `matrix`).
+     - Added `./bible tag relevance <tags...> [--starred-only] [--min-score] [--limit] [--json]` (alias `rank`).
+     - Added `/tag density`, `/tag co-occurrence`, and `/tag relevance` to `BibleShell` REPL with subcommands and tag name auto-completion.
+  5. **Core Exports & Hermetic Unit Tests**:
+     - Exported all new data models and formatters in `core/__init__.py`.
+     - Authored comprehensive unit and integration tests in `tests/test_tags.py` (`TestTagAggregationAnalytics`), bringing total suite to 307 passing tests in ~4.0s with zero warnings (`-W error::ResourceWarning`).
+- **Consequences**:
+  - Completes Task 3.4 and completes Phase 3 (Semantic Tagging & Knowledge Database Engine) at 100% (4/4 tasks done).
+  - Unblocks Phase 4: provides the exact backend aggregation data feeds required for the Canonical Redemptive Ribbon SVG heatmap (Task 4.3).
+  - 100% Zero External Dependencies maintained (Python standard library only per ADR-003).

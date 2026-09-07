@@ -876,6 +876,54 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 026** (Standard Cycle).
   - Next agent should return to the domain roadmap and claim **Task 3.4**: *Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring* in `core/tags.py`, CLI commands in `cli/main.py`, REPL commands in `cli/shell.py`, and unit tests in `tests/test_tags.py`.
 
+---
+
+## [Run 026] — 2026-09-07
+- **Agent**: Autonomous Software Development Agent (Ralph Loop: Task 3.4)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine (Task 3.4 / ADR-027)
+- **Goal**: Implement statistical aggregation queries over the semantic tagging engine: topic density distribution per book, tag co-occurrence matrix with similarity indices (Jaccard and Dice), and multi-tag verse relevance scoring and ranking.
+- **Actions Taken**:
+  - **Data Models & Analytical Records (`core/tags.py`)**:
+    - Created dataclass `BookTopicDensity` tracking `book_id`, `book_name`, `osis`, `testament`, `total_chapters`, `passage_count`, `starred_count`, `distinct_tags`, and `tag_counts`.
+    - Created dataclass `TagCoOccurrence` tracking pair `tag_a`, `tag_b`, `shared_passages`, `jaccard_similarity`, `dice_coefficient`, `category_a`, and `category_b`.
+    - Created dataclass `TagCoOccurrenceMatrix` providing dense dictionary matrix and sorted pair metrics list.
+    - Created dataclass `VerseRelevance` tracking passage citation, composite score, matched tags, total query tags, match ratio, starred boost, confidence, and hydrated verse texts.
+  - **Analytical Query Engine (`core/tags.py` - `TaggingService`)**:
+    - Implemented `get_topic_density_per_book(tag_name, category, testament, min_passages)` computing topic distribution across all 66 canonical books with book ID math (`start_canonical_id / 1000000`) and unique span deduplication.
+    - Implemented `get_tag_co_occurrences(tags, category, min_co_occurrences)` computing shared overlapping associations (`vt1.start <= vt2.end AND vt1.end >= vt2.start`), Jaccard similarity (`|A ∩ B| / |A ∪ B|`), and Dice coefficient (`2|A ∩ B| / (|A| + |B|)`).
+    - Implemented `score_verse_relevance(tags, translation_id, starred_only, min_score, limit, hydrate_verses)` weighting tag match ratio (0.60), exact multi-tag coverage bonus (0.20), starred boost (0.10), and span specificity (0.10).
+  - **Terminal Presentation & Table Formatters (`core/terminal.py`)**:
+    - Implemented `format_topic_density_table` rendering aligned table with book, testament, chapters, passage counts, starred counts, distinct tags, and top tag breakdowns.
+    - Implemented `format_tag_co_occurrence_table` rendering pairwise co-occurrence frequencies and mathematical association indices.
+    - Implemented `format_verse_relevance_table` rendering ranked score cards with badge tags, match percentage, and flowing scripture text.
+  - **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Added `./bible tag density` with `--category`, `--testament`, `--min-passages`, and `--json` flags.
+    - Added `./bible tag co-occurrence` (aliases `co-occur`, `matrix`) with `--category`, `--min-shared`, and `--json` flags.
+    - Added `./bible tag relevance` (alias `rank`) with `--version`, `--starred-only`, `--min-score`, `--limit`, `--no-text`, and `--json` flags.
+    - Added `/tag density`, `/tag co-occurrence`, and `/tag relevance` to `BibleShell` REPL with subcommands and tag name auto-completion.
+  - **Core Package Exports (`core/__init__.py`)**:
+    - Exported `BookTopicDensity`, `TagCoOccurrence`, `TagCoOccurrenceMatrix`, `VerseRelevance`, and table formatters.
+    - Updated `tests/test_core.py` export test to assert full parity.
+  - **Hermetic Unit Tests (`tests/test_tags.py`)**:
+    - Authored `TestTagAggregationAnalytics` covering topic density calculation, testament/tag filtering, co-occurrence Jaccard/Dice mathematics, verse relevance ranking, CLI subcommands (`density`, `co-occurrence`, `relevance`), and interactive shell REPL commands.
+    - Expanded test suite from 301 to 307 tests passing 100% in 3.92s with zero warnings (`-W error::ResourceWarning`).
+  - **Governance & State Machine Sync**:
+    - Formulated and recorded **ADR-027: Semantic Tag Aggregation Queries, Co-Occurrence Matrix, and Verse Relevance Scoring Engine** in `DECISIONS.md`.
+    - Marked Task 3.4 completed (`[x]`) in `ROADMAP.md`, achieving 100% completion for Phase 3 (all 4/4 tasks done).
+    - Promoted Task 3.4 to `[DONE]` in `IDEAS.md`.
+- **Verification**:
+  - Ran `python3 tools/doctor.py --fast`: all 4 fast checks passed in 0.18s (audited 35 Python files, 0 dependencies).
+  - Ran `python3 -W error::ResourceWarning -m unittest discover tests`: all 307 tests passed 100% in 3.92s with zero warnings.
+  - Verified `./bible tag density --min-passages=1`: rendered topic distribution across books from the bundled dataset.
+  - Verified `./bible tag relevance "favorites" --limit=5`: rendered top-ranked passages with formatted scripture text.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Phase 3 is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 027** (Standard Cycle).
+  - Active Phase shifts to **Phase 4: Web UI & Visualizations (Vanilla Web, No npm)**.
+  - Next agent should claim **Task 4.1**: *Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`* in `web/` and `cli/main.py`.
+
+
 
 
 

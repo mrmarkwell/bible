@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
-- **Overall Progress**: Phase 0, Phase 1, and Phase 2 complete (100%); Phase 3 in progress (3/4 tasks complete, 75%)
+- **Active Phase**: Phase 4 — Web UI & Visualizations (Vanilla Web, No npm)
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, and Phase 3 complete (100%); Phase 4 queued next
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -45,7 +45,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.1**: Create Tagging API allowing tags on individual verses or arbitrary verse spans (e.g., `Romans 8:1-11` -> `Holy Spirit`, `Sanctification`). *(Run 022 / ADR-023)*
 - [x] **Task 3.2**: Implement verse-to-verse cross-referencing and relationship edges (thematic, prophecy-fulfillment, quotation). *(Run 023 / ADR-024)*
 - [x] **Task 3.3**: Create batch LLM tagging tool/prompt generator to classify and tag scripture into predefined and dynamic semantic taxonomies (`tools/tag_generator.py` / `core/tag_prompts.py`). *(Run 024 / ADR-025)*
-- [ ] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring.
+- [x] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring. *(Run 026 / ADR-027)*
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [ ] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`.

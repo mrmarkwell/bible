@@ -309,6 +309,21 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.9 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: [DONE] (Implemented in `cli/shell.py`, `ralph.sh`, verified in `tests/test_tags.py`, `tests/test_crossref.py`, `tests/test_tag_prompts.py`, `tests/test_core.py`, `tests/test_harness.py`, and recorded in ADR-026).
 
+### [DONE] Semantic Tag Aggregation Queries, Co-Occurrence Matrix & Verse Relevance Scoring (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement statistical aggregation queries, co-occurrence analysis, and multi-tag relevance scoring over the semantic tagging engine. Includes:
+  1. **Topic Density Distribution (`get_topic_density_per_book`)**: Aggregates distinct passages, starred passages, distinct tags, and top tag frequencies across all 66 canonical books with testament and category filters.
+  2. **Tag Co-Occurrence Analysis (`get_tag_co_occurrences`)**: Computes shared passage counts, Jaccard similarity indices (`|A ∩ B| / |A ∪ B|`), and Dice coefficients (`2|A ∩ B| / (|A| + |B|)`) across overlapping passage spans.
+  3. **Verse Relevance Scoring (`score_verse_relevance`)**: Ranks scripture passages against arbitrary query tags using a composite scoring function balancing tag match ratio (0.60), full coverage bonus (0.20), starred boost (0.10), and span specificity (0.10), with text hydration.
+  4. **CLI & REPL Integration**: `./bible tag density`, `./bible tag co-occurrence`, `./bible tag relevance`, and interactive shell commands `/tag density`, `/tag co-occurrence`, `/tag relevance`.
+- **Rationale**: Completes Phase 3 Task 3.4; directly feeds the Phase 4 Canonical Redemptive Ribbon SVG heatmap (Task 4.3) and Phase 8 grounded RAG retrieval (Task 8.1).
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+- **Proposed Roadmap Phase**: Phase 3, Task 3.4 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [DONE] (Implemented in `core/tags.py`, `core/terminal.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_tags.py`, `tests/test_core.py`, and recorded in ADR-027).
+
+
 
 
 

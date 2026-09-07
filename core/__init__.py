@@ -47,11 +47,15 @@ from core.crossref import (
     RelationshipType,
 )
 from core.tags import (
+    BookTopicDensity,
     CANONICAL_TAXONOMY,
     TagCategory,
+    TagCoOccurrence,
+    TagCoOccurrenceMatrix,
     TagSummary,
     TaggedPassage,
     TaggingService,
+    VerseRelevance,
 )
 from core.tag_prompts import (
     GeneratedTag,
@@ -74,6 +78,9 @@ from core.terminal import (
     format_tag_table,
     format_tagged_passages,
     format_tags_badge,
+    format_topic_density_table,
+    format_tag_co_occurrence_table,
+    format_verse_relevance_table,
     get_terminal_width,
     should_use_color,
     strip_ansi,
@@ -108,6 +115,10 @@ __all__ = [
     "TaggedPassage",
     "TaggingService",
     "CANONICAL_TAXONOMY",
+    "BookTopicDensity",
+    "TagCoOccurrence",
+    "TagCoOccurrenceMatrix",
+    "VerseRelevance",
     "GeneratedTag",
     "TaggingResult",
     "get_tgc_hermeneutical_system_prompt",
@@ -148,6 +159,9 @@ __all__ = [
     "format_tags_badge",
     "format_tag_table",
     "format_tagged_passages",
+    "format_topic_density_table",
+    "format_tag_co_occurrence_table",
+    "format_verse_relevance_table",
     "format_cross_references",
     "format_cross_reference_table",
 ]

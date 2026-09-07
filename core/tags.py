@@ -105,6 +105,109 @@ CANONICAL_TAXONOMY: Dict[str, List[Tuple[str, str, str]]] = {
 
 
 @dataclass(frozen=True)
+class BookTopicDensity:
+    """Aggregated topic density metrics for a specific canonical book."""
+
+    book_id: int
+    book_name: str
+    osis: str
+    testament: str
+    total_chapters: int
+    passage_count: int
+    starred_count: int
+    distinct_tags: int
+    tag_counts: Dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert book topic density to dictionary representation."""
+        return {
+            "book_id": self.book_id,
+            "book_name": self.book_name,
+            "osis": self.osis,
+            "testament": self.testament,
+            "total_chapters": self.total_chapters,
+            "passage_count": self.passage_count,
+            "starred_count": self.starred_count,
+            "distinct_tags": self.distinct_tags,
+            "tag_counts": dict(self.tag_counts),
+        }
+
+
+@dataclass(frozen=True)
+class TagCoOccurrence:
+    """Co-occurrence pair metrics between two semantic tags."""
+
+    tag_a: str
+    tag_b: str
+    shared_passages: int
+    jaccard_similarity: float
+    dice_coefficient: float
+    category_a: Optional[str] = None
+    category_b: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert co-occurrence pair to dictionary representation."""
+        return {
+            "tag_a": self.tag_a,
+            "tag_b": self.tag_b,
+            "shared_passages": self.shared_passages,
+            "jaccard_similarity": round(self.jaccard_similarity, 4),
+            "dice_coefficient": round(self.dice_coefficient, 4),
+            "category_a": self.category_a,
+            "category_b": self.category_b,
+        }
+
+
+@dataclass(frozen=True)
+class TagCoOccurrenceMatrix:
+    """Matrix representation of tag co-occurrences across the corpus."""
+
+    tags: List[str]
+    matrix: Dict[str, Dict[str, int]]
+    pair_metrics: List[TagCoOccurrence]
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert co-occurrence matrix to dictionary representation."""
+        return {
+            "tags": list(self.tags),
+            "matrix": {k: dict(v) for k, v in self.matrix.items()},
+            "pairs": [p.to_dict() for p in self.pair_metrics],
+        }
+
+
+@dataclass(frozen=True)
+class VerseRelevance:
+    """Relevance scoring and ranking for a scripture passage against a set of topic tags."""
+
+    reference: Reference
+    human_ref: str
+    osis: str
+    score: float
+    matched_tags: List[str]
+    total_requested_tags: int
+    match_ratio: float
+    starred: bool
+    highest_confidence: float
+    text: str = ""
+    verses: List[VerseRecord] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert verse relevance ranking to dictionary representation."""
+        return {
+            "reference": self.human_ref,
+            "osis": self.osis,
+            "score": round(self.score, 4),
+            "matched_tags": list(self.matched_tags),
+            "total_requested_tags": self.total_requested_tags,
+            "match_ratio": round(self.match_ratio, 4),
+            "starred": self.starred,
+            "highest_confidence": round(self.highest_confidence, 4),
+            "verse_count": len(self.verses),
+            "text": self.text,
+        }
+
+
+@dataclass(frozen=True)
 class TagSummary:
     """Aggregated summary information for a semantic tag."""
 
@@ -484,3 +587,413 @@ class TaggingService:
             self.add_tag(name, category=cat, description=desc)
             count += 1
         return count
+
+    # --- Aggregation Queries & Analytical Engine (Task 3.4) ---
+
+    def get_topic_density_per_book(
+        self,
+        tag_name: Optional[str] = None,
+        category: Optional[str] = None,
+        testament: Optional[str] = None,
+        min_passages: int = 0,
+    ) -> List[BookTopicDensity]:
+        """Compute topic/tag distribution and density across the 66 canonical books.
+
+        Args:
+            tag_name: Optional tag name to filter distribution (case-insensitive).
+            category: Optional tag category filter (e.g. 'theological', 'thematic').
+            testament: Optional testament filter ('OT' or 'NT').
+            min_passages: Minimum passage count threshold to include book in results.
+
+        Returns:
+            List of BookTopicDensity records ordered by canonical book order.
+        """
+        # Fetch canonical books
+        cur = self.db.conn.cursor()
+        book_query = "SELECT id, name, osis, testament, total_chapters, canonical_order FROM books"
+        book_params: List[Any] = []
+        if testament:
+            t_clean = testament.strip().upper()
+            if t_clean in ("OT", "OLD"):
+                t_clean = "OT"
+            elif t_clean in ("NT", "NEW"):
+                t_clean = "NT"
+            book_query += " WHERE testament = ?"
+            book_params.append(t_clean)
+        book_query += " ORDER BY canonical_order ASC"
+        cur.execute(book_query, book_params)
+        book_rows = cur.fetchall()
+
+        # Query tag associations
+        # Each verse_tags row has start_canonical_id, where (start_canonical_id / 1000000) corresponds to book_id.
+        vt_query = """
+            SELECT
+                (vt.start_canonical_id / 1000000) AS b_id,
+                vt.start_canonical_id,
+                vt.end_canonical_id,
+                t.name AS tag_name,
+                vt.starred,
+                vt.id AS vt_id
+            FROM verse_tags vt
+            JOIN tags t ON t.id = vt.tag_id
+            WHERE 1=1
+        """
+        vt_params: List[Any] = []
+        if tag_name:
+            vt_query += " AND t.name = ? COLLATE NOCASE"
+            vt_params.append(tag_name.strip())
+        if category:
+            vt_query += " AND t.category = ? COLLATE NOCASE"
+            vt_params.append(category.strip().lower())
+
+        cur.execute(vt_query, vt_params)
+        vt_rows = cur.fetchall()
+        cur.close()
+
+        # Aggregate metrics per book
+        book_stats: Dict[int, Dict[str, Any]] = {}
+        for r in vt_rows:
+            b_id = int(r["b_id"])
+            t_name = str(r["tag_name"])
+            is_starred = bool(r["starred"])
+            passage_key = (int(r["start_canonical_id"]), int(r["end_canonical_id"]))
+
+            if b_id not in book_stats:
+                book_stats[b_id] = {
+                    "passages": set(),
+                    "starred_passages": set(),
+                    "tags": set(),
+                    "tag_counts": {},
+                }
+            book_stats[b_id]["passages"].add(passage_key)
+            if is_starred:
+                book_stats[b_id]["starred_passages"].add(passage_key)
+            book_stats[b_id]["tags"].add(t_name)
+            book_stats[b_id]["tag_counts"][t_name] = (
+                book_stats[b_id]["tag_counts"].get(t_name, 0) + 1
+            )
+
+        results: List[BookTopicDensity] = []
+        for b in book_rows:
+            b_id = b["id"]
+            stats = book_stats.get(
+                b_id,
+                {"passages": set(), "starred_passages": set(), "tags": set(), "tag_counts": {}},
+            )
+            p_count = len(stats["passages"])
+            if p_count < min_passages:
+                continue
+
+            results.append(
+                BookTopicDensity(
+                    book_id=b_id,
+                    book_name=b["name"],
+                    osis=b["osis"],
+                    testament=b["testament"],
+                    total_chapters=b["total_chapters"],
+                    passage_count=p_count,
+                    starred_count=len(stats["starred_passages"]),
+                    distinct_tags=len(stats["tags"]),
+                    tag_counts=stats["tag_counts"],
+                )
+            )
+
+        return results
+
+    def get_tag_co_occurrences(
+        self,
+        tags: Optional[Sequence[str]] = None,
+        category: Optional[str] = None,
+        min_co_occurrences: int = 1,
+    ) -> TagCoOccurrenceMatrix:
+        """Compute co-occurrence frequencies and similarity metrics between pairs of tags.
+
+        Two tags co-occur when they are attached to overlapping or identical passage boundaries.
+
+        Args:
+            tags: Optional list of tag names to restrict the matrix analysis.
+            category: Optional category filter for tags.
+            min_co_occurrences: Minimum shared passages to include in pair metrics.
+
+        Returns:
+            TagCoOccurrenceMatrix containing matrix grid and pairwise similarity stats.
+        """
+        cur = self.db.conn.cursor()
+
+        # Step 1: Select relevant tags and their individual passage counts
+        tag_query = """
+            SELECT t.id, t.name, t.category, COUNT(vt.id) as passage_count
+            FROM tags t
+            LEFT JOIN verse_tags vt ON vt.tag_id = t.id
+            WHERE 1=1
+        """
+        tag_params: List[Any] = []
+        if tags:
+            clean_tags = [t.strip() for t in tags if t.strip()]
+            if clean_tags:
+                placeholders = ",".join("?" for _ in clean_tags)
+                tag_query += f" AND t.name IN ({placeholders}) COLLATE NOCASE"
+                tag_params.extend(clean_tags)
+        if category:
+            tag_query += " AND t.category = ? COLLATE NOCASE"
+            tag_params.append(category.strip().lower())
+
+        tag_query += " GROUP BY t.id ORDER BY t.name ASC"
+        cur.execute(tag_query, tag_params)
+        tag_rows = cur.fetchall()
+
+        tag_meta: Dict[int, Dict[str, Any]] = {
+            r["id"]: {
+                "name": r["name"],
+                "category": r["category"],
+                "count": r["passage_count"],
+            }
+            for r in tag_rows
+        }
+        tag_id_by_name: Dict[str, int] = {
+            r["name"].lower(): r["id"] for r in tag_rows
+        }
+        ordered_tag_names = [r["name"] for r in tag_rows]
+
+        # Step 2: Query overlapping verse_tags associations
+        # Two associations overlap if: vt1.start_canonical_id <= vt2.end_canonical_id
+        #                         AND vt1.end_canonical_id >= vt2.start_canonical_id
+        overlap_query = """
+            SELECT
+                vt1.tag_id AS tag_a_id,
+                vt2.tag_id AS tag_b_id,
+                COUNT(DISTINCT vt1.id || '-' || vt2.id) AS shared_count
+            FROM verse_tags vt1
+            JOIN verse_tags vt2 ON vt1.tag_id < vt2.tag_id
+            WHERE vt1.start_canonical_id <= vt2.end_canonical_id
+              AND vt1.end_canonical_id >= vt2.start_canonical_id
+        """
+        overlap_params: List[Any] = []
+        if tag_meta:
+            id_placeholders = ",".join("?" for _ in tag_meta.keys())
+            overlap_query += f" AND vt1.tag_id IN ({id_placeholders}) AND vt2.tag_id IN ({id_placeholders})"
+            overlap_params.extend(tag_meta.keys())
+            overlap_params.extend(tag_meta.keys())
+
+        overlap_query += " GROUP BY vt1.tag_id, vt2.tag_id"
+        cur.execute(overlap_query, overlap_params)
+        overlap_rows = cur.fetchall()
+        cur.close()
+
+        # Step 3: Populate matrix grid
+        matrix: Dict[str, Dict[str, int]] = {
+            t_name: {other: 0 for other in ordered_tag_names}
+            for t_name in ordered_tag_names
+        }
+
+        # Diagonal entries = total passages for that tag
+        for t_info in tag_meta.values():
+            name = t_info["name"]
+            if name in matrix:
+                matrix[name][name] = t_info["count"]
+
+        pair_metrics: List[TagCoOccurrence] = []
+        for r in overlap_rows:
+            id_a = r["tag_a_id"]
+            id_b = r["tag_b_id"]
+            if id_a not in tag_meta or id_b not in tag_meta:
+                continue
+
+            name_a = tag_meta[id_a]["name"]
+            name_b = tag_meta[id_b]["name"]
+            shared = int(r["shared_count"])
+
+            matrix[name_a][name_b] = shared
+            matrix[name_b][name_a] = shared
+
+            if shared >= min_co_occurrences:
+                count_a = tag_meta[id_a]["count"]
+                count_b = tag_meta[id_b]["count"]
+                union_count = (count_a + count_b) - shared
+                jaccard = shared / union_count if union_count > 0 else 0.0
+                dice = (2.0 * shared) / (count_a + count_b) if (count_a + count_b) > 0 else 0.0
+
+                pair_metrics.append(
+                    TagCoOccurrence(
+                        tag_a=name_a,
+                        tag_b=name_b,
+                        shared_passages=shared,
+                        jaccard_similarity=jaccard,
+                        dice_coefficient=dice,
+                        category_a=tag_meta[id_a]["category"],
+                        category_b=tag_meta[id_b]["category"],
+                    )
+                )
+
+        # Sort pairs by shared passages descending, then jaccard descending
+        pair_metrics.sort(key=lambda p: (p.shared_passages, p.jaccard_similarity), reverse=True)
+
+        return TagCoOccurrenceMatrix(
+            tags=ordered_tag_names,
+            matrix=matrix,
+            pair_metrics=pair_metrics,
+        )
+
+    def score_verse_relevance(
+        self,
+        tags: Union[str, Sequence[str]],
+        translation_id: str = "WEB",
+        starred_only: bool = False,
+        min_score: float = 0.0,
+        limit: Optional[int] = None,
+        hydrate_verses: bool = True,
+    ) -> List[VerseRelevance]:
+        """Compute multi-tag relevance scoring and ranking across scripture passages.
+
+        Scoring formula combines:
+          - Tag coverage / match ratio: (matched_tags / total_query_tags)
+          - Starred status boost (+25%)
+          - Association confidence weighted sum
+          - Specificity bonus: rewards exact / tight passage boundaries
+
+        Args:
+            tags: Comma-separated string or list of tag names to query.
+            translation_id: Translation ID for verse text hydration.
+            starred_only: Only return passages marked starred.
+            min_score: Minimum relevance score threshold (0.0 to 1.0).
+            limit: Maximum ranked passages to return.
+            hydrate_verses: If True, populates VerseRecord texts.
+
+        Returns:
+            List of VerseRelevance records sorted in descending order of relevance.
+        """
+        tag_list: List[str] = []
+        if isinstance(tags, str):
+            parts = [t.strip() for t in tags.split(",") if t.strip()]
+            tag_list.extend(parts)
+        else:
+            for t in tags:
+                clean = t.strip()
+                if clean:
+                    tag_list.append(clean)
+
+        if not tag_list:
+            raise ValueError("At least one tag name must be provided for relevance scoring.")
+
+        # Resolve tag records
+        resolved_tags: List[TagRecord] = []
+        for t_name in tag_list:
+            t_rec = self.get_tag(t_name)
+            if t_rec:
+                resolved_tags.append(t_rec)
+
+        if not resolved_tags:
+            return []
+
+        tag_ids = [t.id for t in resolved_tags if t.id is not None]
+        tag_id_to_name = {t.id: t.name for t in resolved_tags if t.id is not None}
+        total_query_count = len(tag_list)
+
+        cur = self.db.conn.cursor()
+        placeholders = ",".join("?" for _ in tag_ids)
+        query = f"""
+            SELECT
+                vt.start_canonical_id,
+                vt.end_canonical_id,
+                vt.human_ref,
+                vt.starred,
+                vt.confidence,
+                vt.tag_id
+            FROM verse_tags vt
+            WHERE vt.tag_id IN ({placeholders})
+        """
+        params: List[Any] = list(tag_ids)
+        if starred_only:
+            query += " AND vt.starred = 1"
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+
+        # Group matched associations by canonical passage range
+        passages: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        for r in rows:
+            key = (int(r["start_canonical_id"]), int(r["end_canonical_id"]))
+            t_id = int(r["tag_id"])
+            t_name = tag_id_to_name.get(t_id, "")
+            is_starred = bool(r["starred"])
+            conf = float(r["confidence"])
+
+            if key not in passages:
+                passages[key] = {
+                    "human_ref": r["human_ref"],
+                    "starred": is_starred,
+                    "matched_tags": set(),
+                    "confidences": [],
+                }
+
+            if is_starred:
+                passages[key]["starred"] = True
+            if t_name:
+                passages[key]["matched_tags"].add(t_name)
+            passages[key]["confidences"].append(conf)
+
+        ranked: List[VerseRelevance] = []
+        for (start_id, end_id), data in passages.items():
+            ref = parse_reference(data["human_ref"])
+            matched = sorted(list(data["matched_tags"]))
+            match_count = len(matched)
+            match_ratio = match_count / total_query_count
+            max_conf = max(data["confidences"]) if data["confidences"] else 1.0
+            avg_conf = sum(data["confidences"]) / len(data["confidences"]) if data["confidences"] else 1.0
+
+            # Base score: match ratio * average confidence (weight 0.60)
+            score = match_ratio * avg_conf * 0.60
+
+            # Exact multi-tag bonus: if all requested tags match (weight 0.20)
+            if match_count == total_query_count:
+                score += 0.20
+            else:
+                score += (match_ratio * 0.15)
+
+            # Starred boost (+0.10)
+            if data["starred"]:
+                score += 0.10
+
+            # Specificity bonus: clamp range length (shorter passages get up to +0.10)
+            span_len = max(1, (end_id - start_id) + 1)
+            specificity_bonus = max(0.0, 0.10 - min(0.08, (span_len - 1) * 0.01))
+            score += specificity_bonus
+
+            # Clamp final score to 1.0
+            final_score = min(1.0, score)
+            if final_score < min_score:
+                continue
+
+            verses: List[VerseRecord] = []
+            text = ""
+            if hydrate_verses:
+                verses = self.db.get_verses_by_reference(ref, translation_id=translation_id)
+                text = " ".join(v.text for v in verses)
+
+            ranked.append(
+                VerseRelevance(
+                    reference=ref,
+                    human_ref=data["human_ref"],
+                    osis=ref.to_osis(),
+                    score=final_score,
+                    matched_tags=matched,
+                    total_requested_tags=total_query_count,
+                    match_ratio=match_ratio,
+                    starred=data["starred"],
+                    highest_confidence=max_conf,
+                    text=text,
+                    verses=verses,
+                )
+            )
+
+        # Sort descending by score, then starred, then match_ratio
+        ranked.sort(
+            key=lambda r: (r.score, r.starred, r.match_ratio, -len(r.verses)),
+            reverse=True,
+        )
+
+        if limit is not None:
+            ranked = ranked[:limit]
+
+        return ranked

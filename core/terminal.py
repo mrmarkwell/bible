@@ -604,6 +604,228 @@ def format_tagged_passages(
     return "\n\n".join(blocks)
 
 
+def format_topic_density_table(
+    densities: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+) -> str:
+    """Format BookTopicDensity records as an aligned terminal table."""
+    if not densities:
+        return "No topic density records found matching criteria."
+
+    headers = ["#", "Book", "Testament", "Chapters", "Passages", "Starred", "Tags", "Top Tags"]
+
+    rows: List[List[str]] = []
+    for d in densities:
+        # Get top 2-3 tags by count
+        top_tags_sorted = sorted(
+            getattr(d, "tag_counts", {}).items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )[:3]
+        top_tags_str = ", ".join(f"{name} ({cnt})" for name, cnt in top_tags_sorted) if top_tags_sorted else "-"
+
+        rows.append([
+            str(getattr(d, "book_id", "")),
+            str(getattr(d, "book_name", "")),
+            str(getattr(d, "testament", "")),
+            str(getattr(d, "total_chapters", "")),
+            str(getattr(d, "passage_count", "")),
+            str(getattr(d, "starred_count", "")),
+            str(getattr(d, "distinct_tags", "")),
+            top_tags_str,
+        ])
+
+    col_widths = [len(h) for h in headers]
+    for r in rows:
+        for i in range(len(headers) - 1):  # exclude top tags from hard fixed width
+            col_widths[i] = max(col_widths[i], len(r[i]))
+
+    lines: List[str] = []
+    if styling:
+        header_line = (
+            f"{BOLD_GOLD}{headers[0]:>{col_widths[0]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[1]:<{col_widths[1]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[2]:^{col_widths[2]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[3]:>{col_widths[3]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[4]:>{col_widths[4]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[5]:>{col_widths[5]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[6]:>{col_widths[6]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[7]}{RESET}"
+        )
+        sep = "  ".join("─" * w for w in col_widths[:7]) + "  ──────────────"
+        lines.append(header_line)
+        lines.append(f"{DIM}{sep}{RESET}")
+        for r in rows:
+            line = (
+                f"{DIM}{r[0]:>{col_widths[0]}}{RESET}  "
+                f"{BOLD_GOLD}{r[1]:<{col_widths[1]}}{RESET}  "
+                f"{r[2]:^{col_widths[2]}}  "
+                f"{r[3]:>{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}  "
+                f"{r[5]:>{col_widths[5]}}  "
+                f"{r[6]:>{col_widths[6]}}  "
+                f"{DIM}{r[7]}{RESET}"
+            )
+            lines.append(line)
+    else:
+        header_line = (
+            f"{headers[0]:>{col_widths[0]}}  "
+            f"{headers[1]:<{col_widths[1]}}  "
+            f"{headers[2]:^{col_widths[2]}}  "
+            f"{headers[3]:>{col_widths[3]}}  "
+            f"{headers[4]:>{col_widths[4]}}  "
+            f"{headers[5]:>{col_widths[5]}}  "
+            f"{headers[6]:>{col_widths[6]}}  "
+            f"{headers[7]}"
+        )
+        sep = "  ".join("─" * w for w in col_widths[:7]) + "  ──────────────"
+        lines.append(header_line)
+        lines.append(sep)
+        for r in rows:
+            line = (
+                f"{r[0]:>{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:^{col_widths[2]}}  "
+                f"{r[3]:>{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}  "
+                f"{r[5]:>{col_widths[5]}}  "
+                f"{r[6]:>{col_widths[6]}}  "
+                f"{r[7]}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_tag_co_occurrence_table(
+    co_occurrences: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+) -> str:
+    """Format TagCoOccurrence pair metrics as an aligned terminal table."""
+    if not co_occurrences:
+        return "No tag co-occurrences found meeting threshold."
+
+    headers = ["Tag A", "Tag B", "Shared Passages", "Jaccard Index", "Dice Coeff"]
+    rows: List[List[str]] = []
+    for co in co_occurrences:
+        rows.append([
+            str(getattr(co, "tag_a", "")),
+            str(getattr(co, "tag_b", "")),
+            str(getattr(co, "shared_passages", "")),
+            f"{getattr(co, 'jaccard_similarity', 0.0):.3f}",
+            f"{getattr(co, 'dice_coefficient', 0.0):.3f}",
+        ])
+
+    col_widths = [len(h) for h in headers]
+    for i in range(len(headers)):
+        for r in rows:
+            col_widths[i] = max(col_widths[i], len(r[i]))
+
+    lines: List[str] = []
+    if styling:
+        header_line = (
+            f"{BOLD_GOLD}{headers[0]:<{col_widths[0]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[1]:<{col_widths[1]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[2]:>{col_widths[2]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[3]:>{col_widths[3]}}{RESET}  "
+            f"{BOLD_GOLD}{headers[4]:>{col_widths[4]}}{RESET}"
+        )
+        sep = "  ".join("─" * w for w in col_widths)
+        lines.append(header_line)
+        lines.append(f"{DIM}{sep}{RESET}")
+        for r in rows:
+            line = (
+                f"{BOLD_GOLD}{r[0]:<{col_widths[0]}}{RESET}  "
+                f"{BOLD_GOLD}{r[1]:<{col_widths[1]}}{RESET}  "
+                f"{r[2]:>{col_widths[2]}}  "
+                f"{r[3]:>{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}"
+            )
+            lines.append(line)
+    else:
+        header_line = (
+            f"{headers[0]:<{col_widths[0]}}  "
+            f"{headers[1]:<{col_widths[1]}}  "
+            f"{headers[2]:>{col_widths[2]}}  "
+            f"{headers[3]:>{col_widths[3]}}  "
+            f"{headers[4]:>{col_widths[4]}}"
+        )
+        sep = "  ".join("─" * w for w in col_widths)
+        lines.append(header_line)
+        lines.append(sep)
+        for r in rows:
+            line = (
+                f"{r[0]:<{col_widths[0]}}  "
+                f"{r[1]:<{col_widths[1]}}  "
+                f"{r[2]:>{col_widths[2]}}  "
+                f"{r[3]:>{col_widths[3]}}  "
+                f"{r[4]:>{col_widths[4]}}"
+            )
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_verse_relevance_table(
+    rankings: Sequence[Any],
+    styling: bool = True,
+    max_width: Optional[int] = None,
+    show_text: bool = True,
+) -> str:
+    """Format VerseRelevance ranked passages for terminal presentation."""
+    if not rankings:
+        return "No passages matched the requested topic tags."
+
+    term_width = max_width or get_terminal_width()
+    blocks: List[str] = []
+
+    for idx, vr in enumerate(rankings, 1):
+        star = " ★" if getattr(vr, "starred", False) else ""
+        ref_title = f"{vr.human_ref}{star}"
+        score = getattr(vr, "score", 0.0)
+        matched = ", ".join(getattr(vr, "matched_tags", []))
+        ratio = getattr(vr, "match_ratio", 0.0)
+
+        lines: List[str] = []
+        rule_len = max(10, min(term_width, len(ref_title) + 25))
+        rule = "─" * rule_len
+
+        if styling:
+            header = (
+                f"{BOLD_GOLD}#{idx} {ref_title}{RESET}  "
+                f"{DIM}Score: {score:.3f} | Tags: [{matched}] ({ratio*100:.0f}% match){RESET}"
+            )
+            lines.append(header)
+            lines.append(f"{DIM}{rule}{RESET}")
+        else:
+            header = f"#{idx} {ref_title}  Score: {score:.3f} | Tags: [{matched}] ({ratio*100:.0f}% match)"
+            lines.append(header)
+            lines.append(rule)
+
+        if show_text:
+            verses = getattr(vr, "verses", [])
+            if verses:
+                passage_lines = format_scripture_passage(
+                    verses=verses,
+                    show_verse_numbers=True,
+                    show_header=False,
+                    width=term_width,
+                    flow=True,
+                    margin=2,
+                    color=styling,
+                )
+                lines.append(passage_lines)
+            elif getattr(vr, "text", ""):
+                lines.append(f"  {vr.text}")
+
+        blocks.append("\n".join(lines))
+
+    return "\n\n".join(blocks)
+
+
+
 # ==============================================================================
 # Cross-Reference Formatting Utilities
 # ==============================================================================

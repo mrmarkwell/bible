@@ -9,16 +9,23 @@ from unittest.mock import patch
 from core.db import Database, TagRecord, VerseRecord, VerseTagRecord
 from core.reference import Reference, parse_reference
 from core.tags import (
+    BookTopicDensity,
     CANONICAL_TAXONOMY,
     TagCategory,
+    TagCoOccurrence,
+    TagCoOccurrenceMatrix,
     TagSummary,
     TaggedPassage,
     TaggingService,
+    VerseRelevance,
 )
 from core.terminal import (
+    format_tag_co_occurrence_table,
     format_tag_table,
     format_tagged_passages,
     format_tags_badge,
+    format_topic_density_table,
+    format_verse_relevance_table,
     strip_ansi,
 )
 from cli.main import main, build_parser
@@ -473,6 +480,195 @@ class TestShellTagCommands(unittest.TestCase):
         self.shell.onecmd('/tag add "John 3:16" "Resurrection"')
         tag_matches = self.shell.complete_tag("Res", "tag show Res", 9, 12)
         self.assertEqual(tag_matches, ["Resurrection"])
+
+
+class TestTagAggregationAnalytics(unittest.TestCase):
+    """Hermetic unit tests for Task 3.4 aggregation queries and relevance scoring."""
+
+    def setUp(self) -> None:
+        self.db = create_mock_db()
+        self.svc = TaggingService(self.db)
+        # Tag several passages
+        self.svc.tag_passage("Romans 8:1-4", ["Sanctification", "Grace"], category="theological", starred=True, confidence=0.95)
+        self.svc.tag_passage("Romans 8:5", ["Flesh", "Sanctification"], category="theological", starred=False, confidence=0.85)
+        self.svc.tag_passage("John 3:16", ["Gospel", "Grace", "Love"], category="thematic", starred=True, confidence=1.0)
+        self.svc.tag_passage("John 3:17", ["Gospel"], category="thematic", starred=False, confidence=0.90)
+
+    def tearDown(self) -> None:
+        self.db.close()
+
+    def test_topic_density_per_book(self) -> None:
+        # All books with passages
+        densities = self.svc.get_topic_density_per_book(min_passages=1)
+        self.assertEqual(len(densities), 2)  # John and Romans
+
+        # John (book_id 43)
+        john = next(d for d in densities if d.book_name == "John")
+        self.assertEqual(john.passage_count, 2)
+        self.assertEqual(john.starred_count, 1)
+        self.assertEqual(john.distinct_tags, 3)
+        self.assertEqual(john.tag_counts["Gospel"], 2)
+        self.assertEqual(john.tag_counts["Grace"], 1)
+
+        # Romans (book_id 45)
+        romans = next(d for d in densities if d.book_name == "Romans")
+        self.assertEqual(romans.passage_count, 2)
+        self.assertEqual(romans.starred_count, 1)
+        self.assertEqual(romans.distinct_tags, 3)
+        self.assertEqual(romans.tag_counts["Sanctification"], 2)
+
+        # Filter by specific tag
+        grace_density = self.svc.get_topic_density_per_book(tag_name="Grace", min_passages=1)
+        self.assertEqual(len(grace_density), 2)
+
+        # Filter by category
+        thematic_density = self.svc.get_topic_density_per_book(category="thematic", min_passages=1)
+        self.assertEqual(len(thematic_density), 1)
+        self.assertEqual(thematic_density[0].book_name, "John")
+
+        # Filter by testament
+        ot_density = self.svc.get_topic_density_per_book(testament="OT", min_passages=1)
+        self.assertEqual(len(ot_density), 0)
+
+        # Formatting table
+        table_output = format_topic_density_table(densities, styling=False)
+        self.assertIn("John", table_output)
+        self.assertIn("Romans", table_output)
+        self.assertIn("Gospel (2)", table_output)
+
+    def test_tag_co_occurrence_matrix(self) -> None:
+        res = self.svc.get_tag_co_occurrences(min_co_occurrences=1)
+        self.assertIsInstance(res, TagCoOccurrenceMatrix)
+
+        # Sanctification and Grace co-occur on Romans 8:1-4
+        pairs = res.pair_metrics
+        pair_names = {(p.tag_a, p.tag_b) for p in pairs} | {(p.tag_b, p.tag_a) for p in pairs}
+        self.assertIn(("Grace", "Sanctification"), pair_names)
+        self.assertIn(("Gospel", "Grace"), pair_names)
+        self.assertIn(("Flesh", "Sanctification"), pair_names)
+
+        # Check Jaccard similarity between Grace and Sanctification
+        # Grace = 2 passages (Rom 8:1-4, John 3:16)
+        # Sanctification = 2 passages (Rom 8:1-4, Rom 8:5)
+        # Intersection = 1 passage (Rom 8:1-4)
+        # Union = 3 passages -> Jaccard = 1/3 = 0.3333
+        p_sg = next(p for p in pairs if (p.tag_a == "Grace" and p.tag_b == "Sanctification") or (p.tag_a == "Sanctification" and p.tag_b == "Grace"))
+        self.assertEqual(p_sg.shared_passages, 1)
+        self.assertAlmostEqual(p_sg.jaccard_similarity, 1.0 / 3.0, places=3)
+        self.assertAlmostEqual(p_sg.dice_coefficient, 2.0 * 1.0 / (2 + 2), places=3)
+
+        # Matrix dict access
+        self.assertEqual(res.matrix["Grace"]["Sanctification"], 1)
+        self.assertEqual(res.matrix["Sanctification"]["Grace"], 1)
+        self.assertEqual(res.matrix["Grace"]["Grace"], 2)
+
+        # Formatting table
+        output = format_tag_co_occurrence_table(pairs, styling=False)
+        self.assertIn("Grace", output)
+        self.assertIn("Sanctification", output)
+        self.assertIn("Jaccard Index", output)
+
+    def test_verse_relevance_scoring(self) -> None:
+        # Score query for ['Grace', 'Sanctification']
+        rankings = self.svc.score_verse_relevance(["Grace", "Sanctification"], translation_id="WEB")
+        self.assertTrue(len(rankings) >= 2)
+
+        # Romans 8:1-4 matches BOTH Grace and Sanctification, and is starred -> highest score
+        top = rankings[0]
+        self.assertEqual(top.human_ref, "Romans 8:1-4")
+        self.assertTrue(top.starred)
+        self.assertEqual(top.matched_tags, ["Grace", "Sanctification"])
+        self.assertEqual(top.match_ratio, 1.0)
+        self.assertTrue(top.score > 0.8)
+        self.assertIn("There is therefore now no condemnation", top.text)
+
+        # Passages matching only 1 tag should have lower score
+        second = rankings[1]
+        self.assertTrue(top.score > second.score)
+
+        # Formatting relevance table
+        formatted = format_verse_relevance_table(rankings, styling=False)
+        self.assertIn("#1 Romans 8:1-4 ★", formatted)
+        self.assertIn("Score:", formatted)
+        self.assertIn("100% match", formatted)
+
+    def test_cli_density_command(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = str(Path(temp_dir.name) / "test_density.db")
+        db = create_mock_db(db_path)
+        svc = TaggingService(db)
+        svc.tag_passage("Romans 8:1", ["Atonement"])
+        db.close()
+
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", db_path, "tag", "density", "--json"])
+            self.assertEqual(code, 0)
+        data = json.loads(stdout.getvalue())
+        self.assertIsInstance(data, list)
+        self.assertTrue(any(d["book_name"] == "Romans" for d in data))
+
+        # Test text output
+        stdout_txt = io.StringIO()
+        with patch("sys.stdout", stdout_txt):
+            code = main(["--db", db_path, "tag", "density"])
+            self.assertEqual(code, 0)
+        self.assertIn("Topic Density Distribution Across Books", stdout_txt.getvalue())
+        self.assertIn("Romans", stdout_txt.getvalue())
+        temp_dir.cleanup()
+
+    def test_cli_cooccurrence_and_relevance_commands(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = str(Path(temp_dir.name) / "test_co.db")
+        db = create_mock_db(db_path)
+        svc = TaggingService(db)
+        svc.tag_passage("John 3:16", ["Gospel", "Love"])
+        db.close()
+
+        # Co-occurrence CLI
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["--db", db_path, "tag", "co-occurrence", "--json"])
+            self.assertEqual(code, 0)
+        data = json.loads(stdout.getvalue())
+        self.assertIn("pairs", data)
+        self.assertTrue(any(p["tag_a"] in ("Gospel", "Love") for p in data["pairs"]))
+
+        # Relevance CLI
+        stdout_rel = io.StringIO()
+        with patch("sys.stdout", stdout_rel):
+            code = main(["--db", db_path, "tag", "relevance", "Gospel", "Love", "--json"])
+            self.assertEqual(code, 0)
+        rel_data = json.loads(stdout_rel.getvalue())
+        self.assertEqual(len(rel_data), 1)
+        self.assertEqual(rel_data[0]["reference"], "John 3:16")
+
+        temp_dir.cleanup()
+
+    def test_shell_aggregation_commands(self) -> None:
+        out = io.StringIO()
+        with BibleShell(db_path=str(self.db.db_path), stdout=out, database=self.db) as shell:
+            # /tag density
+            shell.onecmd("/tag density")
+            self.assertIn("Topic Density Distribution", out.getvalue())
+
+            # /tag co-occurrence
+            out_co = io.StringIO()
+            shell.stdout = out_co
+            shell.onecmd("/tag co-occurrence")
+            self.assertIn("Tag Co-Occurrence Analysis", out_co.getvalue())
+
+            # /tag relevance
+            out_rel = io.StringIO()
+            shell.stdout = out_rel
+            shell.onecmd("/tag relevance Grace Sanctification")
+            self.assertIn("Scripture Passage Relevance Rankings", out_rel.getvalue())
+
+            # Autocompletion
+            matches = shell.complete_tag("den", "tag den", 4, 7)
+            self.assertEqual(matches, ["density"])
+            rel_matches = shell.complete_tag("rel", "tag rel", 4, 7)
+            self.assertEqual(rel_matches, ["relevance"])
 
 
 if __name__ == "__main__":
