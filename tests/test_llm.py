@@ -593,7 +593,6 @@ class TestGeminiTheologicalPrompts(unittest.TestCase):
             "thematic_ribbons": ["covenant_grace", "sacrifice_atonement"],
             "central_proposition": "God justifies ungodly sinners by grace alone through faith alone in Jesus Christ.",
             "christological_fulfillment": "Christ is put forward as a propitiation by His blood.",
-            "anti_moralistic_summary": "Righteousness is imputed, not earned through legal performance.",
             "discourse_rhetoric": [{"connective": "apart from the law", "relation": "contrast", "explanation": "Contrasts grace with works."}],
             "typological_arcs": [{"type_or_shadow": "Mercy Seat / Hilasterion", "antitype_fulfillment": "Christ crucified", "nt_reference": "Romans 3:25", "theological_warrant": "Propitiation"}],
         }

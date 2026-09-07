@@ -110,7 +110,7 @@ class TestTagPromptsDomain(unittest.TestCase):
         sys_prompt = get_tgc_hermeneutical_system_prompt()
         self.assertIn("DUAL-HORIZON HERMENEUTICS", sys_prompt)
         self.assertIn("CHRIST-CENTERED TELEOLOGY", sys_prompt)
-        self.assertIn("ANTI-MORALISTIC READING", sys_prompt)
+        self.assertIn("GOSPEL UNIQUENESS", sys_prompt)
         self.assertIn("The Gospel Coalition", sys_prompt)
 
     def test_format_taxonomy_for_prompt(self):

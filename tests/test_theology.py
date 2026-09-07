@@ -24,7 +24,6 @@ from core.theology import (
     ThematicRibbon,
     TheologicalGuardrails,
     TheologicalLocus,
-    audit_theology,
     get_master_system_prompt,
     get_theology_engine,
 )
@@ -84,8 +83,9 @@ class TestTGCEnumsAndConstants(unittest.TestCase):
         expected_principles = [
             "Dual-Horizon Hermeneutics",
             "Christ-Centered Teleology",
-            "Anti-Moralistic Interpretation",
-            "Grace-Driven Sanctification",
+            "Gospel Uniqueness (Grace vs. Legalism & Relativism)",
+            "Faith, Vocation & Cultural Good",
+            "The Doing of Justice and Mercy",
         ]
         for p in expected_principles:
             self.assertIn(p, TGC_MINISTRY_VISION_PRINCIPLES)
@@ -103,21 +103,21 @@ class TestTheologicalGuardrails(unittest.TestCase):
         self.assertIn("Biblical Inerrancy & Sufficiency", text)
         self.assertIn("Dual-Horizon Hermeneutics", text)
         self.assertIn("Christ-Centered Teleology", text)
-        self.assertIn("Anti-Moralistic Exegesis", text)
+        self.assertIn("Gospel Uniqueness & Grace-Driven Obedience", text)
         self.assertIn("Justification by Grace Alone through Faith Alone", text)
 
     def test_custom_guardrail_toggles(self):
         guardrails = TheologicalGuardrails(
             dual_horizon=False,
             christocentric=True,
-            anti_moralistic=False,
+            grace_driven_obedience=False,
             justification_by_faith=True,
             inerrancy_sufficiency=False,
         )
         text = guardrails.build_directive_text()
 
         self.assertNotIn("Dual-Horizon Hermeneutics", text)
-        self.assertNotIn("Anti-Moralistic Exegesis", text)
+        self.assertNotIn("Gospel Uniqueness & Grace-Driven Obedience", text)
         self.assertNotIn("Biblical Inerrancy", text)
         self.assertIn("Christ-Centered Teleology", text)
         self.assertIn("Justification by Grace Alone", text)
@@ -148,7 +148,7 @@ class TestTGCTheologyEnginePrompts(unittest.TestCase):
         self.assertIn("Redemptive-Historical Epoch", prompt)
         self.assertIn("Systematic Theological Loci", prompt)
         self.assertIn("Canonical Thematic Ribbons", prompt)
-        self.assertIn("Anti-Moralistic Safeguard", prompt)
+        self.assertIn("Discourse Logic", prompt)
         self.assertIn('"storyline_epoch": "<epoch_key>"', prompt)
         self.assertIn('"typological_arcs"', prompt)
 
@@ -183,7 +183,7 @@ class TestTGCTheologyEnginePrompts(unittest.TestCase):
         self.assertIn("**David**", prompt)
         self.assertIn("United Monarchy", prompt)
         self.assertIn("Canonical Horizon Constraint", prompt)
-        self.assertIn("Anti-Moralistic Realism & Humility", prompt)
+        self.assertIn("Biblical Humility & Canonical Realism", prompt)
         self.assertIn("Adultery with Bathsheba", prompt)
         self.assertIn("Murder of Uriah the Hittite", prompt)
         self.assertIn("chesed", prompt)
@@ -195,41 +195,6 @@ class TestTGCTheologyEnginePrompts(unittest.TestCase):
 
         master = get_master_system_prompt()
         self.assertEqual(master, engine.get_master_system_prompt())
-
-
-class TestTheologicalComplianceAuditor(unittest.TestCase):
-    """Test automated detection of moralism and verification of orthodox theological markers."""
-
-    def test_clean_theological_text_passes_audit(self):
-        text = """
-        This passage reveals God's sovereign covenant grace in delivering His people.
-        Though Israel repeatedly rebelled in the wilderness, Yahweh remained faithful to His promise.
-        Moses points forward to Jesus Christ, our true and greater mediator who secures our justification
-        by faith through His substitutionary atonement on the cross.
-        """
-        report = audit_theology(text)
-        self.assertTrue(report["compliant"])
-        self.assertEqual(report["score"], 1.0)
-        self.assertEqual(len(report["issues"]), 0)
-        self.assertIn("Grace", report["positive_markers"])
-        self.assertIn("Christ-centered", report["positive_markers"])
-        self.assertIn("Justification", report["positive_markers"])
-        self.assertIn("Atonement", report["positive_markers"])
-
-    def test_moralistic_reductionism_flagged(self):
-        text = "This story teaches that we should dare to be a daniel and earn God's favor by our virtues."
-        report = audit_theology(text)
-        self.assertFalse(report["compliant"])
-        self.assertLess(report["score"], 1.0)
-        self.assertTrue(any("Dare to be a Daniel" in issue for issue in report["issues"]))
-        self.assertTrue(any("earning divine favor" in issue for issue in report["issues"]))
-
-    def test_folk_religion_and_sola_fide_departure_flagged(self):
-        text = "Remember that God helps those who help themselves, and works contribute to our justification."
-        report = audit_theology(text)
-        self.assertFalse(report["compliant"])
-        self.assertTrue(any("folk religion" in issue for issue in report["issues"]))
-        self.assertTrue(any("Sola Fide" in issue for issue in report["issues"]))
 
 
 if __name__ == "__main__":

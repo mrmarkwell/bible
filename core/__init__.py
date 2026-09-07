@@ -81,7 +81,6 @@ from core.theology import (
     ThematicRibbon,
     TheologicalGuardrails,
     TheologicalLocus,
-    audit_theology,
     get_master_system_prompt,
     get_theology_engine,
 )
@@ -433,7 +432,6 @@ __all__ = [
     "TGCTheologyEngine",
     "get_master_system_prompt",
     "get_theology_engine",
-    "audit_theology",
     # Zero-Dependency Vector Similarity Engine
     "DEFAULT_VECTOR_DIM",
     "PACK_FORMAT_FLOAT32",

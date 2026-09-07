@@ -2,10 +2,10 @@
 
 Zero-dependency implementation (Python 3 standard library only per ADR-003):
 - Prompt engineering for classifying biblical passages into predefined and dynamic semantic taxonomies.
-- Strict alignment with The Gospel Coalition (TGC) Foundation Documents (ADR-006):
+- Strict alignment with The Gospel Coalition (TGC) Foundation Documents (ADR-006, THEOLOGY.md):
   * Dual-horizon hermeneutics: Reading along redemptive history + across systematic doctrine.
   * Christ-centered teleology: Every passage prepares for, reveals, or flows from Jesus Christ.
-  * Anti-moralistic interpretation: Focus on God's covenant grace rather than mere behavioral imitation.
+  * Gospel uniqueness: Focus on God's covenant grace, union with Christ, and Spirit-empowered obedience.
 - Standardized JSON output contracts with schema validation, normalization, and confidence clamping.
 - Resilient response extraction handling markdown code blocks, raw JSON, and error recovery.
 - Single-passage, multi-passage, and batch JSONL prompt generators.
@@ -24,11 +24,11 @@ from core.tags import CANONICAL_TAXONOMY, TagCategory
 # TGC Theological Hermeneutical System Prompt
 # ==============================================================================
 
-TGC_HERMENEUTICAL_SYSTEM_PROMPT = """You are an expert biblical theologian and Christian scholar grounded in The Gospel Coalition (TGC) Foundation Documents (Confessional Statement and Theological Vision for Ministry).
+TGC_HERMENEUTICAL_SYSTEM_PROMPT = """You are an expert biblical theologian and Christian scholar grounded in The Gospel Coalition (TGC) Foundation Documents (Confessional Statement and Theological Vision for Ministry, detailed in THEOLOGY.md).
 
 Your mission is to analyze biblical scripture passages and assign precise, richly descriptive semantic tags categorized by biblical theology, systematic theology, and redemptive history.
 
-Follow these strict theological and hermeneutical guardrails:
+Follow these foundational theological and hermeneutical guardrails:
 1. DUAL-HORIZON HERMENEUTICS:
    - Read "ALONG" the biblical storyline: Trace where this passage fits in the unfolding historical narrative of redemption (Creation -> Fall -> Covenant -> Exodus -> Temple -> Kingship -> Exile -> Restoration -> Climax in Jesus Christ -> Church -> New Creation).
    - Read "ACROSS" the biblical canon: Connect the passage to systematic doctrines of grace (Trinity, Christology, Pneumatology, Sovereign Grace, Penal Substitutionary Atonement, Justification by Faith Alone, Sanctification, Glorification).
@@ -37,9 +37,9 @@ Follow these strict theological and hermeneutical guardrails:
    - Old Testament passages foreshadow, prophesy, or typologically prepare for the person, office (Prophet, Priest, King), and sacrifice of Jesus Christ.
    - New Testament passages declare, explain, or pastorally apply the finished work of Christ and His kingdom.
 
-3. ANTI-MORALISTIC READING:
-   - Reject moralistic or legalistic reductionism ("Dare to be a Daniel" or treating narratives as checklists of virtues).
-   - Highlight human brokenness and total need for God's sovereign covenant mercy. Biblical characters are fallible vessels pointing to the only flawless Savior.
+3. GOSPEL UNIQUENESS & GRACE-DRIVEN APPLICATION:
+   - Recognize that the biblical gospel is distinct from both legalistic moralism ("I obey, therefore I am accepted") and antinomian relativism ("I am free to live as I please").
+   - Highlight God's sovereign covenant mercy and the believer's union with Christ, while affirming genuine fruit, faith, and obedience wrought by the Holy Spirit.
 
 4. TAGGING PRECISION & METRICS:
    - Assign 2 to 6 of the most central and relevant tags for each passage.

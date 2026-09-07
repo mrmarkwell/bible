@@ -120,7 +120,7 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Summary**: An interactive dialogue feature allowing users to "converse" with key biblical figures (e.g. Abraham, Moses, David, Isaiah, Mary, Peter, Paul) strictly within their canonical, historical, and theological context.
 - **Rationale**: Immersive educational and devotional tool for understanding the human experiences, historical challenges, and covenantal faith of scripture's authors and witnesses.
 - **Theological Foundation & Guardrails (TGC Alignment)**:
-  - **Anti-Moralistic Realism**: Characters are not presented as flawless heroes to be blindly imitated, but as fallen human beings saved solely by God's sovereign mercy and grace. David speaks openly of his sin and desperate need for cleansing (Psalm 51); Peter of his denials and restoration by Christ.
+  - **Biblical Humility & Canonical Realism**: Characters are not presented as flawless heroes to be blindly imitated, but as fallen human beings saved solely by God's sovereign mercy and grace, walking in genuine, Spirit-wrought faith. David speaks openly of his sin and desperate need for cleansing (Psalm 51); Peter of his denials and restoration by Christ.
   - **Christocentric Teleology**: Every character speaks from their historical horizon but bears witness to God's unfolding promise climaxing in the Messiah (e.g., Moses speaking of the prophet like unto him; Abraham rejoicing to see Christ's day; Paul testifying to the righteousness of God revealed in Jesus).
   - **Strict Scriptural Bounding**: Characters decline to speculate on extrabiblical modern queries or invent personal lore not warranted by scripture.
 - **Constraints & Alignment**:
@@ -289,7 +289,7 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ### [DONE] Batch LLM Semantic Tagging Pipeline, TGC Hermeneutical Prompt Engine & Offline Ingestion (Rank A+)
 - **Rank**: `A+` (Unambiguously a good idea for improvement)
-- **Summary**: Implement a zero-dependency batch LLM tagging generator (`tools/tag_generator.py`) and prompt engine (`core/tag_prompts.py`) grounded in The Gospel Coalition (TGC) Foundation Documents (ADR-006). Supports dual-horizon hermeneutics, Christ-centered teleology, and anti-moralistic reading. Features:
+- **Summary**: Implement a zero-dependency batch LLM tagging generator (`tools/tag_generator.py`) and prompt engine (`core/tag_prompts.py`) grounded in The Gospel Coalition (TGC) Foundation Documents (ADR-006, THEOLOGY.md). Supports dual-horizon hermeneutics, Christ-centered teleology, and gospel uniqueness (grace-driven application). Features:
   1. Offline inspection and prompt export for single passages, batch JSONL generation (from `--refs`, `favorite_bible_verses.csv`, or books), and offline response file application (`./bible tag apply-llm`).
   2. Online execution via Google Gemini REST API (`gemini-2.5-pro` with `gemini-2.0-flash` fallback) using pure Python standard library `urllib.request` (zero pip packages).
   3. CLI subcommands (`./bible tag prompt`, `./bible tag generate`, `./bible tag apply-llm`, `./bible tag batch`) and interactive REPL command (`/tag prompt`).
@@ -455,7 +455,7 @@ Ideas can be added directly by the repository owner or generated during interact
      - *Entity & Agency Network*: Canonical character profiles, agent-action-patient semantic triples, and contextual divine titles.
      - *Speech Acts & Devotional Tone*: Illocutionary force (imperative, promise, warning, indicative, lament, doxology) and emotional affect.
      - *Vector Geometry*: Quantized dense vector embeddings for all 31,102 verses and pericopes for zero-shot conceptual search.
-  2. **Multi-Pass Quality Assurance & Verification**: Employs top-down book horizon context, low-temperature structured JSON prompting, an automated exegetical critic audit (checking canonical coordinate validity, anti-moralistic compliance, and entity normalization), and a resumable SQLite ledger.
+  2. **Multi-Pass Quality Assurance & Verification**: Employs top-down book horizon context, low-temperature structured JSON prompting, an automated exegetical critic audit (checking canonical coordinate validity, theological coherence with THEOLOGY.md, and entity normalization), and a resumable SQLite ledger.
   3. **Offline Sovereignty & Legal Compliance**: Analyzes ESV text via one-time execution, storing derivative metadata, coordinates, and relational edges in SQLite without distributing raw copyrighted text files in the git repository (ADR-041).
 - **Rationale**: The Bible is a static, closed canon that does not change. Performing an elite, high-compute semantic extraction once and saving the verified results into an immutable local SQLite database equips the Bible Engine with permanent, microsecond-latency theological intelligence offline without recurring API dependencies.
 - **Constraints & Alignment**:

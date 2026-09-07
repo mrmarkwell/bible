@@ -295,7 +295,6 @@ class VerseTheologyRecord:
     primary_doctrine: str
     thematic_ribbon: Optional[str] = None
     confidence: float = 1.0
-    anti_moralistic_notes: Optional[str] = None
     created_at: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -310,7 +309,6 @@ class VerseTheologyRecord:
             "primary_doctrine": self.primary_doctrine,
             "thematic_ribbon": self.thematic_ribbon,
             "confidence": self.confidence,
-            "anti_moralistic_notes": self.anti_moralistic_notes,
             "created_at": self.created_at,
         }
 
@@ -689,7 +687,6 @@ CREATE TABLE IF NOT EXISTS verse_theology (
     theological_locus TEXT NOT NULL,
     primary_doctrine TEXT NOT NULL,
     confidence REAL NOT NULL DEFAULT 1.0,
-    anti_moralistic_notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -2771,7 +2768,6 @@ class Database:
         primary_doctrine: str,
         thematic_ribbon: Optional[str] = None,
         confidence: float = 1.0,
-        anti_moralistic_notes: Optional[str] = None,
     ) -> VerseTheologyRecord:
         """Insert theological locus, epoch, and ribbon annotation for a passage."""
         ref = parse_reference(reference) if isinstance(reference, str) else reference
@@ -2786,8 +2782,8 @@ class Database:
                 INSERT INTO verse_theology (
                     start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                     thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                    anti_moralistic_notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     s_id,
@@ -2798,7 +2794,6 @@ class Database:
                     theological_locus.strip(),
                     primary_doctrine.strip(),
                     confidence,
-                    anti_moralistic_notes.strip() if anti_moralistic_notes else None,
                     now,
                 ),
             )
@@ -2814,7 +2809,6 @@ class Database:
             primary_doctrine=primary_doctrine.strip(),
             thematic_ribbon=thematic_ribbon.strip() if thematic_ribbon else None,
             confidence=confidence,
-            anti_moralistic_notes=anti_moralistic_notes.strip() if anti_moralistic_notes else None,
             created_at=now,
         )
 
@@ -2832,7 +2826,6 @@ class Database:
             doctrine = item[3]
             ribbon = item[4] if len(item) > 4 else None
             conf = item[5] if len(item) > 5 else 1.0
-            notes = item[6] if len(item) > 6 else None
 
             ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
             rows.append((
@@ -2844,7 +2837,6 @@ class Database:
                 locus.strip(),
                 doctrine.strip(),
                 conf,
-                notes.strip() if notes else None,
                 now,
             ))
 
@@ -2854,8 +2846,8 @@ class Database:
                 INSERT INTO verse_theology (
                     start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                     thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                    anti_moralistic_notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -2875,7 +2867,7 @@ class Database:
             """
             SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                   anti_moralistic_notes, created_at
+                   created_at
             FROM verse_theology
             WHERE start_canonical_id <= ? AND end_canonical_id >= ?
             ORDER BY start_canonical_id ASC, id ASC
@@ -2895,7 +2887,6 @@ class Database:
                 theological_locus=r["theological_locus"],
                 primary_doctrine=r["primary_doctrine"],
                 confidence=r["confidence"],
-                anti_moralistic_notes=r["anti_moralistic_notes"],
                 created_at=r["created_at"],
             )
             for r in rows
@@ -2912,7 +2903,7 @@ class Database:
             """
             SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                   anti_moralistic_notes, created_at
+                   created_at
             FROM verse_theology
             WHERE storyline_epoch = ?
             ORDER BY start_canonical_id ASC, id ASC
@@ -2933,7 +2924,6 @@ class Database:
                 theological_locus=r["theological_locus"],
                 primary_doctrine=r["primary_doctrine"],
                 confidence=r["confidence"],
-                anti_moralistic_notes=r["anti_moralistic_notes"],
                 created_at=r["created_at"],
             )
             for r in rows
@@ -2950,7 +2940,7 @@ class Database:
             """
             SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                   anti_moralistic_notes, created_at
+                   created_at
             FROM verse_theology
             WHERE theological_locus = ?
             ORDER BY start_canonical_id ASC, id ASC
@@ -2971,7 +2961,6 @@ class Database:
                 theological_locus=r["theological_locus"],
                 primary_doctrine=r["primary_doctrine"],
                 confidence=r["confidence"],
-                anti_moralistic_notes=r["anti_moralistic_notes"],
                 created_at=r["created_at"],
             )
             for r in rows
@@ -2988,7 +2977,7 @@ class Database:
             """
             SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
-                   anti_moralistic_notes, created_at
+                   created_at
             FROM verse_theology
             WHERE thematic_ribbon = ?
             ORDER BY start_canonical_id ASC, id ASC
@@ -3009,7 +2998,6 @@ class Database:
                 theological_locus=r["theological_locus"],
                 primary_doctrine=r["primary_doctrine"],
                 confidence=r["confidence"],
-                anti_moralistic_notes=r["anti_moralistic_notes"],
                 created_at=r["created_at"],
             )
             for r in rows

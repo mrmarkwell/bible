@@ -1668,3 +1668,35 @@ This document is an append-only log of significant design and architectural deci
   - Empowers offline semantic search across all 31,102 verses with lightning speed (<15ms).
   - Maintains ADR-003 zero-maintenance guarantee with zero Dependabot alerts.
   - Satisfies Task 7.2 in `ROADMAP.md`.
+
+---
+
+## ADR-052: Organic Theological Alignment via THEOLOGY.md and Retirement of Mechanistic Auditing
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - In earlier iterations (ADR-006, ADR-049, ADR-050), previous agents attempted to enforce strict theological compliance by elevating the colloquial pulpit slogan "Anti-Moralism" into a primary architectural pillar.
+  - The repository owner audited this formulation and observed that the exact term "Anti-Moralism" is completely absent from The Gospel Coalition (TGC) Foundation Documents. Over-indexing on this negative slogan created an artificial distortion:
+    1. It created a risk of antinomianism or cynicism toward genuine biblical commands, sanctification, repentance, and biblical exemplars of faith (Hebrews 11, 1 Corinthians 10:6).
+    2. It mechanized theology into brittle regex scanners (`audit_theological_compliance` matching phrases like "Dare to be a Daniel") and arbitrary numerical scores, failing to grasp the organic, relational nature of Christian theology.
+    3. It added a synthetic column `anti_moralistic_notes` to SQLite tables and forced an `anti_moralistic_summary` field into pericope analysis schemas.
+    4. It obscured TGC's actual core emphases, such as warning against theological and moral relativism, affirming transformed living, integrating faith and work, and doing justice and mercy.
+- **Decision**:
+  1. **Authoritative Root Document (`THEOLOGY.md`)**:
+     - Published the complete, unabridged text of The Gospel Coalition Foundation Documents (Preamble, Confessional Statement, and Theological Vision for Ministry) in `THEOLOGY.md` at the repository root.
+     - Outlined the Bible Engine's hermeneutical principles: inerrancy, dual-horizon navigation, Christ-centered teleology, gospel uniqueness (avoiding both legalism and relativism), and whole-life discipleship.
+  2. **Retirement of Mechanistic Regex Auditing**:
+     - Completely removed `audit_theological_compliance()` and `audit_theology()` from `core/theology.py` and `core/__init__.py`.
+     - Replaced brittle software regex checks with qualitative, thoughtful human/agent review.
+  3. **Purging of Synthetic Database Columns & Prompt Schema Fields**:
+     - Removed `anti_moralistic_notes` from `VerseTheologyRecord`, `verse_theology` schema, and all database helper methods in `core/db.py`.
+     - Removed `anti_moralistic_summary` and the "Anti-Moralistic Safeguard" directive from pericope analysis prompts in `core/theology.py`.
+     - Replaced the negative guardrail slogan in character persona prompts with "Biblical Humility & Canonical Realism".
+     - Replaced "ANTI-MORALISTIC READING" in `core/tag_prompts.py` with "GOSPEL UNIQUENESS & GRACE-DRIVEN APPLICATION".
+  4. **Theological Review Agent Skill (`skills/theological-review/SKILL.md`)**:
+     - Created a specialized agent skill guiding agents to conduct deep, context-aware qualitative reviews of prompts, character personas, and metadata against `THEOLOGY.md`.
+- **Consequences**:
+  - Restores faithful, organic alignment with the true breadth of The Gospel Coalition Foundation Documents.
+  - Eliminates brittle regex-based "theological auditing" and synthetic schema columns.
+  - Preserves 100% zero-dependency architecture (ADR-003).
+  - All 648 unit and integration tests passing hermetically.

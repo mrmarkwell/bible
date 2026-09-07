@@ -843,7 +843,6 @@ class TestPhase7SemanticArchitecture(unittest.TestCase):
             primary_doctrine="Justification by grace through faith in Christ's propitiation",
             thematic_ribbon="covenant_of_grace",
             confidence=0.99,
-            anti_moralistic_notes="Righteousness is wholly imputed and received by faith apart from law-keeping",
         )
         self.assertIsNotNone(vt1.id)
         self.assertEqual(vt1.theological_locus, "soteriology")

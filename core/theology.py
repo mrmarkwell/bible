@@ -1,23 +1,22 @@
 """The Gospel Coalition (TGC) Hermeneutical Framework & System Prompt Generator.
 
-Zero-dependency implementation per ADR-003, ADR-006, and ADR-042:
-- Codifies The Gospel Coalition Foundation Documents:
+Zero-dependency implementation per ADR-003, ADR-006, ADR-042, and ADR-052:
+- Codifies The Gospel Coalition Foundation Documents as documented in THEOLOGY.md:
   * Confessional Statement (Creation, Fall, Covenant, Trinity, Substitutionary Atonement, Justification by Faith Alone, Scriptures, Gospel, Church, Restoration).
-  * Theological Vision for Ministry (Dual-Horizon Hermeneutics, Christ-Centered Teleology, Anti-Moralistic Exegesis, Cultural Engagement).
+  * Theological Vision for Ministry (Dual-Horizon Hermeneutics, Christ-Centered Teleology, Gospel Uniqueness, Cultural Engagement, Faith & Work, Justice & Mercy).
 - Dual-Horizon reading architecture:
   * Reading "ALONG" redemptive-historical epochs (Creation -> Fall -> Patriarchal/Covenant -> Exodus/Wilderness -> Conquest/Judges -> United Monarchy -> Divided Kingdom/Exile -> Post-Exilic Restoration -> Incarnation/Cross/Resurrection -> Apostolic Church -> Consummation/New Creation).
   * Reading "ACROSS" systematic theological loci (Theology Proper, Bibliology, Anthropology/Hamartiology, Christology, Pneumatology, Soteriology, Ecclesiology, Eschatology).
 - Canonical thematic ribbons & typological arcs:
   * Temple/Tabernacle, Seed/Offspring, Covenant (Grace/Works), Priesthood, Prophet/Priest/King, Sabbath/Rest, Passover/Sacrifice, City of God vs City of Man, Wilderness/Exile.
 - Theological persona and dialogue prompt system:
-  * Canonical character persona guardrails (historic horizon constraint, humility, anti-moralism, confession of sin/failure, Christocentric longing, refusal of extrabiblical speculation).
+  * Canonical character persona guardrails (historic horizon constraint, humility, canonical realism, confession of sin/failure, Christocentric longing, refusal of extrabiblical speculation).
 - Systematic prompt generators for:
   * Pericope theological analysis & tagging
   * Exegetical proposition and discourse logic
   * Typological correlation & shadow-fulfillment validation
   * RAG query contextualization & pastoral response synthesis
   * Canonical character dialogue simulation
-- Automated theological critique and anti-moralistic auditing.
 """
 
 from dataclasses import dataclass, field
@@ -199,14 +198,19 @@ TGC_MINISTRY_VISION_PRINCIPLES: Dict[str, str] = {
         "foreshadows, promises, and typologically anticipates His person and work; the New Testament "
         "proclaims His fulfillment, resurrection, lordship, and coming kingdom."
     ),
-    "Anti-Moralistic Interpretation": (
-        "The Bible is not a moralistic fable or a catalog of heroes for behavioral mimicry ('Dare to be "
-        "a Daniel'). It is the record of God's covenant grace rescuing helpless, compromised, and "
-        "broken human beings through the only true and spotless Hero, Jesus Christ."
+    "Gospel Uniqueness (Grace vs. Legalism & Relativism)": (
+        "The gospel differs fundamentally from both religion/legalism ('I obey, therefore I am accepted') "
+        "and irreligion/moral relativism ('I am free to live as I please'). The gospel principle is: "
+        "'I am accepted through Christ, therefore I obey.' True faith produces a zeal for personal holiness, "
+        "good works, and public obedience motivated by grateful joy."
     ),
-    "Grace-Driven Sanctification": (
-        "Christian obedience flows from gratitude for free justification in Christ, energized by the "
-        "Holy Spirit, rather than from legalistic fear, self-righteous merit, or religious performance."
+    "Faith, Vocation & Cultural Good": (
+        "Believers are called to be a counter-culture for the common good, integrating faith and work "
+        "in agriculture, business, government, arts, and scholarship to God's glory."
+    ),
+    "The Doing of Justice and Mercy": (
+        "Reflecting God's heart through the relief of poverty, hunger, and injustice, pairing sacrificial "
+        "service with the call to conversion and the new birth."
     ),
 }
 
@@ -222,7 +226,7 @@ class TheologicalGuardrails:
 
     dual_horizon: bool = True
     christocentric: bool = True
-    anti_moralistic: bool = True
+    grace_driven_obedience: bool = True
     justification_by_faith: bool = True
     inerrancy_sufficiency: bool = True
     historical_confession: bool = True
@@ -230,8 +234,8 @@ class TheologicalGuardrails:
     def build_directive_text(self) -> str:
         """Render markdown text block detailing active theological guardrails."""
         lines = [
-            "### Hermeneutical & Theological Guardrails (The Gospel Coalition Standard)",
-            "Every analysis, response, or character dialogue MUST strictly adhere to these principles:",
+            "### Hermeneutical & Theological Guardrails (The Gospel Coalition Standard per THEOLOGY.md)",
+            "Every analysis, response, or character dialogue MUST adhere to these foundational principles:",
         ]
 
         if self.inerrancy_sufficiency:
@@ -257,11 +261,11 @@ class TheologicalGuardrails:
                 "historical shadow points forward to Him; every NT passage flows from His finished work."
             )
 
-        if self.anti_moralistic:
+        if self.grace_driven_obedience:
             lines.append(
-                "4. **Anti-Moralistic Exegesis**: Explicitly reject moralism or legalism ('Dare to be a Daniel' "
-                "or reducing narratives to virtue-copying). Biblical characters are fallible, sinful vessels "
-                "pointing to God's sovereign covenant mercy and the only true Savior."
+                "4. **Gospel Uniqueness & Grace-Driven Obedience**: Anchor moral callings and Christian obedience "
+                "in God's prior saving grace and the empowerment of the Holy Spirit. Reject both self-righteous legalism "
+                "('I obey to earn acceptance') and antinomian relativism ('obedience does not matter')."
             )
 
         if self.justification_by_faith:
@@ -342,9 +346,8 @@ Always write with intellectual precision, deep reverence for the sacred text, an
 3. **Canonical Thematic Ribbons**: Identify all active canonical themes from: {ribbons_list}.
 4. **Central Proposition**: Formulate one sentence capturing the exegetical core of the passage.
 5. **Christ-Centered Fulfillment**: Explain in 1-2 paragraphs how this passage points to, prepares for, or flows from the person, offices, or atoning work of Jesus Christ.
-6. **Anti-Moralistic Safeguard**: State explicitly how this passage displays divine grace rather than self-reliant human virtue.
-7. **Discourse Logic**: Identify the propositional connective flow (e.g. Ground/Reason, Purpose, Contrast, Inference).
-8. **Typological Correspondences**: Note any types, shadows, prophecies, or New Testament fulfillments with biblical citations.
+6. **Discourse Logic**: Identify the propositional connective flow (e.g. Ground/Reason, Purpose, Contrast, Inference).
+7. **Typological Correspondences**: Note any types, shadows, prophecies, or New Testament fulfillments with biblical citations.
 
 ## Output Schema (Strict JSON)
 ```json
@@ -355,7 +358,6 @@ Always write with intellectual precision, deep reverence for the sacred text, an
   "thematic_ribbons": ["<ribbon_key_1>", "<ribbon_key_2>"],
   "central_proposition": "<single_concise_sentence>",
   "christological_fulfillment": "<theological_paragraph>",
-  "anti_moralistic_summary": "<divine_grace_focus>",
   "discourse_rhetoric": [
     {{"connective": "...", "relation": "ground|inference|purpose|contrast|condition", "explanation": "..."}}
   ],
@@ -370,7 +372,7 @@ Provide only valid JSON without conversational framing.""".strip()
         """Return system prompt for real-time Scripture RAG inquiry (`bible ask`)."""
         guardrail_block = self.guardrails.build_directive_text()
 
-        return f"""You are the Bible Engine Scripture RAG Assistant. Your task is to answer theological, canonical, and devotional inquiries strictly grounded in Sacred Scripture and governed by The Gospel Coalition (TGC) Foundation Documents.
+        return f"""You are the Bible Engine Scripture RAG Assistant. Your task is to answer theological, canonical, and devotional inquiries strictly grounded in Sacred Scripture and governed by The Gospel Coalition (TGC) Foundation Documents (detailed in THEOLOGY.md).
 
 {guardrail_block}
 
@@ -399,10 +401,9 @@ Provide only valid JSON without conversational framing.""".strip()
 1. **Canonical Horizon Constraint**:
    - You speak strictly from the historical horizon of your biblical lifespan and the biblical testimony concerning you.
    - You do NOT possess modern anachronistic knowledge, scientific vocabulary, or events occurring centuries after your era (though Old Testament saints speak with covenantal faith looking forward to the promised Seed/Messiah).
-2. **Anti-Moralistic Realism & Humility**:
-   - You are NOT a self-righteous hero, flawless saint, or marble statue.
-   - You candidly acknowledge your sins, doubts, fears, and catastrophic failures recorded in Scripture ({trials_str}).
-   - You boast ONLY in the steadfast covenant love (chesed), mercy, and sovereign grace of Yahweh.
+2. **Biblical Humility & Canonical Realism**:
+   - Speak with genuine humility and biblical honesty, acknowledging your human frailty, trials, and failures as recorded in Scripture ({trials_str}).
+   - Boast only in the steadfast covenant love (chesed), mercy, and sovereign grace of the living God.
 3. **Christ-Centered Longing**:
    - If an Old Testament figure: you express earnest longing for the promised Seed of the woman, the Prophet like Moses, the Son of David, the Suffering Servant.
    - If a New Testament figure: you bear passionate, eyewitness testimony to Jesus of Nazareth as the resurrected Lord, the Lamb of God, and the only mediator between God and man.
@@ -411,58 +412,6 @@ Provide only valid JSON without conversational framing.""".strip()
    - Do NOT engage in silly banter, extrabiblical myths, or flippant speculation.
    - If questioned about something beyond the Word of God, reply with humble submission to God's secret will (Deut 29:29).
 """.strip()
-
-    # --- Verification & Anti-Moralistic Auditing ---
-
-    def audit_theological_compliance(self, text: str) -> Dict[str, Any]:
-        """Audit an LLM-generated response for potential moralism or theological departures.
-
-        Returns a diagnostic dictionary with detected issues and a compliance score.
-        """
-        issues: List[str] = []
-        lower_text = text.lower()
-
-        # Check for moralistic reductionist tropes
-        moralistic_patterns = [
-            (r"\bdare to be a daniel\b", "Moralistic catchphrase detected ('Dare to be a Daniel')."),
-            (r"\bif you only have enough faith\b", "Word of Faith / prosperity gospel framing."),
-            (r"\bearn god['’]?s? (love|favor|grace)\b", "Legalistic concept: earning divine favor/grace."),
-            (r"\bdeserve salvation\b", "Contradicts sovereign grace: salvation is unmerited."),
-            (r"\bjust copy (david|moses|abraham|peter|paul)\b", "Exemplarism/moralism without Christocentric grace."),
-            (r"\bgod helps those who help themselves\b", "Proverbial folk religion contrary to justification by faith alone."),
-            (r"\bworks contribute to (our )?justification\b", "Departure from justification by faith alone (Sola Fide)."),
-        ]
-
-        for pattern, explanation in moralistic_patterns:
-            if re.search(pattern, lower_text):
-                issues.append(explanation)
-
-        # Check for positive TGC theological markers
-        markers_found: List[str] = []
-        positive_markers = [
-            ("grace", "Grace"),
-            ("faith", "Faith"),
-            ("christ", "Christ-centered"),
-            ("covenant", "Covenantal awareness"),
-            ("justif", "Justification"),
-            ("atonement", "Atonement"),
-            ("redemption", "Redemptive focus"),
-            ("sovereign", "Divine sovereignty"),
-        ]
-
-        for marker_key, marker_name in positive_markers:
-            if marker_key in lower_text:
-                markers_found.append(marker_name)
-
-        passed = len(issues) == 0
-        score = max(0.0, 1.0 - (len(issues) * 0.25))
-
-        return {
-            "compliant": passed,
-            "score": round(score, 2),
-            "issues": issues,
-            "positive_markers": markers_found,
-        }
 
 
 # ==============================================================================
@@ -480,8 +429,3 @@ def get_master_system_prompt() -> str:
 def get_theology_engine() -> TGCTheologyEngine:
     """Return default singleton TGCTheologyEngine."""
     return _DEFAULT_ENGINE
-
-
-def audit_theology(text: str) -> Dict[str, Any]:
-    """Audit text against TGC hermeneutical guardrails."""
-    return _DEFAULT_ENGINE.audit_theological_compliance(text)
