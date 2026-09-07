@@ -1336,4 +1336,44 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 036** (Standard Ralph Loop Iteration).
   - Active domain roadmap task pending: **Task 5.2**: *Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins*.
 
+---
+
+## [Run 036] — 2026-09-07
+- **Agent**: Ralph Loop Standard Cycle Agent
+- **Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation (Task 5.2 / ADR-037)
+- **Task**: Task 5.2 — Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins.
+- **Actions Taken**:
+  - **Balanced Word Wrapping Engine (`core/render.py`)**:
+    - Implemented `wrap_text_balanced` using dynamic programming cost minimization (similar to Knuth-Plass line breaking) in pure Python standard library.
+    - Minimizes line length variance ($\sum (\text{max\_w} - \text{line\_w})^2$), heavily penalizing ragged line ends and eliminating awkward single-word orphan trailing lines ("widows") on landscape 16:9 displays.
+    - Preserves all original words and whitespace integrity while falling back cleanly to `wrap_text_to_width` when needed.
+  - **Dynamic Binary Search Font Auto-Fitting with Clamping**:
+    - Upgraded `calculate_slide_layout` with high-precision binary search font auto-fitting constrained between `min_font_size` and `max_font_size`.
+    - Automatically derives baseline bounds from screen resolution (scaling dynamically from 4K down to 720p and square formats).
+    - Accurately accounts for body text height, pericope header, illuminated accent rule, and citation/translation block, ensuring zero visual overflow outside TV safe margins (`safe_h`).
+  - **Human Optical Vertical Centering**:
+    - Implemented `optical_center_pct` (defaulting to 0.45) to position text along the golden optical center baseline for landscape monitors and TV displays rather than bottom-heavy 50% geometric middle.
+    - Included automated safety clamping so long passages never clip beyond `safe_y` or `safe_y + safe_h`.
+  - **Omnichannel Typography Exposure**:
+    - `RenderConfig`: Added `font_family`, `min_font_size`, `max_font_size`, `line_spacing`, `text_align`, `citation_style` (`below`, `smallcaps`, `none`), `optical_center_pct`, and `balance_lines`.
+    - `cli/main.py`: Added `--font`, `--line-spacing`, `--citation-style`, `--optical-center`, and `--no-balance` flags to `./bible slide`.
+    - `cli/shell.py`: Added typography flags to `/slide` REPL command and autocompletion in `complete_slide`.
+    - `web/server.py`: Added `font`, `font_size`, `line_spacing`, `align`, `citation_style`, `optical_center`, and `balance` query parameters to `GET /api/slide`.
+    - `SvgSlideRenderer`: Enhanced CSS styles with `font-variant: all-small-caps` and tracking adjustments for citations.
+  - **Hermetic Unit Testing (`tests/test_render.py`)**:
+    - Added unit tests for balanced word wrapping, single-word orphan avoidance, font size clamping, optical vertical centering, and citation styling (`smallcaps` and `none`).
+    - Total test suite expanded to **441 tests across 22 modules passing 100% in 1.98s** with zero resource warnings or leaks.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-037** in `DECISIONS.md`.
+    - Marked Task 5.2 as `[x]` in `ROADMAP.md`.
+- **Verification**:
+  - Ran `./bible test`: 441 tests across 22 modules passed in 1.986s.
+  - Tested slide rendering with custom typography via `./bible slide "Romans 8:28" -f svg --citation-style smallcaps --optical-center 0.45 -o /tmp/slide_test.svg`.
+  - Ran `python3 tools/doctor.py`: all 6 repository diagnostics passed.
+- **Handoff Notes for Next Agent**:
+  - Task 5.2 is 100% complete, verified, and unblocked.
+  - Next cycle is **Run 037** (Standard Ralph Loop Iteration).
+  - Active domain roadmap task pending: **Task 5.3**: *Implement CLI slide generation command (`bible slide` / `bible render`) with rich options (Resolution, themes, typography, layout, citation style, and format)* — Note: many CLI flags have been scaffolded; next task should polish slide CLI output messaging, handle multi-verse citations cleanly, format validation, and custom output directory management.
+
+
 

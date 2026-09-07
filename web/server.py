@@ -871,14 +871,49 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         theme_param = query.get("theme", ["oled_black"])[0]
         fmt_param = query.get("format", ["svg"])[0].lower()
         backend_param = query.get("backend", ["svg"])[0].lower()
+        font_param = query.get("font", [None])[0]
+        font_size_raw = query.get("font_size", [None])[0]
+        line_spacing_raw = query.get("line_spacing", ["1.5"])[0]
+        align_param = query.get("align", ["center"])[0].lower()
+        citation_style_param = query.get("citation_style", ["below"])[0].lower()
+        optical_center_raw = query.get("optical_center", ["0.45"])[0]
+        balance_param = query.get("balance", ["true"])[0].lower()
 
         w, h = parse_resolution(res_param)
         theme_obj = get_theme(theme_param)
+
+        font_size = None
+        if font_size_raw:
+            try:
+                font_size = float(font_size_raw)
+            except ValueError:
+                font_size = None
+
+        line_spacing = 1.5
+        try:
+            line_spacing = float(line_spacing_raw)
+        except ValueError:
+            line_spacing = 1.5
+
+        optical_center = 0.45
+        try:
+            optical_center = float(optical_center_raw)
+        except ValueError:
+            optical_center = 0.45
+
+        balance_lines = balance_param not in ("false", "0", "no")
 
         config = RenderConfig(
             width=w,
             height=h,
             theme=theme_obj,
+            font_family=font_param,
+            font_size=font_size,
+            line_spacing=line_spacing,
+            text_align=align_param if align_param in ("center", "left", "right") else "center",
+            citation_style=citation_style_param if citation_style_param in ("below", "smallcaps", "none") else "below",
+            optical_center_pct=optical_center,
+            balance_lines=balance_lines,
             backend=backend_param,
             output_format="svg" if fmt_param == "svg" else fmt_param,
         )

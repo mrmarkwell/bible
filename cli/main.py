@@ -2396,10 +2396,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Scripture translation identifier (default: WEB)",
     )
     parser_slide.add_argument(
+        "--font",
+        dest="font_family",
+        default=None,
+        help="Custom font family name or CSS stack (e.g. 'Georgia, serif')",
+    )
+    parser_slide.add_argument(
         "--font-size",
         type=float,
         default=None,
         help="Explicit typography font size in points (default: auto-fit based on text volume)",
+    )
+    parser_slide.add_argument(
+        "--line-spacing",
+        type=float,
+        default=1.5,
+        help="Line height multiplier for verse typography (default: 1.5)",
+    )
+    parser_slide.add_argument(
+        "--citation-style",
+        choices=["below", "smallcaps", "none"],
+        default="below",
+        help="Citation typography style ('below', 'smallcaps', 'none', default: below)",
+    )
+    parser_slide.add_argument(
+        "--no-balance",
+        action="store_true",
+        help="Disable balanced word wrapping (revert to greedy first-fit line breaking)",
+    )
+    parser_slide.add_argument(
+        "--optical-center",
+        type=float,
+        default=0.45,
+        help="Optical vertical centering ratio baseline between 0.0 and 1.0 (default: 0.45 for human golden eye line)",
     )
     parser_slide.add_argument(
         "--safe-area",
@@ -2495,8 +2524,13 @@ def build_parser() -> argparse.ArgumentParser:
                 height=h,
                 theme=theme,
                 safe_area_pct=args.safe_area,
+                font_family=getattr(args, "font_family", None),
                 font_size=args.font_size,
+                line_spacing=getattr(args, "line_spacing", 1.5),
                 text_align=args.align,
+                citation_style=getattr(args, "citation_style", "below"),
+                optical_center_pct=getattr(args, "optical_center", 0.45),
+                balance_lines=not getattr(args, "no_balance", False),
                 show_accent_rule=not args.no_rule,
                 backend=args.backend,
                 output_format=target_format,

@@ -34,6 +34,7 @@ from core.render import (
     is_imagemagick_available,
     parse_resolution,
     render_verse_slide,
+    wrap_text_balanced,
     wrap_text_to_width,
 )
 
@@ -136,6 +137,58 @@ class TestLayoutAndTypography(unittest.TestCase):
         self.assertLess(layout.font_size, 80.0)
         self.assertGreaterEqual(layout.font_size, 36.0)
         self.assertGreaterEqual(len(layout.wrapped_lines), 4)
+
+    def test_wrap_text_balanced(self):
+        text = "The grace of the Lord Jesus Christ and the love of God and the fellowship of the Holy Spirit be with you all."
+        lines = wrap_text_balanced(text, max_width=600.0, font_size=36.0)
+        self.assertGreater(len(lines), 1)
+        self.assertEqual(" ".join(lines), text)
+
+    def test_balanced_wrapping_eliminates_single_word_orphan(self):
+        # A sentence where greedy wrapping might leave one trailing word
+        text = "For by grace you have been saved through faith and this is not your own doing"
+        greedy_lines = wrap_text_to_width(text, max_width=450.0, font_size=32.0)
+        balanced_lines = wrap_text_balanced(text, max_width=450.0, font_size=32.0)
+
+        # Balanced wrapping ensures words are preserved
+        self.assertEqual(" ".join(balanced_lines), text)
+        # Last line of balanced text should avoid single-word orphan if possible
+        if len(balanced_lines) > 1:
+            self.assertGreaterEqual(len(balanced_lines[-1].split()), 2)
+
+    def test_font_size_min_max_clamping(self):
+        content = SlideContent(text="In the beginning was the Word.", citation="John 1:1")
+        # Clamp between 30 and 45 pt
+        config = RenderConfig(width=1920, height=1080, min_font_size=30.0, max_font_size=45.0)
+        layout = calculate_slide_layout(content, config)
+        self.assertLessEqual(layout.font_size, 45.0)
+        self.assertGreaterEqual(layout.font_size, 30.0)
+
+    def test_optical_vertical_centering_baseline(self):
+        content = SlideContent(text="Peace I leave with you; my peace I give to you.", citation="John 14:27")
+        config_45 = RenderConfig(width=1920, height=1080, optical_center_pct=0.45)
+        config_50 = RenderConfig(width=1920, height=1080, optical_center_pct=0.50)
+
+        layout_45 = calculate_slide_layout(content, config_45)
+        layout_50 = calculate_slide_layout(content, config_50)
+
+        # 45% optical center should position text slightly higher than 50% geometric center
+        self.assertLess(layout_45.start_y, layout_50.start_y)
+
+    def test_citation_style_smallcaps_and_none(self):
+        content = SlideContent(text="Rejoice always.", citation="1 Thessalonians 5:16", translation="WEB")
+        renderer = SvgSlideRenderer()
+
+        # Smallcaps citation
+        config_sc = RenderConfig(width=1920, height=1080, citation_style="smallcaps")
+        svg_sc = renderer.render_svg_markup(content, config_sc)
+        self.assertIn("font-variant: all-small-caps", svg_sc)
+        self.assertIn("1 Thessalonians 5:16", svg_sc)
+
+        # None citation
+        config_none = RenderConfig(width=1920, height=1080, citation_style="none")
+        svg_none = renderer.render_svg_markup(content, config_none)
+        self.assertNotIn("class=\"citation-text\"", svg_none)
 
     def test_fixed_font_size_override(self):
         content = SlideContent(text="In the beginning", citation="Genesis 1:1")

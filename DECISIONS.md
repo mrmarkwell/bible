@@ -1096,4 +1096,37 @@ This document is an append-only log of significant design and architectural deci
   - Eliminates warning blindness and prevents silent resource leaks before commits are pushed.
   - Retains 100% Zero-Dependency compliance per ADR-003 (Python 3 stdlib only, zero pip/npm packages).
 
+---
+
+## ADR-037: Dynamic Typography & Layout Engine: Balanced Word Wrapping, Binary Search Auto-Fitting, and Optical Vertical Centering
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 5 (Task 5.2), high-resolution scripture visual slides (for 4K/1080p TV screensavers, presentations, and ambient digital displays) require sophisticated typography. Basic greedy first-fit word wrapping leaves awkward single-word orphan trailing lines ("widows") and jarring ragged line edges on wide 16:9 canvas proportions. Furthermore, fixed font sizes or coarse linear step-down scaling either overflow TV safe margins or under-utilize visual space. Geometric vertical centering (50%) on landscape displays appears bottom-heavy due to human ocular perception.
+- **Decision**:
+  1. **Balanced Word Wrapping via Dynamic Programming (`wrap_text_balanced`)**:
+     - Implemented dynamic programming cost minimization (similar to Knuth-Plass line breaking) in `core/render.py`.
+     - Minimizes line length variance ($\sum (\text{max\_w} - \text{line\_w})^2$), penalizing short lines and heavily penalizing single-word orphan trailing lines.
+     - Preserves all words exactly while producing balanced, visually pleasing editorial scripture blocks for landscape displays.
+  2. **Robust Binary Search Font Auto-Fitting with Clamping**:
+     - Upgraded `calculate_slide_layout` to use binary search fitting across min and max font size constraints (`min_font_size`, `max_font_size`).
+     - Dynamically computes required height for scripture body, pericope header, illuminated accent rule, and citation block, guaranteeing zero overflow past TV safe margins (`safe_h`).
+     - Scales initial targets proportionally to text volume, pushing font scale to the maximum legible size that satisfies canvas boundaries.
+  3. **Human Optical Vertical Centering (~45% Golden Baseline)**:
+     - Configurable `optical_center_pct` (defaulting to 0.45) offsets the vertical center slightly above 50% geometric middle to match human ocular perception on 16:9 landscape monitors.
+     - Automatically clamps `start_y` within TV safe area boundaries (`safe_y` to `safe_y + safe_h`) for long passages.
+  4. **Omnichannel Typographic Options (CLI, REPL, Web API)**:
+     - Exposed `--font`, `--font-size`, `--line-spacing`, `--citation-style` (`below`, `smallcaps`, `none`), `--optical-center`, and `--no-balance` in:
+       - CLI: `./bible slide <ref>` (`cli/main.py`).
+       - REPL: `/slide <ref>` (`cli/shell.py`) with tab autocompletion.
+       - Web API: `GET /api/slide` query parameters (`web/server.py`).
+     - Enhanced SVG styling with `font-variant: all-small-caps` and customizable tracking.
+  5. **Hermetic Test Suite (`tests/test_render.py`)**:
+     - Added unit tests for balanced word wrapping, single-word orphan prevention, font clamping, optical centering offset, and citation styles (`smallcaps` and `none`).
+     - Verified 100% test pass rate across all 441 tests in <2.0s with zero resource warnings.
+- **Consequences**:
+  - Completes Phase 5 Task 5.2.
+  - Guarantees professional editorial typographic aesthetics for screensaver and TV presentations.
+  - Zero external dependencies (Python stdlib standard algorithms only).
+
+
 

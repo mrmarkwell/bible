@@ -57,7 +57,7 @@ This document is the single source of truth for current project status, active t
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
 - [x] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector). *(Run 033 / ADR-034)*
-- [ ] **Task 5.2**: Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins.
+- [x] **Task 5.2**: Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins. *(Run 036 / ADR-037)*
 - [ ] **Task 5.3**: Implement CLI slide generation command (`bible slide` / `bible render`) with rich options:
   - Resolution: `--resolution=4k` (3840x2160 default), `--resolution=1080p` (1920x1080), or custom `WxH`.
   - Color themes: `--theme=oled-black` (pure `#000000` default), `--theme=charcoal` (`#121212`), `--theme=inverted` (black on white).

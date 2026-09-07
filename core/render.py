@@ -196,10 +196,13 @@ class RenderConfig:
     safe_area_pct: float = 0.15  # 15% TV safe area margin
     font_family: Optional[str] = None
     font_size: Optional[float] = None  # None = auto-calculate
+    min_font_size: Optional[float] = None  # None = auto-derive from resolution
+    max_font_size: Optional[float] = None  # None = auto-derive from resolution
     line_spacing: float = 1.5
     text_align: str = "center"  # "center", "left", "right"
-    citation_style: str = "below"  # "below", "above", "none"
+    citation_style: str = "below"  # "below", "smallcaps", "none"
     optical_center_pct: float = 0.45  # 45% baseline for human optical vertical center
+    balance_lines: bool = True  # Balanced word wrapping to eliminate orphan words / minimize line length variance
     show_accent_rule: bool = True
     show_tags: bool = False
     backend: str = "auto"  # "auto", "imagemagick", "svg"
@@ -264,7 +267,7 @@ def estimate_char_width(char: str, font_size: float) -> float:
 
 
 def wrap_text_to_width(text: str, max_width: float, font_size: float) -> List[str]:
-    """Wrap text to fit within max_width using word boundaries and font heuristics."""
+    """Wrap text to fit within max_width using greedy first-fit word boundaries."""
     paragraphs = text.replace("\r\n", "\n").split("\n")
     all_lines: List[str] = []
 
@@ -298,8 +301,102 @@ def wrap_text_to_width(text: str, max_width: float, font_size: float) -> List[st
     return all_lines
 
 
+def wrap_text_balanced(text: str, max_width: float, font_size: float) -> List[str]:
+    """Wrap text with balanced line lengths (raggedness & orphan/widow minimization).
+
+    Uses dynamic programming cost minimization (similar to Knuth-Plass line breaking)
+    to balance line widths, preventing single-word orphan trailing lines and jarring
+    raggedness on wide landscape presentation canvases.
+    """
+    paragraphs = text.replace("\r\n", "\n").split("\n")
+    all_lines: List[str] = []
+    space_w = estimate_char_width(" ", font_size)
+
+    for para in paragraphs:
+        words = para.split()
+        if not words:
+            all_lines.append("")
+            continue
+
+        n = len(words)
+        word_widths = [sum(estimate_char_width(c, font_size) for c in w) for w in words]
+
+        # Quick check: does the entire paragraph fit on a single line?
+        total_single_line_w = sum(word_widths) + (n - 1) * space_w
+        if total_single_line_w <= max_width:
+            all_lines.append(" ".join(words))
+            continue
+
+        # If any single word exceeds max_width, fall back to standard wrap
+        if any(w_w > max_width for w_w in word_widths):
+            all_lines.extend(wrap_text_to_width(para, max_width, font_size))
+            continue
+
+        # Dynamic programming table for optimal line breaking:
+        # dp[i] = minimum cost to break words[i:]
+        # best_split[i] = index j where the line words[i:j] breaks
+        inf = float("inf")
+        dp = [inf] * (n + 1)
+        best_split = [n] * (n + 1)
+        dp[n] = 0.0
+
+        for i in range(n - 1, -1, -1):
+            line_w = 0.0
+            for j in range(i + 1, n + 1):
+                word_idx = j - 1
+                if j == i + 1:
+                    line_w = word_widths[word_idx]
+                else:
+                    line_w += space_w + word_widths[word_idx]
+
+                if line_w > max_width:
+                    break
+
+                slack = max_width - line_w
+
+                if j == n:
+                    # Last line penalty:
+                    # Penalize orphan single-word last line if paragraph had multiple lines
+                    if i > 0 and (j - i) == 1:
+                        cost = (slack * 0.2) ** 2 + (max_width * 0.8) ** 2
+                    else:
+                        # Moderate slack on last line is normal, but still discourage excessive slack
+                        cost = (slack * 0.35) ** 2
+                else:
+                    # Internal lines: square of slack to heavily penalize short lines
+                    cost = slack ** 2
+                    # Additional penalty for single-word internal lines
+                    if (j - i) == 1:
+                        cost += (max_width * 1.5) ** 2
+
+                total_cost = cost + dp[j]
+                if total_cost < dp[i]:
+                    dp[i] = total_cost
+                    best_split[i] = j
+
+        # If no valid DP path was found (e.g. extreme constraints), fallback
+        if dp[0] == inf:
+            all_lines.extend(wrap_text_to_width(para, max_width, font_size))
+            continue
+
+        # Reconstruct lines from best_split
+        idx = 0
+        while idx < n:
+            next_idx = best_split[idx]
+            if next_idx <= idx:
+                next_idx = idx + 1
+            all_lines.append(" ".join(words[idx:next_idx]))
+            idx = next_idx
+
+    return all_lines
+
+
 def calculate_slide_layout(content: SlideContent, config: RenderConfig) -> LayoutBox:
-    """Calculate geometric bounding boxes, optimal font sizes, and vertical centering."""
+    """Calculate geometric bounding boxes, optimal font sizes, and vertical centering.
+
+    Auto-computes font scaling via binary search clamping between min and max bounds,
+    balances line lengths, and positions text relative to the human optical vertical center (~45%).
+    """
     w = config.width
     h = config.height
     safe_pct = max(0.05, min(0.35, config.safe_area_pct))
@@ -310,15 +407,43 @@ def calculate_slide_layout(content: SlideContent, config: RenderConfig) -> Layou
     safe_h = h * (1.0 - 2.0 * safe_pct)
 
     scale_factor = w / 3840.0
-    min_font_size = 36.0 * scale_factor
-    max_font_size = 108.0 * scale_factor
+    default_min_pt = max(16.0, 32.0 * scale_factor)
+    default_max_pt = max(28.0, 112.0 * scale_factor)
+
+    min_font_size = config.min_font_size if config.min_font_size is not None else default_min_pt
+    max_font_size = config.max_font_size if config.max_font_size is not None else default_max_pt
+    if min_font_size > max_font_size:
+        min_font_size, max_font_size = max_font_size, min_font_size
+
+    def wrap_fn(txt: str, pt: float) -> List[str]:
+        if config.balance_lines:
+            return wrap_text_balanced(txt, safe_w, pt)
+        return wrap_text_to_width(txt, safe_w, pt)
+
+    def total_height_at_font_size(pt: float) -> Tuple[float, List[str]]:
+        lines = wrap_fn(content.text.strip(), pt)
+        line_spacing = config.line_spacing if config.line_spacing > 0 else 1.5
+        line_h = pt * line_spacing
+        b_height = len(lines) * line_h
+
+        cit_pt = max(24.0 * scale_factor, pt * 0.48)
+        peri_pt = max(20.0 * scale_factor, pt * 0.40)
+
+        accent_spacing = 40.0 * scale_factor if config.show_accent_rule else 20.0 * scale_factor
+        cit_block_h = (cit_pt * 1.5) + accent_spacing if (content.citation or content.translation) else 0.0
+        peri_block_h = (peri_pt * 1.6) + (24.0 * scale_factor) if content.pericope_title else 0.0
+
+        return b_height + cit_block_h + peri_block_h, lines
 
     if config.font_size is not None and config.font_size > 0:
         font_size = config.font_size
+        total_h, wrapped = total_height_at_font_size(font_size)
     else:
+        # Binary search for optimal font size fitting within safe_h
         clean_text = content.text.strip()
         total_chars = len(clean_text)
 
+        # Establish heuristic maximum target based on text volume to maintain editorial elegance
         if total_chars < 60:
             target_pt = 96.0 * scale_factor
         elif total_chars < 140:
@@ -332,35 +457,55 @@ def calculate_slide_layout(content: SlideContent, config: RenderConfig) -> Layou
         else:
             target_pt = min_font_size
 
-        font_size = max(min_font_size, min(max_font_size, target_pt))
+        upper_bound = min(max_font_size, max(min_font_size, target_pt))
 
-        for _ in range(8):
-            lines = wrap_text_to_width(clean_text, safe_w, font_size)
-            line_h = font_size * config.line_spacing
-            est_body_h = len(lines) * line_h
+        # Check if upper bound fits comfortably
+        h_upper, lines_upper = total_height_at_font_size(upper_bound)
+        if h_upper <= safe_h:
+            # Upper bound fits within safe area
+            font_size = round(upper_bound, 2)
+            total_h = h_upper
+            wrapped = lines_upper
+        else:
+            # Upper bound exceeds safe_h; binary search down towards min_font_size
+            low = min_font_size
+            high = upper_bound
+            best_pt = min_font_size
+            best_h, best_lines = total_height_at_font_size(min_font_size)
 
-            aux_h = (font_size * 0.55 * 2.0) + (font_size * 0.42 * 2.0) + (80.0 * scale_factor)
-            if est_body_h + aux_h > safe_h and font_size > min_font_size:
-                font_size = max(min_font_size, font_size * 0.90)
-            else:
-                break
+            for _ in range(12):
+                if (high - low) < 0.5:
+                    break
+                mid = (low + high) / 2.0
+                cand_h, cand_lines = total_height_at_font_size(mid)
+                if cand_h <= safe_h:
+                    best_pt = mid
+                    best_lines = cand_lines
+                    best_h = cand_h
+                    low = mid
+                else:
+                    high = mid
 
-    wrapped = wrap_text_to_width(content.text.strip(), safe_w, font_size)
-    line_h = font_size * config.line_spacing
+            font_size = round(best_pt, 2)
+            total_h = best_h
+            wrapped = best_lines
+
+    line_spacing = config.line_spacing if config.line_spacing > 0 else 1.5
+    line_h = font_size * line_spacing
     body_h = len(wrapped) * line_h
 
     citation_pt = max(24.0 * scale_factor, font_size * 0.48)
     pericope_pt = max(20.0 * scale_factor, font_size * 0.40)
 
-    accent_spacing = 40.0 * scale_factor if config.show_accent_rule else 20.0 * scale_factor
-    citation_block_h = (citation_pt * 1.5) + accent_spacing if (content.citation or content.translation) else 0.0
-    pericope_block_h = (pericope_pt * 1.6) + (24.0 * scale_factor) if content.pericope_title else 0.0
+    # Optical vertical centering (~45% baseline)
+    optical_pct = config.optical_center_pct
+    if optical_pct <= 0.0 or optical_pct >= 1.0:
+        optical_pct = 0.45
 
-    total_h = body_h + citation_block_h + pericope_block_h
-
-    optical_y = h * config.optical_center_pct
+    optical_y = h * optical_pct
     start_y = optical_y - (total_h / 2.0)
 
+    # Constrain within safe boundaries
     if start_y < safe_y:
         start_y = safe_y
     elif start_y + total_h > safe_y + safe_h:
@@ -462,7 +607,8 @@ class SvgSlideRenderer:
             f'      .verse-text {{ font-family: {font_family}; font-size: {layout.font_size:.2f}px; '
             f'fill: {theme.text_color}; text-anchor: {anchor}; }}',
             f'      .citation-text {{ font-family: {font_family}; font-size: {layout.citation_font_size:.2f}px; '
-            f'fill: {theme.citation_color}; text-anchor: {anchor}; font-weight: 600; letter-spacing: 0.05em; }}',
+            f'fill: {theme.citation_color}; text-anchor: {anchor}; font-weight: 600; letter-spacing: 0.08em; '
+            f'{"font-variant: all-small-caps; text-transform: uppercase;" if config.citation_style == "smallcaps" else ""} }}',
             f'      .pericope-text {{ font-family: {font_family}; font-size: {layout.pericope_font_size:.2f}px; '
             f'fill: {theme.pericope_color}; text-anchor: {anchor}; text-transform: uppercase; letter-spacing: 0.12em; }}',
             f'      .indicator-text {{ font-family: {font_family}; font-size: {layout.pericope_font_size * 0.85:.2f}px; '

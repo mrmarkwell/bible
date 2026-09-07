@@ -828,6 +828,13 @@ class BibleShell(cmd.Cmd):
         theme = "oled_black"
         out_fmt = None
         backend = "auto"
+        font_family = None
+        font_size = None
+        line_spacing = 1.5
+        text_align = "center"
+        citation_style = "below"
+        balance_lines = True
+        optical_center = 0.45
 
         idx = 0
         while idx < len(tokens):
@@ -847,6 +854,36 @@ class BibleShell(cmd.Cmd):
             elif tok == "--backend" and idx + 1 < len(tokens):
                 backend = tokens[idx + 1]
                 idx += 2
+            elif tok == "--font" and idx + 1 < len(tokens):
+                font_family = tokens[idx + 1]
+                idx += 2
+            elif tok == "--font-size" and idx + 1 < len(tokens):
+                try:
+                    font_size = float(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--line-spacing" and idx + 1 < len(tokens):
+                try:
+                    line_spacing = float(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--align" and idx + 1 < len(tokens):
+                text_align = tokens[idx + 1].lower()
+                idx += 2
+            elif tok == "--citation-style" and idx + 1 < len(tokens):
+                citation_style = tokens[idx + 1].lower()
+                idx += 2
+            elif tok == "--optical-center" and idx + 1 < len(tokens):
+                try:
+                    optical_center = float(tokens[idx + 1])
+                except ValueError:
+                    pass
+                idx += 2
+            elif tok == "--no-balance":
+                balance_lines = False
+                idx += 1
             else:
                 ref_tokens.append(tok)
                 idx += 1
@@ -902,6 +939,13 @@ class BibleShell(cmd.Cmd):
             width=w,
             height=h,
             theme=theme_obj,
+            font_family=font_family,
+            font_size=font_size,
+            line_spacing=line_spacing,
+            text_align=text_align,
+            citation_style=citation_style,
+            balance_lines=balance_lines,
+            optical_center_pct=optical_center,
             backend=backend,
             output_format=out_fmt,
         )
@@ -936,7 +980,12 @@ class BibleShell(cmd.Cmd):
         from core.reference import ALL_BOOKS
         themes = list(STANDARD_THEMES.keys())
         books = [b.name for b in ALL_BOOKS]
-        opts = ["-o", "-r", "-t", "-f", "--backend", "4k", "1080p", "720p", "square", "png", "svg", "jpg"] + themes + books
+        opts = [
+            "-o", "-r", "-t", "-f", "--backend", "--font", "--font-size", "--line-spacing",
+            "--align", "--citation-style", "--optical-center", "--no-balance",
+            "4k", "1080p", "720p", "square", "png", "svg", "jpg",
+            "center", "left", "right", "below", "smallcaps", "none",
+        ] + themes + books
         return [o for o in opts if o.lower().startswith(text.lower())]
 
     # --------------------------------------------------------------------------
