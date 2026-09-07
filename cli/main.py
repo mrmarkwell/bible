@@ -2345,6 +2345,191 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_arcs.set_defaults(func=cmd_arcs)
 
+    # Subcommand: slide (aliases: render)
+    parser_slide = subparsers.add_parser(
+        "slide",
+        aliases=["render"],
+        help="Generate visual verse slides for TV screensavers and digital displays",
+        description="Generate high-resolution 16:9 4K UHD or 1080p landscape scripture slides with OLED pure black, dynamic typography, and TV safe margins.",
+    )
+    parser_slide.add_argument(
+        "reference",
+        help="Scripture citation or passage (e.g. 'John 3:16', 'Romans 8:28-30', 'Psalm 23:1-3')",
+    )
+    parser_slide.add_argument(
+        "--output",
+        "-o",
+        dest="output",
+        default=None,
+        help="Destination file path for generated slide (e.g. 'verse.png', 'slide.svg', 'display.jpg')",
+    )
+    parser_slide.add_argument(
+        "--resolution",
+        "-r",
+        default="4k",
+        help="Display resolution preset ('4k', '1080p', '720p', 'square', or 'WIDTHxHEIGHT', default: 4k)",
+    )
+    parser_slide.add_argument(
+        "--theme",
+        "-t",
+        default="oled_black",
+        help="Color theme ('oled_black', 'charcoal', 'obsidian', 'monastery', 'inverted', 'parchment', default: oled_black)",
+    )
+    parser_slide.add_argument(
+        "--format",
+        "-f",
+        dest="output_format",
+        choices=["png", "jpg", "jpeg", "svg"],
+        default=None,
+        help="Output file format ('png', 'jpg', 'svg', default: determined from output extension or png)",
+    )
+    parser_slide.add_argument(
+        "--backend",
+        choices=["auto", "imagemagick", "svg"],
+        default="auto",
+        help="Rendering backend: 'auto', 'imagemagick' (raster), or 'svg' (pure vector, default: auto)",
+    )
+    parser_slide.add_argument(
+        "--version",
+        dest="version",
+        default="WEB",
+        help="Scripture translation identifier (default: WEB)",
+    )
+    parser_slide.add_argument(
+        "--font-size",
+        type=float,
+        default=None,
+        help="Explicit typography font size in points (default: auto-fit based on text volume)",
+    )
+    parser_slide.add_argument(
+        "--safe-area",
+        type=float,
+        default=0.15,
+        help="TV safe area margin percentage (default: 0.15 for 15% inner padding)",
+    )
+    parser_slide.add_argument(
+        "--align",
+        choices=["center", "left", "right"],
+        default="center",
+        help="Text alignment within canvas (default: center)",
+    )
+    parser_slide.add_argument(
+        "--no-rule",
+        action="store_true",
+        help="Disable decorative illuminated accent divider rule between body and citation",
+    )
+    parser_slide.add_argument(
+        "--quality",
+        type=int,
+        default=95,
+        help="JPEG quality level from 10 to 100 (default: 95)",
+    )
+    parser_slide.add_argument(
+        "--dpi",
+        type=int,
+        default=300,
+        help="DPI rendering density for rasterization (default: 300)",
+    )
+
+    def cmd_slide(args: argparse.Namespace) -> int:
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Database not found at '{db_path}'. Run './bible init' first.\n")
+            return 1
+
+        ref_str = args.reference
+        ref = parse_reference(ref_str)
+        if ref is None:
+            sys.stderr.write(f"Error: Could not parse '{ref_str}' as a canonical scripture reference.\n")
+            return 1
+
+        with Database(db_path) as db:
+            from core.pericopes import PericopeService
+            from core.render import (
+                ImageMagickNotFoundError,
+                RenderConfig,
+                RenderError,
+                SlideContent,
+                get_default_engine,
+                get_theme,
+                parse_resolution,
+            )
+
+            verses, used_id, is_fallback = db.get_verses_with_fallback(
+                ref, translation_id=args.version
+            )
+            if not verses:
+                sys.stderr.write(f"Error: No verses found for '{ref_str}' in translation '{args.version}'.\n")
+                return 1
+
+            verse_text = " ".join(v.text.strip() for v in verses)
+            citation_str = ref.format()
+
+            # Attempt to fetch pericope title for context
+            pericope_svc = PericopeService(db)
+            pericopes = pericope_svc.get_pericopes_for_passage(ref)
+            pericope_title = pericopes[0].title if pericopes else None
+
+            # Determine output destination and format
+            out_dest = args.output
+            target_format = args.output_format
+
+            if out_dest:
+                dest_path = Path(out_dest).resolve()
+                ext = dest_path.suffix.lower().lstrip(".")
+                if not target_format and ext in ("png", "jpg", "jpeg", "svg"):
+                    target_format = ext
+            else:
+                target_format = target_format or "png"
+                safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
+                dest_path = Path.cwd() / f"slide_{safe_stem}.{target_format}"
+
+            target_format = target_format or "png"
+
+            # Parse dimensions and theme
+            w, h = parse_resolution(args.resolution)
+            theme = get_theme(args.theme)
+
+            config = RenderConfig(
+                width=w,
+                height=h,
+                theme=theme,
+                safe_area_pct=args.safe_area,
+                font_size=args.font_size,
+                text_align=args.align,
+                show_accent_rule=not args.no_rule,
+                backend=args.backend,
+                output_format=target_format,
+                jpeg_quality=args.quality,
+                dpi=args.dpi,
+            )
+
+            content = SlideContent(
+                text=verse_text,
+                citation=citation_str,
+                translation=used_id,
+                pericope_title=pericope_title,
+            )
+
+            engine = get_default_engine()
+            try:
+                result = engine.render_to_file(content, dest_path, config)
+            except ImageMagickNotFoundError as exc:
+                sys.stderr.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend=svg' or install ImageMagick on your system.\n")
+                return 1
+            except RenderError as exc:
+                sys.stderr.write(f"Render Error: {exc}\n")
+                return 1
+
+            size_str = f"{len(result.data):,} bytes"
+            print(f"Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:")
+            print(f"  • File:     {dest_path}")
+            print(f"  • Passage:  {citation_str} ({used_id})")
+            print(f"  • Theme:    {theme.name}")
+            return 0
+
+    parser_slide.set_defaults(func=cmd_slide)
+
     return parser
 
 
@@ -2371,6 +2556,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "init", "setup", "bootstrap", "db", "database",
         "ribbon", "pericopes", "pericope", "chapters", "chapter",
         "arcs", "arc", "typology", "typologies",
+        "slide", "render",
     }
 
     pos_idx = -1
@@ -2383,7 +2569,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
             if i + 1 < len(raw_args):
                 pos_idx = i + 1
             break
-        if token in ("--db", "-w", "--width", "-m", "--margin", "--theme", "-t", "--version", "--window"):
+        if token in ("--db", "-w", "--width", "-m", "--margin", "--theme", "-t", "--version", "--window", "-r", "--resolution", "-o", "--output", "-f", "--format", "--backend", "--dpi", "--quality", "--safe-area", "--align", "--font-size"):
             skip_next = True
             continue
         if token.startswith("-"):

@@ -334,6 +334,18 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(len(data["chapters"]), 50)
         self.assertEqual(data["chapters"][0]["chapter"], 1)
 
+    def test_api_slide_svg_endpoint(self) -> None:
+        status, headers, body = self._get("/api/slide?ref=John+3:16&theme=oled_black&res=1080p")
+        self.assertEqual(status, 200)
+        self.assertIn("image/svg+xml", headers.get("Content-Type", ""))
+        self.assertIn(b"<svg", body)
+        self.assertIn(b"John 3:16", body)
+
+    def test_api_slide_missing_ref_error(self) -> None:
+        status, data = self._get_json("/api/slide")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required query parameter: 'ref'", data["error"])
+
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
     """Test CLI argument parsing and REPL shell integration for the web server."""

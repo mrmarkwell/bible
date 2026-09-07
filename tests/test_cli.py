@@ -783,6 +783,44 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("[Self-Healing --fix Active]", stdout.getvalue())
         self.assertIn("EXCELLENT", stdout.getvalue())
 
+    def test_cli_slide_svg_generation(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_svg = Path(tmpdir) / "test_slide.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "slide", "John 3:16",
+                    "--output", str(out_svg),
+                    "--format", "svg",
+                    "--theme", "oled_black",
+                    "--resolution", "1080p",
+                ])
+            self.assertEqual(code, 0)
+            self.assertTrue(out_svg.exists())
+            self.assertGreater(out_svg.stat().st_size, 1000)
+            svg_content = out_svg.read_text(encoding="utf-8")
+            self.assertIn("<svg", svg_content)
+            self.assertIn("John 3:16", svg_content)
+            self.assertIn("Generated 1920x1080 SVG slide", stdout.getvalue())
+
+    def test_cli_slide_alias_render(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_svg = Path(tmpdir) / "render_alias.svg"
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main([
+                    "--db", str(self.db_path),
+                    "render", "Genesis 1:1",
+                    "-o", str(out_svg),
+                    "-f", "svg",
+                ])
+            self.assertEqual(code, 0)
+            self.assertTrue(out_svg.exists())
+            self.assertIn("Generated 3840x2160 SVG slide", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

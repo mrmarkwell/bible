@@ -24,8 +24,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.8**: Establish Executive Summary & Project Trajectory Briefing cadence (every 10th iteration), on-demand CLI command (`./bible summary`), standalone tool (`tools/executive_summary.py`), and project skill (`skills/executive-summary/SKILL.md`) (ADR-017). *(Run 016)*
 - [x] **Task 0.9**: Implement interactive shell context management (`__enter__`/`__exit__`), clean test warning elimination, and autonomous runner `--help` self-documentation (ADR-026). *(Run 025)*
 - [x] **Task 0.10**: Implement Sovereign Cold-Start Bootstrapping, Unified Database Compilation & Lifecycle Engine (`bible init` / `bible db`), Self-Healing Doctor Diagnostics (`--fix`), and Comprehensive Repository Documentation (ADR-030). *(Run 029 / Senior PM Cleanup Sprint)*
-
-
+- [x] **Task 0.11**: Implement Omnichannel Visual Slide Integration across CLI, REPL Shell, and REST API (`./bible slide`, `/slide`, `/api/slide`, ADR-035). *(Run 034 / Senior PM Meta-Sprint)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

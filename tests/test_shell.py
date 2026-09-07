@@ -60,8 +60,7 @@ class TestShell(unittest.TestCase):
 
     def tearDown(self):
         for s in self.shells:
-            if s.db:
-                s.db.close()
+            s.close()
 
     def _create_shell(self, theme="plain", margin=0, box=False, color=False):
         stdout = io.StringIO()

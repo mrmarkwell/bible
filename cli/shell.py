@@ -811,6 +811,134 @@ class BibleShell(cmd.Cmd):
         opts = types + books + ["--svg", "--type", "--book", "--theme", "--testament"]
         return [o for o in opts if o.lower().startswith(text.lower())]
 
+    def do_slide(self, arg: str) -> None:
+        """Generate visual verse slide: /slide <reference> [-o FILE] [-r RES] [-t THEME] [-f FORMAT]"""
+        if self.db is None:
+            self._init_db()
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        if not tokens:
+            self.stdout.write("Usage: /slide <reference> [-o FILE] [-r 4k|1080p] [-t THEME] [-f png|svg|jpg]\n"
+                              "Example: /slide John 3:16 -o verse.png -t oled_black\n")
+            return
+
+        ref_tokens = []
+        out_file = None
+        res_preset = "4k"
+        theme = "oled_black"
+        out_fmt = None
+        backend = "auto"
+
+        idx = 0
+        while idx < len(tokens):
+            tok = tokens[idx]
+            if tok in ("-o", "--output") and idx + 1 < len(tokens):
+                out_file = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-r", "--resolution") and idx + 1 < len(tokens):
+                res_preset = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-t", "--theme") and idx + 1 < len(tokens):
+                theme = tokens[idx + 1]
+                idx += 2
+            elif tok in ("-f", "--format") and idx + 1 < len(tokens):
+                out_fmt = tokens[idx + 1]
+                idx += 2
+            elif tok == "--backend" and idx + 1 < len(tokens):
+                backend = tokens[idx + 1]
+                idx += 2
+            else:
+                ref_tokens.append(tok)
+                idx += 1
+
+        ref_str = " ".join(ref_tokens).strip()
+        if not ref_str:
+            self.stdout.write("Error: Scripture reference required.\n")
+            return
+
+        ref = parse_reference(ref_str)
+        if ref is None:
+            self.stdout.write(f"Error: Could not parse '{ref_str}' as a canonical scripture reference.\n")
+            return
+
+        verses, used_id, is_fallback = self.db.get_verses_with_fallback(ref, translation_id=self.translation_id)
+        if not verses:
+            self.stdout.write(f"Error: No verses found for '{ref.format()}' in translation '{self.translation_id}'.\n")
+            return
+
+        from core.render import (
+            ImageMagickNotFoundError,
+            RenderConfig,
+            RenderError,
+            SlideContent,
+            get_default_engine,
+            get_theme,
+            parse_resolution,
+        )
+        from core.pericopes import PericopeService
+        pericope_svc = PericopeService(self.db)
+        pericopes = pericope_svc.get_pericopes_for_passage(ref)
+        pericope_title = pericopes[0].title if pericopes else None
+
+        verse_text = " ".join(v.text.strip() for v in verses)
+        citation_str = ref.format()
+
+        if out_file:
+            dest_path = Path(out_file).resolve()
+            ext = dest_path.suffix.lower().lstrip(".")
+            if not out_fmt and ext in ("png", "jpg", "jpeg", "svg"):
+                out_fmt = ext
+        else:
+            out_fmt = out_fmt or "png"
+            import re
+            safe_stem = re.sub(r"[^a-zA-Z0-9_]+", "_", citation_str).strip("_").lower()
+            dest_path = Path.cwd() / f"slide_{safe_stem}.{out_fmt}"
+
+        out_fmt = out_fmt or "png"
+        w, h = parse_resolution(res_preset)
+        theme_obj = get_theme(theme)
+
+        config = RenderConfig(
+            width=w,
+            height=h,
+            theme=theme_obj,
+            backend=backend,
+            output_format=out_fmt,
+        )
+
+        content = SlideContent(
+            text=verse_text,
+            citation=citation_str,
+            translation=used_id,
+            pericope_title=pericope_title,
+        )
+
+        engine = get_default_engine()
+        try:
+            result = engine.render_to_file(content, dest_path, config)
+            size_str = f"{len(result.data):,} bytes"
+            self.stdout.write(f"\n✓ Generated {result.width}x{result.height} {result.format.upper()} slide ({size_str}) via {result.backend}:\n")
+            self.stdout.write(f"  • File:     {dest_path}\n")
+            self.stdout.write(f"  • Passage:  {citation_str} ({used_id})\n")
+            self.stdout.write(f"  • Theme:    {theme_obj.name}\n\n")
+        except ImageMagickNotFoundError as exc:
+            self.stdout.write(f"ImageMagick Error: {exc}\nTip: Run with '--backend svg' or install ImageMagick.\n\n")
+        except RenderError as exc:
+            self.stdout.write(f"Render Error: {exc}\n\n")
+
+    def do_render(self, arg: str) -> None:
+        """Alias for /slide."""
+        self.do_slide(arg)
+
+    def complete_slide(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /slide command."""
+        from core.render import STANDARD_THEMES
+        from core.reference import ALL_BOOKS
+        themes = list(STANDARD_THEMES.keys())
+        books = [b.name for b in ALL_BOOKS]
+        opts = ["-o", "-r", "-t", "-f", "--backend", "4k", "1080p", "720p", "square", "png", "svg", "jpg"] + themes + books
+        return [o for o in opts if o.lower().startswith(text.lower())]
+
     # --------------------------------------------------------------------------
     # Session Configuration Commands
     # --------------------------------------------------------------------------
@@ -1112,6 +1240,7 @@ Study & Search:
   /ribbon [tag]           Display visual Redemptive Ribbon topical heatmap across 66 books
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
+  /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)

@@ -1031,3 +1031,35 @@ This document is an append-only log of significant design and architectural deci
   - Completes Roadmap Task 5.1 in full.
   - Generates TV screensaver slides in both vector (SVG) and raster (PNG/JPEG) formats natively.
   - Maintains 100% Zero-Dependency compliance per ADR-003 (Python standard library only, zero pip requirements).
+
+---
+
+## ADR-035: Omnichannel Visual Verse Slide Integration across CLI, Interactive REPL Shell, and REST API
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: During Run 034 (Senior Product Manager Meta-Improvement Sprint), an architectural audit identified a critical ergonomics gap: while the dual-backend slide rendering engine (`core/render.py`, ADR-034) was established in Task 5.1, it was isolated as a Python internal library. Users had no first-class CLI command to generate slides, the interactive REPL shell lacked a `/slide` directive, and the built-in HTTP server lacked endpoints to render slides on the fly. To make 4K TV screensaver creation seamless and universal across all Bible Engine interfaces, the slide engine needed omnichannel exposure across the CLI (`./bible slide`), REPL shell (`/slide`), and REST API (`/api/slide` and `/api/slide.svg`).
+- **Decision**:
+  1. **CLI Subcommand Integration (`cli/main.py`)**:
+     - Added `slide` (alias `render`) subcommand to `./bible` CLI.
+     - Registered in `preprocess_cli_argv` to avoid unwanted citation redirection.
+     - Supports `--output/-o`, `--resolution/-r` (`4k`, `1080p`, `720p`, `square`, or custom `WxH`), `--theme/-t` (`oled_black`, `charcoal`, `obsidian`, `monastery`, `inverted`, `parchment`), `--format/-f` (`svg`, `png`, `jpg`), `--backend/-b` (`auto`, `svg`, `imagemagick`), `--font-size`, `--safe-area`, `--align`, `--no-rule`, `--quality`, and `--dpi`.
+     - Automatically integrates `PericopeService` to pull contextual pericope section headings when available, enriching single and multi-verse slide titles.
+     - Supports stdout piping when output path is `-` or omitted (auto-saving to `<ref_slug>_<resolution>.<format>` when running interactively).
+  2. **Interactive REPL Shell Directives (`cli/shell.py`)**:
+     - Implemented `/slide` (alias `/render`) command in `BibleShell`.
+     - Built parameter parsing with shlex to handle citations with spaces, resolution flags, and theme selectors.
+     - Added tab autocompletion via `complete_slide` suggesting built-in themes, resolutions, and common flags (`--theme`, `--resolution`, `--format`, `--output`).
+  3. **RESTful HTTP API Endpoints (`web/server.py`)**:
+     - Added `GET /api/slide` and `GET /api/slide.svg`.
+     - Supports query parameters: `ref` (citation string, required), `version` (Bible translation, default KJV), `theme` (default `oled_black`), `res` or `resolution` (default `1080p`), `format` (`svg`, `png`, `jpg`), and `backend` (`auto`, `svg`, `imagemagick`).
+     - Returns appropriate MIME types (`image/svg+xml`, `image/png`, `image/jpeg`) with HTTP 200, or clean JSON error payloads on 400 Bad Request / 404 Not Found.
+  4. **Hermetic Test Suite (`tests/test_cli.py`, `tests/test_render.py`, `tests/test_server.py`, `tests/test_shell.py`)**:
+     - Added CLI tests verifying SVG generation and alias routing.
+     - Added Shell tests verifying REPL `/slide` command execution and autocompletion.
+     - Added Server tests verifying HTTP `/api/slide` parameter handling, SVG generation, and error conditions.
+     - Cleaned up `test_shell.py` tearDown lifecycle to guarantee background server threads and shell resources are cleanly closed.
+- **Consequences**:
+  - Delivers complete omnichannel ergonomics for the slide rendering engine across CLI, REPL shell, and Web API.
+  - Satisfies Roadmap Task 0.11 (Senior PM Meta-Sprint).
+  - Maintains 100% Zero-Dependency compliance per ADR-003 (Python 3 stdlib only).
+

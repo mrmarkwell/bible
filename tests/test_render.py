@@ -338,5 +338,30 @@ class TestSlideRenderEngine(unittest.TestCase):
             self.assertIn(b"Numbers 6:24", res.data)
 
 
+class TestShellSlideCommands(unittest.TestCase):
+    """Test interactive REPL /slide command integration."""
+
+    def test_shell_slide_svg_generation(self):
+        import io
+        from cli.shell import BibleShell
+        out_buf = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_file = Path(tmpdir) / "repl_slide.svg"
+            shell = BibleShell(stdout=out_buf, color=False)
+            with shell:
+                shell.do_slide(f"John 3:16 -o {out_file} -f svg -r 1080p -t charcoal")
+                self.assertTrue(out_file.exists())
+                self.assertIn("Generated 1920x1080 SVG slide", out_buf.getvalue())
+                content = out_file.read_text(encoding="utf-8")
+                self.assertIn("<svg", content)
+                self.assertIn("John 3:16", content)
+
+    def test_shell_slide_completion(self):
+        from cli.shell import BibleShell
+        shell = BibleShell(color=False)
+        matches = shell.complete_slide("ol", "/slide John 3:16 -t ol", 23, 25)
+        self.assertIn("oled_black", matches)
+
+
 if __name__ == "__main__":
     unittest.main()

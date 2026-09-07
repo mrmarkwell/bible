@@ -161,6 +161,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_arcs(query)
         elif clean_path in ("/api/crossref/arcs.svg", "/api/arcs.svg"):
             self.handle_arcs_svg(query)
+        elif clean_path in ("/api/slide", "/api/slide.svg"):
+            self.handle_slide(query)
         elif clean_path == "/api/stats":
             self.handle_stats()
         else:
@@ -830,6 +832,79 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_svg(net.render_svg(standalone=True, interactive=True))
         except Exception as exc:
             self.send_json_error(f"Failed to render arc SVG: {exc}", status=500)
+
+    def handle_slide(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/slide or /api/slide.svg — Render high-resolution visual scripture slide."""
+        ref_str = query.get("ref", query.get("passage", [None]))[0]
+        if not ref_str:
+            self.send_json_error("Missing required query parameter: 'ref'", status=400)
+            return
+
+        try:
+            parsed_ref = parse_reference(ref_str)
+        except Exception as exc:
+            self.send_json_error(f"Invalid scripture reference '{ref_str}': {exc}", status=400)
+            return
+
+        version = query.get("version", ["WEB"])[0].strip().upper()
+        verses, used_id, _ = self.db.get_verses_with_fallback(parsed_ref, translation_id=version)
+        if not verses:
+            self.send_json_error(f"No verses found for '{ref_str}' in translation '{version}'", status=404)
+            return
+
+        verse_text = " ".join(v.text.strip() for v in verses)
+        citation = parsed_ref.format()
+
+        pericope_svc = PericopeService(self.db)
+        pericopes = pericope_svc.get_pericopes_for_passage(parsed_ref)
+        pericope_title = pericopes[0].title if pericopes else None
+
+        from core.render import (
+            RenderConfig,
+            SlideContent,
+            get_default_engine,
+            get_theme,
+            parse_resolution,
+        )
+
+        res_param = query.get("res", query.get("resolution", ["1080p"]))[0]
+        theme_param = query.get("theme", ["oled_black"])[0]
+        fmt_param = query.get("format", ["svg"])[0].lower()
+        backend_param = query.get("backend", ["svg"])[0].lower()
+
+        w, h = parse_resolution(res_param)
+        theme_obj = get_theme(theme_param)
+
+        config = RenderConfig(
+            width=w,
+            height=h,
+            theme=theme_obj,
+            backend=backend_param,
+            output_format="svg" if fmt_param == "svg" else fmt_param,
+        )
+
+        content = SlideContent(
+            text=verse_text,
+            citation=citation,
+            translation=used_id,
+            pericope_title=pericope_title,
+        )
+
+        try:
+            engine = get_default_engine()
+            res = engine.render(content, config)
+            if res.format == "svg":
+                self.send_svg(res.data.decode("utf-8"))
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", res.mime_type)
+                self.send_header("Content-Length", str(len(res.data)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(res.data)
+        except Exception as exc:
+            self.send_json_error(f"Slide rendering error: {exc}", status=500)
 
     def handle_stats(self) -> None:
         """GET /api/stats — Global database aggregate statistics."""

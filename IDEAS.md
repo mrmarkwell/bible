@@ -362,3 +362,18 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
 - **Proposed Roadmap Phase**: Phase 0, Task 0.10 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
 - **Status**: [DONE] (Implemented in `core/bootstrap.py`, `core/__init__.py`, `cli/main.py`, `cli/shell.py`, `tools/doctor.py`, `README.md`, verified with 356 passing unit tests, and recorded in ADR-030).
+
+### [DONE] Omnichannel Visual Verse Slide Integration across CLI, Interactive REPL Shell, and REST API (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Establish first-class, omnichannel developer and user ergonomics for the visual verse slide rendering engine across the command-line interface (`./bible slide`), interactive REPL shell (`/slide`), and embedded REST API (`/api/slide` and `/api/slide.svg`).
+  1. **CLI Subcommand (`./bible slide`)**: Supports instant rendering of single verses and pericopes to vector SVG, lossless PNG, or high-res JPEG with arguments for resolution (`4k`, `1080p`, `720p`, `square`, custom), theme (`oled_black`, `charcoal`, `obsidian`, `monastery`, `inverted`, `parchment`), backend selection (`auto`, `svg`, `imagemagick`), dynamic typography scaling, automated pericope title integration via `PericopeService`, and stdout stream piping.
+  2. **REPL Directives (`/slide` / `/render`)**: In-shell command in `BibleShell` with intelligent `shlex` parameter parsing and interactive tab autocompletion for themes, resolutions, and flags.
+  3. **RESTful HTTP API (`GET /api/slide`)**: Live web endpoint serving dynamically rendered slides in `image/svg+xml`, `image/png`, or `image/jpeg` directly to browsers, web UI visualizers, and external digital signage/screensaver scrapers.
+  4. **Resource Management**: Fixed background server and shell lifecycle cleanup in test suites, ensuring 100% leak-free test executions.
+- **Rationale**: Elevates the newly created TV screensaver slide engine from an internal code library into an accessible, versatile, and omnipresent capability. Users can generate 4K OLED slides directly from the terminal, explore designs interactively in the REPL, or link dynamic SVG slides in the web interface and home automation systems.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% local rendering).
+  - Zero third-party dependencies? Yes (Python 3 standard library only, optional system ImageMagick detection, zero pip packages per ADR-003).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.11 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [DONE] (Implemented in `cli/main.py`, `cli/shell.py`, `web/server.py`, tested in `tests/test_cli.py`, `tests/test_render.py`, `tests/test_server.py`, `tests/test_shell.py`, and recorded in ADR-035).
+
