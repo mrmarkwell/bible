@@ -145,6 +145,27 @@ class TestCoreExports(unittest.TestCase):
             "BootstrapReport",
             "bootstrap_database",
             "get_db_stats",
+            # Slide Rendering Engine
+            "SlideTheme",
+            "STANDARD_THEMES",
+            "get_theme",
+            "parse_resolution",
+            "SlideContent",
+            "RenderConfig",
+            "RenderResult",
+            "RenderError",
+            "ImageMagickNotFoundError",
+            "LayoutBox",
+            "calculate_slide_layout",
+            "find_imagemagick_binary",
+            "is_imagemagick_available",
+            "detect_imagemagick",
+            "get_available_backends",
+            "SvgSlideRenderer",
+            "ImageMagickSlideRenderer",
+            "SlideRenderEngine",
+            "get_default_engine",
+            "render_verse_slide",
         ]
         for name in expected_names:
             self.assertIn(
@@ -612,7 +633,20 @@ class TestCoreEndToEndWorkflow(unittest.TestCase):
         decrypted_text = decrypt_string(encrypted_blob, passphrase)
         self.assertEqual(decrypted_text, ot_verse.text)
 
-        # 9. Clean up
+        # 9. Render a TV screensaver slide from retrieved passage
+        slide_res = core.render_verse_slide(
+            text=fetched_ot[0].text,
+            citation=ot_ref.format(),
+            translation="WEB",
+            theme="monastery",
+            resolution="1080p",
+            output_format="svg",
+        )
+        self.assertIsInstance(slide_res, core.RenderResult)
+        self.assertEqual(slide_res.format, "svg")
+        self.assertIn(b"Isaiah 53:5", slide_res.data)
+
+        # 10. Clean up
         db.close()
 
 

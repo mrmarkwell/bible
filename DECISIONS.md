@@ -1003,3 +1003,31 @@ This document is an append-only log of significant design and architectural deci
   - Completes Roadmap Phase 4 (Task 4.5) and concludes the Web UI & Visualizations phase.
   - Bridges redemptive-historical biblical theology with pure vector graphic rendering.
   - Retains 100% Zero-Dependency compliance per ADR-003 (Python 3 stdlib, vanilla SVG/ES6+/CSS3, zero npm/pip dependencies).
+
+---
+
+## ADR-034: Dual-Backend Visual Verse Slide Rendering Engine Abstraction (Pure Python Vector SVG & ImageMagick Raster)
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 5 (Visual Verse Slide Generator for TV Screensavers & Presentation), Task 5.1 requires establishing a robust, extensible rendering engine abstraction in `core/render.py`. The engine must generate crisp, publication-grade landscape slides for Google Photos 4K TV screensavers and presentations, accommodating single verses, multi-verse pericopes, and user favorites. Per ADR-003, no external pip dependencies (such as `Pillow`, `cairosvg`, or `reportlab`) may be installed. Furthermore, per ADR-005, the system must support dual backends: a pure Python standard library vector SVG generator and a system-level ImageMagick (`magick`/`convert`) rasterizer for lossless PNG and high-quality JPEG output.
+- **Decision**:
+  1. **Dual-Backend Rendering Architecture (`core/render.py`)**:
+     - **Pure Python Vector SVG Backend (`SvgSlideRenderer`)**: Generates pristine, standalone, valid XML SVG markup with embedded CSS typography, responsive viewBox, precise coordinate calculations, XML character escaping, and multi-element grouping. Runs anywhere with Python 3 without external tools.
+     - **System ImageMagick Raster Backend (`ImageMagickSlideRenderer`)**: Detects system ImageMagick binary (`magick` or legacy `convert`) via `shutil.which()`. Rasterizes the high-resolution vector SVG directly to PNG (lossless, 4K OLED black) or JPEG (with configurable quality, e.g. `--quality=95`) using Python's standard library `subprocess.run` with DPI control (default 300 DPI) and timeout protections.
+  2. **Unified Facade & Configuration Engine (`SlideRenderEngine`, `RenderConfig`, `SlideContent`, `RenderResult`)**:
+     - `SlideRenderEngine` automatically routes requests based on target format and system availability. If raster output is requested but ImageMagick is absent, `auto` mode falls back gracefully to vector SVG or raises actionable `ImageMagickNotFoundError`.
+     - `RenderConfig` centralizes resolution (`4k`, `1080p`, `720p`, `square`, custom `WxH`), TV safe area padding (default 15%), baseline optical vertical centering (45% for natural human gaze), alignment (`center`, `left`, `right`), line spacing, and citation styling.
+     - `RenderResult` encapsulates rendered bytes, MIME type, format, dimensions, backend identifier, and `.save(path)` method with automated directory creation.
+  3. **Sacred-Modern Visual Themes & Curated Typography**:
+     - Built-in themes: `oled_black` (pure `#000000` background for true OLED pixel shutoff, white text, and illuminated gold citation `#D4AF37`), `charcoal` (`#121212`), `obsidian` (`#0D0E11`), `monastery` (`#1A1715`), `inverted` (clean black on white), and `parchment` (`#FDFBF7`).
+     - Universal serif typography stack: `Georgia, 'Liberation Serif', 'DejaVu Serif', 'Times New Roman', serif`.
+  4. **Dynamic Typography & Layout Geometry**:
+     - Heuristic character advance estimation (`estimate_char_width`) and word wrapping (`wrap_text_to_width`) preserving paragraph breaks.
+     - Auto-scaling font size with dynamic bounds clamping based on character count and canvas dimensions, ensuring short verses receive prominent typography while longer passages scale down cleanly without overflowing TV safe areas.
+  5. **Hermetic Test Suite**:
+     - Created `tests/test_render.py` (24 unit tests) covering theme lookups, resolution parsing, text wrapping, layout boxes, SVG XML escaping, pericope headers, page indicators, ImageMagick binary detection, real PNG/JPEG rasterization, subprocess error handling, and unified engine operations.
+     - Expanded `tests/test_core.py` to verify package-level exports and end-to-end slide generation in scripture lifecycles. All 414 repository tests pass 100% in <9s.
+- **Consequences**:
+  - Completes Roadmap Task 5.1 in full.
+  - Generates TV screensaver slides in both vector (SVG) and raster (PNG/JPEG) formats natively.
+  - Maintains 100% Zero-Dependency compliance per ADR-003 (Python standard library only, zero pip requirements).

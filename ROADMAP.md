@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 4 — Web UI & Visualizations (Vanilla Web, No npm)
-- **Overall Progress**: Phase 0, Phase 1, Phase 2, and Phase 3 complete (100%); Phase 4 queued next
+- **Active Phase**: Phase 5 — Visual Verse Slide Generator for TV Screensavers & Presentation
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, and Phase 4 complete (100%); Phase 5 in progress (Task 5.1 complete)
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -56,7 +56,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
-- [ ] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector).
+- [x] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector). *(Run 033 / ADR-034)*
 - [ ] **Task 5.2**: Build dynamic typography & layout engine: auto-computes optimal font size clamping, balanced word wrapping, line height, and optical vertical centering (~45%) within TV safe margins.
 - [ ] **Task 5.3**: Implement CLI slide generation command (`bible slide` / `bible render`) with rich options:
   - Resolution: `--resolution=4k` (3840x2160 default), `--resolution=1080p` (1920x1080), or custom `WxH`.

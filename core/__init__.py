@@ -109,6 +109,28 @@ from core.terminal import (
     strip_ansi,
     visual_len,
 )
+from core.render import (
+    ImageMagickNotFoundError,
+    ImageMagickSlideRenderer,
+    LayoutBox,
+    RenderConfig,
+    RenderError,
+    RenderResult,
+    SlideContent,
+    SlideRenderEngine,
+    SlideTheme,
+    SvgSlideRenderer,
+    STANDARD_THEMES,
+    calculate_slide_layout,
+    detect_imagemagick,
+    find_imagemagick_binary,
+    get_available_backends,
+    get_default_engine,
+    get_theme,
+    is_imagemagick_available,
+    parse_resolution,
+    render_verse_slide,
+)
 
 __all__ = [
     # Reference
@@ -206,5 +228,26 @@ __all__ = [
     "BootstrapReport",
     "bootstrap_database",
     "get_db_stats",
+    # Slide Rendering Engine (TV Screensaver & Visual Verse)
+    "SlideTheme",
+    "STANDARD_THEMES",
+    "get_theme",
+    "parse_resolution",
+    "SlideContent",
+    "RenderConfig",
+    "RenderResult",
+    "RenderError",
+    "ImageMagickNotFoundError",
+    "LayoutBox",
+    "calculate_slide_layout",
+    "find_imagemagick_binary",
+    "is_imagemagick_available",
+    "detect_imagemagick",
+    "get_available_backends",
+    "SvgSlideRenderer",
+    "ImageMagickSlideRenderer",
+    "SlideRenderEngine",
+    "get_default_engine",
+    "render_verse_slide",
 ]
 
