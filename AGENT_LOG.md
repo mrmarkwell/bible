@@ -496,3 +496,47 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next cycle is **Run 018** (standard roadmap cycle).
   - Next priority on the roadmap is **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`).
 
+---
+
+## [Run 018] — 2026-09-07
+- **Agent**: Ralph Loop Autonomous Agent
+- **Phase**: Phase 2 — Command Line Interface (CLI) (Task 2.3)
+- **Task**: Implement full-text search CLI command (`./bible search "light of the world"`)
+- **Actions Taken**:
+  - Enhanced core full-text search engine in `core/db.py`:
+    - Upgraded `search_text` to support `testament` (`OT`/`NT`), `exact` (enforcing contiguous phrase matching), and `sort_by` (`relevance` BM25 vs `canonical` biblical book order via canonical verse ID).
+    - Added `count_search_matches` to perform high-speed index-backed counting of FTS5 matches with testament, book, and translation filters.
+    - Added `to_dict()` on `SearchResult` for clean dictionary and JSON serialization.
+    - Upgraded `get_book` in `core/reference.py` to handle existing `Book` instances idempotently.
+  - Implemented `bible search` (and alias `bible find`) in `cli/main.py`:
+    - Positional multi-word query parsing with Boolean support (`AND`, `OR`, `NOT`).
+    - Filter flags: `--version` / `-t` (with automatic fallback to `WEB` and strict enforcement), `--book` / `-b`, and `--testament` (`OT`/`NT`).
+    - Presentation flags: `--exact` / `-e`, `--sort` (`relevance` or `canonical`), `--snippets`, `--limit` / `-n`, `--offset` for pagination.
+    - UNIX automation flags: `--count` (outputs match count only) and `--json` (outputs structured JSON array).
+    - ANSI color highlighting: `highlight_search_tokens` and `format_search_snippet` highlight matched tokens in bold yellow (`\033[1;33m`), cleanly falling back to plain text when piped, in non-TTY, or with `--no-highlight`.
+  - Recorded **ADR-019: SQLite FTS5 Full-Text Search CLI Command & Structured Presentation Engine** in `DECISIONS.md`.
+  - Updated `ROADMAP.md` marking Task 2.3 as `[x]`.
+  - Authored comprehensive hermetic unit tests:
+    - In `tests/test_db.py`: `test_exact_phrase_search_flag`, `test_filter_by_testament`, `test_sort_by_canonical`, `test_count_search_matches`, `test_search_result_to_dict`.
+    - In `tests/test_cli.py`: `test_highlight_search_tokens`, `test_format_search_snippet`, `test_format_search_results`, and 15 CLI execution tests covering all search flags, aliases, fallbacks, and error modes.
+- **Verification**:
+  - Ran `./bible doctor`: All 5 checks passed cleanly (`EXCELLENT`) in 1.07s.
+  - Ran `python3 -m unittest discover tests`: All 187 tests passing 100% in 4.88s.
+  - Verified manual CLI invocations:
+    - `./bible search "light of the world"`
+    - `./bible search "light of the world" -e`
+    - `./bible search "light of the world" -e --sort=canonical`
+    - `./bible search "light of the world" -e --snippets`
+    - `./bible search "light of the world" -e --count`
+    - `./bible search "light of the world" -e --json`
+    - `./bible search "light" --book=John -n 5`
+    - `./bible search "light of the world" --testament=OT`
+    - `./bible search "light of the world" --testament=NT`
+    - `./bible search "light of the world" --version=ESV` (fallback notice + results)
+    - `./bible search "light of the world" --version=ESV --strict` (error code 1)
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 2.3 is 100% complete and verified.
+  - Next cycle is **Run 019** (standard roadmap cycle).
+  - Next priority on the roadmap is **Task 2.4**: Formatted terminal output (clean margins, optional verse numbers, colored ANSI styling using standard library).
+

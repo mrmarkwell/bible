@@ -226,8 +226,10 @@ for alias_str, book_name in _COMMON_ALIASES.items():
         _ALIASES[_normalize_key(alias_str.replace(" ", ""))] = matching_book
 
 
-def get_book(query: Union[str, int], default: Optional[Book] = None) -> Optional[Book]:
-    """Retrieve a canonical Book by its 1-66 number, full name, OSIS code, or alias."""
+def get_book(query: Union[Book, str, int], default: Optional[Book] = None) -> Optional[Book]:
+    """Retrieve a canonical Book by its 1-66 number, full name, OSIS code, alias, or Book instance."""
+    if isinstance(query, Book):
+        return query
     if isinstance(query, int):
         return BOOKS.get(query, default)
     if not isinstance(query, str):

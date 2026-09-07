@@ -13,16 +13,19 @@ from unittest.mock import patch
 from cli.main import (
     build_parser,
     format_aligned_comparison,
+    format_search_results,
+    format_search_snippet,
     format_verse_lines,
+    highlight_search_tokens,
     main,
     parse_translation_ids,
 )
-from core.db import Database, VerseRecord
+from core.db import Database, SearchResult, VerseRecord
 from core.reference import parse_reference
 
 
 class TestCliFormatting(unittest.TestCase):
-    """Test verse line formatting and translation parsing functions."""
+    """Test verse line formatting, search formatting, and translation parsing functions."""
 
     def test_parse_translation_ids(self):
         self.assertEqual(parse_translation_ids(None), ["WEB"])
@@ -153,6 +156,61 @@ class TestCliFormatting(unittest.TestCase):
         out = format_verse_lines([])
         self.assertEqual(out, "")
 
+    def test_highlight_search_tokens(self):
+        text = "You are the light of the world."
+        # With color
+        colored = highlight_search_tokens(text, "light world", color=True)
+        self.assertIn("\033[1;33mlight\033[0m", colored)
+        self.assertIn("\033[1;33mworld\033[0m", colored)
+
+        # Without color
+        uncolored = highlight_search_tokens(text, "light world", color=False)
+        self.assertEqual(uncolored, text)
+
+        # Exact phrase
+        exact_colored = highlight_search_tokens(text, "light of the world", color=True, exact=True)
+        self.assertIn("\033[1;33mlight of the world\033[0m", exact_colored)
+
+    def test_format_search_snippet(self):
+        snippet = "You are the <b>light</b> of the <b>world</b>."
+        # With color
+        colored = format_search_snippet(snippet, color=True)
+        self.assertIn("\033[1;33mlight\033[0m", colored)
+        self.assertNotIn("<b>", colored)
+
+        # Without color
+        uncolored = format_search_snippet(snippet, color=False)
+        self.assertEqual(uncolored, "You are the [light] of the [world].")
+
+    def test_format_search_results(self):
+        sr = SearchResult(
+            verse_id=1,
+            translation_id="WEB",
+            book_name="John",
+            osis_ref="John.3.16",
+            chapter=3,
+            verse=16,
+            text="For God so loved the world...",
+            snippet="For God so loved the <b>world</b>...",
+            rank=-5.0,
+        )
+        # Standard formatted output
+        out = format_search_results([sr], "world", total_count=1, translation_label="WEB", color=False)
+        self.assertIn('=== Scripture Search: "world" (WEB) ===', out)
+        self.assertIn("Found 1 matching verse:", out)
+        self.assertIn("1. John 3:16 (WEB)", out)
+        self.assertIn("For God so loved the world...", out)
+
+        # Snippet output
+        out_snippet = format_search_results(
+            [sr], "world", total_count=1, translation_label="WEB", show_snippets=True, color=False
+        )
+        self.assertIn("[world]", out_snippet)
+
+        # Zero results output
+        out_empty = format_search_results([], "nonexistent", total_count=0, translation_label="WEB", color=False)
+        self.assertIn("No matching verses found.", out_empty)
+
 
 class TestCliExecution(unittest.TestCase):
     """Test CLI execution and command-line parsing hermetically."""
@@ -165,6 +223,20 @@ class TestCliExecution(unittest.TestCase):
         self.db.add_translation("KJV", "King James Version")
         self.db.insert_verses(
             [
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=1,
+                    chapter=1,
+                    verse=1,
+                    text="In the beginning, God created the heavens and the earth.",
+                ),
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=1,
+                    chapter=1,
+                    verse=3,
+                    text="God said, 'Let there be light,' and there was light.",
+                ),
                 VerseRecord(
                     translation_id="WEB",
                     book_id=43,
@@ -371,6 +443,155 @@ class TestCliExecution(unittest.TestCase):
         out = stdout.getvalue()
         self.assertIn("Installed Scripture Translations:", out)
         self.assertIn("[WEB] World English Bible", out)
+
+    def test_cli_search_basic(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "light"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn('=== Scripture Search: "light" (WEB) ===', out)
+        self.assertIn("Genesis 1:3", out)
+        self.assertIn("Let there be light", out)
+
+    def test_cli_search_exact_phrase(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "one and only Son", "--exact"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn('=== Scripture Search: "one and only Son" (exact phrase) (WEB) ===', out)
+        self.assertIn("John 3:16", out)
+        self.assertIn("one and only Son", out)
+
+    def test_cli_search_alias_find(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "find", "heavens"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn('=== Scripture Search: "heavens" (WEB) ===', out)
+        self.assertIn("Genesis 1:1", out)
+
+    def test_cli_search_book_filter(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "world", "--book", "Genesis"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("(WEB, Genesis)", out)
+        # "world" does not appear in Genesis 1:1 or 1:3 in our test data
+        self.assertIn("No matching verses found.", out)
+
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "world", "--book", "John"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("(WEB, John)", out)
+        self.assertIn("John 3:16", out)
+
+    def test_cli_search_invalid_book(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "light", "--book", "FakeBook"])
+        self.assertEqual(code, 1)
+        self.assertIn("Error: Unknown book 'FakeBook'.", stderr.getvalue())
+
+    def test_cli_search_testament_filter(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "world", "--testament", "NT"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("New Testament", out)
+        self.assertIn("John 3:16", out)
+
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "world", "--testament", "OT"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Old Testament", out)
+        self.assertIn("No matching verses found.", out)
+
+    def test_cli_search_invalid_testament(self):
+        stderr = io.StringIO()
+        with patch("sys.stderr", stderr), self.assertRaises(SystemExit) as ctx:
+            main(["--db", str(self.db_path), "search", "world", "--testament", "INVALID"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_cli_search_canonical_sort(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "the", "--sort", "canonical"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        gen_idx = out.find("Genesis 1:1")
+        john_idx = out.find("John 3:16")
+        self.assertTrue(gen_idx != -1 and john_idx != -1)
+        self.assertLess(gen_idx, john_idx)
+
+    def test_cli_search_snippets(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "heavens", "--snippets", "--no-highlight"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("[heavens]", out)
+
+    def test_cli_search_count(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "world", "--count"])
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout.getvalue().strip(), "2")  # John 3:16 and John 3:17 in WEB
+
+    def test_cli_search_json(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "heavens", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["reference"], "Genesis 1:1")
+        self.assertEqual(data[0]["book"], "Genesis")
+
+    def test_cli_search_fallback_translation(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "heavens", "--version", "ESV"])
+        self.assertEqual(code, 0)
+        self.assertIn("Notice: Translation 'ESV' not available; searching in fallback 'WEB'.", stderr.getvalue())
+        self.assertIn("Genesis 1:1", stdout.getvalue())
+
+    def test_cli_search_strict_missing_translation(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "heavens", "--version", "ESV", "--strict"])
+        self.assertEqual(code, 1)
+        self.assertIn("Error: Translation 'ESV' is not installed in database.", stderr.getvalue())
+
+    def test_cli_search_empty_query(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "search", "   "])
+        self.assertEqual(code, 1)
+        self.assertIn("Error: Search query required", stderr.getvalue())
 
 
 if __name__ == "__main__":

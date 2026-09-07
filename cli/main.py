@@ -4,18 +4,22 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003).
 Provides commands:
   - get: Fetch and display scripture passages by reference with multi-translation & fallback support.
   - compare: Compare scripture passages across translations in aligned or stacked layouts.
+  - search: Full-text search across scripture using SQLite FTS5 with phrase, book, and testament filters.
   - translations: List installed scripture translations, copyright status, and verse counts.
   - doctor: Run comprehensive zero-dependency health, dependency, and documentation diagnostics.
   - summary: Generate executive summary and trajectory briefing across recent Ralph iterations.
 """
 
 import argparse
+import json
+import os
 from pathlib import Path
+import re
 import sys
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from core.db import DEFAULT_DB_PATH, Database, VerseRecord
-from core.reference import Reference, parse_reference
+from core.db import DEFAULT_DB_PATH, Database, SearchResult, VerseRecord
+from core.reference import Reference, get_book, parse_reference
 
 
 def parse_translation_ids(
@@ -152,6 +156,123 @@ def format_aligned_comparison(
             lines.append("")
 
     return "\n".join(lines)
+
+
+def highlight_search_tokens(
+    text: str,
+    query: str,
+    color: bool = True,
+    exact: bool = False,
+) -> str:
+    """Highlight matched search query tokens or exact phrase in text.
+
+    Args:
+        text: Target text to format.
+        query: Query string containing tokens or exact phrase.
+        color: Whether to inject ANSI yellow/bold color codes.
+        exact: Whether query represents an exact contiguous phrase.
+
+    Returns:
+        Formatted text with color codes or unaltered text if color is False.
+    """
+    if not color or not query.strip():
+        return text
+
+    if exact:
+        clean = re.escape(query.strip().strip('"\''))
+        pattern = rf"({clean})"
+    else:
+        words = re.findall(r"\w+", query)
+        operators = {"AND", "OR", "NOT"}
+        tokens = [re.escape(w) for w in words if w.upper() not in operators]
+        if not tokens:
+            return text
+        pattern = r"\b(" + "|".join(tokens) + r")\b"
+
+    yellow_bold = "\033[1;33m"
+    reset = "\033[0m"
+    return re.sub(pattern, rf"{yellow_bold}\1{reset}", text, flags=re.IGNORECASE)
+
+
+def format_search_snippet(snippet: str, color: bool = True) -> str:
+    """Format FTS5 snippet containing <b>...</b> tags for terminal display.
+
+    Args:
+        snippet: FTS5 generated snippet with <b> and </b> tags.
+        color: If True, replace tags with ANSI highlight; if False, clean tags.
+
+    Returns:
+        Formatted snippet text.
+    """
+    if not snippet:
+        return ""
+
+    if color:
+        yellow_bold = "\033[1;33m"
+        reset = "\033[0m"
+        return snippet.replace("<b>", yellow_bold).replace("</b>", reset)
+    else:
+        return snippet.replace("<b>", "[").replace("</b>", "]")
+
+
+def format_search_results(
+    results: Sequence[SearchResult],
+    query: str,
+    total_count: int,
+    translation_label: str = "WEB",
+    book_label: Optional[str] = None,
+    testament_label: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 20,
+    show_snippets: bool = False,
+    color: bool = True,
+    exact: bool = False,
+) -> str:
+    """Format scripture search results for human terminal display."""
+    lines: List[str] = []
+
+    # Build scope descriptor
+    scope_parts = [translation_label]
+    if book_label:
+        scope_parts.append(book_label)
+    if testament_label:
+        scope_parts.append(testament_label)
+    scope_str = ", ".join(scope_parts)
+
+    exact_marker = " (exact phrase)" if exact else ""
+    lines.append(f'=== Scripture Search: "{query}"{exact_marker} ({scope_str}) ===')
+
+    if not results:
+        lines.append("")
+        lines.append("No matching verses found.")
+        return "\n".join(lines)
+
+    verse_word = "verse" if total_count == 1 else "verses"
+    lines.append(f"Found {total_count} matching {verse_word}:")
+    lines.append("")
+
+    for idx, r in enumerate(results, start=offset + 1):
+        ref_header = f"{idx}. {r.human_ref} ({r.translation_id})"
+        lines.append(f"  {ref_header}")
+
+        if show_snippets and r.snippet:
+            formatted_snippet = format_search_snippet(r.snippet, color=color)
+            lines.append(f"     {formatted_snippet}")
+        else:
+            formatted_text = highlight_search_tokens(r.text, query, color=color, exact=exact)
+            lines.append(f"     {formatted_text}")
+        lines.append("")
+
+    # Pagination footer if more results exist
+    displayed_count = offset + len(results)
+    if total_count > displayed_count:
+        remaining = total_count - displayed_count
+        lines.append(
+            f"Showing results {offset + 1}–{displayed_count} of {total_count} "
+            f"({remaining} more). Use --offset={displayed_count} to view next page."
+        )
+
+    return "\n".join(lines).rstrip()
 
 
 def cmd_get(args: argparse.Namespace) -> int:
@@ -317,6 +438,153 @@ def cmd_compare(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_search(args: argparse.Namespace) -> int:
+    """Handle 'search' subcommand: full-text search across scripture using SQLite FTS5."""
+    raw_query = " ".join(args.query).strip()
+    if not raw_query:
+        sys.stderr.write("Error: Search query required (e.g. 'light of the world', 'faith AND works').\n")
+        return 1
+
+    db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+    if not db_path.exists():
+        sys.stderr.write(
+            f"Error: Database file not found at '{db_path}'.\n"
+            f"Run 'python3 tools/ingest_web.py' to compile offline scripture database.\n"
+        )
+        return 1
+
+    # Book filter validation
+    book_filter = None
+    book_label = None
+    if getattr(args, "book", None):
+        b = get_book(args.book)
+        if not b:
+            sys.stderr.write(f"Error: Unknown book '{args.book}'.\n")
+            return 1
+        book_filter = b
+        book_label = b.name
+
+    # Testament filter validation
+    testament_filter = None
+    testament_label = None
+    if getattr(args, "testament", None):
+        t_raw = args.testament.strip().upper()
+        if t_raw in ("OT", "OLD", "OLD TESTAMENT"):
+            testament_filter = "OT"
+            testament_label = "Old Testament"
+        elif t_raw in ("NT", "NEW", "NEW TESTAMENT"):
+            testament_filter = "NT"
+            testament_label = "New Testament"
+        else:
+            sys.stderr.write(f"Error: Unknown testament '{args.testament}'. Expected 'OT' or 'NT'.\n")
+            return 1
+
+    exact = bool(getattr(args, "exact", False))
+    sort_by = getattr(args, "sort", "relevance")
+    limit = max(1, getattr(args, "limit", 20))
+    offset = max(0, getattr(args, "offset", 0))
+    show_snippets = bool(getattr(args, "snippets", False))
+    only_count = bool(getattr(args, "count", False))
+    output_json = bool(getattr(args, "json", False))
+
+    fallback = (
+        None
+        if (getattr(args, "strict", False) or getattr(args, "no_fallback", False))
+        else (args.fallback or "WEB").strip().upper()
+    )
+
+    is_tty = (
+        hasattr(sys.stdout, "isatty")
+        and sys.stdout.isatty()
+        and "NO_COLOR" not in os.environ
+        and not getattr(args, "no_highlight", False)
+    )
+
+    try:
+        with Database(db_path, auto_init=False) as db:
+            available_ids = db.get_available_translation_ids()
+            raw_version = getattr(args, "version", None)
+            requested_translations = parse_translation_ids(raw_version, default="WEB")
+
+            # Check translation availability and fallback
+            effective_translations: List[str] = []
+            for t_id in requested_translations:
+                if t_id == "ALL":
+                    effective_translations = ["ALL"]
+                    break
+                if t_id in available_ids:
+                    effective_translations.append(t_id)
+                elif fallback and fallback in available_ids:
+                    sys.stderr.write(
+                        f"Notice: Translation '{t_id}' not available; searching in fallback '{fallback}'.\n"
+                    )
+                    if fallback not in effective_translations:
+                        effective_translations.append(fallback)
+                else:
+                    sys.stderr.write(f"Error: Translation '{t_id}' is not installed in database.\n")
+                    return 1
+
+            trans_arg = None if "ALL" in effective_translations else effective_translations
+
+            # If --count requested:
+            if only_count:
+                count = db.count_search_matches(
+                    raw_query,
+                    translation_id=trans_arg,
+                    book=book_filter,
+                    testament=testament_filter,
+                    exact=exact,
+                )
+                print(count)
+                return 0
+
+            # Perform search query
+            results = db.search_text(
+                raw_query,
+                translation_id=trans_arg,
+                book=book_filter,
+                testament=testament_filter,
+                exact=exact,
+                sort_by=sort_by,
+                limit=limit,
+                offset=offset,
+            )
+
+            # If JSON output requested:
+            if output_json:
+                print(json.dumps([r.to_dict() for r in results], indent=2))
+                return 0
+
+            # Count total matches for summary & pagination
+            total_count = db.count_search_matches(
+                raw_query,
+                translation_id=trans_arg,
+                book=book_filter,
+                testament=testament_filter,
+                exact=exact,
+            )
+
+            trans_display = "ALL" if not trans_arg else ", ".join(trans_arg)
+            output = format_search_results(
+                results=results,
+                query=raw_query,
+                total_count=total_count,
+                translation_label=trans_display,
+                book_label=book_label,
+                testament_label=testament_label,
+                offset=offset,
+                limit=limit,
+                show_snippets=show_snippets,
+                color=is_tty,
+                exact=exact,
+            )
+            print(output)
+            return 0
+    except Exception as exc:
+        sys.stderr.write(f"Database error: {exc}\n")
+        return 1
+
+
 def cmd_translations(args: argparse.Namespace) -> int:
     """Handle 'translations' subcommand: list registered translations and verse totals."""
     db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
@@ -465,6 +733,100 @@ def build_parser() -> argparse.ArgumentParser:
         help="Suppress comparison headers",
     )
     parser_compare.set_defaults(func=cmd_compare)
+
+    # Subcommand: search (alias: find)
+    parser_search = subparsers.add_parser(
+        "search",
+        aliases=["find"],
+        help="Full-text search across scripture (e.g. 'light of the world', 'faith AND works')",
+        description="High-performance SQLite FTS5 full-text search across scripture text.",
+    )
+    parser_search.add_argument(
+        "query",
+        nargs="+",
+        help="Search query text, exact phrase, or Boolean operators (AND, OR, NOT)",
+    )
+    parser_search.add_argument(
+        "--version",
+        "-t",
+        dest="version",
+        default="WEB",
+        help="Translation to search (e.g. 'WEB', 'ESV', or 'all', default: WEB)",
+    )
+    parser_search.add_argument(
+        "--fallback",
+        default="WEB",
+        help="Fallback translation if requested version is missing (default: WEB)",
+    )
+    parser_search.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="Disable automatic fallback cascade and fail if requested version is missing",
+    )
+    parser_search.add_argument(
+        "--strict",
+        action="store_true",
+        help="Strictly require requested translation without fallback",
+    )
+    parser_search.add_argument(
+        "--book",
+        "-b",
+        type=str,
+        default=None,
+        help="Filter search to specific book (e.g. 'John', 'Romans', 'Genesis')",
+    )
+    parser_search.add_argument(
+        "--testament",
+        choices=["ot", "nt", "OT", "NT"],
+        default=None,
+        help="Filter search to Old Testament (OT) or New Testament (NT)",
+    )
+    parser_search.add_argument(
+        "--exact",
+        "-e",
+        action="store_true",
+        help="Match search query as an exact contiguous phrase",
+    )
+    parser_search.add_argument(
+        "--sort",
+        choices=["relevance", "canonical"],
+        default="relevance",
+        help="Sort order: 'relevance' (BM25 rank) or 'canonical' (Genesis-Revelation)",
+    )
+    parser_search.add_argument(
+        "--limit",
+        "-n",
+        type=int,
+        default=20,
+        help="Maximum results to return (default: 20)",
+    )
+    parser_search.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="Pagination offset for results (default: 0)",
+    )
+    parser_search.add_argument(
+        "--snippets",
+        action="store_true",
+        help="Display contextual snippets instead of full verse text",
+    )
+    parser_search.add_argument(
+        "--count",
+        action="store_true",
+        help="Output total count of matching verses and exit",
+    )
+    parser_search.add_argument(
+        "--no-highlight",
+        action="store_true",
+        help="Disable ANSI terminal color highlighting",
+    )
+    parser_search.add_argument(
+        "--json",
+        action="store_true",
+        help="Output search results as JSON",
+    )
+    parser_search.set_defaults(func=cmd_search)
 
     # Subcommand: translations (alias: versions)
     parser_translations = subparsers.add_parser(

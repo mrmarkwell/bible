@@ -220,6 +220,20 @@ class SearchResult:
         """Formatted human reference string."""
         return f"{self.book_name} {self.chapter}:{self.verse}"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert search result item to dictionary representation."""
+        return {
+            "verse_id": self.verse_id,
+            "reference": self.human_ref,
+            "book": self.book_name,
+            "chapter": self.chapter,
+            "verse": self.verse,
+            "translation": self.translation_id,
+            "text": self.text,
+            "snippet": self.snippet,
+            "rank": round(self.rank, 4),
+        }
+
 
 # --- Database Schema SQL ---
 
@@ -859,24 +873,34 @@ class Database:
     def search_text(
         self,
         query: str,
-        translation_id: Optional[str] = None,
+        translation_id: Optional[Union[str, Sequence[str]]] = None,
         book: Optional[Union[Book, str, int]] = None,
+        testament: Optional[str] = None,
+        exact: bool = False,
+        sort_by: str = "relevance",
         limit: int = 50,
         offset: int = 0,
     ) -> List[SearchResult]:
         """Perform full-text search across scripture text using SQLite FTS5.
 
         Args:
-            query: User search text or exact phrase.
-            translation_id: Optional translation filter (e.g. 'WEB').
-            book: Optional book filter.
+            query: User search text, phrase, or Boolean query.
+            translation_id: Optional translation filter (e.g. 'WEB' or ['WEB', 'KJV']).
+            book: Optional book filter (Book object, name, abbreviation, or number).
+            testament: Optional testament filter ('OT' or 'NT').
+            exact: If True, treat query as an exact contiguous phrase.
+            sort_by: Sort order: 'relevance' (BM25 rank) or 'canonical' (Genesis-Revelation).
             limit: Maximum result rows.
             offset: Result offset for pagination.
 
         Returns:
-            List of SearchResult matching query ordered by relevance.
+            List of SearchResult matching query ordered by relevance or canonical order.
         """
-        sanitized = sanitize_fts_query(query)
+        raw_query = query.strip()
+        if exact and not (raw_query.startswith('"') and raw_query.endswith('"')):
+            raw_query = f'"{raw_query}"'
+
+        sanitized = sanitize_fts_query(raw_query)
         if not sanitized:
             return []
 
@@ -884,16 +908,41 @@ class Database:
         params: List[Any] = [sanitized]
 
         if translation_id:
-            conditions.append("f.translation_id = ?")
-            params.append(translation_id.strip().upper())
+            if isinstance(translation_id, str):
+                t_ids = [t.strip().upper() for t in translation_id.split(",") if t.strip()]
+            else:
+                t_ids = [t.strip().upper() for t in translation_id if t.strip()]
+            if t_ids and "ALL" not in t_ids:
+                if len(t_ids) == 1:
+                    conditions.append("f.translation_id = ?")
+                    params.append(t_ids[0])
+                else:
+                    placeholders = ", ".join(["?"] * len(t_ids))
+                    conditions.append(f"f.translation_id IN ({placeholders})")
+                    params.extend(t_ids)
+
+        if testament:
+            t = testament.strip().upper()
+            if t in ("OT", "OLD", "OLD TESTAMENT", "OLD_TESTAMENT"):
+                conditions.append("v.book_id <= 39")
+            elif t in ("NT", "NEW", "NEW TESTAMENT", "NEW_TESTAMENT"):
+                conditions.append("v.book_id >= 40")
+            else:
+                raise ValueError(f"Unknown testament filter '{testament}'. Expected 'OT' or 'NT'.")
 
         if book:
             b = get_book(book)
             if b:
                 conditions.append("v.book_id = ?")
                 params.append(b.number)
+            else:
+                raise ValueError(f"Unknown book '{book}'")
 
         where_clause = " AND ".join(conditions)
+        if sort_by in ("canonical", "order", "book"):
+            order_clause = "v.canonical_verse_id ASC"
+        else:
+            order_clause = "f.rank ASC"
 
         sql = f"""
             SELECT
@@ -909,7 +958,7 @@ class Database:
             FROM verses_fts f
             JOIN verses v ON v.id = f.verse_id
             WHERE {where_clause}
-            ORDER BY f.rank
+            ORDER BY {order_clause}
             LIMIT ? OFFSET ?
         """
         params.extend([limit, offset])
@@ -933,6 +982,82 @@ class Database:
             )
             for r in rows
         ]
+
+    def count_search_matches(
+        self,
+        query: str,
+        translation_id: Optional[Union[str, Sequence[str]]] = None,
+        book: Optional[Union[Book, str, int]] = None,
+        testament: Optional[str] = None,
+        exact: bool = False,
+    ) -> int:
+        """Count total verses matching FTS5 query with optional filters.
+
+        Args:
+            query: User search text, phrase, or Boolean query.
+            translation_id: Optional translation filter (e.g. 'WEB' or ['WEB', 'KJV']).
+            book: Optional book filter.
+            testament: Optional testament filter ('OT' or 'NT').
+            exact: If True, treat query as an exact contiguous phrase.
+
+        Returns:
+            Total count of matching verses.
+        """
+        raw_query = query.strip()
+        if exact and not (raw_query.startswith('"') and raw_query.endswith('"')):
+            raw_query = f'"{raw_query}"'
+
+        sanitized = sanitize_fts_query(raw_query)
+        if not sanitized:
+            return 0
+
+        conditions = ["verses_fts MATCH ?"]
+        params: List[Any] = [sanitized]
+
+        if translation_id:
+            if isinstance(translation_id, str):
+                t_ids = [t.strip().upper() for t in translation_id.split(",") if t.strip()]
+            else:
+                t_ids = [t.strip().upper() for t in translation_id if t.strip()]
+            if t_ids and "ALL" not in t_ids:
+                if len(t_ids) == 1:
+                    conditions.append("f.translation_id = ?")
+                    params.append(t_ids[0])
+                else:
+                    placeholders = ", ".join(["?"] * len(t_ids))
+                    conditions.append(f"f.translation_id IN ({placeholders})")
+                    params.extend(t_ids)
+
+        if testament:
+            t = testament.strip().upper()
+            if t in ("OT", "OLD", "OLD TESTAMENT", "OLD_TESTAMENT"):
+                conditions.append("v.book_id <= 39")
+            elif t in ("NT", "NEW", "NEW TESTAMENT", "NEW_TESTAMENT"):
+                conditions.append("v.book_id >= 40")
+            else:
+                raise ValueError(f"Unknown testament filter '{testament}'. Expected 'OT' or 'NT'.")
+
+        if book:
+            b = get_book(book)
+            if b:
+                conditions.append("v.book_id = ?")
+                params.append(b.number)
+            else:
+                raise ValueError(f"Unknown book '{book}'")
+
+        where_clause = " AND ".join(conditions)
+        sql = f"""
+            SELECT COUNT(*) AS total
+            FROM verses_fts f
+            JOIN verses v ON v.id = f.verse_id
+            WHERE {where_clause}
+        """
+        cur = self.conn.cursor()
+        cur.execute(sql, params)
+        row = cur.fetchone()
+        cur.close()
+        return int(row["total"]) if row else 0
+
 
     # --- Spans ---
 

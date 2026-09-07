@@ -462,6 +462,28 @@ This document is an append-only log of significant design and architectural deci
   - Aligned verse comparison provides an exceptional terminal reading and exegesis experience.
   - 100% compliant with ADR-003 zero-dependency architecture.
 
+---
 
-
-
+## ADR-019: SQLite FTS5 Full-Text Search CLI Command & Structured Presentation Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 1, an SQLite FTS5 virtual table (`verses_fts`) with automatic synchronization triggers was established in `core/db.py`. However, user-facing discovery required a robust, high-performance CLI command (`bible search` and alias `bible find`) with rich filtering (book, testament, translation fallback), exact phrase matching (`--exact`), ranking vs. canonical sorting (`--sort=relevance|canonical`), pagination, snippet highlighting, match count summaries, and scriptable JSON export.
+- **Decision**:
+  1. **Enhanced Full-Text Search Core (`core/db.py`)**:
+     - Upgraded `search_text` to accept `testament` (`OT`/`NT`), `exact` (enforcing contiguous phrase matches), and `sort_by` (`relevance` via FTS5 BM25 `f.rank ASC` vs `canonical` via indexed `v.canonical_verse_id ASC`).
+     - Added `count_search_matches(...)` executing fast index-backed `COUNT(*)` over the filtered FTS5 virtual table.
+     - Added `to_dict()` on `SearchResult` for clean dictionary serialization.
+     - Updated `get_book` in `core/reference.py` to accept existing `Book` instances idempotently.
+  2. **Scripture Search CLI Interface (`cli/main.py`)**:
+     - Added `bible search` (and alias `bible find`) taking one or more query words, quoted phrases, or Boolean expressions (`AND`, `OR`, `NOT`).
+     - Filter flags: `--book` / `-b`, `--testament`, `--version` / `-t` with automatic fallback cascade to `WEB` (with stderr notification), and `--strict` enforcement.
+     - Presentation options: `--exact` / `-e`, `--sort=relevance|canonical`, `--snippets` (contextual FTS5 snippets with `<b>` delimiters), `--limit` / `-n`, `--offset` for pagination.
+     - UNIX pipeline & automation integration: `--count` outputs integer match count only; `--json` emits structured JSON array.
+  3. **Terminal Presentation & Token Highlighting**:
+     - `highlight_search_tokens`: highlights query words or exact phrases in terminal output using ANSI bold yellow codes (`\033[1;33m`), safely degrading to plain text when `color=False`, piped, or under `NO_COLOR`.
+     - `format_search_snippet`: converts SQLite FTS5 `<b>` tags to ANSI yellow highlights or clean bracketed tags (`[...]`) in plain text mode.
+     - Clear headers and pagination footers indicating total matches, current page range, and remaining count.
+- **Consequences**:
+  - Delivers fast, sovereign scripture search directly from the terminal without cloud or internet dependencies.
+  - Supports both theological research (finding specific phrases across testament boundaries) and pipeline scripting (via `--count` and `--json`).
+  - Hermetic tests in `tests/test_db.py` and `tests/test_cli.py` verify 100% test coverage and zero third-party dependencies (stdlib only per ADR-003).

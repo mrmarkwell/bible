@@ -36,7 +36,7 @@ This document is the single source of truth for current project status, active t
 ### Phase 2: Command Line Interface (CLI)
 - [x] **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`). *(Run 012)*
 - [x] **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks, parallel comparison subcommand (`bible compare`), and translations inspector (`bible translations`). *(Run 017)*
-- [ ] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`).
+- [x] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`). *(Run 018)*
 - [ ] **Task 2.4**: Formatted terminal output (clean margins, optional verse numbers, colored ANSI styling using standard library).
 
 ### Phase 3: Semantic Tagging & Knowledge Database Engine

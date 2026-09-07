@@ -446,6 +446,62 @@ class TestFullTextSearch(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].human_ref, "John 1:5")
 
+    def test_exact_phrase_search_flag(self):
+        # Unquoted "light world" without exact flag matches any verse with both tokens
+        results_fuzzy = self.db.search_text("light world", exact=False)
+        self.assertEqual(len(results_fuzzy), 2)
+
+        # With exact=True, matches only contiguous phrase "light world", which does not occur
+        results_exact = self.db.search_text("light world", exact=True)
+        self.assertEqual(len(results_exact), 0)
+
+        # Exact phrase "light of the world" matches 2 verses (WEB & KJV)
+        results_phrase = self.db.search_text("light of the world", exact=True)
+        self.assertEqual(len(results_phrase), 2)
+
+    def test_filter_by_testament(self):
+        # "light" in OT (Genesis 1:3) vs NT (Matthew 5:14, John 1:5)
+        ot_results = self.db.search_text("light", testament="OT")
+        self.assertEqual(len(ot_results), 1)
+        self.assertEqual(ot_results[0].human_ref, "Genesis 1:3")
+
+        nt_results = self.db.search_text("light", testament="NT", translation_id="WEB")
+        self.assertEqual(len(nt_results), 2)
+        nt_refs = {r.human_ref for r in nt_results}
+        self.assertEqual(nt_refs, {"Matthew 5:14", "John 1:5"})
+
+        with self.assertRaises(ValueError):
+            self.db.search_text("light", testament="INVALID")
+
+    def test_sort_by_canonical(self):
+        results = self.db.search_text("light", translation_id="WEB", sort_by="canonical")
+        refs = [r.human_ref for r in results]
+        self.assertEqual(refs, ["Genesis 1:3", "Matthew 5:14", "John 1:5"])
+
+    def test_count_search_matches(self):
+        count_all = self.db.count_search_matches("light")
+        self.assertEqual(count_all, 4)  # Gen 1:3 (WEB), Matt 5:14 (WEB, KJV), John 1:5 (WEB)
+
+        count_ot = self.db.count_search_matches("light", testament="OT")
+        self.assertEqual(count_ot, 1)
+
+        count_exact = self.db.count_search_matches("light of the world", exact=True)
+        self.assertEqual(count_exact, 2)
+
+        count_none = self.db.count_search_matches("nonexistentword")
+        self.assertEqual(count_none, 0)
+
+    def test_search_result_to_dict(self):
+        results = self.db.search_text("heavens")
+        self.assertEqual(len(results), 1)
+        d = results[0].to_dict()
+        self.assertEqual(d["reference"], "Genesis 1:1")
+        self.assertEqual(d["book"], "Genesis")
+        self.assertEqual(d["chapter"], 1)
+        self.assertEqual(d["verse"], 1)
+        self.assertEqual(d["translation"], "WEB")
+        self.assertIn("heavens", d["text"])
+
     def test_fts_sync_on_delete_and_update(self):
         # Update verse
         v = self.db.get_verse("John", 1, 5, translation_id="WEB")
