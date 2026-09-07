@@ -38,6 +38,18 @@ from core.reference import (
     verse_canonical_id,
 )
 
+from core.terminal import (
+    BOLD_GOLD,
+    THEMES,
+    format_aligned_comparison_styled,
+    format_citation_header,
+    format_scripture_passage,
+    get_terminal_width,
+    should_use_color,
+    strip_ansi,
+    visual_len,
+)
+
 __all__ = [
     # Reference
     "Book",
@@ -73,4 +85,15 @@ __all__ = [
     "decrypt_string",
     "encrypt_text_pack",
     "decrypt_text_pack",
+    # Terminal & Typography
+    "THEMES",
+    "BOLD_GOLD",
+    "should_use_color",
+    "get_terminal_width",
+    "strip_ansi",
+    "visual_len",
+    "format_citation_header",
+    "format_scripture_passage",
+    "format_aligned_comparison_styled",
 ]
+

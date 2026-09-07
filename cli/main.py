@@ -20,6 +20,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.db import DEFAULT_DB_PATH, Database, SearchResult, VerseRecord
 from core.reference import Reference, get_book, parse_reference
+from core.terminal import (
+    THEMES,
+    format_aligned_comparison_styled,
+    format_citation_header,
+    format_scripture_passage,
+    get_terminal_width,
+    should_use_color,
+)
 
 
 def parse_translation_ids(
@@ -61,6 +69,12 @@ def format_verse_lines(
     show_verse_numbers: bool = True,
     show_header: bool = True,
     fallback_for: Optional[str] = None,
+    width: Optional[int] = None,
+    margin: int = 0,
+    flow: bool = False,
+    color: bool = False,
+    theme: str = "sacred",
+    box: bool = False,
 ) -> str:
     """Format a list of VerseRecord objects for terminal display.
 
@@ -69,6 +83,12 @@ def format_verse_lines(
         show_verse_numbers: If True, include [verse] numbers before text.
         show_header: If True, include translation and passage header.
         fallback_for: If specified, notes that this translation is serving as a fallback.
+        width: Optional line wrap width. If None and (margin > 0 or flow or box or color), auto-detects.
+        margin: Left margin indentation spaces (default 0).
+        flow: If True, format verses continuously as a paragraph reader.
+        color: Whether to use ANSI terminal styling.
+        theme: Theme name ('sacred', 'amber', 'cyan', 'plain').
+        box: Whether to draw a decorative unicode box around header.
 
     Returns:
         Formatted string for terminal printing.
@@ -76,6 +96,22 @@ def format_verse_lines(
     if not verses:
         return ""
 
+    # If terminal formatting flags are requested or color/margins active, use typography engine
+    if width is not None or margin > 0 or flow or color or box or theme != "plain":
+        return format_scripture_passage(
+            verses=verses,
+            show_verse_numbers=show_verse_numbers,
+            show_header=show_header,
+            fallback_for=fallback_for,
+            width=width,
+            margin=margin,
+            flow=flow,
+            color=color,
+            theme_name=theme,
+            box_header=box,
+        )
+
+    # Legacy clean plain-text behavior
     first = verses[0]
     last = verses[-1]
     b_name = first.book_name or str(first.book_id)
@@ -107,6 +143,11 @@ def format_aligned_comparison(
     ref: Reference,
     comparison_data: Dict[str, Tuple[Sequence[VerseRecord], str, bool]],
     show_header: bool = True,
+    width: Optional[int] = None,
+    margin: int = 0,
+    color: bool = False,
+    theme: str = "sacred",
+    box: bool = False,
 ) -> str:
     """Format multiple translations in an aligned verse-by-verse comparison layout.
 
@@ -115,10 +156,27 @@ def format_aligned_comparison(
         comparison_data: Dict mapping requested translation ID to
             (verses_sequence, effective_translation_id, is_fallback).
         show_header: If True, include comparison title block.
+        width: Max width for line wrapping.
+        margin: Left margin indent spaces.
+        color: Whether to apply ANSI highlights.
+        theme: Color palette.
+        box: Whether to draw boxed header.
 
     Returns:
         Formatted string aligning verses across translations.
     """
+    if width is not None or margin > 0 or color or box or theme != "plain":
+        return format_aligned_comparison_styled(
+            ref_title=ref.format(),
+            comparison_data=comparison_data,
+            show_header=show_header,
+            width=width,
+            margin=margin,
+            color=color,
+            theme_name=theme,
+            box_header=box,
+        )
+
     verse_map: Dict[Tuple[int, str], Dict[str, str]] = {}
     verse_labels: Dict[Tuple[int, str], str] = {}
 
@@ -156,6 +214,7 @@ def format_aligned_comparison(
             lines.append("")
 
     return "\n".join(lines)
+
 
 
 def highlight_search_tokens(
@@ -309,6 +368,20 @@ def cmd_get(args: argparse.Namespace) -> int:
             show_nums = not args.no_numbers
             show_hdr = not args.no_header
 
+            # Determine color enablement
+            if getattr(args, "no_color", False):
+                color_enabled = False
+            elif getattr(args, "color", None) is True:
+                color_enabled = True
+            else:
+                color_enabled = should_use_color()
+
+            theme_name = getattr(args, "theme", "sacred")
+            margin_width = getattr(args, "margin", 0)
+            wrap_width = getattr(args, "width", None)
+            flow_mode = getattr(args, "flow", False)
+            box_header = getattr(args, "box", False)
+
             for req_id in requested_translations:
                 verses, eff_id, is_fb = db.get_verses_with_fallback(
                     ref, translation_id=req_id, fallback_id=fallback
@@ -336,6 +409,12 @@ def cmd_get(args: argparse.Namespace) -> int:
                     show_verse_numbers=show_nums,
                     show_header=show_hdr,
                     fallback_for=fb_for,
+                    width=wrap_width,
+                    margin=margin_width,
+                    flow=flow_mode,
+                    color=color_enabled,
+                    theme=theme_name,
+                    box=box_header,
                 )
                 outputs.append(formatted)
 
@@ -411,6 +490,19 @@ def cmd_compare(args: argparse.Namespace) -> int:
             show_hdr = not args.no_header
             mode = getattr(args, "mode", "aligned")
 
+            # Determine color enablement
+            if getattr(args, "no_color", False):
+                color_enabled = False
+            elif getattr(args, "color", None) is True:
+                color_enabled = True
+            else:
+                color_enabled = should_use_color()
+
+            theme_name = getattr(args, "theme", "sacred")
+            margin_width = getattr(args, "margin", 0)
+            wrap_width = getattr(args, "width", None)
+            box_header = getattr(args, "box", False)
+
             if mode == "stacked":
                 blocks = []
                 for req_id, (verses, eff_id, is_fb) in comparison_data.items():
@@ -421,6 +513,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
                             show_verse_numbers=show_nums,
                             show_header=show_hdr,
                             fallback_for=fb_for,
+                            width=wrap_width,
+                            margin=margin_width,
+                            color=color_enabled,
+                            theme=theme_name,
+                            box=box_header,
                         )
                     )
                 print("\n\n".join(blocks))
@@ -429,6 +526,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
                     ref,
                     comparison_data,
                     show_header=show_hdr,
+                    width=wrap_width,
+                    margin=margin_width,
+                    color=color_enabled,
+                    theme=theme_name,
+                    box=box_header,
                 )
                 print(output)
 
@@ -680,6 +782,47 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress passage reference and translation header",
     )
+    parser_get.add_argument(
+        "--width",
+        "-w",
+        type=int,
+        default=None,
+        help="Target line wrap width for reading (defaults to terminal width up to 88)",
+    )
+    parser_get.add_argument(
+        "--margin",
+        "-m",
+        type=int,
+        default=0,
+        help="Left margin indentation width in spaces (default: 0)",
+    )
+    parser_get.add_argument(
+        "--flow",
+        action="store_true",
+        help="Flow verses into continuous reader paragraph prose instead of line-by-line",
+    )
+    parser_get.add_argument(
+        "--color",
+        action="store_true",
+        default=None,
+        help="Force enable ANSI color styling (illuminated sacred theme)",
+    )
+    parser_get.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color styling (plain monochrome text)",
+    )
+    parser_get.add_argument(
+        "--theme",
+        choices=["sacred", "amber", "cyan", "plain"],
+        default="sacred",
+        help="Color theme palette: sacred (gold), amber, cyan, or plain (default: sacred)",
+    )
+    parser_get.add_argument(
+        "--box",
+        action="store_true",
+        help="Draw illuminated unicode box border around citation headers",
+    )
     parser_get.set_defaults(func=cmd_get)
 
     # Subcommand: compare
@@ -732,7 +875,44 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress comparison headers",
     )
+    parser_compare.add_argument(
+        "--width",
+        "-w",
+        type=int,
+        default=None,
+        help="Target line wrap width for reading (defaults to terminal width up to 88)",
+    )
+    parser_compare.add_argument(
+        "--margin",
+        "-m",
+        type=int,
+        default=0,
+        help="Left margin indentation width in spaces (default: 0)",
+    )
+    parser_compare.add_argument(
+        "--color",
+        action="store_true",
+        default=None,
+        help="Force enable ANSI color styling",
+    )
+    parser_compare.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color styling",
+    )
+    parser_compare.add_argument(
+        "--theme",
+        choices=["sacred", "amber", "cyan", "plain"],
+        default="sacred",
+        help="Color theme palette: sacred (gold), amber, cyan, or plain (default: sacred)",
+    )
+    parser_compare.add_argument(
+        "--box",
+        action="store_true",
+        help="Draw illuminated unicode box border around citation headers",
+    )
     parser_compare.set_defaults(func=cmd_compare)
+
 
     # Subcommand: search (alias: find)
     parser_search = subparsers.add_parser(

@@ -593,6 +593,61 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("Error: Search query required", stderr.getvalue())
 
+    def test_cli_get_with_typography_options(self):
+        # Test get with margin, width, flow, and boxed header
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "get", "John 3:16-17",
+                "--margin", "4",
+                "--width", "60",
+                "--flow",
+                "--box",
+                "--no-color",
+            ])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("┌", out)
+        self.assertIn("John 3:16-17 (WEB)", out)
+        self.assertIn("    [16] For God so loved", out)
+
+    def test_cli_get_with_color_theme(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "get", "John 3:16",
+                "--color",
+                "--theme", "amber",
+            ])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("\033[1;33m=== John 3:16", out)
+
+    def test_cli_compare_with_typography_options(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main([
+                "--db", str(self.db_path),
+                "compare", "John 3:16",
+                "--versions", "WEB,KJV",
+                "--margin", "2",
+                "--width", "70",
+                "--box",
+                "--no-color",
+            ])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("┌", out)
+        self.assertIn("Compare: John 3:16", out)
+        self.assertIn("[WEB]", out)
+        self.assertIn("[KJV]", out)
+
 
 if __name__ == "__main__":
     unittest.main()
+

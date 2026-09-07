@@ -487,3 +487,35 @@ This document is an append-only log of significant design and architectural deci
   - Delivers fast, sovereign scripture search directly from the terminal without cloud or internet dependencies.
   - Supports both theological research (finding specific phrases across testament boundaries) and pipeline scripting (via `--count` and `--json`).
   - Hermetic tests in `tests/test_db.py` and `tests/test_cli.py` verify 100% test coverage and zero third-party dependencies (stdlib only per ADR-003).
+
+---
+
+## ADR-020: Terminal Scripture Typography, Layout Margins & ANSI Styling Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: Reading scripture in terminal emulators requires thoughtful typography. Raw unformatted text wrapping across 160+ column terminal screens impairs eye tracking and readability. Users require clean typographic line lengths (optimal ~80–88 columns), hanging verse indentations, custom left margins, continuous paragraph flow ("reader mode"), illuminated ANSI color palettes (sacred gold, amber, cyan), decorative unicode box citation headers, and strict compliance with `NO_COLOR` standards.
+- **Decision**:
+  1. **Core Terminal Typography Engine (`core/terminal.py`)**:
+     - Built zero-dependency terminal formatting module supporting:
+       - `format_scripture_passage`: flexible verse layout supporting line-by-line verse lists with hanging indentation or continuous paragraph flow (`--flow`).
+       - `format_aligned_comparison_styled`: aligned multi-translation side-by-side comparison with column margins and line wrapping.
+       - `format_citation_header`: plain banner (`=== John 3:16 (WEB) ===`) or boxed header (`┌───┐ ... └───┘`).
+       - `get_terminal_width`: clamps wide terminal windows to optimal reading measure (default 80–88 characters) with dynamic fallback.
+       - `wrap_prefixed_text`: wraps text after fixed-width prefixes without collapsing multiple space alignment columns.
+       - `strip_ansi` and `visual_len`: calculates true printed display character widths disregarding zero-width ANSI escape sequences.
+       - ANSI color palette (`sacred` gold, `amber`, `cyan`, `plain`) with automatic `NO_COLOR`, `TERM=dumb`, and non-TTY suppression via `should_use_color()`.
+  2. **CLI Integration (`cli/main.py`)**:
+     - Upgraded `bible get` and `bible compare` with flags:
+       - `--width` / `-w <N>`: target line wrap width for reading.
+       - `--margin` / `-m <N>`: left margin indentation width in spaces.
+       - `--flow`: renders verses continuously in a paragraph reader format instead of verse-per-line.
+       - `--color` / `--no-color`: force enable or disable ANSI color styling.
+       - `--theme=<sacred|amber|cyan|plain>`: selects illuminated color scheme.
+       - `--box`: draws unicode double/single border around citation banners.
+     - Fully backward-compatible with default pipe / plain-text scripting.
+  3. **Hermetic Test Suite (`tests/test_terminal.py` and `tests/test_cli.py`)**:
+     - Added 15 new hermetic tests covering visual length calculations, ANSI stripping, boxed headers, color themes, paragraph flow wrapping, margins, and CLI subcommands.
+- **Consequences**:
+  - Delivers a contemplative, sacred reading experience directly in the terminal with zero external dependencies.
+  - Maintains strict standard library compliance (ADR-003) and 100% test coverage.
+  - Automatically respects user environments (`NO_COLOR`, redirection pipes, CI logs).
