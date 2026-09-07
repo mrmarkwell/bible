@@ -1434,3 +1434,38 @@ This document is an append-only log of significant design and architectural deci
   - Enables modern, word-for-word ESV scripture lookups, slides, and upcoming Gemini prompt building while adhering strictly to Crossway's legal terms of service.
   - Guarantees 100% zero-dependency architecture (ADR-003) and offline-first resilience.
 
+---
+
+## ADR-046: Zero-Dependency Google Gemini REST Client, Primary/Fallback Dual-Model Architecture, and ESV Passage Context Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**:
+  - Phase 6 requires integrating Large Language Models to enable offline semantic enrichment (Phase 7) and online Scripture RAG / Biblical Character Dialogue (Phase 8), strictly adhering to ADR-003 (zero external dependencies, standard library only) and ADR-006 (TGC Theological Hermeneutic Framework).
+  - The client must target Google's premier LLM models, defaulting to `gemini-2.5-pro` with automatic, seamless fallback to `gemini-2.0-flash` on HTTP 404 (model not found), HTTP 429 (rate limits), or persistent transient failures.
+  - Per ADR-041, scripture context injection into LLM prompts must default to the English Standard Version (ESV) using the compliant 500-verse LRU cache and live ESV API client (`core/esv.py`), with Crossway short attribution `(ESV) - www.esv.org`, and graceful cascading to the public-domain World English Bible (`WEB`) when offline or unconfigured.
+- **Decision**:
+  1. **Pure Python Stdlib Gemini REST Client (`core/llm.py`)**:
+     - Built a pure Python 3 standard library client targeting `https://generativelanguage.googleapis.com/v1beta/models` using `urllib.request` and `json`.
+     - Multi-tier API key resolution (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `.env`, `config/gemini_api_key.txt`, `~/.config/bible/gemini_api_key`).
+     - Error mapping: `LLMAuthError` (401/403), `LLMRateLimitError` (429), `LLMModelNotFoundError` (404), `LLMNetworkError` (timeouts/URLError), `LLMResponseError` (safety blocks/parse errors).
+     - Configurable retry loop with exponential backoff on transient errors (500, 502, 503, 504, URLError).
+     - Full support for ChatMessage dialogue turns, system instructions, and GenerationConfig.
+  2. **Automatic Dual-Model Fallback Hierarchy (`gemini-2.5-pro` -> `gemini-2.0-flash`)**:
+     - Defaults to primary model `gemini-2.5-pro`.
+     - When a 404 Model Not Found or 429 Rate Limit occurs, the client automatically executes the request against `fallback_model` (`gemini-2.0-flash`), populating `fallback_used=True` in the `LLMResponse`.
+  3. **Advanced Modalities: Streaming, Structured JSON & Vector Embeddings**:
+     - Streaming generator `generate_stream(...)` parses Server-Sent Events (SSE) `data: {...}` lines.
+     - Structured JSON helper `generate_json(...)` configures `response_mime_type="application/json"` and strips markdown code fences.
+     - Embeddings generator (`embed_content`, `batch_embed_contents`) targeting `text-embedding-004`, preparing for Phase 7 vector similarity.
+  4. **ESV-Default Passage Context Engine (`build_passage_context`)**:
+     - Resolves scripture citations against `Database.get_verses_with_fallback`, prioritizing ESV from cache/API with legal attribution `(ESV) - www.esv.org` and cascading to WEB when offline.
+     - Formats markdown prompt blocks ready for immediate context injection.
+  5. **Omnichannel CLI & Interactive REPL**:
+     - Added `./bible gemini` (aliases: `llm`, `gemini-api`) with `status`, `context`, `prompt`, `embed`, and `--json`.
+     - Added `/gemini` (alias: `/llm`) slash command with tab autocompletion to `BibleShell`.
+  6. **Hermetic Unit Test Suite (`tests/test_llm.py`)**:
+     - 23 comprehensive tests covering key discovery, fallback execution, SSE streaming, retries, JSON parsing, embeddings, and context building, achieving 90.6% statement coverage with zero external packages. Total test suite expanded to **585 tests across 28 modules passing in 3.8s**.
+- **Consequences**:
+  - Completes Task 6.1 in full.
+  - Gives the application a resilient, production-grade LLM client and context builder completely free of external dependencies.
+  - Establishes the engine foundation for TGC hermeneutical guardrails (Task 6.2) and whole-Bible offline semantic compilation (Phase 7).

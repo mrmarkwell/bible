@@ -1672,6 +1672,57 @@ This is an append-only log of work performed by autonomous agents during their e
   - Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 are all 100% complete.
   - Next domain task on roadmap: **Task 6.1**: *Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041.*
 
+---
+
+## [Run 043] 2026-09-07 — Zero-Dependency Google Gemini LLM Client, Dual-Model Fallback Hierarchy & ESV Passage Context Engine (Task 6.1 / ADR-046)
+- **Role**: Ralph Loop Autonomous Cycle (Standard Iteration).
+- **Phase**: Phase 6 — Google Gemini LLM Client & Theological Guardrail Engine (Zero-Dependencies).
+- **Task**: Task 6.1 — Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041.
+- **Accomplishments & Deliverables**:
+  - **Zero-Dependency Google Gemini REST Client (`core/llm.py`)**:
+    - Architected and implemented a robust, production-grade Google Gemini API client using pure Python 3 standard library (`urllib.request`, `json`, `time`, `os`).
+    - Multi-tier API key discovery: checks explicit parameters, `GEMINI_API_KEY` and `GOOGLE_API_KEY` environment variables, `.env` files, `config/gemini_api_key.txt`, and `~/.config/bible/gemini_api_key`.
+    - Structured exception hierarchy: `LLMAuthError` (401/403), `LLMRateLimitError` (429), `LLMModelNotFoundError` (404), `LLMNetworkError` (timeouts/drops), and `LLMResponseError` (safety blocks/parse errors).
+    - Added configurable retry loop with exponential backoff for transient server errors (HTTP 500, 502, 503, 504, URLError).
+    - Full support for multi-turn `ChatMessage` dialogues (`user`, `model`, `system`), system instructions, and `GenerationConfig` (temperature, top_p, top_k, max_output_tokens, stop_sequences).
+  - **Primary / Fallback Dual-Model Architecture (`gemini-2.5-pro` -> `gemini-2.0-flash`)**:
+    - Default primary model is `gemini-2.5-pro` (`DEFAULT_GEMINI_MODEL`).
+    - Fallback model is `gemini-2.0-flash` (`FALLBACK_GEMINI_MODEL`).
+    - If primary model encounters 404 (model unavailable), 429 (rate limits), or persistent transient error, client automatically cascades to fallback model, populating `fallback_used=True` in `LLMResponse`.
+  - **Advanced Modalities: Streaming, Structured JSON & Embeddings**:
+    - `generate_stream(...)`: Streams response chunks incrementally over Server-Sent Events (SSE) `data: {...}` payloads without blocking.
+    - `generate_json(...)`: Sets `response_mime_type="application/json"` and safely unwraps markdown code fences.
+    - `embed_content(...)` & `batch_embed_contents(...)`: Vector embedding generation targeting `text-embedding-004`, preparing foundation for Phase 7 vector search.
+  - **ESV-Default Passage Context Engine (`build_passage_context`)**:
+    - Resolves scripture citations through `Database.get_verses_with_fallback`, prioritizing ESV from ephemeral cache or live API with mandatory legal attribution (`(ESV) - www.esv.org` per ADR-041) and cascading to `WEB` when offline.
+    - Emits rich `PassageContext` DTO with markdown block formatter ready for prompt injection.
+  - **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added `./bible gemini` subcommand (aliases: `llm`, `gemini-api`) supporting actions `status` (default), `context`, `prompt`, `embed`, and `--json` / `--stream`.
+    - Added `/gemini` (alias: `/llm`) slash command to `BibleShell` with tab autocompletion (`complete_gemini`) and `/help` integration.
+    - Added `gemini` commands to `preprocess_cli_argv` for direct CLI argument routing.
+    - Refactored `tools/tag_generator.py` to use `GeminiClient` instead of manual ad-hoc urllib requests.
+  - **Hermetic Unit Test Suite (`tests/test_llm.py`)**:
+    - Authored 23 hermetic unit tests with mock HTTP transport covering key discovery, fallback cascades, SSE streaming, retries, JSON parsing, embeddings, and context building.
+    - Verified 90.6% statement coverage on `core/llm.py`. Full test suite expanded to **585 tests across 28 modules passing 100% in 3.8s**.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-046** in `DECISIONS.md`.
+    - Marked **Task 6.1** complete in `ROADMAP.md`.
+- **Verification**:
+  - Ran `./bible test`: 585 tests across 28 modules passed in 3.762s.
+  - Ran `./bible doctor`: all 7 repository health checks passed in 4.79s.
+  - Ran `./bible doctor --fast`: all 5 fast pre-commit checks passed in 0.68s.
+  - Ran `./bible lint`: 60 files checked with 0 errors.
+  - Ran `./bible coverage -m core/llm.py -p test_llm`: verified 90.6% statement coverage.
+  - Ran `./bible gemini status`: verified formatted terminal status card.
+  - Ran `./bible gemini status --json`: verified structured JSON metrics.
+  - Ran `./bible gemini context "John 3:16"`: verified scripture context block with fallback attribution.
+  - Ran `./bible gemini context "John 3:16" --json`: verified structured JSON context.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 6.1 is 100% complete, verified, and unblocked.
+  - Next domain task on roadmap: **Task 6.2**: *Implement TGC Hermeneutical Framework & System Prompt Generator in `core/theology.py` (codifying The Gospel Coalition Confessional Statement and Theological Vision for Ministry: dual-horizon hermeneutics, Christ-centered typology, non-moralistic interpretation, justification by faith alone).*
+
+
 
 
 

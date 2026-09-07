@@ -1069,6 +1069,29 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("Static Analysis & Linter Engine", out)
         self.assertIn("CODE QUALITY: CLEAN", out)
 
+    def test_cli_gemini_status_and_context(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["gemini", "status", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["default_model"], "gemini-2.5-pro")
+        self.assertEqual(data["fallback_model"], "gemini-2.0-flash")
+        self.assertTrue(data["zero_dependencies"])
+
+        # Context action
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "gemini", "context", "John 3:16", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["reference"], "John 3:16")
+        self.assertIn("text", data)
+        self.assertIn("attribution", data)
+
 
 if __name__ == "__main__":
     unittest.main()

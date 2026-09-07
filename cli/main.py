@@ -3886,6 +3886,215 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_esv.set_defaults(func=cmd_esv)
 
+    # Subcommand: gemini (aliases: llm, gemini-api)
+    parser_gemini = subparsers.add_parser(
+        "gemini",
+        aliases=["llm", "gemini-api"],
+        help="Google Gemini LLM client, model fallback, and passage context engine",
+        description="Interact with the zero-dependency Google Gemini API client (ADR-006) and passage context builder (ADR-041).",
+    )
+    parser_gemini.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "prompt", "context", "embed"],
+        help="Action: 'status' (API key & model configuration), 'prompt' (generate text), 'context' (build passage context block), 'embed' (generate vector embedding)",
+    )
+    parser_gemini.add_argument(
+        "argument",
+        nargs="*",
+        help="Prompt text, scripture reference citation, or text to embed",
+    )
+    parser_gemini.add_argument(
+        "--model",
+        default=None,
+        help="Gemini model identifier (default: gemini-2.5-pro with gemini-2.0-flash fallback)",
+    )
+    parser_gemini.add_argument(
+        "--system",
+        default=None,
+        help="System instruction / prompt guardrail",
+    )
+    parser_gemini.add_argument(
+        "--translation",
+        default="ESV",
+        help="Scripture translation for context builder (default: ESV)",
+    )
+    parser_gemini.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream response chunks using Server-Sent Events",
+    )
+    parser_gemini.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON metrics and data",
+    )
+
+    def cmd_gemini(args: argparse.Namespace) -> int:
+        from core.llm import (
+            DEFAULT_EMBEDDING_MODEL,
+            DEFAULT_GEMINI_MODEL,
+            FALLBACK_GEMINI_MODEL,
+            GEMINI_API_BASE_URL,
+            SUPPORTED_MODELS,
+            GeminiClient,
+            GenerationConfig,
+            LLMAuthError,
+            LLMError,
+            build_passage_context,
+            get_gemini_api_key,
+        )
+
+        action = getattr(args, "action", "status") or "status"
+        raw_args = getattr(args, "argument", []) or []
+        user_input = " ".join(raw_args).strip()
+        output_json = getattr(args, "json", False)
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[36m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        green = "\033[32m" if color_enabled else ""
+        yellow = "\033[33m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        api_key = get_gemini_api_key()
+        has_key = bool(api_key and api_key.strip())
+        masked_key = (
+            f"...{api_key[-4:]}"
+            if has_key and len(api_key) >= 8
+            else ("Configured" if has_key else "Unset")
+        )
+
+        if action == "context":
+            if not user_input:
+                sys.stderr.write("Error: Reference citation required for 'context' action (e.g. './bible gemini context \"John 3:16\"').\n")
+                return 1
+
+            db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+            target_trans = getattr(args, "translation", "ESV") or "ESV"
+
+            try:
+                with Database(db_path, auto_init=False) as db:
+                    ctx = build_passage_context(user_input, db=db, translation=target_trans)
+            except Exception as exc:
+                sys.stderr.write(f"Error building passage context: {exc}\n")
+                return 1
+
+            if output_json:
+                print(json.dumps(ctx.to_dict(), indent=2))
+                return 0
+
+            print(f"{gold}=== Passage Context: {ctx.reference} ({ctx.translation}) ==={reset}")
+            print(ctx.format_prompt_block(include_attribution=True))
+            return 0
+
+        elif action == "prompt":
+            if not user_input:
+                sys.stderr.write("Error: Prompt text required for 'prompt' action (e.g. './bible gemini prompt \"Explain Romans 8:28\"').\n")
+                return 1
+
+            if not has_key:
+                sys.stderr.write(
+                    "Error: Gemini API key is not configured. Set GEMINI_API_KEY environment variable "
+                    "or create a .env file with GEMINI_API_KEY=your_key.\n"
+                )
+                return 1
+
+            model_id = getattr(args, "model", None) or DEFAULT_GEMINI_MODEL
+            system_inst = getattr(args, "system", None)
+            is_stream = getattr(args, "stream", False)
+
+            client = GeminiClient(api_key=api_key, model=model_id, fallback_model=FALLBACK_GEMINI_MODEL)
+
+            try:
+                if is_stream:
+                    chunks = client.generate_stream(user_input, system_instruction=system_inst)
+                    for chunk in chunks:
+                        sys.stdout.write(chunk.text)
+                        sys.stdout.flush()
+                    sys.stdout.write("\n")
+                    return 0
+                else:
+                    resp = client.generate(user_input, system_instruction=system_inst)
+                    if output_json:
+                        print(json.dumps(resp.to_dict(), indent=2))
+                        return 0
+
+                    print(resp.text)
+                    if resp.fallback_used:
+                        print(f"{dim}(Note: Fallback model '{resp.model}' was utilized){reset}")
+                    return 0
+            except LLMError as exc:
+                sys.stderr.write(f"Gemini API error: {exc}\n")
+                return 1
+
+        elif action == "embed":
+            if not user_input:
+                sys.stderr.write("Error: Text required for 'embed' action (e.g. './bible gemini embed \"In the beginning\"').\n")
+                return 1
+
+            if not has_key:
+                sys.stderr.write(
+                    "Error: Gemini API key is not configured. Set GEMINI_API_KEY environment variable "
+                    "or create a .env file with GEMINI_API_KEY=your_key.\n"
+                )
+                return 1
+
+            client = GeminiClient(api_key=api_key)
+            try:
+                vec = client.embed_content(user_input)
+                if output_json:
+                    print(json.dumps({"text": user_input, "dimension": len(vec), "values": vec}, indent=2))
+                    return 0
+
+                print(f"Computed vector embedding: dimension={len(vec)}, preview={vec[:5]}...")
+                return 0
+            except LLMError as exc:
+                sys.stderr.write(f"Embedding error: {exc}\n")
+                return 1
+
+        else:  # status
+            if output_json:
+                print(json.dumps({
+                    "api_key_configured": has_key,
+                    "masked_key": masked_key,
+                    "default_model": DEFAULT_GEMINI_MODEL,
+                    "fallback_model": FALLBACK_GEMINI_MODEL,
+                    "default_embedding_model": DEFAULT_EMBEDDING_MODEL,
+                    "supported_models": list(SUPPORTED_MODELS),
+                    "api_base_url": GEMINI_API_BASE_URL,
+                    "zero_dependencies": True,
+                }, indent=2))
+                return 0
+
+            print(f"{gold}======================================================================{reset}")
+            print(f"{gold} Google Gemini LLM Client & Context Engine (ADR-006 / ADR-041){reset}")
+            print(f"{gold}======================================================================{reset}")
+            key_status = f"{green}Configured ({masked_key}){reset}" if has_key else f"{yellow}Not Configured (Set GEMINI_API_KEY){reset}"
+            print(f" Gemini API Key:        {key_status}")
+            print(f" Primary Model:         {cyan}{DEFAULT_GEMINI_MODEL}{reset}")
+            print(f" Fallback Model:        {cyan}{FALLBACK_GEMINI_MODEL}{reset} (Automatic on 404/429/failures)")
+            print(f" Embedding Model:       {cyan}{DEFAULT_EMBEDDING_MODEL}{reset}")
+            print(f" Endpoint Base URL:     {GEMINI_API_BASE_URL}")
+            print(f" Architecture:          100% Zero-Dependency Python stdlib (urllib.request)")
+            print(f" Passage Context:       Defaults to ESV with Crossway legal compliance")
+            print(f"----------------------------------------------------------------------")
+            print(f" Actions:")
+            print(f"   ./bible gemini status                 Check API key & model status")
+            print(f"   ./bible gemini context \"John 3:16\"     Build structured passage prompt context")
+            print(f"   ./bible gemini prompt \"<query>\"        Generate completion from prompt")
+            print(f"   ./bible gemini embed \"<text>\"          Generate semantic vector embedding")
+            print(f"{gold}======================================================================{reset}")
+            return 0
+
+    parser_gemini.set_defaults(func=cmd_gemini)
+
     return parser
 
 
@@ -3918,6 +4127,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "lint", "linter", "check-style",
         "coverage", "cov", "test-coverage",
         "esv", "esv-api", "esv-cache",
+        "gemini", "llm", "gemini-api",
     }
 
     pos_idx = -1

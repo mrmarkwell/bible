@@ -1838,6 +1838,113 @@ class BibleShell(cmd.Cmd):
         options = ["status", "cache", "clear", "fetch"]
         return [o for o in options if o.startswith(text.lower())]
 
+    def do_gemini(self, arg: str) -> None:
+        """Inspect Gemini API configuration, generate completions, or build passage prompt contexts.
+        Usage:
+          /gemini [status]                 Show API key configuration and model endpoints
+          /gemini context <citation>       Build structured passage context (defaults to ESV)
+          /gemini prompt <query>           Generate LLM completion from prompt
+          /gemini embed <text>             Compute text embedding vector
+        """
+        from core.llm import (
+            DEFAULT_EMBEDDING_MODEL,
+            DEFAULT_GEMINI_MODEL,
+            FALLBACK_GEMINI_MODEL,
+            GEMINI_API_BASE_URL,
+            GeminiClient,
+            LLMError,
+            build_passage_context,
+            get_gemini_api_key,
+        )
+
+        parts = arg.strip().split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else "status"
+        rest = parts[1].strip() if len(parts) > 1 else ""
+
+        api_key = get_gemini_api_key()
+        has_key = bool(api_key and api_key.strip())
+        masked_key = f"...{api_key[-4:]}" if has_key and len(api_key) >= 8 else ("Configured" if has_key else "Unset")
+
+        if subcmd == "context":
+            if not rest:
+                self.stdout.write("Usage: /gemini context <reference> (e.g. /gemini context John 3:16)\n")
+                return
+            if self.db is None:
+                self._init_db()
+            try:
+                ctx = build_passage_context(rest, db=self.db, translation="ESV")
+                self.stdout.write(f"\n=== Passage Context: {ctx.reference} ({ctx.translation}) ===\n")
+                self.stdout.write(f"{ctx.format_prompt_block(include_attribution=True)}\n\n")
+            except Exception as exc:
+                self.stdout.write(f"Error building passage context: {exc}\n")
+            return
+
+        if subcmd == "prompt":
+            if not rest:
+                self.stdout.write("Usage: /gemini prompt <query> (e.g. /gemini prompt Explain Romans 8:28)\n")
+                return
+            if not has_key:
+                self.stdout.write("Gemini API key is not configured. Set GEMINI_API_KEY environment variable.\n")
+                return
+            client = GeminiClient(api_key=api_key)
+            try:
+                self.stdout.write("Querying Google Gemini API...\n")
+                resp = client.generate(rest)
+                self.stdout.write(f"\n{resp.text}\n")
+                if resp.fallback_used:
+                    self.stdout.write(f"(Fallback model '{resp.model}' was utilized)\n")
+                self.stdout.write(f"\n[Model: {resp.model} | Latency: {resp.latency_seconds:.2f}s | Tokens: {resp.usage.get('total_tokens', 0)}]\n\n")
+            except LLMError as exc:
+                self.stdout.write(f"Gemini API error: {exc}\n")
+            return
+
+        if subcmd == "embed":
+            if not rest:
+                self.stdout.write("Usage: /gemini embed <text> (e.g. /gemini embed In the beginning)\n")
+                return
+            if not has_key:
+                self.stdout.write("Gemini API key is not configured. Set GEMINI_API_KEY environment variable.\n")
+                return
+            client = GeminiClient(api_key=api_key)
+            try:
+                vec = client.embed_content(rest)
+                self.stdout.write(f"Generated vector embedding: dimension={len(vec)}, preview={vec[:5]}...\n")
+            except LLMError as exc:
+                self.stdout.write(f"Embedding error: {exc}\n")
+            return
+
+        # Default: status
+        key_status = f"Configured ({masked_key})" if has_key else "Not Configured (Set GEMINI_API_KEY)"
+        self.stdout.write(
+            "\n"
+            "======================================================================\n"
+            " Google Gemini LLM Client & Context Engine (ADR-006 / ADR-041)\n"
+            "======================================================================\n"
+            f" Gemini API Key:        {key_status}\n"
+            f" Primary Model:         {DEFAULT_GEMINI_MODEL}\n"
+            f" Fallback Model:        {FALLBACK_GEMINI_MODEL} (Automatic on 404/429/failures)\n"
+            f" Embedding Model:       {DEFAULT_EMBEDDING_MODEL}\n"
+            f" Endpoint Base URL:     {GEMINI_API_BASE_URL}\n"
+            f" Architecture:          100% Zero-Dependency Python stdlib (urllib.request)\n"
+            f" Passage Context:       Defaults to ESV with Crossway legal compliance\n"
+            "----------------------------------------------------------------------\n"
+            " REPL Commands:\n"
+            "   /gemini status              Inspect API key and models\n"
+            "   /gemini context <ref>       Build structured passage context\n"
+            "   /gemini prompt <text>       Generate completion from prompt\n"
+            "   /gemini embed <text>        Generate semantic embedding\n"
+            "======================================================================\n\n"
+        )
+
+    do_llm = do_gemini
+
+    def complete_gemini(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /gemini command."""
+        options = ["status", "context", "prompt", "embed"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    complete_llm = complete_gemini
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report
@@ -2019,6 +2126,7 @@ System & Web:
   /init [--force]         Bootstrap offline database and verify baseline datasets
   /serve [start|stop]     Start or stop built-in HTTP server and Web UI (alias: /server)
   /esv [status|cache|clear] Manage Crossway ESV API & 500-verse LRU cache
+  /gemini [status|context] Google Gemini LLM client, model fallback & prompt context (alias: /llm)
   /test [pattern]         Run hermetic unit test suite in parallel (alias: /check)
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report

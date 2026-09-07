@@ -18,9 +18,7 @@ import os
 from pathlib import Path
 import sys
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
-import urllib.error
-import urllib.request
+from typing import List, Optional, Sequence, Tuple, Union
 
 # Ensure repo root is on sys.path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -28,6 +26,13 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from core.db import DEFAULT_DB_PATH, Database
+from core.llm import (
+    DEFAULT_GEMINI_MODEL as DEFAULT_MODEL,
+    FALLBACK_GEMINI_MODEL as FALLBACK_MODEL,
+    GeminiClient,
+    GenerationConfig,
+    get_gemini_api_key,
+)
 from core.reference import Book, Reference, get_book, parse_reference
 from core.tag_prompts import (
     GeneratedTag,
@@ -40,11 +45,6 @@ from core.tag_prompts import (
     parse_tagging_response,
 )
 from core.tags import CANONICAL_TAXONOMY, TagCategory, TaggingService
-
-
-DEFAULT_MODEL = "gemini-2.5-pro"
-FALLBACK_MODEL = "gemini-2.0-flash"
-GEMINI_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
 # ==============================================================================
@@ -92,7 +92,7 @@ def call_gemini_api(
     model: str = DEFAULT_MODEL,
     timeout: int = 45,
 ) -> str:
-    """Call Google Gemini REST API using Python standard library `urllib.request`.
+    """Call Google Gemini REST API using core.llm.GeminiClient.
 
     Zero external dependencies (ADR-003, ADR-006).
 
@@ -110,67 +110,22 @@ def call_gemini_api(
     if not clean_key:
         raise ValueError("GEMINI_API_KEY is empty or missing.")
 
-    payload = format_prompt_for_gemini_api(prompt, system_prompt=system_prompt)
-    payload_bytes = json.dumps(payload).encode("utf-8")
-
-    models_to_try = [model]
-    if model != FALLBACK_MODEL:
-        models_to_try.append(FALLBACK_MODEL)
-
-    last_error: Optional[Exception] = None
-
-    for candidate_model in models_to_try:
-        url = f"{GEMINI_API_ENDPOINT.format(model=candidate_model)}?key={clean_key}"
-        req = urllib.request.Request(
-            url,
-            data=payload_bytes,
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "BibleEngine/1.0",
-            },
-            method="POST",
-        )
-
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                res_bytes = response.read()
-                res_data = json.loads(res_bytes.decode("utf-8"))
-
-                # Extract text from Gemini response structure
-                candidates = res_data.get("candidates", [])
-                if not candidates:
-                    raise ValueError(f"Gemini API returned no candidates: {res_data}")
-
-                content = candidates[0].get("content", {})
-                parts = content.get("parts", [])
-                if not parts:
-                    raise ValueError(f"Gemini API returned empty parts in content: {content}")
-
-                return str(parts[0].get("text", "")).strip()
-
-        except urllib.error.HTTPError as http_err:
-            last_error = http_err
-            error_body = ""
-            try:
-                error_body = http_err.read().decode("utf-8")
-            except Exception:
-                pass
-
-            # If 404 / model not found, try fallback model
-            if http_err.code == 404 and candidate_model != models_to_try[-1]:
-                continue
-
-            raise RuntimeError(
-                f"Gemini API HTTP {http_err.code} Error for model '{candidate_model}': {error_body or http_err.reason}"
-            ) from http_err
-
-        except Exception as exc:
-            last_error = exc
-            if candidate_model != models_to_try[-1]:
-                continue
-            raise RuntimeError(f"Gemini API network error: {exc}") from exc
-
-    raise last_error or RuntimeError("Gemini API call failed.")
+    client = GeminiClient(
+        api_key=clean_key,
+        model=model,
+        fallback_model=FALLBACK_MODEL,
+        timeout=float(timeout),
+    )
+    config = GenerationConfig(
+        temperature=0.2,
+        response_mime_type="application/json",
+    )
+    resp = client.generate(
+        prompt=prompt,
+        system_instruction=system_prompt,
+        config=config,
+    )
+    return resp.text
 
 
 # ==============================================================================
@@ -456,7 +411,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         return 1
 
     # API Key retrieval
-    api_key = getattr(args, "api_key", None) or os.environ.get("GEMINI_API_KEY")
+    api_key = get_gemini_api_key(getattr(args, "api_key", None))
     if not api_key:
         sys.stderr.write(
             "Error: GEMINI_API_KEY environment variable or --api-key argument is required for online generation.\n"

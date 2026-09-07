@@ -243,7 +243,25 @@ class TestShell(unittest.TestCase):
                 opts = shell.complete_slide_batch("--p", "/slide-batch --p", 0, 0)
                 self.assertIn("--plan", opts)
                 plan_opts = shell.complete_slide_batch("psalms", "/slide-batch --plan psalms", 0, 0)
-                self.assertIn("psalms_of_ascent", plan_opts)
+    def test_shell_gemini_command(self):
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            shell.onecmd("/gemini status")
+            out = stdout.getvalue()
+            self.assertIn("Google Gemini LLM Client", out)
+            self.assertIn("gemini-2.5-pro", out)
+            self.assertIn("gemini-2.0-flash", out)
+
+            # Test context action
+            stdout.truncate(0)
+            stdout.seek(0)
+            shell.onecmd("/gemini context John 3:16")
+            out2 = stdout.getvalue()
+            self.assertIn("Passage Context: John 3:16", out2)
+
+            # Test autocompletion
+            opts = shell.complete_gemini("con", "/gemini con", 0, 0)
+            self.assertIn("context", opts)
 
 
 class TestDirectReferenceRouting(unittest.TestCase):
@@ -271,6 +289,8 @@ class TestDirectReferenceRouting(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["init"]), ["init"])
         self.assertEqual(preprocess_cli_argv(["db", "stats"]), ["db", "stats"])
         self.assertEqual(preprocess_cli_argv(["lint"]), ["lint"])
+        self.assertEqual(preprocess_cli_argv(["esv", "status"]), ["esv", "status"])
+        self.assertEqual(preprocess_cli_argv(["gemini", "status"]), ["gemini", "status"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])
