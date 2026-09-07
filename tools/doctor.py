@@ -12,6 +12,8 @@ Zero-dependency diagnostic utility (Python 3 standard library only per ADR-003):
 
 import ast
 from dataclasses import dataclass
+import datetime
+import json
 import os
 from pathlib import Path
 import re
@@ -165,10 +167,10 @@ def check_doc_synchronization(repo_root: Path) -> CheckResult:
 
     # Check that Rank A+ ideas in IDEAS.md Active section have matching ADRs or roadmap presence
     ideas_text = ideas_file.read_text(encoding="utf-8")
+    roadmap_text = roadmap_file.read_text(encoding="utf-8")
     if "## Active Ideas & Brainstorming Hopper" in ideas_text:
         active_section = ideas_text.split("## Active Ideas & Brainstorming Hopper")[-1]
         entries = re.findall(r"###\s+\[([^\]]+)\]\s+([^\n]+)", active_section)
-        roadmap_text = roadmap_file.read_text(encoding="utf-8")
         for status, title in entries:
             if "Rank A+" in title:
                 clean_title = re.sub(r"\(Rank.*?\)", "", title).strip()
@@ -177,6 +179,30 @@ def check_doc_synchronization(repo_root: Path) -> CheckResult:
                 in_decisions = any(kw in decisions_text.lower() for kw in keywords)
                 if not in_roadmap and not in_decisions:
                     issues.append(f"Rank A+ idea '{clean_title}' has no corresponding ADR or roadmap entry")
+
+    # Check ROADMAP.md structural integrity (Phase headers & task identifiers)
+    phases = re.findall(r"^#{2,4}\s+Phase\s+\d+", roadmap_text, re.MULTILINE)
+    if len(phases) < 9:
+        issues.append(f"ROADMAP.md missing required phases (found {len(phases)} phases, expected 9 [Phase 0–8])")
+
+    task_matches = re.findall(
+        r"^-\s+\[( |x|X|TODO|IN PROGRESS|DONE)\]\s+\*\*Task\s+(\d+\.\d+)\*\*",
+        roadmap_text,
+        re.MULTILINE,
+    )
+    if task_matches:
+        task_ids = [t[1] for t in task_matches]
+        seen_ids = set()
+        duplicate_ids = set()
+        for tid in task_ids:
+            if tid in seen_ids:
+                duplicate_ids.add(tid)
+            seen_ids.add(tid)
+        if duplicate_ids:
+            issues.append(f"ROADMAP.md contains duplicate task identifiers: {sorted(duplicate_ids)}")
+        completed_tasks = [t for t in task_matches if t[0] in ("x", "X", "DONE")]
+    else:
+        completed_tasks = []
 
     dur = time.time() - t0
     if issues:
@@ -187,10 +213,11 @@ def check_doc_synchronization(repo_root: Path) -> CheckResult:
             dur,
         )
 
+    task_stats = f", {len(task_matches)} roadmap tasks tracked ({len(completed_tasks)} completed across {len(phases)} phases)" if task_matches else ""
     return CheckResult(
         "Documentation State Sync",
         True,
-        f"{len(defined_adrs)} ADRs registered, {len(runs)} sequential runs, all Rank A+ ideas synchronized",
+        f"{len(defined_adrs)} ADRs registered, {len(runs)} sequential runs{task_stats}, all Rank A+ ideas synchronized",
         dur,
     )
 
@@ -436,7 +463,7 @@ def check_code_quality(repo_root: Path, fix: bool = False) -> CheckResult:
 
 
 def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
-    """Verify bundled SQLite scripture database existence and schema integrity."""
+    """Verify bundled SQLite scripture database existence, schema integrity, and semantic tables."""
     t0 = time.time()
     db_file = repo_root / "data" / "bible.db"
     if not db_file.exists():
@@ -492,6 +519,67 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
                     time.time() - t0,
                 )
 
+            # 1. Foreign Key integrity validation
+            cur.execute("PRAGMA foreign_key_check")
+            fk_violations = cur.fetchall()
+            if fk_violations:
+                return CheckResult(
+                    "SQLite Scripture Database",
+                    False,
+                    f"Foreign key integrity violations detected ({len(fk_violations)} orphaned references)",
+                    time.time() - t0,
+                )
+
+            # 2. Phase 7 Semantic Tables & Vector Storage Verification
+            expected_semantic_tables = [
+                "pericopes",
+                "discourse_relations",
+                "verse_theology",
+                "typological_arcs",
+                "semantic_propositions",
+                "verse_embeddings",
+                "pericope_embeddings",
+            ]
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' OR type='view'")
+            existing_tables = set(r[0] for r in cur.fetchall())
+            missing_tables = [t for t in expected_semantic_tables if t not in existing_tables]
+
+            missing_pericope_cols: List[str] = []
+            if "pericopes" in existing_tables:
+                cur.execute("PRAGMA table_info(pericopes)")
+                p_cols = set(r[1] for r in cur.fetchall())
+                for col in ["genre", "literary_structure", "central_proposition"]:
+                    if col not in p_cols:
+                        missing_pericope_cols.append(col)
+
+            schema_repaired = False
+            if missing_tables or missing_pericope_cols:
+                if fix:
+                    db.init_schema()
+                    schema_repaired = True
+                    cur.execute("SELECT name FROM sqlite_master WHERE type='table' OR type='view'")
+                    re_tables = set(r[0] for r in cur.fetchall())
+                    if any(t not in re_tables for t in expected_semantic_tables):
+                        return CheckResult(
+                            "SQLite Scripture Database",
+                            False,
+                            "Auto-repair failed to create semantic tables",
+                            time.time() - t0,
+                        )
+                else:
+                    issues_list = []
+                    if missing_tables:
+                        issues_list.append(f"missing tables: {missing_tables}")
+                    if missing_pericope_cols:
+                        issues_list.append(f"missing columns: {missing_pericope_cols}")
+                    return CheckResult(
+                        "SQLite Scripture Database",
+                        False,
+                        f"Semantic schema incomplete ({', '.join(issues_list)}). Run with --fix to migrate.",
+                        time.time() - t0,
+                    )
+
+            # 3. Total verses count
             total_verses = db.count_verses(translation_id="WEB")
             if total_verses < 31000:
                 if fix:
@@ -513,7 +601,7 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
                     time.time() - t0,
                 )
 
-            # Check FTS5 index sanity
+            # 4. Check FTS5 index sanity
             res = db.search_text("faith hope love", translation_id="WEB")
             if not res:
                 return CheckResult(
@@ -524,10 +612,11 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
                 )
 
             dur = time.time() - t0
+            fix_msg = " (Auto-repaired semantic schema)" if schema_repaired else ""
             return CheckResult(
                 "SQLite Scripture Database",
                 True,
-                f"OK (PRAGMA quick_check passed, {total_verses:,} WEB verses, FTS5 operational)",
+                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified){fix_msg}",
                 dur,
             )
     except Exception as exc:
@@ -616,6 +705,8 @@ def check_performance_benchmarks(
     repo_root: Path,
     quick: bool = True,
     regression_threshold: Optional[float] = 50.0,
+    pattern: Optional[str] = None,
+    categories: Optional[List[str]] = None,
 ) -> CheckResult:
     """Verify system performance benchmarks and guard against latency regressions."""
     t0 = time.time()
@@ -624,6 +715,8 @@ def check_performance_benchmarks(
         base_data = load_baseline(DEFAULT_BASELINE_PATH)
         suite = run_benchmark_suite(
             quick=quick,
+            pattern=pattern,
+            categories=categories,
             baseline=base_data,
             regression_threshold_pct=regression_threshold,
             baseline_path_str=str(DEFAULT_BASELINE_PATH) if base_data else None,
@@ -658,6 +751,7 @@ def run_all_checks(
     coverage: bool = False,
     coverage_threshold: float = 70.0,
     bench: bool = False,
+    json_output: bool = False,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
     """Execute all diagnostic checks and render styled report.
@@ -669,6 +763,10 @@ def run_all_checks(
         fast: If True, execute fast pre-commit checks only (<0.15s).
         quiet: If True, suppress console output and return status silently.
         fix: If True, automatically repair fixable defects (install hooks, bootstrap database).
+        coverage: If True, run test coverage audit.
+        coverage_threshold: Minimum coverage percentage threshold.
+        bench: If True, run performance benchmark suite.
+        json_output: If True, emit machine-readable JSON object.
         stream: Optional custom stream (e.g. io.StringIO) for output.
 
     Returns:
@@ -677,6 +775,9 @@ def run_all_checks(
     root = repo_root or REPO_ROOT
     styler = DoctorStyler(enabled=color)
     target_stream = stream or sys.stdout
+
+    if json_output:
+        quiet = True
 
     def emit(text: str = "") -> None:
         if not quiet:
@@ -770,6 +871,29 @@ def run_all_checks(
                 failed = True
 
     total_dur = time.time() - total_start
+    if json_output:
+        health_status = "EXCELLENT" if not failed else "UNHEALTHY"
+        payload = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "system_health": health_status,
+            "total_checks": len(results),
+            "passed_checks": sum(1 for r in results if r.passed),
+            "failed_checks": sum(1 for r in results if not r.passed),
+            "duration_sec": round(total_dur, 3),
+            "checks": [
+                {
+                    "name": r.name,
+                    "passed": r.passed,
+                    "details": r.details,
+                    "duration_sec": round(r.duration_sec, 3),
+                }
+                for r in results
+            ],
+        }
+        target_stream.write(json.dumps(payload, indent=2) + "\n")
+        target_stream.flush()
+        return (1 if failed else 0), results
+
     emit(styler.bold("----------------------------------------------------------------------"))
     if failed:
         emit(styler.red(styler.bold(f" [!] System Health: UNHEALTHY (Completed in {total_dur:.2f}s)")))
@@ -846,6 +970,11 @@ if __name__ == "__main__":
         help="Include performance benchmark suite in diagnostics",
     )
     parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON health report",
+    )
+    parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -898,5 +1027,6 @@ if __name__ == "__main__":
         coverage=args.coverage,
         coverage_threshold=args.coverage_threshold,
         bench=args.bench,
+        json_output=args.json,
     )
     sys.exit(code)

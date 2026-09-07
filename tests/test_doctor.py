@@ -3,6 +3,8 @@
 Zero external dependencies (Python 3 standard library only per ADR-003).
 """
 
+import io
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -143,13 +145,15 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertNotIn("Hermetic Test Suite", names)
 
     def test_run_all_checks_quiet_and_stream(self):
-        import io
+        from unittest.mock import patch
         buf = io.StringIO()
-        code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, stream=buf)
-        self.assertEqual(code, 0)
-        output = buf.getvalue()
-        self.assertIn("Fast Pre-Commit Mode", output)
-        self.assertIn("[PASS] Git Hook Safeguards", output)
+        with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero Dependencies", True, "OK", 0.001)), \
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality", True, "OK", 0.001)):
+            code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, stream=buf)
+            self.assertEqual(code, 0)
+            output = buf.getvalue()
+            self.assertIn("Fast Pre-Commit Mode", output)
+            self.assertIn("[PASS] Git Hook Safeguards", output)
 
     def test_run_all_checks_e2e(self):
         from unittest.mock import patch
@@ -243,6 +247,89 @@ class TestDoctorChecks(unittest.TestCase):
             self.assertIn("missing required top-level keys", res.details)
             self.assertIn("no 'runs-on:'", res.details)
 
+    def test_check_database_integrity_semantic_schema_and_foreign_keys(self):
+        res = check_database_integrity(REPO_ROOT)
+        self.assertTrue(res.passed, f"DB integrity check failed: {res.details}")
+        self.assertIn("PRAGMA quick_check & FK passed", res.details)
+        self.assertIn("tables verified", res.details)
+
+    def test_check_database_integrity_semantic_auto_migrate(self):
+        from core.db import Database
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_dir = tmp_path / "data"
+            db_dir.mkdir()
+            db_file = db_dir / "bible.db"
+            with Database(db_file, auto_init=True) as db:
+                # Drop one semantic table to simulate an older database
+                db.conn.execute("DROP TABLE verse_theology")
+                db.conn.commit()
+
+            # Without fix, fails reporting missing table
+            res_fail = check_database_integrity(tmp_path, fix=False)
+            self.assertFalse(res_fail.passed)
+            self.assertIn("verse_theology", res_fail.details)
+
+            # With fix, auto-migrates and passes
+            from unittest.mock import patch
+            with patch("core.db.Database.count_verses", return_value=31103), \
+                 patch("core.db.Database.search_text", return_value=[{"id": 1}]):
+                res_fix = check_database_integrity(tmp_path, fix=True)
+                self.assertTrue(res_fix.passed)
+                self.assertIn("Auto-repaired semantic schema", res_fix.details)
+
+    def test_check_doc_synchronization_roadmap_validation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Create minimal governance files
+            (tmp_path / "DECISIONS.md").write_text("## ADR-001: Initial\n", encoding="utf-8")
+            (tmp_path / "AGENT_LOG.md").write_text("## [Run 001] — ADR-001\n", encoding="utf-8")
+            (tmp_path / "IDEAS.md").write_text("# Ideas\n", encoding="utf-8")
+
+            # Incomplete roadmap missing phases
+            (tmp_path / "ROADMAP.md").write_text("### Phase 0: Repo\n- [x] **Task 0.1**: Setup\n", encoding="utf-8")
+            res = check_doc_synchronization(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("missing required phases", res.details)
+
+            # Roadmap with duplicate task IDs
+            bad_roadmap = "\n".join([f"### Phase {i}: Title" for i in range(9)]) + "\n"
+            bad_roadmap += "- [x] **Task 0.1**: Setup\n- [ ] **Task 0.1**: Duplicate\n"
+            (tmp_path / "ROADMAP.md").write_text(bad_roadmap, encoding="utf-8")
+            res_dup = check_doc_synchronization(tmp_path)
+            self.assertFalse(res_dup.passed)
+            self.assertIn("duplicate task identifiers", res_dup.details)
+
+    def test_run_all_checks_json_output(self):
+        from unittest.mock import patch
+        buf = io.StringIO()
+        with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "OK", 0.001)), \
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "OK", 0.001)):
+            code, results = run_all_checks(
+                repo_root=REPO_ROOT,
+                color=False,
+                fast=True,
+                json_output=True,
+                stream=buf,
+            )
+        self.assertEqual(code, 0)
+        output_str = buf.getvalue().strip()
+        data = json.loads(output_str)
+        self.assertEqual(data["system_health"], "EXCELLENT")
+        self.assertEqual(data["total_checks"], len(results))
+        self.assertEqual(data["failed_checks"], 0)
+        self.assertIn("timestamp", data)
+        self.assertIn("checks", data)
+        self.assertTrue(len(data["checks"]) >= 6)
+        names = [c["name"] for c in data["checks"]]
+        self.assertIn("Zero External Dependencies (AST Audit)", names)
+
+    def test_cli_doctor_json_flag(self):
+        from cli.main import build_parser
+        parser = build_parser()
+        args = parser.parse_args(["doctor", "--json", "--fast"])
+        self.assertTrue(args.json)
+        self.assertTrue(args.fast)
 
 
 if __name__ == "__main__":

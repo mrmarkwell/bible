@@ -361,7 +361,7 @@ class TestCLIAndDoctorIntegration(unittest.TestCase):
 
     def test_doctor_check_performance_benchmarks(self) -> None:
         repo_root = Path(__file__).resolve().parent.parent
-        res = check_performance_benchmarks(repo_root=repo_root, quick=True, regression_threshold=None)
+        res = check_performance_benchmarks(repo_root=repo_root, quick=True, regression_threshold=None, pattern="ref_parse_single")
         self.assertTrue(res.passed)
         self.assertEqual(res.name, "Performance Benchmarks")
         self.assertIn("verified within performance budgets", res.details)

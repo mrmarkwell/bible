@@ -1512,11 +1512,15 @@ class BibleShell(cmd.Cmd):
             self.stdout.write(f"{badge} {res.name}: {res.details}\n")
             return
 
-        fast_mode = arg in ("fast", "--fast", "-f")
+        fast_mode = "fast" in arg or "-f" in arg
+        fix_mode = "fix" in arg or "--fix" in arg
+        json_mode = "json" in arg or "--json" in arg
         run_all_checks(
             repo_root=repo_root,
-            color=self.use_color,
+            color=self.use_color and not json_mode,
             fast=fast_mode,
+            fix=fix_mode,
+            json_output=json_mode,
             stream=self.stdout,
         )
 
@@ -2327,7 +2331,7 @@ System & Web:
 
     def complete_doctor(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete doctor subcommands."""
-        options = ["fast", "install-hooks", "uninstall-hooks", "hooks"]
+        options = ["fast", "fix", "json", "install-hooks", "uninstall-hooks", "hooks", "--fast", "--fix", "--json"]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:

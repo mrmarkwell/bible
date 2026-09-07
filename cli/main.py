@@ -1827,6 +1827,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include sovereign performance benchmark suite in diagnostics",
     )
+    parser_doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON health report",
+    )
     def cmd_doctor(args: argparse.Namespace) -> int:
         from tools.doctor import install_hooks, uninstall_hooks, check_git_hooks, run_all_checks, DoctorStyler
         repo_root = Path(__file__).resolve().parent.parent
@@ -1853,13 +1858,15 @@ def build_parser() -> argparse.ArgumentParser:
         quiet_mode = getattr(args, "quiet", False)
         fix_mode = getattr(args, "fix", False)
         bench_mode = getattr(args, "bench", False)
+        json_mode = getattr(args, "json", False)
         code, _ = run_all_checks(
             repo_root=repo_root,
-            color=is_tty,
+            color=is_tty and not json_mode,
             fast=fast_mode,
             quiet=quiet_mode,
             fix=fix_mode,
             bench=bench_mode,
+            json_output=json_mode,
         )
         return code
 
