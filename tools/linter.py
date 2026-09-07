@@ -218,12 +218,13 @@ class ASTSmellAuditor(ast.NodeVisitor):
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module == "__future__":
             return
+        mod = node.module or ""
         for alias in node.names:
             if alias.name == "*":
                 self.issues.append(
                     LintIssue(
                         code="W202",
-                        message=f"Wildcard import 'from {node.module or ""} import *' pollutes namespace",
+                        message=f"Wildcard import 'from {mod} import *' pollutes namespace",
                         line=node.lineno,
                         column=node.col_offset,
                         severity="WARNING",
@@ -231,7 +232,7 @@ class ASTSmellAuditor(ast.NodeVisitor):
                 )
                 continue
             name = alias.asname or alias.name
-            full_orig = f"{node.module or ""}.{alias.name}"
+            full_orig = f"{mod}.{alias.name}" if mod else alias.name
             self.imported_symbols[name] = (node.lineno, node.col_offset, full_orig)
         self.generic_visit(node)
 

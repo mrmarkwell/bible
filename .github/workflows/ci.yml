@@ -29,13 +29,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Bootstrap Offline Scripture Database & Git Hook Safeguards
+        run: |
+          python3 ./bible init
+          python3 tools/doctor.py --install-hooks
+
       - name: Verify Zero External Dependencies (Fast Pre-Commit Checks)
         run: |
           python3 tools/doctor.py --fast
-
-      - name: Bootstrap Offline Scripture Database
-        run: |
-          python3 ./bible init
 
       - name: Run System Doctor & Full Diagnostic Suite
         run: |
