@@ -1239,4 +1239,41 @@ This document is an append-only log of significant design and architectural deci
   - Eradicates silent dictionary key overwrites, code smells, and formatting drift across the codebase.
   - Equips human developers and autonomous Ralph loop agents with instant (<0.08s) static feedback before committing.
 
+---
+
+## ADR-041: ESV API as Primary Translation, Compliant 500-Verse Ephemeral LRU Caching, and Public Open-Source Licensing (MIT)
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: The repository owner requested two major evolutions:
+  1. **ESV as Primary Default Translation**: The English Standard Version (ESV) must be the primary translation across all interfaces (CLI, interactive shell, web reader, visual verse slides, and LLM semantic tagging prompts). As a modern formal-equivalence ("word-for-word") translation, ESV provides superior theological consistency (*propitiation*, *justification*, *steadfast love*) compared to archaic or dynamic equivalence translations.
+  2. **Storage Architecture Evaluation (Opaque Blob vs. API)**: The owner evaluated storing ESV in git as an "opaque blob" vs. querying the ESV API. Crossway's official Terms of Service strictly prohibit storing more than 500 verses locally or distributing the full text (31,102 verses) without a publisher license. Committing an encrypted/obfuscated blob to git with keys/code to decrypt it on init constitutes distribution under copyright law and DMCA Section 1201, risking automated takedowns.
+  3. **Public Open-Source Release**: The repository is designated to be 100% public and open-source under the least restrictive license (permissive MIT License).
+- **Decision**:
+  1. **Permissive Open-Source Licensing (`LICENSE`)**:
+     - Adopted the MIT License for all code, schemas, and tooling in the repository.
+  2. **Decouple Offline Macro-Metadata from Raw Passage Text**:
+     - The database retains all 66 Protestant books, 1,189 chapters, 31,103 canonical integer coordinates (`BBCCCVVV`), thematic density heatmaps, the Canonical Redemptive Ribbon, typological arc networks, and pericope outlines **100% offline and instantaneous** in local SQLite. Whole-Bible visualizations render in <5ms without network calls.
+     - Raw verse words are fetched on-demand only when a user drills down into a specific chapter/pericope or renders a slide frame.
+  3. **Zero-Dependency ESV API Client (`core/esv.py`)**:
+     - Build a lean HTTP client targeting `https://api.esv.org/v3/passage/text/` using Python 3 standard library `urllib.request` and `json` (ADR-003).
+     - Reads `ESV_API_KEY` from environment or local config.
+     - Automatically attaches required Crossway attribution notice and links (`(ESV) - www.esv.org`).
+  4. **Crossway-Compliant Ephemeral 500-Verse LRU Cache**:
+     - Crossway terms explicitly state: *"You may not locally store more than 500 verses... You can cache up to 500 verses. We encourage you to periodically clear out your cache."*
+     - The engine maintains an ephemeral SQLite table (`esv_cache`) strictly capped at 500 verses with an LRU eviction policy (`PRAGMA max_page_count` / explicit `DELETE WHERE canonical_verse_id IN (SELECT canonical_verse_id FROM esv_cache ORDER BY last_accessed_at ASC LIMIT ...)`).
+     - Rapid sequential queries (e.g. repeated lookups or paginated slides) resolve instantaneously from the cache while remaining 100% legally compliant.
+  5. **Translation Hierarchy & Resilient Offline Fallback**:
+     - Set `DEFAULT_TRANSLATION = "ESV"`.
+     - When `ESV_API_KEY` is present and online, queries fetch and display ESV text.
+     - If offline, if `ESV_API_KEY` is unset, or for whole-Bible full-text concordance search (FTS5), the engine seamlessly cascades to the bundled public-domain World English Bible (`WEB`) with an informative user notice.
+  6. **ESV-Driven LLM Semantic Tagging**:
+     - In Phase 6 and 7, the Gemini prompt pipeline fetches passages via the ESV API (respecting the 60 req/min and 5,000 req/day quota), sends ESV text to Gemini for theological tagging and typology extraction, stores the resulting *theological metadata* in SQLite indexed by canonical integer IDs (`BBCCCVVV`), and leaves raw text within the 500-verse LRU cache.
+- **Consequences**:
+  - 100% legally compliant with Crossway ESV API guidelines; zero DMCA or copyright infringement risk.
+  - The repository can be safely published as a public open-source project under MIT.
+  - Zero external pip/npm dependencies maintained (ADR-003).
+  - Instant offline visualizations preserved across all 66 books.
+  - Beautiful, accurate ESV text across CLI, TV slides, and LLM reasoning.
+
+
 

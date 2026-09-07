@@ -414,3 +414,34 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (Python 3 standard library `ast`, `py_compile`, `dataclasses`, `pathlib` per ADR-003).
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.13 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: [DONE] (Implemented in `tools/linter.py`, `core/reference.py`, `tools/doctor.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_linter.py`, verified with 492 tests passing, and recorded in ADR-040).
+
+### [VETTED] ESV API as Primary Translation with Compliant 500-Verse Ephemeral LRU Caching & Offline Metadata Decoupling (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Integrate the English Standard Version (ESV) as the primary system-wide default translation (`DEFAULT_TRANSLATION = "ESV"`) across the CLI (`./bible get`, `./bible search`, `./bible slide`), Web UI reader, and Phase 6 LLM prompt pipelines, while adhering 100% to Crossway's official Terms of Service:
+  1. **Zero-Dependency ESV API Client (`core/esv.py`)**: Built on Python standard library `urllib.request` and `json` per ADR-003, reading `ESV_API_KEY` from environment/config.
+  2. **Crossway-Compliant 500-Verse Ephemeral LRU Cache**: Enforces Crossway's strict rule (*"You may not locally store more than 500 verses... You can cache up to 500 verses"*) via an ephemeral SQLite cache with LRU eviction, avoiding full-text hoarding while eliminating duplicate network roundtrips for repeated views or slides.
+  3. **Decoupled Whole-Bible Offline Metadata**: All 66 Protestant books, 1,189 chapters, 31,103 canonical integer verse coordinates (`BBCCCVVV`), thematic density heatmaps, the Canonical Redemptive Ribbon, typological arc networks, and pericope outlines remain 100% offline and instantaneous in local SQLite (<5ms query time). Raw verse words are fetched on-demand only upon drill-down.
+  4. **Resilient Offline Cascade**: Automatically and gracefully cascades to the bundled public-domain World English Bible (`WEB`) when offline or when no API key is present.
+  5. **ESV-Driven LLM Semantic Tagging**: Phase 6 & 7 Gemini pipelines query ESV passage text for prompt context (within the 60 req/min quota), feeding modern formal-equivalence English to LLMs for superior theological precision, then storing synthesized metadata linked by canonical IDs.
+- **Rationale**: Eliminates copyright infringement and DMCA risks associated with committing proprietary text blobs to public git repositories, fulfills user desire for ESV as primary translation, preserves instant whole-Bible visualizations offline, and dramatically improves LLM semantic reasoning accuracy.
+- **Constraints & Alignment**:
+  - Offline-first? Hybrid (whole-Bible metadata is 100% offline; raw ESV text is fetched on-demand with 500-verse LRU cache and offline WEB fallback).
+  - Zero third-party dependencies? Yes (Python 3 standard library `urllib.request`, `json`, `sqlite3` per ADR-003).
+  - Copyright compliant? 100% compliant with Crossway ESV API guidelines.
+- **Proposed Roadmap Phase**: Phase 2 (Task 2.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)) & Phase 6 (Task 6.1).
+- **Status**: [VETTED] / Scheduled (Task 2.5 in Phase 2; ADR-041).
+
+### [DONE] Public Open-Source Repository Governance & Permissive MIT Licensing (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Establish public open-source repository governance and adopt the standard, universally recognized permissive **MIT License** (`LICENSE`) for the Bible Engine codebase:
+  1. Grants unrestricted rights to use, copy, modify, merge, publish, distribute, sublicense, and sell the software.
+  2. Explicitly protects the authors with standard liability disclaimers.
+  3. Formulates clear boundary between the open-source code and third-party copyrighted texts/APIs (such as Crossway's ESV API).
+  4. Updates repository documentation (`MANIFESTO.md`, `README.md`) to reflect open-source status.
+- **Rationale**: Enables the repository to be fully public, shared with church tech communities, showcased in professional portfolios, and contributed to by open-source collaborators without legal ambiguities.
+- **Constraints & Alignment**:
+  - Open-source standard? Yes (OSI-approved MIT License).
+  - Copyright safety? Fully compliant with Crossway's requirement that ESV text is not released under Creative Commons, since code is MIT and text is fetched via API.
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.14 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [DONE] (Implemented in `LICENSE`, `MANIFESTO.md`, `ROADMAP.md`, and ADR-041).
+

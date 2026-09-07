@@ -27,6 +27,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.11**: Implement Omnichannel Visual Slide Integration across CLI, REPL Shell, and REST API (`./bible slide`, `/slide`, `/api/slide`, ADR-035). *(Run 034 / Senior PM Meta-Sprint)*
 - [x] **Task 0.12**: Implement High-Performance Parallel Hermetic Test Runner (`tools/test_runner.py`), CLI integration (`./bible test`), REPL shell integration (`/test`), strict ResourceWarning leak auditing, and doctor acceleration (ADR-036). *(Run 035 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.13**: Implement Sovereign Zero-Dependency Static Analysis, Code Hygiene & Linter Engine (`tools/linter.py`), CLI subcommand (`./bible lint`), REPL shell integration (`/lint`), pre-commit hook integration, and doctor diagnostics (ADR-040). *(Run 039 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.14**: Configure Public Open-Source Repository Governance, Permissive MIT License (`LICENSE`), and Crossway Legal Attribution Guidelines (ADR-041).
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
@@ -42,6 +43,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks, parallel comparison subcommand (`bible compare`), and translations inspector (`bible translations`). *(Run 017)*
 - [x] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`). *(Run 018)*
 - [x] **Task 2.4**: Formatted terminal output (clean margins, text wrapping, optional verse numbers, paragraph breaks, colored ANSI styling using standard library). *(Run 019)*
+- [ ] **Task 2.5**: Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041).
 
 ### Phase 3: Semantic Tagging & Knowledge Database Engine
 - [x] **Task 3.1**: Create Tagging API allowing tags on individual verses or arbitrary verse spans (e.g., `Romans 8:1-11` -> `Holy Spirit`, `Sanctification`). *(Run 022 / ADR-023)*
@@ -70,7 +72,7 @@ This document is the single source of truth for current project status, active t
 - [ ] **Task 5.5**: Add batch export command (`bible slide-batch`) to generate a folder of 4K slides from a tag, book, reading plan, or user favorites (`--favorites`, `--starred-only` from `favorite_bible_verses.csv`), ready for Google Photos TV screensaver albums.
 
 ### Phase 6: Google Gemini LLM Client & Theological Guardrail Engine (Zero-Dependencies)
-- [ ] **Task 6.1**: Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback, zero pip dependencies per ADR-003 and ADR-006).
+- [ ] **Task 6.1**: Implement pure Python stdlib Google Gemini API client in `core/llm.py` (`urllib.request`, JSON serialization, retry/backoff, streaming/response parsing, defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback, zero pip dependencies per ADR-003 and ADR-006). Passage context builder defaults to ESV via ESV API client (`core/esv.py`) per ADR-041.
 - [ ] **Task 6.2**: Implement TGC Hermeneutical Framework & System Prompt Generator in `core/theology.py` (codifying The Gospel Coalition Confessional Statement and Theological Vision for Ministry: dual-horizon hermeneutics, Christ-centered typology, non-moralistic interpretation, justification by faith alone).
 - [ ] **Task 6.3**: Write hermetic unit tests with mock HTTP responses for `core/llm.py` and theological prompts in `tests/test_llm.py`.
 

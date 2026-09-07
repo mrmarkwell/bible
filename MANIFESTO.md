@@ -17,12 +17,14 @@ The **Bible Engine** is an offline-first, locally hosted platform designed to ex
 ### I. Offline-First & Sovereign Data
 The platform must function 100% offline once set up. It requires no continuous internet access, no remote database dependencies, and no phone-home telemetry. All texts, indexes, and semantic metadata live locally on the user's filesystem in open, standard formats (SQLite).
 
-### II. Public Domain First & Copyright Safety
-Publishing biblical text in a public GitHub repository requires strict legal diligence:
-- **Public Domain Texts (First-Class Citizens)**: Translations such as the **World English Bible (WEB)**, King James Version (KJV), or American Standard Version (ASV) are freely redistributable and can be included directly in public repositories without legal hindrance.
-- **Copyrighted Translations (ESV, NIV, NASB, etc.)**: Plaintext copyrighted translations must never appear unencrypted or unlicensed in a public git repository. The system provides:
-  - Secure local encryption / encrypted data packs requiring a user-supplied key or offline unlock mechanism.
-  - On-demand API/local ingestion scripts where users supply their own authorized credentials or locally licensed text files.
+### II. Public Domain First, Permissive Open Source & Copyright Safety
+The Bible Engine codebase is 100% public, open-source software distributed under the permissive **MIT License**. Publishing biblical text and software in a public GitHub repository requires strict legal diligence and respect for copyright holders:
+- **Public Domain Texts (First-Class Offline Citizens)**: Translations such as the **World English Bible (WEB)**, King James Version (KJV), or American Standard Version (ASV) are freely redistributable and bundled directly into the repository and local SQLite database without licensing encumbrances.
+- **Copyrighted Translations (ESV as Primary via Official API)**: Plaintext copyrighted translations never appear in the public git repository. Instead:
+  - **On-Demand ESV API Integration**: Users supply their own free Crossway API credentials (`ESV_API_KEY`). The engine queries passages on-demand under Crossway's official Terms of Service.
+  - **Crossway-Compliant 500-Verse Ephemeral LRU Caching**: The engine enforces a strict `<= 500` verse ephemeral local cache, ensuring zero storage violations while eliminating redundant network roundtrips.
+  - **Whole-Bible Visualizations Decoupled from Raw Text**: The entire canonical knowledge graph (thematic heatmaps, Redemptive Ribbon, typological arc networks, pericope outlines, tag co-occurrence matrices) is indexed by integer coordinates (`BBCCCVVV`) and operates 100% offline and instantaneously from local SQLite. Verse text is retrieved on-demand only upon drill-down.
+  - **Resilient Fallback**: If offline or if an ESV API key is unset, the engine gracefully falls back to bundled public domain translations (WEB) with transparent user notices.
 
 ### III. Multi-Resolution Semantic Knowledge Graph
 Biblical text is dense and non-linear. The database models scripture across multiple granularities:
