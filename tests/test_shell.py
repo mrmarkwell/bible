@@ -263,6 +263,18 @@ class TestShell(unittest.TestCase):
             opts = shell.complete_gemini("con", "/gemini con", 0, 0)
             self.assertIn("context", opts)
 
+    def test_shell_vector_command(self):
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            shell.onecmd("/vector status")
+            out = stdout.getvalue()
+            self.assertIn("Zero-Dependency Vector Similarity Engine", out)
+            self.assertIn("Verse Embeddings:", out)
+
+            # Test autocompletion
+            opts = shell.complete_vector("stat", "/vector stat", 0, 0)
+            self.assertIn("status", opts)
+
 
 class TestDirectReferenceRouting(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -291,6 +303,7 @@ class TestDirectReferenceRouting(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["lint"]), ["lint"])
         self.assertEqual(preprocess_cli_argv(["esv", "status"]), ["esv", "status"])
         self.assertEqual(preprocess_cli_argv(["gemini", "status"]), ["gemini", "status"])
+        self.assertEqual(preprocess_cli_argv(["vector", "status"]), ["vector", "status"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

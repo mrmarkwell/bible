@@ -173,6 +173,18 @@ class TestCoreExports(unittest.TestCase):
             "SlideRenderEngine",
             "get_default_engine",
             "render_verse_slide",
+            # Zero-Dependency Vector Similarity Engine
+            "VectorIndex",
+            "VectorRecord",
+            "SimilarityMatch",
+            "DEFAULT_VECTOR_DIM",
+            "cosine_similarity",
+            "int8_cosine_similarity",
+            "quantize_float_to_int8",
+            "dequantize_int8_to_float",
+            "normalize_vector",
+            "get_verse_vector_index",
+            "get_pericope_vector_index",
         ]
         for name in expected_names:
             self.assertIn(

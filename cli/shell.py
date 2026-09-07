@@ -2157,6 +2157,99 @@ class BibleShell(cmd.Cmd):
         self.stdout.write(f"✓ Bootstrap complete in {rep.duration_sec:.2f}s: {rep.details}\n")
         self.stdout.write(f"  Verses: {rep.verses_count:,} | Tags: {rep.tags_count} | Cross-Refs: {rep.cross_references_count}\n")
 
+    def do_vector(self, arg: str) -> None:
+        """Zero-dependency vector similarity engine: /vector [status|search <query>|similar <ref>]"""
+        parts = arg.strip().split()
+        sub = parts[0].lower() if parts else "status"
+
+        if self.db is None:
+            self._init_db()
+
+        if sub in ("status", "stats"):
+            verse_count = self.db.count_verse_embeddings()
+            pericope_count = self.db.count_pericope_embeddings()
+            self.stdout.write("=================================================================\n")
+            self.stdout.write(" Zero-Dependency Vector Similarity Engine (ADR-003 / ADR-051)\n")
+            self.stdout.write("=================================================================\n")
+            self.stdout.write(f" Verse Embeddings:      {verse_count:,} stored\n")
+            self.stdout.write(f" Pericope Embeddings:   {pericope_count:,} stored\n")
+            self.stdout.write(f" Standard Dimensions:   768 (text-embedding-004)\n")
+            self.stdout.write(f" Quantization Scheme:   Int8 signed [-127, 127] (4x compression)\n")
+            self.stdout.write(f" Index Architecture:    Two-Tier (768-bit Sign Hash Filter + Exact Int8 Rerank)\n")
+            self.stdout.write(f" Whole-Bible Target:    31,102 verses searchable in <15ms without external DBs\n")
+            self.stdout.write("=================================================================\n")
+        elif sub == "similar":
+            if len(parts) < 2:
+                self.stdout.write("Usage: /vector similar <reference> (e.g. /vector similar John 3:16)\n")
+                return
+            ref_str = " ".join(parts[1:])
+            from core.reference import parse_reference
+            from core.vector import VectorIndex, DEFAULT_VECTOR_DIM
+            try:
+                ref_obj = parse_reference(ref_str)
+            except Exception as e:
+                self.stdout.write(f"Invalid reference '{ref_str}': {e}\n")
+                return
+
+            source_emb = self.db.get_verse_embedding(ref_obj)
+            if not source_emb:
+                self.stdout.write(f"No vector embedding stored for '{ref_obj.format()}'.\n")
+                return
+
+            idx = VectorIndex(dimensions=DEFAULT_VECTOR_DIM)
+            idx.build_from_database(self.db, table="verse_embeddings")
+            matches = idx.search(source_emb.embedding, top_k=10)
+            self.stdout.write(f"=== Semantically Related Verses for {ref_obj.format()} ===\n")
+            for m in matches:
+                pct = int(round(m.score * 100))
+                bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
+                self.stdout.write(f" {m.rank:2d}. {m.human_ref:<18} [{bar}] {m.score:+.4f}\n")
+        elif sub == "search":
+            if len(parts) < 2:
+                self.stdout.write("Usage: /vector search <query> (e.g. /vector search light and salvation)\n")
+                return
+            query_str = " ".join(parts[1:])
+            from core.llm import GeminiClient, get_gemini_api_key
+            from core.vector import VectorIndex, DEFAULT_VECTOR_DIM
+            api_key = get_gemini_api_key()
+            if not api_key:
+                self.stdout.write("GEMINI_API_KEY required to generate embedding for vector search.\n")
+                return
+            client = GeminiClient(api_key=api_key)
+            try:
+                vec = client.embed_content(query_str)
+            except Exception as exc:
+                self.stdout.write(f"Error computing query embedding: {exc}\n")
+                return
+
+            if self.db.count_verse_embeddings() == 0:
+                self.stdout.write("No verse embeddings stored in database. Populate via Phase 7 compilation.\n")
+                return
+
+            idx = VectorIndex(dimensions=DEFAULT_VECTOR_DIM)
+            idx.build_from_database(self.db, table="verse_embeddings")
+            matches = idx.search(vec, top_k=10)
+            self.stdout.write(f"=== Semantic Vector Matches for '{query_str}' ===\n")
+            for m in matches:
+                pct = int(round(m.score * 100))
+                bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
+                self.stdout.write(f" {m.rank:2d}. {m.human_ref:<18} [{bar}] {m.score:+.4f}\n")
+        else:
+            self.stdout.write(f"Unknown vector action '{sub}'. Available: status, similar, search\n")
+
+    def do_vec(self, arg: str) -> None:
+        """Alias for /vector."""
+        self.do_vector(arg)
+
+    def complete_vector(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /vector actions."""
+        options = ["status", "similar", "search"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    def complete_vec(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /vec alias."""
+        return self.complete_vector(text, line, begidx, endidx)
+
     # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
@@ -2177,6 +2270,7 @@ Study & Search:
   /ribbon [tag]           Display visual Redemptive Ribbon topical heatmap across 66 books
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
+  /vector [action]        Semantic vector similarity engine & search (alias: /vec)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
 

@@ -4236,6 +4236,197 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_bench.set_defaults(func=cmd_bench)
 
+    # Subcommand: vector (aliases: vec, embedding, embeddings)
+    parser_vector = subparsers.add_parser(
+        "vector",
+        aliases=["vec", "embedding", "embeddings"],
+        help="Zero-dependency vector similarity engine and semantic search",
+        description="Search and inspect vector embeddings, int8 quantization, and semantic similarity.",
+    )
+    vector_subparsers = parser_vector.add_subparsers(dest="vector_action", help="Vector action to perform")
+
+    # vector status
+    p_vec_status = vector_subparsers.add_parser("status", help="Show vector storage and index statistics")
+    p_vec_status.add_argument("--json", action="store_true", help="Output metrics as structured JSON")
+
+    # vector search
+    p_vec_search = vector_subparsers.add_parser("search", help="Semantic vector search using Gemini Embeddings API")
+    p_vec_search.add_argument("query", nargs="+", help="Natural language query string to search semantically")
+    p_vec_search.add_argument("--target", choices=["verses", "pericopes"], default="verses", help="Search target (verses or pericopes)")
+    p_vec_search.add_argument("--top-k", "-k", type=int, default=10, help="Number of top results to return (default: 10)")
+    p_vec_search.add_argument("--mode", choices=["hierarchical", "exhaustive"], default="hierarchical", help="Search mode (default: hierarchical)")
+    p_vec_search.add_argument("--book", "-b", help="Filter results by canonical book name or abbreviation")
+    p_vec_search.add_argument("--testament", choices=["OT", "NT", "ot", "nt"], help="Filter results by testament")
+    p_vec_search.add_argument("--min-score", type=float, default=0.0, help="Minimum cosine similarity threshold (default: 0.0)")
+    p_vec_search.add_argument("--json", action="store_true", help="Output results as JSON")
+
+    # vector similar
+    p_vec_similar = vector_subparsers.add_parser("similar", help="Find scripture verses semantically similar to a reference")
+    p_vec_similar.add_argument("reference", help="Source scripture citation (e.g. 'John 3:16', 'Romans 8:28')")
+    p_vec_similar.add_argument("--target", choices=["verses", "pericopes"], default="verses", help="Search target (verses or pericopes)")
+    p_vec_similar.add_argument("--top-k", "-k", type=int, default=10, help="Number of top results to return (default: 10)")
+    p_vec_similar.add_argument("--mode", choices=["hierarchical", "exhaustive"], default="hierarchical", help="Search mode (default: hierarchical)")
+    p_vec_similar.add_argument("--min-score", type=float, default=0.0, help="Minimum cosine similarity threshold (default: 0.0)")
+    p_vec_similar.add_argument("--json", action="store_true", help="Output results as JSON")
+
+    def cmd_vector(args: argparse.Namespace) -> int:
+        from core.vector import (
+            DEFAULT_VECTOR_DIM,
+            VectorIndex,
+            get_pericope_vector_index,
+            get_verse_vector_index,
+        )
+        from core.llm import GeminiClient, get_gemini_api_key
+
+        action = getattr(args, "vector_action", None) or "status"
+        output_json = getattr(args, "json", False)
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+
+        if not db_path.exists():
+            sys.stderr.write(f"Error: Database not found at '{db_path}'. Run './bible init'.\n")
+            return 1
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[36m" if color_enabled else ""
+        green = "\033[32m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        with Database(db_path, auto_init=False) as db:
+            if action == "status":
+                verse_count = db.count_verse_embeddings()
+                pericope_count = db.count_pericope_embeddings()
+
+                if output_json:
+                    print(json.dumps({
+                        "verse_embeddings_count": verse_count,
+                        "pericope_embeddings_count": pericope_count,
+                        "dimensions": DEFAULT_VECTOR_DIM,
+                        "quantization": "int8 signed [-127, 127] with 768-bit sign hash",
+                        "database_path": str(db_path),
+                        "zero_dependencies": True,
+                    }, indent=2))
+                    return 0
+
+                print(f"{gold}======================================================================{reset}")
+                print(f"{gold} Zero-Dependency Vector Similarity Engine (ADR-003 / ADR-051){reset}")
+                print(f"{gold}======================================================================{reset}")
+                print(f" Verse Embeddings:      {cyan}{verse_count:,}{reset} stored")
+                print(f" Pericope Embeddings:   {cyan}{pericope_count:,}{reset} stored")
+                print(f" Standard Dimensions:   {cyan}{DEFAULT_VECTOR_DIM}{reset} (text-embedding-004)")
+                print(f" Quantization Scheme:   Int8 signed [-127, 127] (4x compression)")
+                print(f" Index Architecture:    Two-Tier (768-bit Sign Hash Filter + Exact Int8 Rerank)")
+                print(f" Whole-Bible Target:    31,102 verses searchable in <15ms without external DBs")
+                print(f"----------------------------------------------------------------------")
+                print(f" Subcommands:")
+                print(f"   ./bible vector status                 Check stored vector statistics")
+                print(f"   ./bible vector search \"<query>\"       Semantic search via Gemini embedding")
+                print(f"   ./bible vector similar \"John 3:16\"    Find semantically related passages")
+                print(f"{gold}======================================================================{reset}")
+                return 0
+
+            elif action in ("search", "similar"):
+                target = getattr(args, "target", "verses") or "verses"
+                table_name = "verse_embeddings" if target == "verses" else "pericope_embeddings"
+                top_k = getattr(args, "top_k", 10) or 10
+                search_mode = getattr(args, "mode", "hierarchical") or "hierarchical"
+                min_score = getattr(args, "min_score", 0.0) or 0.0
+
+                # Check if embeddings exist in database
+                stored_count = db.count_verse_embeddings() if target == "verses" else db.count_pericope_embeddings()
+                if stored_count == 0:
+                    sys.stderr.write(
+                        f"Notice: No {target} embeddings stored in '{db_path.name}'.\n"
+                        f"Run './bible build-semantic' or Phase 7 compilation to populate vector embeddings.\n"
+                    )
+                    return 1
+
+                # Load or get cached index
+                index = VectorIndex(dimensions=DEFAULT_VECTOR_DIM)
+                index.build_from_database(db, table=table_name)
+
+                # Obtain query vector
+                if action == "similar":
+                    ref_input = getattr(args, "reference", "")
+                    try:
+                        ref_obj = parse_reference(ref_input)
+                    except Exception as e:
+                        sys.stderr.write(f"Error: Invalid reference '{ref_input}': {e}\n")
+                        return 1
+
+                    source_emb = db.get_verse_embedding(ref_obj)
+                    if not source_emb:
+                        sys.stderr.write(f"Error: No embedding stored for reference '{ref_obj.format()}'.\n")
+                        return 1
+                    query_bytes = source_emb.embedding
+                else:
+                    raw_q = " ".join(getattr(args, "query", [])).strip()
+                    if not raw_q:
+                        sys.stderr.write("Error: Query text required for vector search.\n")
+                        return 1
+
+                    api_key = get_gemini_api_key()
+                    if not api_key:
+                        sys.stderr.write("Error: GEMINI_API_KEY required to embed query text for vector search.\n")
+                        return 1
+
+                    client = GeminiClient(api_key=api_key)
+                    try:
+                        q_floats = client.embed_content(raw_q)
+                        query_bytes = bytes(q_floats)  # VectorIndex handles float lists or bytes
+                    except Exception as exc:
+                        sys.stderr.write(f"Error generating query embedding: {exc}\n")
+                        return 1
+
+                # Build filter function if book or testament specified
+                book_filter = getattr(args, "book", None)
+                testament_filter = getattr(args, "testament", None)
+                filter_fn = None
+                if book_filter or testament_filter:
+                    def custom_filter(rec):
+                        # Filter by book or testament from metadata
+                        meta = rec.metadata or {}
+                        if book_filter and meta.get("book") != book_filter:
+                            return False
+                        if testament_filter and meta.get("testament", "").upper() != testament_filter.upper():
+                            return False
+                        return True
+                    filter_fn = custom_filter
+
+                matches = index.search(
+                    query_bytes,
+                    top_k=top_k,
+                    mode=search_mode,
+                    min_score=min_score,
+                    filter_fn=filter_fn,
+                )
+
+                if output_json:
+                    print(json.dumps([m.to_dict() for m in matches], indent=2))
+                    return 0
+
+                print(f"{gold}=== Semantic Vector Search Results ({len(matches)} matches) ==={reset}")
+                if not matches:
+                    print(f"{dim}No matching passages exceeded similarity threshold {min_score}.{reset}")
+                    return 0
+
+                for m in matches:
+                    pct = int(round(m.score * 100))
+                    bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
+                    print(f" {m.rank:2d}. {cyan}{m.human_ref:<18}{reset} [{bar}] {green}{m.score:+.4f}{reset}")
+                return 0
+
+            else:
+                sys.stderr.write(f"Unknown vector action: '{action}'. See './bible vector --help'.\n")
+                return 1
+
+    parser_vector.set_defaults(func=cmd_vector)
+
     return parser
 
 
@@ -4270,6 +4461,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "esv", "esv-api", "esv-cache",
         "gemini", "llm", "gemini-api",
         "bench", "benchmark", "perf",
+        "vector", "vec", "embedding", "embeddings",
     }
 
     pos_idx = -1

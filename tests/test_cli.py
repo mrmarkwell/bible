@@ -1093,5 +1093,26 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("attribution", data)
 
 
+    def test_cli_vector_status(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "vector", "status"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Zero-Dependency Vector Similarity Engine", out)
+        self.assertIn("Verse Embeddings:", out)
+
+        stdout_json = io.StringIO()
+        with patch("sys.stdout", stdout_json), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "vector", "status", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout_json.getvalue())
+        self.assertEqual(data["dimensions"], 768)
+        self.assertTrue(data["zero_dependencies"])
+
+
 if __name__ == "__main__":
     unittest.main()
+

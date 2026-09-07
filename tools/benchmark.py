@@ -475,6 +475,40 @@ def calculate_metrics(data):
         default_warmup=50,
     )(lambda: db.get_esv_cached_verses(ref_john))
 
+    # 8. Zero-Dependency Vector Operations & Similarity Search
+    from core.vector import (
+        VectorIndex,
+        cosine_similarity,
+        quantize_float_to_int8,
+        normalize_vector,
+    )
+    dim_vec = 768
+    sample_v1 = normalize_vector([float(i % 100) for i in range(dim_vec)])
+    sample_v2 = normalize_vector([float((i + 1) % 100) for i in range(dim_vec)])
+    packed_v1, _ = quantize_float_to_int8(sample_v1)
+    packed_v2, _ = quantize_float_to_int8(sample_v2)
+
+    register_benchmark(
+        name="vector_cosine_similarity",
+        category="vector",
+        description="Calculate exact 768-dim float32 cosine similarity",
+        default_iterations=2500,
+        default_warmup=100,
+    )(lambda: cosine_similarity(sample_v1, sample_v2))
+
+    # In-memory index of 1,000 768-dim vectors
+    bench_index = VectorIndex(dimensions=dim_vec)
+    for i in range(1000):
+        bench_index.add_vector(i, f"Ref {i}", sample_v2)
+
+    register_benchmark(
+        name="vector_index_search_1k",
+        category="vector",
+        description="Two-tier hierarchical vector search over 1,000 768-dim vectors",
+        default_iterations=300,
+        default_warmup=30,
+    )(lambda: bench_index.search(sample_v1, top_k=10, mode="hierarchical"))
+
 
 # ---------------------------------------------------------------------------
 # Benchmark Execution Engine
