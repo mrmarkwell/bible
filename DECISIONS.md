@@ -401,4 +401,35 @@ This document is an append-only log of significant design and architectural deci
   - Test feedback velocity improved by ~50%, accelerating both human development and autonomous agent iterations.
   - 100% compliance with ADR-003 and Manifesto principles.
 
+---
+
+## ADR-017: Autonomous Executive Summary Cadence (Every 10th Iteration) & Trajectory Diagnostic Engine
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In sovereign, zero-maintenance autonomous software development, the human author rarely inspects code diffs, raw logs, or individual commits. While the Senior Product Manager Cleanup Sprint (every 5th iteration, ADR-015) audits meta-processes and tooling, there was no structured, macro-level synthesis reviewing accomplishments across a 10-iteration window, calculating true velocity, forecasting remaining effort in iterations to complete the roadmap, and providing a unified health overview. The user requested: (1) an automatic executive summary every 10th Ralph iteration reviewing the last 10 iterations, and (2) an on-demand capability (such as a project skill or CLI command) to produce this summary at any time.
+- **Decision**:
+  1. **Zero-Dependency Executive Summary Generator (`tools/executive_summary.py`)**:
+     - Built using Python 3 standard library only (`re`, `dataclasses`, `datetime`, `math`, `pathlib`).
+     - Parses `AGENT_LOG.md` into structured run records (phase, task, key actions, verifications).
+     - Parses `ROADMAP.md` across all 8 phases to calculate completed, in-progress, and pending tasks.
+     - Computes empirical velocity (tasks per iteration) and calculates estimated remaining iterations to roadmap completion.
+     - Automatically runs the full diagnostic suite (`tools/doctor.py`) to verify zero external dependencies, state synchronization, bash integrity, database health, and test pass rate.
+  2. **First-Class CLI Subcommand (`./bible summary`)**:
+     - Integrated into `cli/main.py` under `./bible summary [--window N] [--no-doctor]`.
+     - Supports reviewing an arbitrary window of past iterations (default: 10).
+  3. **Dedicated Project Skill (`skills/executive-summary/SKILL.md`)**:
+     - Formally defined as an agent skill with instructions and execution workflows.
+  4. **Autonomous Ralph Loop Cadence Integration (`ralph.sh`)**:
+     - Updated `ralph.sh`: every 10th iteration (`run_number % 10 == 0`, e.g. Run #010, #020, #030...), injects `SUMMARY_PROMPT`, prompting the agent to curate the 10-run executive summary, evaluate trajectory, and present it to the user.
+     - Added `--summary` / `-s` CLI flags to `ralph.sh` for triggering the executive summary on demand in terminal or headless mode.
+  5. **Harmonized Cadence Hierarchy**:
+     - Iterations divisible by 10 (`10, 20, 30...`) trigger the **Executive Summary Briefing**.
+     - Iterations divisible by 5 but not 10 (`5, 15, 25...`) trigger the **Senior PM Cleanup Sprint**.
+     - All other iterations execute standard domain roadmap tasks.
+- **Consequences**:
+  - The repository owner receives clear, high-level, low-noise milestone reviews every 10 iterations without needing to inspect commits.
+  - Project completion trajectory and iteration estimates are empirically computed from live roadmap and log state.
+  - The capability can be triggered on demand via CLI, python script, or skill.
+  - Zero external dependencies are preserved (Python 3 stdlib only).
+
 

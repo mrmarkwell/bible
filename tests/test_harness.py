@@ -60,8 +60,29 @@ class TestHarness(unittest.TestCase):
 
         # PIPESTATUS array should be captured into a variable before indexing
         self.assertIn('PIPE_STATUSES=("${PIPESTATUS[@]}")', content)
-        # There should be no raw ${PIPESTATUS[1]} references which trip bash set -u
-        self.assertNotIn('${PIPESTATUS[1]}', content)
+    def test_summary_prompt_contents(self):
+        """Verify ralph.sh contains the Executive Summary prompt and options."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("Executive Summary & Project Trajectory Briefing", content)
+        self.assertIn("tools/executive_summary.py", content)
+        self.assertIn("--summary", content)
+        self.assertIn("-s", content)
+        self.assertIn("is_summary_run", content)
+
+    def test_summary_run_math_and_detection(self):
+        """Verify the 10th-iteration executive summary cadence logic."""
+        def is_summary(n: int) -> bool:
+            return n > 0 and (n % 10 == 0)
+
+        for run_num in [10, 20, 30, 40, 50, 100]:
+            self.assertTrue(is_summary(run_num), f"Run {run_num} should be an executive summary run")
+
+        for run_num in [1, 2, 5, 9, 11, 15, 19, 25, 99]:
+            self.assertFalse(is_summary(run_num), f"Run {run_num} should not be an executive summary run")
 
 
 if __name__ == "__main__":

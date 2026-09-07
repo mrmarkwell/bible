@@ -31,6 +31,25 @@ Requirements:
 - Immediately commit and push to origin/main per ADR-004.
 - Provide the structured Human Executive Briefing."
 
+SUMMARY_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
+
+MANDATORY CADENCE: Executive Summary & Project Trajectory Briefing (10th Iteration Review).
+
+You are curating an Executive Summary and high-level trajectory briefing for the repository owner.
+DO NOT make standard feature progress on roadmap tasks during this cycle.
+
+Requirements:
+1. Run the zero-dependency Executive Summary tool:
+   python3 tools/executive_summary.py --window 10
+   (or ./bible summary)
+2. Review and curate the accomplishments across the last 10 iterations (from AGENT_LOG.md).
+3. Present a high-level executive overview of the project state:
+   - Overall project completion percentage and active phase.
+   - Estimated completion effort remaining in iterations based on observed velocity.
+   - Comprehensive system health and architectural invariant summary (zero dependencies, tests, database).
+4. Identify 1-3 high-leverage improvement ideas, assign mandatory letter grades, and promote any Rank A+ ideas to IDEAS.md.
+5. Record ADR-017 (Executive Summary Cadence) if relevant, log in AGENT_LOG.md under Run entry, commit and push to origin/main."
+
 DEFAULT_TIMEOUT="30m"
 
 # Helper: Detect the next run number from AGENT_LOG.md
@@ -41,6 +60,16 @@ get_next_run_number() {
         last_run=0
     fi
     echo "$((10#$last_run + 1))"
+}
+
+# Helper: Check if a given run or iteration number is an executive summary run (every 10th iteration)
+is_summary_run() {
+    local num="0"
+    if [ "" -gt 0 ] && [ 0 -eq 0 ]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Helper: Check if a given run or iteration number is a cleanup sprint (every 5th iteration)
@@ -155,6 +184,30 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         ITERATION=$((ITERATION + 1))
     done
     exit 0
+fi
+
+# Explicit Executive Summary Mode (--summary / -s)
+if [ "${1:-}" = "--summary" ] || [ "${1:-}" = "-s" ]; then
+    shift
+    NEXT_RUN=$(get_next_run_number)
+    echo "======================================================================"
+    echo " Invoking Executive Summary & Trajectory Briefing (Run #$NEXT_RUN)"
+    echo " Cadence: On-Demand / 10th Iteration Review"
+    echo "======================================================================"
+    if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
+        shift
+        set +e
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$SUMMARY_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        PIPE_STATUSES=("${PIPESTATUS[@]}")
+        set -e
+        EXIT_CODE="${PIPE_STATUSES[0]:-0}"
+        FORMATTER_CODE="${PIPE_STATUSES[1]:-0}"
+        if [ "$EXIT_CODE" -eq 0 ] && [ "$FORMATTER_CODE" -ne 0 ]; then
+            exit "$FORMATTER_CODE"
+        fi
+        exit "$EXIT_CODE"
+    fi
+    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$SUMMARY_PROMPT" "$@"
 fi
 
 # Explicit Cleanup Sprint Mode (--cleanup / -c)

@@ -30,6 +30,10 @@ When the human author initiates a conversation asking questions, brainstorming, 
 # Run a fixed number of continuous iterations (e.g. 5):
 ./ralph.sh --loop 5
 
+# Explicit Executive Summary Briefing (on-demand):
+./ralph.sh --summary
+./ralph.sh -s -p
+
 # Explicit Senior Product Manager Cleanup Sprint (on-demand):
 ./ralph.sh --cleanup
 ./ralph.sh -c -p
@@ -97,7 +101,19 @@ The Senior PM audits the entire system across:
 
 ---
 
-#### Standard Loop Lifecycle (Iterations Not Divisible by 5)
+### Cadence Protocol: Executive Summary & Trajectory Briefing (Every 10th Iteration)
+
+Every **tenth iteration** of the autonomous Ralph loop (e.g., Run #010, #020, #030..., or when `run_number % 10 == 0`, or when invoked via `--summary` / `-s`) is a dedicated **Executive Summary & Project Trajectory Briefing**.
+
+#### 1. Core Purpose & Mandate
+- **Curated Multi-Iteration Review**: Review the accomplishments, state transitions, and lessons from the last 10 iterations (from `AGENT_LOG.md`).
+- **High-Level Trajectory Assessment**: Parse `ROADMAP.md` to compute total project completion percentage, active phase status, remaining tasks, and estimated iterations to completion based on observed velocity.
+- **Overall Project Health**: Execute automated diagnostics (`tools/doctor.py` / `tools/executive_summary.py`) to verify AST zero-dependency compliance, documentation synchronization, test hermeticity, and database integrity.
+- **On-Demand & Automatic Availability**: Available on-demand at any time via `./bible summary [--window N]`, `python3 tools/executive_summary.py`, or `./ralph.sh --summary`, and codified as a project skill in `skills/executive-summary/SKILL.md`.
+
+---
+
+#### Standard Loop Lifecycle (Iterations Not Divisible by 5 or 10)
 
 When the iteration is a standard cycle:
 

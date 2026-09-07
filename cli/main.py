@@ -166,6 +166,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_doctor.set_defaults(func=cmd_doctor)
 
+    # Subcommand: summary
+    parser_summary = subparsers.add_parser(
+        "summary",
+        help="Generate executive summary and trajectory briefing across recent Ralph iterations",
+        description="Review work done across recent iterations, project completion trajectory, and health.",
+    )
+    parser_summary.add_argument(
+        "--window",
+        "-w",
+        type=int,
+        default=10,
+        help="Number of past iterations to review (default: 10)",
+    )
+    parser_summary.add_argument(
+        "--no-doctor",
+        action="store_true",
+        help="Skip running live doctor diagnostics",
+    )
+    def cmd_summary(args: argparse.Namespace) -> int:
+        from tools.executive_summary import generate_summary, format_markdown_report
+        repo_root = Path(__file__).resolve().parent.parent
+        report = generate_summary(window=args.window, repo_root=repo_root, run_doctor=not args.no_doctor)
+        print(format_markdown_report(report))
+        return 0
+
+    parser_summary.set_defaults(func=cmd_summary)
+
     return parser
 
 

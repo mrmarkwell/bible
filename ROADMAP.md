@@ -21,6 +21,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.5**: Establish Senior Product Manager Meta-Improvement & System Health Sprint cadence (every 5th iteration) in `ralph.sh`, `AGENTS.md`, and `DECISIONS.md` (ADR-015).
 - [x] **Task 0.6**: Implement automated pre-commit fast linter & doc-sync validator (`tools/doctor.py` / `bible doctor`) to verify zero-dependency AST and state machine integrity. *(Run 015)*
 - [ ] **Task 0.7**: Implement Git pre-commit / pre-push hook automation (`tools/install_hooks.sh` or `bible doctor --install-hook`) to enforce machine-level validation before pushing to remote.
+- [x] **Task 0.8**: Establish Executive Summary & Project Trajectory Briefing cadence (every 10th iteration), on-demand CLI command (`./bible summary`), standalone tool (`tools/executive_summary.py`), and project skill (`skills/executive-summary/SKILL.md`) (ADR-017). *(Run 016)*
 
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)

@@ -206,6 +206,14 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("Bible Engine System Doctor", stdout.getvalue())
         self.assertIn("System Health: EXCELLENT", stdout.getvalue())
 
+    def test_cli_summary(self):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["summary", "--window", "5"])
+        self.assertEqual(code, 0)
+        self.assertIn("Executive Summary & Trajectory Briefing", stdout.getvalue())
+        self.assertIn("Overall Project Completion", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

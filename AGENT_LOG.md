@@ -413,3 +413,39 @@ This is an append-only log of work performed by autonomous agents during their e
   - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.
 
 
+
+---
+
+## [Run 016] — 2026-09-07
+- **Agent**: Interactive Collaboration & Systems Architect
+- **Phase**: Phase 0 — Repository Architecture, Quality Assurance & Autonomous Harness (Task 0.8)
+- **Task**: Ingest & Implement 10th-Iteration Executive Summary Cadence, Trajectory Briefing, and On-Demand Skill
+- **Actions Taken**:
+  - Implemented **Executive Summary & Trajectory Generator** in `tools/executive_summary.py`:
+    - Structured parser for `AGENT_LOG.md` extracting run numbers, dates, phase, task, and key technical highlights.
+    - Structured parser for `ROADMAP.md` analyzing task status and progress across all 8 project phases.
+    - Empirical velocity calculation and remaining iteration estimation to roadmap completion.
+    - Integrated system doctor diagnostics (`tools/doctor.py`) for zero external dependencies, documentation sync, shell integrity, and database health.
+    - Professional Markdown formatter for high-level user presentation.
+  - Added first-class CLI subcommand `./bible summary [--window N] [--no-doctor]` in `cli/main.py`.
+  - Authored project-specific skill in `skills/executive-summary/SKILL.md` for on-demand invocation.
+  - Updated autonomous loop runner `ralph.sh`:
+    - Added helper `is_summary_run()` detecting iterations divisible by 10 (`run_number % 10 == 0`).
+    - Added specialized `SUMMARY_PROMPT` instructing the agent to curate the executive summary.
+    - Added `--summary` / `-s` flags for on-demand execution in terminal or headless mode.
+    - Harmonized cadence hierarchy: multiples of 10 -> Executive Summary; multiples of 5 (not 10) -> Senior PM Cleanup Sprint; others -> Standard Feature Cycles.
+  - Updated `AGENTS.md` and `GEMINI.md` documenting the new cadence and CLI options.
+  - Added Task 0.8 to Phase 0 in `ROADMAP.md` and marked `[x]`.
+  - Logged feature request in `IDEAS.md` and marked `[DONE]`.
+  - Recorded **ADR-017: Autonomous Executive Summary Cadence (Every 10th Iteration) & Trajectory Diagnostic Engine** in `DECISIONS.md`.
+  - Authored comprehensive hermetic unit tests in `tests/test_executive_summary.py`, `tests/test_cli.py`, and `tests/test_harness.py`.
+- **Verification**:
+  - Ran `./bible doctor`: All 5 checks passed cleanly (`EXCELLENT`) in 1.04s.
+  - Ran `./bible summary`: Verified curated 10-iteration report, phase breakdown, trajectory, and health checks.
+  - Ran `python3 -m unittest discover tests`: All 148 tests passing 100% in 4.08s.
+  - Verified `bash -n ralph.sh`: Syntax validation clean.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 0.8 is complete and verified.
+  - Next cycle is **Run 017** (standard roadmap cycle).
+  - Next priority on the roadmap is **Task 2.2**: Support multi-translation flag (`--version=WEB`, `--version=ESV`) with fallbacks.

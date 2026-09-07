@@ -29,8 +29,11 @@ In this mode:
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
 2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed.
-3. **Cadence Check (Every 5th Iteration = Senior PM Cleanup Sprint)**:
-   - **If Run Number is a multiple of 5, loop iteration % 5 == 0, or invoked via `--cleanup`**:
+3. **Cadence Check (10th Iteration = Executive Summary Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
+   - **If Run Number is a multiple of 10, loop iteration % 10 == 0, or invoked via `--summary`**:
+     - Run `python3 tools/executive_summary.py` (or `./bible summary`).
+     - Curate and present the Executive Summary reviewing the last 10 iterations, project completion trajectory, remaining effort in iterations, and overall system health.
+   - **If Run Number is a multiple of 5 (and not 10), loop iteration % 5 == 0, or invoked via `--cleanup`**:
      - Assume the persona of a **Senior Product Manager & Meta-Architect**.
      - Do **NOT** advance domain roadmap feature tasks.
      - Audit the health of the whole system, answering the two core diagnostic questions:

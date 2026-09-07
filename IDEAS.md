@@ -253,4 +253,15 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0, Developer Ergonomics & Harness Tooling (Task 0.7).
 - **Status**: [SCHEDULED].
 
+### [VETTED] Curated Executive Summary & Project Trajectory Briefing (10th Iteration Cadence & Skill) (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Establish an automated cadence every 10th Ralph loop iteration (`run_number % 10 == 0`) where the agent curates an Executive Summary reviewing the last 10 iterations from `AGENT_LOG.md`, presents a high-level project completion percentage and trajectory with estimated iterations remaining, and runs full automated health diagnostics (`tools/doctor.py`). In addition, expose the capability on-demand via the CLI (`./bible summary [--window N]`), standalone script (`tools/executive_summary.py`), and project skill (`skills/executive-summary/SKILL.md`).
+- **Rationale**: The repository owner maintains a sovereign, near-zero maintenance posture and rarely inspects commits or code. Providing a periodic 10-iteration retrospective and forward-looking effort estimate keeps the owner informed with zero noise, while on-demand invocation provides instant visibility at any time.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library only).
+- **Proposed Roadmap Phase**: Phase 0, Task 0.8 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [DONE] (Implemented in `tools/executive_summary.py`, `skills/executive-summary/SKILL.md`, CLI `./bible summary`, `ralph.sh`, and recorded in ADR-017).
+
+
 
