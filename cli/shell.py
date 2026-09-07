@@ -1366,6 +1366,63 @@ class BibleShell(cmd.Cmd):
         all_candidates = options + test_stems
         return [c for c in all_candidates if c.startswith(text)]
 
+    def do_lint(self, arg: str) -> None:
+        """Run sovereign static analysis and code hygiene audit: /lint [-p pattern] [-f/--fix] [-v] [--strict] [--json]"""
+        import shlex
+        from tools.linter import lint_repository
+        repo_root = Path(__file__).resolve().parent.parent
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        pattern = None
+        fix = False
+        verbose = False
+        strict = False
+        output_json = False
+
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok in ("-p", "--pattern") and i + 1 < len(tokens):
+                pattern = tokens[i + 1]
+                i += 2
+            elif tok in ("-f", "--fix"):
+                fix = True
+                i += 1
+            elif tok in ("-v", "--verbose"):
+                verbose = True
+                i += 1
+            elif tok in ("--strict", "-s"):
+                strict = True
+                i += 1
+            elif tok == "--json":
+                output_json = True
+                i += 1
+            elif not tok.startswith("-") and pattern is None:
+                pattern = tok
+                i += 1
+            else:
+                i += 1
+
+        lint_repository(
+            repo_root=repo_root,
+            pattern=pattern,
+            fix=fix,
+            strict=strict,
+            verbose=verbose,
+            color=self.use_color,
+            output_json=output_json,
+            stream=self.stdout,
+        )
+
+    def do_check_style(self, arg: str) -> None:
+        """Alias for /lint."""
+        self.do_lint(arg)
+
+    def complete_lint(self, text: str, line: str, start_index: int, end_index: int) -> List[str]:
+        """Autocompletion for /lint command."""
+        options = ["-p", "--pattern", "-f", "--fix", "-v", "--verbose", "--strict", "--json"]
+        return [c for c in options if c.startswith(text)]
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report

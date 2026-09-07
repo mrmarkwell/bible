@@ -2924,6 +2924,76 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_test.set_defaults(func=cmd_test)
 
+    # Subcommand: lint (aliases: linter, check-style)
+    parser_lint = subparsers.add_parser(
+        "lint",
+        aliases=["linter", "check-style"],
+        help="Run sovereign static analysis and code hygiene audit across repository",
+        description="Audit Python source files for syntax errors, AST code smells (duplicate dict keys, mutable defaults, bare excepts), and formatting defects.",
+    )
+    parser_lint.add_argument(
+        "-f",
+        "--fix",
+        action="store_true",
+        help="Automatically repair formatting defects (strip trailing whitespace, fix final newlines)",
+    )
+    parser_lint.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show per-file execution details and passing files",
+    )
+    parser_lint.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress output and exit with status code only",
+    )
+    parser_lint.add_argument(
+        "--strict",
+        action="store_true",
+        help="Strict mode: treat warnings and style notices as fatal errors",
+    )
+    parser_lint.add_argument(
+        "-p",
+        "--pattern",
+        type=str,
+        default=None,
+        help="Filter scanned files by glob or substring (e.g. 'core', '*render*')",
+    )
+    parser_lint.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI colors",
+    )
+    parser_lint.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON report",
+    )
+
+    def cmd_lint(args: argparse.Namespace) -> int:
+        from tools.linter import REPO_ROOT, lint_repository
+        is_tty = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and not args.no_color
+            and "NO_COLOR" not in os.environ
+        )
+        exit_code, _ = lint_repository(
+            repo_root=REPO_ROOT,
+            pattern=args.pattern,
+            fix=args.fix,
+            strict=args.strict,
+            verbose=args.verbose,
+            quiet=args.quiet,
+            color=is_tty,
+            output_json=args.json,
+        )
+        return exit_code
+
+    parser_lint.set_defaults(func=cmd_lint)
+
     return parser
 
 
@@ -2952,6 +3022,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "arcs", "arc", "typology", "typologies",
         "slide", "render",
         "test", "tests", "check",
+        "lint", "linter", "check-style",
     }
 
     pos_idx = -1

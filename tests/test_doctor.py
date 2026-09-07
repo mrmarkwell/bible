@@ -15,6 +15,7 @@ from tools.doctor import (
     check_doc_synchronization,
     check_bash_scripts,
     check_git_hooks,
+    check_code_quality,
     check_database_integrity,
     check_unit_tests,
     install_hooks,
@@ -130,12 +131,13 @@ class TestDoctorChecks(unittest.TestCase):
     def test_run_all_checks_fast_mode(self):
         code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
         self.assertEqual(code, 0)
-        self.assertEqual(len(results), 4)
+        self.assertEqual(len(results), 5)
         names = [r.name for r in results]
         self.assertIn("Zero External Dependencies (AST Audit)", names)
         self.assertIn("Documentation State Sync", names)
         self.assertIn("Shell Script Integrity", names)
         self.assertIn("Git Hook Safeguards", names)
+        self.assertIn("Code Quality (Static Linter Audit)", names)
         self.assertNotIn("Hermetic Test Suite", names)
 
     def test_run_all_checks_quiet_and_stream(self):
@@ -153,9 +155,23 @@ class TestDoctorChecks(unittest.TestCase):
             mock_test_check.return_value = CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.01)
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 6)
+            self.assertEqual(len(results), 7)
             for r in results:
                 self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
+
+    def test_check_code_quality_clean(self):
+        res = check_code_quality(REPO_ROOT)
+        self.assertTrue(res.passed)
+        self.assertIn("100% clean", res.details)
+
+    def test_check_code_quality_detects_defects(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            bad_file = tmp_path / "broken.py"
+            bad_file.write_text("data = {'a': 1, 'a': 2}\n", encoding="utf-8")
+            res = check_code_quality(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("Defects detected", res.details)
 
     def test_check_git_hooks_auto_repair(self):
         with tempfile.TemporaryDirectory() as tmpdir:

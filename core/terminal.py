@@ -1288,6 +1288,3 @@ def format_chapter_density_grid(
 
     return "\n".join(lines)
 
-
-
-

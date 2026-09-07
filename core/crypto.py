@@ -35,7 +35,7 @@ def _rotl32(v: int, c: int) -> int:
 
 class ChaCha20:
     """Pure Python RFC 7539 ChaCha20 stream cipher (Zero External Dependencies).
-    
+
     Generates 64-byte blocks of pseudorandom keystream XORed with plaintext.
     """
 
@@ -44,7 +44,7 @@ class ChaCha20:
             raise ValueError(f"ChaCha20 key must be {KEY_SIZE} bytes, got {len(key)}")
         if len(nonce) != NONCE_SIZE:
             raise ValueError(f"ChaCha20 nonce must be {NONCE_SIZE} bytes, got {len(nonce)}")
-        
+
         self.key = key
         self.nonce = nonce
         self.counter = counter
@@ -141,7 +141,7 @@ def _split_keys(master_key: bytes) -> Tuple[bytes, bytes]:
 
 def encrypt_bytes(data: bytes, master_key: bytes, salt: Optional[bytes] = None, iterations: int = 0) -> bytes:
     """Encrypts raw bytes using ChaCha20 + HMAC-SHA256 authenticated encryption.
-    
+
     Wire format:
       [MAGIC_HEADER: 14 bytes]
       [iterations: 4 bytes big-endian unsigned int]

@@ -210,6 +210,19 @@ class TestShell(unittest.TestCase):
         init_opts = shell.complete_init("--fo", "init --fo", 0, 0)
         self.assertIn("--force", init_opts)
 
+    def test_shell_lint_command(self):
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            shell.onecmd("/lint -p tools/linter.py")
+            out = stdout.getvalue()
+            self.assertIn("Static Analysis & Linter Engine", out)
+            self.assertIn("CODE QUALITY: CLEAN", out)
+
+            # Autocompletion test
+            opts = shell.complete_lint("-", "/lint -", 0, 0)
+            self.assertIn("--fix", opts)
+            self.assertIn("--strict", opts)
+
 
 class TestDirectReferenceRouting(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -235,6 +248,7 @@ class TestDirectReferenceRouting(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["shell"]), ["shell"])
         self.assertEqual(preprocess_cli_argv(["init"]), ["init"])
         self.assertEqual(preprocess_cli_argv(["db", "stats"]), ["db", "stats"])
+        self.assertEqual(preprocess_cli_argv(["lint"]), ["lint"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

@@ -149,7 +149,7 @@ _COMMON_ALIASES: Dict[str, str] = {
     "num": "Numbers", "nu": "Numbers", "nm": "Numbers", "nb": "Numbers",
     "deut": "Deuteronomy", "dt": "Deuteronomy", "de": "Deuteronomy",
     "josh": "Joshua", "jos": "Joshua", "jsh": "Joshua",
-    "judg": "Judges", "jdg": "Judges", "jdgs": "Judges", "jud": "Judges", "jg": "Judges",
+    "judg": "Judges", "jdg": "Judges", "jdgs": "Judges", "jg": "Judges",
     "ruth": "Ruth", "rth": "Ruth", "ru": "Ruth",
     "1 sam": "1 Samuel", "1sam": "1 Samuel", "1 sa": "1 Samuel", "1sa": "1 Samuel", "1 s": "1 Samuel", "1s": "1 Samuel", "1 sm": "1 Samuel", "1sm": "1 Samuel",
     "2 sam": "2 Samuel", "2sam": "2 Samuel", "2 sa": "2 Samuel", "2sa": "2 Samuel", "2 s": "2 Samuel", "2s": "2 Samuel", "2 sm": "2 Samuel", "2sm": "2 Samuel",

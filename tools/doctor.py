@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Any, Callable, List, Optional, Sequence, Set, TextIO, Tuple
+from typing import Any, Callable, List, Optional, Set, Tuple
 
 # Base repository root directory
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -350,6 +350,32 @@ def check_bash_scripts(repo_root: Path) -> CheckResult:
     return CheckResult("Shell Script Integrity", True, f"{script_names} valid syntax and executable", dur)
 
 
+def check_code_quality(repo_root: Path, fix: bool = False) -> CheckResult:
+    """Verify code quality, syntax compilation, and AST hygiene via zero-dependency linter."""
+    from tools.linter import lint_repository
+
+    t0 = time.time()
+    code, summary = lint_repository(repo_root=repo_root, fix=fix, quiet=True)
+    dur = time.time() - t0
+
+    if not summary.success:
+        issues_desc = f"{summary.total_errors} errors across {summary.files_with_issues} files"
+        return CheckResult(
+            "Code Quality (Static Linter Audit)",
+            False,
+            f"Defects detected: {issues_desc}. Run './bible lint' or './bible doctor --fix' to inspect/repair.",
+            dur,
+        )
+
+    fixes_msg = f" (Auto-repaired {summary.fixed_issues} defects across {summary.fixed_files} files)" if summary.fixed_files > 0 else ""
+    return CheckResult(
+        "Code Quality (Static Linter Audit)",
+        True,
+        f"100% clean: {summary.total_files} files inspected with 0 errors{fixes_msg}",
+        dur,
+    )
+
+
 def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify bundled SQLite scripture database existence and schema integrity."""
     t0 = time.time()
@@ -574,16 +600,23 @@ def run_all_checks(
     if not res.passed:
         failed = True
 
+    # 5. Code Quality & Static Analysis
+    res = check_code_quality(root, fix=fix)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
     # Fast mode stops here
     if not fast:
-        # 5. SQLite Scripture Database
+        # 6. SQLite Scripture Database
         res = check_database_integrity(root, fix=fix)
         results.append(res)
         _emit_check(res, styler, emit)
         if not res.passed:
             failed = True
 
-        # 6. Hermetic Test Suite
+        # 7. Hermetic Test Suite
         res = check_unit_tests(root)
         results.append(res)
         _emit_check(res, styler, emit)

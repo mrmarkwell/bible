@@ -978,6 +978,16 @@ class TestCliExecution(unittest.TestCase):
             self.assertIn("Generated 3840x2160 SVG slide", out)
             self.assertTrue(out_file.exists())
 
+    def test_cli_lint_subcommand(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["lint", "-p", "tools/linter.py", "--no-color"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Static Analysis & Linter Engine", out)
+        self.assertIn("CODE QUALITY: CLEAN", out)
+
 
 if __name__ == "__main__":
     unittest.main()

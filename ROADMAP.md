@@ -26,6 +26,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.10**: Implement Sovereign Cold-Start Bootstrapping, Unified Database Compilation & Lifecycle Engine (`bible init` / `bible db`), Self-Healing Doctor Diagnostics (`--fix`), and Comprehensive Repository Documentation (ADR-030). *(Run 029 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.11**: Implement Omnichannel Visual Slide Integration across CLI, REPL Shell, and REST API (`./bible slide`, `/slide`, `/api/slide`, ADR-035). *(Run 034 / Senior PM Meta-Sprint)*
 - [x] **Task 0.12**: Implement High-Performance Parallel Hermetic Test Runner (`tools/test_runner.py`), CLI integration (`./bible test`), REPL shell integration (`/test`), strict ResourceWarning leak auditing, and doctor acceleration (ADR-036). *(Run 035 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.13**: Implement Sovereign Zero-Dependency Static Analysis, Code Hygiene & Linter Engine (`tools/linter.py`), CLI subcommand (`./bible lint`), REPL shell integration (`/lint`), pre-commit hook integration, and doctor diagnostics (ADR-040). *(Run 039 / Senior PM Cleanup Sprint)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

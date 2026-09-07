@@ -23,7 +23,7 @@ class TestChaCha20Keystream(unittest.TestCase):
 
     def test_rfc7539_section_2_3_2_block_vector(self):
         """Verify against RFC 7539 section 2.3.2 test vector.
-        
+
         Key: 00:01:02:...:1f
         Nonce: 00:00:00:09:00:00:00:4a:00:00:00:00
         Block Count: 1
@@ -53,7 +53,7 @@ class TestChaCha20Keystream(unittest.TestCase):
             b"If I could offer you only one tip for the future, "
             b"sunscreen would be it."
         )
-        
+
         cipher = ChaCha20(key, nonce, counter=counter)
         ciphertext = cipher.crypt(plaintext)
 
@@ -111,10 +111,10 @@ class TestAuthenticatedEncryptionRoundtrip(unittest.TestCase):
         key = generate_key()
         original = b"For God so loved the world, that he gave his one and only Son."
         encrypted = encrypt_bytes(original, key)
-        
+
         self.assertTrue(encrypted.startswith(MAGIC_HEADER))
         self.assertNotEqual(encrypted, original)
-        
+
         decrypted = decrypt_bytes(encrypted, key)
         self.assertEqual(decrypted, original)
 
@@ -122,16 +122,16 @@ class TestAuthenticatedEncryptionRoundtrip(unittest.TestCase):
         password = "bible-engine-test-key-2026"
         original = "In the beginning was the Word, and the Word was with God, and the Word was God."
         encrypted = encrypt_string(original, password, iterations=1000)
-        
+
         self.assertTrue(encrypted.startswith(MAGIC_HEADER))
-        
+
         decrypted = decrypt_string(encrypted, password)
         self.assertEqual(decrypted, original)
 
     def test_wrong_password_fails_mac_verification(self):
         original = "Trust in the Lord with all your heart."
         encrypted = encrypt_string(original, "correct-password", iterations=1000)
-        
+
         with self.assertRaises(CryptoError) as ctx:
             decrypt_string(encrypted, "wrong-password")
         self.assertIn("MAC verification failed", str(ctx.exception))
@@ -140,10 +140,10 @@ class TestAuthenticatedEncryptionRoundtrip(unittest.TestCase):
         key = generate_key()
         original = b"The Lord is my shepherd; I shall not want."
         encrypted = bytearray(encrypt_bytes(original, key))
-        
+
         # Tamper with one byte in the payload
         encrypted[-1] ^= 0x01
-        
+
         with self.assertRaises(CryptoError) as ctx:
             decrypt_bytes(bytes(encrypted), key)
         self.assertIn("MAC verification failed", str(ctx.exception))
@@ -202,7 +202,7 @@ class TestTextPackFileOperations(unittest.TestCase):
 
         password = "esv-licensed-passphrase-2026"
         encrypt_text_pack(self.plain_path, self.enc_path, password, iterations=1000)
-        
+
         self.assertTrue(os.path.exists(self.enc_path))
         with open(self.enc_path, "rb") as f:
             header = f.read(len(MAGIC_HEADER))

@@ -163,7 +163,7 @@ class TestArcCliAndShell(unittest.TestCase):
     def test_cli_arcs_command_plain(self) -> None:
         parsed = self.parser.parse_args(["arcs", "--no-color"])
         self.assertEqual(parsed.func.__name__, "cmd_arcs")
-        
+
         captured = io.StringIO()
         import sys
         old_stdout = sys.stdout

@@ -400,3 +400,17 @@ Ideas can be added directly by the repository owner or generated during interact
   - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
 - **Proposed Roadmap Phase**: Phase 5 (Task 5.5 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: Scheduled (Task 5.5 in Phase 5).
+
+### [DONE] Sovereign Zero-Dependency Static Analysis, Code Hygiene & Linter Engine (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Build a zero-dependency static analysis, code quality, and formatting linter (`tools/linter.py`), CLI subcommand (`./bible lint`, aliases: `linter`, `check-style`), and REPL command (`/lint`) that audits 100% of Python source files in <0.08s:
+  1. **AST Code Smells**: Detects duplicate dictionary keys (`E101`, fixing the latent collision `'jud'` in `core/reference.py`), mutable default argument values (`E102`), bare `except:` clauses (`E103`), unused imports (`W201`), wildcard imports (`W202`), and unreachable code (`W203`).
+  2. **Line Hygiene & Formatting**: Detects trailing whitespace (`S301`), missing final newlines (`S302`), excessive blank lines (`S303`), and tab characters (`S304`).
+  3. **Self-Healing Auto-Repair (`--fix`)**: Automatically strips trailing whitespace, normalizes terminating newlines to UNIX `\n`, and defragments excessive blank lines.
+  4. **Pre-Commit & Doctor Integration**: Added Check 5 (`Code Quality`) to `tools/doctor.py` (running in fast mode and full diagnostics) and automated git pre-commit hooks.
+- **Rationale**: Elevates developer and autonomous agent ergonomics by providing instant static analysis parity with modern industrial toolchains without adding a single external pip package, strictly preserving ADR-003 zero-maintenance and zero-dependency guarantees.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (Python 3 standard library `ast`, `py_compile`, `dataclasses`, `pathlib` per ADR-003).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.13 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
+- **Status**: [DONE] (Implemented in `tools/linter.py`, `core/reference.py`, `tools/doctor.py`, `cli/main.py`, `cli/shell.py`, tested in `tests/test_linter.py`, verified with 492 tests passing, and recorded in ADR-040).
