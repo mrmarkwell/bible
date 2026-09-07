@@ -287,6 +287,20 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 3 (Task 3.2 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md)).
 - **Status**: [DONE] (Implemented in `core/crossref.py`, `core/terminal.py`, `cli/main.py`, `cli/shell.py`, verified in `tests/test_crossref.py`, and recorded in ADR-024).
 
+### [DONE] Batch LLM Semantic Tagging Pipeline, TGC Hermeneutical Prompt Engine & Offline Ingestion (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement a zero-dependency batch LLM tagging generator (`tools/tag_generator.py`) and prompt engine (`core/tag_prompts.py`) grounded in The Gospel Coalition (TGC) Foundation Documents (ADR-006). Supports dual-horizon hermeneutics, Christ-centered teleology, and anti-moralistic reading. Features:
+  1. Offline inspection and prompt export for single passages, batch JSONL generation (from `--refs`, `favorite_bible_verses.csv`, or books), and offline response file application (`./bible tag apply-llm`).
+  2. Online execution via Google Gemini REST API (`gemini-2.5-pro` with `gemini-2.0-flash` fallback) using pure Python standard library `urllib.request` (zero pip packages).
+  3. CLI subcommands (`./bible tag prompt`, `./bible tag generate`, `./bible tag apply-llm`, `./bible tag batch`) and interactive REPL command (`/tag prompt`).
+- **Rationale**: Enables high-volume, hermeneutically sound semantic tagging of Scripture passages across the biblical canon without manual data-entry bottleneck or unconstrained LLM hallucinations.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (supports offline prompt generation and local response file ingestion).
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+  - Copyright compliant? Yes (uses public domain WEB/KJV by default).
+- **Proposed Roadmap Phase**: Phase 3, Task 3.3 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md).
+- **Status**: [DONE] (Implemented in `core/tag_prompts.py`, `tools/tag_generator.py`, `cli/main.py`, `cli/shell.py`, verified in `tests/test_tag_prompts.py`, and recorded in ADR-025).
+
 
 
 

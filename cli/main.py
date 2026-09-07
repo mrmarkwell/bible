@@ -922,6 +922,22 @@ def cmd_tag(args: argparse.Namespace) -> int:
                 print(f"Successfully seeded {count} canonical theological and redemptive-historical tags.")
                 return 0
 
+            elif tag_action == "prompt":
+                from tools.tag_generator import cmd_prompt
+                return cmd_prompt(args)
+
+            elif tag_action == "generate":
+                from tools.tag_generator import cmd_generate
+                return cmd_generate(args)
+
+            elif tag_action in ("apply-llm", "apply"):
+                from tools.tag_generator import cmd_apply
+                return cmd_apply(args)
+
+            elif tag_action == "batch":
+                from tools.tag_generator import cmd_batch
+                return cmd_batch(args)
+
             else:
                 sys.stderr.write(f"Unknown tag action: {tag_action}\n")
                 return 1
@@ -1533,6 +1549,52 @@ def build_parser() -> argparse.ArgumentParser:
 
     # tag seed
     p_tag_seed = tag_subparsers.add_parser("seed", help="Seed canonical TGC theological and redemptive taxonomies")
+
+    # tag prompt
+    p_tag_prompt = tag_subparsers.add_parser("prompt", help="Generate and display LLM tagging prompt for a passage")
+    p_tag_prompt.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1-11')")
+    p_tag_prompt.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_prompt.add_argument("--category", help="Comma-separated category filter (e.g. 'theological,historical')")
+    p_tag_prompt.add_argument("--custom-tags", help="Comma-separated custom candidate tags")
+    p_tag_prompt.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags outside taxonomy")
+    p_tag_prompt.add_argument("--max-tags", type=int, default=6, help="Maximum tags to request (default: 6)")
+    p_tag_prompt.add_argument("--format", choices=["text", "gemini", "json"], default="text", help="Output format")
+    p_tag_prompt.add_argument("--output", "-o", help="Write prompt to output file")
+
+    # tag generate
+    p_tag_gen = tag_subparsers.add_parser("generate", help="Direct online LLM tagging via Google Gemini API")
+    p_tag_gen.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1-11')")
+    p_tag_gen.add_argument("--api-key", help="Google Gemini API key (defaults to $GEMINI_API_KEY)")
+    p_tag_gen.add_argument("--model", default="gemini-2.5-pro", help="Gemini model ID (default: gemini-2.5-pro)")
+    p_tag_gen.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_gen.add_argument("--category", help="Comma-separated category filter")
+    p_tag_gen.add_argument("--custom-tags", help="Comma-separated custom candidate tags")
+    p_tag_gen.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags")
+    p_tag_gen.add_argument("--max-tags", type=int, default=6, help="Maximum tags to produce")
+    p_tag_gen.add_argument("--dry-run", action="store_true", help="Print tags without writing to database")
+    p_tag_gen.add_argument("--source", default="llm-gemini", help="Provenance source identifier (default: llm-gemini)")
+
+    # tag apply-llm (alias: apply)
+    p_tag_apply = tag_subparsers.add_parser("apply-llm", aliases=["apply"], help="Parse and apply LLM tagging response payload to SQLite")
+    p_tag_apply.add_argument("file", help="Path to response JSON or JSONL file (or '-' for stdin)")
+    p_tag_apply.add_argument("--dry-run", action="store_true", help="Preview tags without writing to database")
+    p_tag_apply.add_argument("--min-confidence", type=float, default=0.5, help="Minimum confidence threshold (0.0-1.0)")
+    p_tag_apply.add_argument("--source", default="llm-gemini", help="Provenance source identifier (default: llm-gemini)")
+
+    # tag batch
+    p_tag_batch = tag_subparsers.add_parser("batch", help="Generate batch prompt requests (JSONL/JSON) for multiple passages")
+    p_tag_batch.add_argument("--refs", help="Comma-separated citations (e.g. 'John 3:16, Romans 8:1')")
+    p_tag_batch.add_argument("--favorites", action="store_true", help="Extract passages from favorite_bible_verses.csv")
+    p_tag_batch.add_argument("--starred-only", action="store_true", help="With --favorites, filter to starred passages")
+    p_tag_batch.add_argument("--book", help="Generate prompts for all chapters of a book")
+    p_tag_batch.add_argument("--input-file", help="Path to text file containing references (one per line)")
+    p_tag_batch.add_argument("--limit", type=int, help="Maximum passages to process")
+    p_tag_batch.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_batch.add_argument("--category", help="Comma-separated category filter")
+    p_tag_batch.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags")
+    p_tag_batch.add_argument("--max-tags", type=int, default=6, help="Maximum tags per passage")
+    p_tag_batch.add_argument("--format", choices=["jsonl", "json"], default="jsonl", help="Batch output format")
+    p_tag_batch.add_argument("--output", "-o", help="Write batch output to file")
 
     parser_tag.set_defaults(func=cmd_tag)
 

@@ -785,6 +785,58 @@ This is an append-only log of work performed by autonomous agents during their e
   - Active Phase is **Phase 3 — Semantic Tagging & Knowledge Database Engine**.
   - Next priority on the roadmap is **Task 3.3**: Create batch LLM tagging tool/prompt generator to classify and tag scripture into predefined and dynamic semantic taxonomies (`tools/tag_generator.py` / `core/tag_prompts.py`).
 
+---
+
+## [Run 024] — 2026-09-07
+- **Agent**: Autonomous Developer (Ralph Loop)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
+- **Task**: Batch LLM Semantic Tagging Pipeline, TGC Hermeneutical Prompt Engine & Offline Ingestion Tooling (Task 3.3 / ADR-025)
+- **Actions Taken**:
+  - **TGC-Aligned Prompt Engineering & Domain Logic (`core/tag_prompts.py`)**:
+    - Encoded system prompt grounded in The Gospel Coalition (TGC) Foundation Documents: dual-horizon hermeneutics (reading along redemptive history + reading across systematic doctrine), Christ-centered teleology, and anti-moralistic interpretation.
+    - Implemented `format_taxonomy_for_prompt` rendering structured canonical taxonomies (`CANONICAL_TAXONOMY`) and dynamic user candidate tags.
+    - Built `generate_tagging_prompt` enforcing strict JSON schema contracts: `name`, `category` (from canonical set), `confidence` (0.0-1.0), `starred` (primary theological motif), concise `notes`, and optional `sub_span`.
+    - Built `generate_batch_tagging_prompts` generating structured batch payloads suitable for JSON or JSONL exports.
+    - Implemented `extract_json_payload` recovering from markdown fences (```json ... ```), bare JSON, and trailing commentary.
+    - Implemented `normalize_tag_name` and `normalize_category` ensuring canonical casing and robust category mapping.
+    - Implemented `parse_tagging_response` with confidence clamping, automatic primary tag selection, and structured error reporting in `TaggingResult`.
+    - Implemented `format_prompt_for_gemini_api` setting `response_mime_type="application/json"`.
+  - **Batch Tool, Offline Ingestion & Pure Stdlib Gemini REST Client (`tools/tag_generator.py`)**:
+    - Built executable standalone CLI tool (`tools/tag_generator.py`) with 4 subcommands:
+      - `prompt`: Inspect or export prompts for passages with formatting options (`text`, `gemini`, `json`).
+      - `batch`: Generate bulk prompt files (JSONL/JSON) from `--refs`, `--favorites` (`favorite_bible_verses.csv`), `--book`, or `--input-file`.
+      - `apply`: Parse and persist offline LLM response files (JSON/JSONL) or stdin into SQLite via `TaggingService` with `--dry-run` preview and `--min-confidence` threshold.
+      - `generate`: Online direct LLM tagging via Google Gemini REST API (`gemini-2.5-pro` with `gemini-2.0-flash` fallback) using pure Python standard library `urllib.request` (zero pip packages).
+  - **CLI & REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+    - Added `./bible tag prompt`, `./bible tag generate`, `./bible tag apply-llm` (alias `apply`), and `./bible tag batch`.
+    - Added `/tag prompt <ref>` to `BibleShell` REPL with tab auto-completion in `complete_tag`.
+  - **Core Package Exports (`core/__init__.py`)**:
+    - Exported `GeneratedTag`, `TaggingResult`, `generate_tagging_prompt`, `generate_batch_tagging_prompts`, `parse_tagging_response`, `format_taxonomy_for_prompt`, `get_tgc_hermeneutical_system_prompt`, `format_prompt_for_gemini_api`.
+  - **Hermetic Unit Tests (`tests/test_tag_prompts.py`)**:
+    - Authored 24 unit and integration tests covering prompt generation, taxonomy filtering, response extraction, confidence clamping, error recovery, CLI argument dispatching, mock Gemini API requests, and REPL slash commands.
+    - Full test suite expanded from 276 to 300 tests passing 100% in 3.77s.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-025: Batch LLM Semantic Tagging Pipeline, TGC Hermeneutical Prompt Engine & Offline Ingestion Tooling** in `DECISIONS.md`.
+    - Updated `ROADMAP.md` marking Task 3.3 as completed (`[x]`), bringing Phase 3 to 75% completion (3/4 tasks).
+    - Updated `IDEAS.md` promoting Batch LLM Semantic Tagging Pipeline to `[DONE]`.
+- **Verification**:
+  - Ran `python3 tools/doctor.py --fast`: all 4 fast checks passed in 0.15s (audited 35 Python files, 0 dependencies).
+  - Ran `python3 -m unittest discover tests`: all 300 tests passed 100% in 3.77s.
+  - Ran `./bible doctor`: all 6 diagnostic checks passed cleanly (`EXCELLENT`) in 2.87s.
+  - Verified `./bible tag prompt "Genesis 1:1-3"`: displayed prompt with scripture text and canonical taxonomies.
+  - Verified `python3 tools/tag_generator.py apply - --dry-run`: parsed and previewed tags correctly.
+  - 100% Zero External Dependencies compliance (stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - Task 3.3 is 100% complete, tested, and verified.
+  - Next cycle is **Run 025**.
+  - **CRITICAL CADENCE CHECK**: Run 025 is divisible by 5 (`25 % 5 == 0`), which triggers the **Senior Product Manager Meta-Improvement & System Health Sprint**!
+  - The agent in Run 025 MUST step into the Senior Product Manager role:
+    1. Answer the two diagnostic questions: *"What is the weakest aspect of this project structure?"* and *"What is preventing this from being more incredible?"*
+    2. Formulate and immediately execute at least one Rank A+ meta-improvement to project structure, developer ergonomics, tooling, or testing infrastructure (do NOT work on domain features like Task 3.4 during the cleanup sprint).
+    3. Verify 100% test pass and zero dependencies.
+    4. Record ADR, update `ROADMAP.md` / `IDEAS.md`, log in `AGENT_LOG.md`, commit, and push.
+
+
 
 
 

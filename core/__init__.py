@@ -53,6 +53,16 @@ from core.tags import (
     TaggedPassage,
     TaggingService,
 )
+from core.tag_prompts import (
+    GeneratedTag,
+    TaggingResult,
+    format_prompt_for_gemini_api,
+    format_taxonomy_for_prompt,
+    generate_batch_tagging_prompts,
+    generate_tagging_prompt,
+    get_tgc_hermeneutical_system_prompt,
+    parse_tagging_response,
+)
 from core.terminal import (
     BOLD_GOLD,
     THEMES,
@@ -98,6 +108,14 @@ __all__ = [
     "TaggedPassage",
     "TaggingService",
     "CANONICAL_TAXONOMY",
+    "GeneratedTag",
+    "TaggingResult",
+    "get_tgc_hermeneutical_system_prompt",
+    "format_taxonomy_for_prompt",
+    "generate_tagging_prompt",
+    "generate_batch_tagging_prompts",
+    "parse_tagging_response",
+    "format_prompt_for_gemini_api",
     # Cross References
     "RelationshipType",
     "CrossReferenceService",

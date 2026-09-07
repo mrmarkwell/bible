@@ -682,4 +682,40 @@ This document is an append-only log of significant design and architectural deci
   - Completes Phase 3 Task 3.2 cleanly with 100% test pass rate and Zero External Dependencies (ADR-003).
   - Establishes the foundational graph engine required for Phase 4 typological visual SVG arcs and Phase 8 RAG context generation.
 
+---
+
+## ADR-025: Batch LLM Semantic Tagging Pipeline, TGC Hermeneutical Prompt Engine & Offline Ingestion Tooling
+- **Date**: 2026-09-07
+- **Status**: Accepted
+- **Context**: In Phase 3 (Task 3.3), the Bible Engine requires a scalable, rigorous tooling pipeline to classify and tag biblical passages (verses, spans, chapters, pericopes) into predefined canonical and dynamic semantic taxonomies using Large Language Models (LLMs). Manual annotation across 31,103 verses is slow, while unconstrained LLM prompting risks inconsistent taxonomies, moralistic reductionism, and hallucinated schema structures. Furthermore, per Manifesto Pillars I & II, the system must remain offline-first, sovereign, and strictly zero-dependency (ADR-003: no pip or npm packages), supporting offline prompt generation and response ingestion without requiring active API keys, while providing direct online execution via Google Gemini when credentials are provided.
+- **Decision**:
+  1. **TGC-Aligned Hermeneutical Prompt Engine (`core/tag_prompts.py`)**:
+     - System prompts codified directly from The Gospel Coalition (TGC) Foundation Documents (Confessional Statement and Theological Vision for Ministry):
+       - **Dual-Horizon Hermeneutics**: Reading "along" the redemptive-historical narrative (Eden to New Jerusalem climaxing in Christ) and "across" systematic doctrine (Trinity, Justification, Sovereign Grace, Atonement).
+       - **Christ-Centered Teleology**: Every text foreshadows, reveals, or applies the gospel of Jesus Christ.
+       - **Anti-Moralistic Interpretation**: Reject legalistic/moralistic reductionism; ground all narrative interpretation in sovereign covenant mercy.
+     - Formats available taxonomies dynamically (`format_taxonomy_for_prompt`) from `CANONICAL_TAXONOMY` and custom candidate tags.
+     - Strict JSON output contract requiring: `name`, `category` (from canonical set), `confidence` (0.0 to 1.0), `starred` (identifying the central motif), concise `notes` (theological rationale), and optional `sub_span`.
+  2. **Resilient JSON Payload Extraction & Validation (`core/tag_prompts.py`)**:
+     - `extract_json_payload`: Tolerates markdown code blocks (```json ... ```), raw JSON strings, and trailing text deltas.
+     - Normalizes tag names to canonical case or title case; maps common category variants (e.g. "doctrinal", "eschatological") to `TagCategory.ALL`.
+     - Clamps confidence scores to `[0.0, 1.0]` and enforces that at least one tag is starred.
+     - Robust error handling: returns structured `TaggingResult` with diagnostics rather than throwing uncaught exceptions.
+  3. **Batch Generator & Pure Stdlib Gemini REST Client (`tools/tag_generator.py`)**:
+     - Standalone executable CLI utility supporting four core modes:
+       - `prompt`: Inspect or export the prompt for any passage with category and custom tag filters.
+       - `batch`: Bulk prompt generator producing JSONL or JSON batch requests from `--refs`, `--favorites` (`favorite_bible_verses.csv`), `--book`, or `--input-file`.
+       - `apply`: Offline ingestion pipeline that reads LLM response files (JSON or JSONL) or stdin (`-`), validates tags, and writes them into SQLite via `TaggingService` with `--dry-run` preview and `--min-confidence` filtering.
+       - `generate`: Online direct tagging leveraging Google Gemini API (`gemini-2.5-pro` with `gemini-2.0-flash` fallback) using standard library `urllib.request` (zero pip packages).
+  4. **CLI & Interactive REPL Integration (`cli/main.py` & `cli/shell.py`)**:
+     - Integrated subcommands into `./bible tag`: `prompt`, `generate`, `apply-llm` (alias `apply`), and `batch`.
+     - Added `/tag prompt <ref>` to `BibleShell` REPL with tab auto-completion in `complete_tag`.
+  5. **Hermetic Test Suite (`tests/test_tag_prompts.py`)**:
+     - Authored 24 unit and integration tests covering prompt generation, taxonomy filtering, response extraction, confidence clamping, error recovery, CLI argument dispatching, mock Gemini API requests, and REPL slash commands.
+- **Consequences**:
+  - Completes Phase 3 Task 3.3.
+  - Provides a complete, sovereign pipeline for offline prompt generation and response ingestion, as well as optional real-time Gemini LLM tagging.
+  - Strictly preserves Zero External Dependencies (ADR-003, ADR-006).
+  - Test suite expanded to 300 tests passing 100% in under 3.8s.
+
 

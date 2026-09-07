@@ -426,8 +426,27 @@ class BibleShell(cmd.Cmd):
             count = svc.seed_canonical_taxonomies()
             self.stdout.write(f"Successfully seeded {count} canonical theological and redemptive-historical tags.\n")
 
+        elif action == "prompt":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /tag prompt <reference>\n")
+                return
+            ref_str = " ".join(tokens[1:])
+            try:
+                ref = parse_reference(ref_str)
+            except Exception as exc:
+                self.stdout.write(f"Could not parse '{ref_str}': {exc}\n")
+                return
+            from tools.tag_generator import fetch_passage_text
+            from core.tag_prompts import generate_tagging_prompt
+            try:
+                ref_obj, text = fetch_passage_text(self.db, ref, translation_id=self.translation_id)
+                prompt = generate_tagging_prompt(ref_obj, text, translation_id=self.translation_id)
+                self.stdout.write(f"\n{prompt}\n\n")
+            except Exception as exc:
+                self.stdout.write(f"Error generating prompt: {exc}\n")
+
         else:
-            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, seed\n")
+            self.stdout.write(f"Unknown tag action '{action}'. Available: add, list, show, for, remove, delete, stats, seed, prompt\n")
 
     def do_tags(self, arg: str) -> None:
         """Alias for /tag."""
@@ -780,7 +799,7 @@ System:
 
     def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete tag subcommands and tag names."""
-        subcommands = ["add", "list", "show", "for", "remove", "delete", "stats", "seed"]
+        subcommands = ["add", "list", "show", "for", "remove", "delete", "stats", "seed", "prompt"]
         parts = line.split()
         if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):
             return [c for c in subcommands if c.startswith(text.lower())]
