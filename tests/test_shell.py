@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from cli.main import preprocess_cli_argv, main
-from cli.shell import BibleShell, launch_shell
+from cli.main import preprocess_cli_argv
+from cli.shell import BibleShell
 from core.db import Database, VerseRecord
 
 
@@ -414,6 +414,46 @@ class TestShell(unittest.TestCase):
         val = out.getvalue()
         self.assertIn("Paul (Apostle): I boast in Christ alone.", val)
 
+    @patch("tools.ci.get_runs")
+    def test_shell_ci(self, mock_get_runs):
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {
+                    "id": 888,
+                    "head_sha": "fff9999",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "https://github.com/mrmarkwell/bible/actions/runs/888",
+                    "head_commit": {"message": "ci test"},
+                }
+            ]
+        }
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db) as sh:
+            with patch("sys.stdout", out):
+                sh.do_ci("--limit 1")
+        val = out.getvalue()
+        self.assertIn("GitHub Actions CI Status", val)
+        self.assertIn("Run #888", val)
+
+    @patch("tools.ci.get_runs")
+    def test_shell_ci_aliases(self, mock_get_runs):
+        mock_get_runs.return_value = {"workflow_runs": []}
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db) as sh:
+            with patch("sys.stdout", out):
+                sh.do_actions("")
+                sh.do_workflow("")
+        val = out.getvalue()
+        self.assertIn("No workflow runs found", val)
+
+    def test_shell_ci_completion(self):
+        with BibleShell(db_path=self.db_path, database=self.db) as sh:
+            comp = sh.complete_ci("--det", "--det", 0, 5)
+            self.assertIn("--details", comp)
+            comp_w = sh.complete_ci("--wat", "--wat", 0, 5)
+            self.assertIn("--watch", comp_w)
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -447,6 +487,9 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["bug"]), ["bug"])
         self.assertEqual(preprocess_cli_argv(["ask", "temple"]), ["ask", "temple"])
         self.assertEqual(preprocess_cli_argv(["rag", "temple"]), ["rag", "temple"])
+        self.assertEqual(preprocess_cli_argv(["ci"]), ["ci"])
+        self.assertEqual(preprocess_cli_argv(["workflow"]), ["workflow"])
+        self.assertEqual(preprocess_cli_argv(["actions"]), ["actions"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])
@@ -455,3 +498,4 @@ class TestCliCitationPreprocessing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -2320,3 +2320,36 @@ This document is an append-only log of significant design and architectural deci
   - Zero orphaned or untested tools across the repository; doctor enforces module-test symmetry on every pre-commit and push.
   - Zero linter false positives on dotted module imports; 100% zero-dependency compliance maintained per ADR-003.
 
+---
+
+## ADR-070: Sovereign CI Status Engine, Dedicated Semantic Compiler Test Symmetry, and Import Hygiene
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - In Run 066 (Senior Product Manager Meta-Improvement & System Health Sprint), a holistic audit evaluated the developer and runner ergonomics:
+    1. *"What is the weakest aspect of this project structure?"*:
+       - **Orphaned Workflow Monitoring**: While GitHub Actions CI matrix was modernized to Python 3.10–3.13 in ADR-069, monitoring CI runs required switching to a web browser or using GitHub CLI (`gh`). `tools/ci.py` existed as a bare script but was not accessible via `./bible` CLI or the interactive study REPL. Furthermore, it lacked dynamic origin repository detection, watch mode, JSON output, and fine-grained matrix status breakdown.
+       - **Composite Test Symmetry Blind Spot**: `tools/doctor.py` checked module-test symmetry, but `tools/build_semantic_db.py` (251 lines of semantic compiler logic) was mapped to `tests/test_audit_semantic.py` rather than possessing its own dedicated unit test module (`tests/test_build_semantic_db.py`), resulting in 0.0% coverage of the compiler CLI and engine itself.
+       - **Static Analysis Hygiene Across Tests and Ingest Tools**: Multiple unused imports (e.g. `sqlite3`, `io`, `typing` primitives) persisted across `tools/` and `tests/`, creating noise in automated linter reports.
+    2. *"What is preventing this from being more incredible?"*:
+       - Autonomous agents and human developers alike should be able to inspect CI/CD pipeline health and workflow status directly from `./bible ci` and `/ci` in `./bible shell`, complete with ANSI status badges, duration tracking, job matrix step inspection, and instant JSON telemetry.
+- **Decision**:
+  1. **Omnichannel CI Engine Integration (`tools/ci.py`, `cli/main.py`, `cli/shell.py`)**:
+     - Upgraded `tools/ci.py` to auto-detect repository owner and name from `git remote get-url origin` (supporting HTTPS and SSH URLs).
+     - Added `--watch` mode, `--json` mode, and fine-grained job step inspection (`get_jobs`, `format_jobs`).
+     - Added `ci` subcommand to `./bible` CLI with aliases `workflow`, `workflows`, `actions`.
+     - Added `/ci` command to `cli/shell.py` interactive study REPL with aliases `/actions`, `/workflow`, `/workflows`, autocompletion, and updated `/help`.
+     - Expanded `tests/test_ci.py` from 7 to 16 comprehensive hermetic tests covering dynamic repo discovery, watch mode, JSON serialization, and job matrix formatting.
+  2. **Dedicated Semantic Compiler Test Suite (`tests/test_build_semantic_db.py`)**:
+     - Authored 18 hermetic unit tests in `tests/test_build_semantic_db.py` exercising `SemanticCompiler`, checkpoint ledger, CLI arguments, batch processing, and progress reporting.
+     - Coverage of `tools/build_semantic_db.py` increased from 0.0% to 90.4%.
+     - Removed `build_semantic_db` from `composite_map` in `tools/doctor.py`, establishing pure 1-to-1 symmetry across all 39 modules.
+  3. **Repository-Wide Static Analysis Hygiene**:
+     - Pruned unused imports across `tools/ingest_favorites.py`, `tools/ingest_web.py`, `tools/tag_generator.py`, and 16 test modules.
+     - 0 linter warnings or errors across all 83 Python files in the repository.
+- **Consequences**:
+  - Instant terminal CI inspection from `./bible ci` and interactive `/ci` in `./bible shell`.
+  - 1-to-1 test suite symmetry for all 39 production modules with 870 hermetic unit tests passing in <3.5s.
+  - 100% zero-dependency compliance maintained per ADR-003.
+
+

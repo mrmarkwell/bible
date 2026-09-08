@@ -14,17 +14,12 @@ import io
 import json
 import os
 from pathlib import Path
-import sqlite3
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-import urllib.error
 
 from core.db import Database, VerseRecord
-from core.reference import Reference, parse_reference
 from core.tag_prompts import (
-    GeneratedTag,
-    TaggingResult,
     extract_json_payload,
     format_prompt_for_gemini_api,
     format_taxonomy_for_prompt,
@@ -35,8 +30,8 @@ from core.tag_prompts import (
     normalize_tag_name,
     parse_tagging_response,
 )
-from core.tags import CANONICAL_TAXONOMY, TagCategory, TaggingService
-from cli.main import main, build_parser
+from core.tags import TagCategory, TaggingService
+from cli.main import main
 from cli.shell import BibleShell
 from tools.tag_generator import (
     build_parser as build_tool_parser,

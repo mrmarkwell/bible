@@ -1,23 +1,18 @@
 import io
 import json
 from pathlib import Path
-import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from core.db import Database, TagRecord, VerseRecord, VerseTagRecord
-from core.reference import Reference, parse_reference
+from core.db import Database, VerseRecord
+from core.reference import parse_reference
 from core.tags import (
-    BookTopicDensity,
-    CANONICAL_TAXONOMY,
     TagCategory,
-    TagCoOccurrence,
     TagCoOccurrenceMatrix,
     TagSummary,
     TaggedPassage,
     TaggingService,
-    VerseRelevance,
 )
 from core.terminal import (
     format_tag_co_occurrence_table,
@@ -26,9 +21,8 @@ from core.terminal import (
     format_tags_badge,
     format_topic_density_table,
     format_verse_relevance_table,
-    strip_ansi,
 )
-from cli.main import main, build_parser
+from cli.main import main
 from cli.shell import BibleShell
 
 

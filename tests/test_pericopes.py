@@ -14,7 +14,7 @@ from pathlib import Path
 import tempfile
 
 from core.db import Database, PericopeRecord
-from core.pericopes import CANONICAL_PERICOPES, PericopeService
+from core.pericopes import PericopeService
 from core.reference import parse_reference
 from core.terminal import format_pericope_banner, format_pericope_table
 

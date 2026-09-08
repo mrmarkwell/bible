@@ -8,7 +8,6 @@ import tempfile
 import unittest
 
 from core.bootstrap import (
-    BootstrapReport,
     bootstrap_database,
     format_size,
     get_db_stats,

@@ -37,6 +37,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.21**: Implement Adaptive Test Scheduling (LPT Heuristic) & Test Suite Latency Halving in `tools/test_runner.py` with atomic historical timing cache (`.test_timing_cache.json`), test isolation optimization (<2.5s total test suite), and ADR-064. *(Run 060 / Senior PM Double Milestone)*
 - [x] **Task 0.22**: Implement Hierarchical Action Bullet Parsing & Bugfix Archetype Telemetry in `tools/executive_summary.py` (ADR-065). *(Run 061 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.23**: Implement Sovereign Interactive REPL Persona Dialogue Studio (`/chat`, `/persona`, `/characters`), Hermetic Test Suite for `tools/ci.py` (`tests/test_ci.py`), Module-Test Symmetry Diagnostic in `tools/doctor.py`, Dotted Import Resolution in `tools/linter.py`, and Python 3.13 CI Matrix Modernization (ADR-069). *(Run 065 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.24**: Implement Omnichannel CI Status Engine (`./bible ci`, REPL `/ci`), Dedicated Semantic Compiler Test Suite (`tests/test_build_semantic_db.py`), Pure 1-to-1 Module-Test Symmetry, and Static Analysis Namespace Hygiene (ADR-070). *(Run 066 / Senior PM Cleanup Sprint)*
 
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)

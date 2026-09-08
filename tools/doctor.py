@@ -509,7 +509,6 @@ def check_module_test_symmetry(repo_root: Path) -> CheckResult:
             production_modules.append(py)
 
     composite_map = {
-        "build_semantic_db": ["test_semantic_compiler", "test_semantic_audit"],
         "audit_semantic": ["test_semantic_audit"],
         "tag_generator": ["test_tags", "test_tag_prompts"],
         "ingest_favorites": ["test_favorites"],

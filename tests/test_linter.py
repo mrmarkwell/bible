@@ -5,15 +5,11 @@ Zero external dependencies (Python 3 standard library only per ADR-003).
 
 import io
 import json
-import os
 from pathlib import Path
 import tempfile
 import unittest
 
 from tools.linter import (
-    FileLintResult,
-    LintIssue,
-    LintSummary,
     LinterStyler,
     discover_python_files,
     lint_file,

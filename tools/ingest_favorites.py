@@ -24,8 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.db import Database, TagRecord, VerseTagRecord
-from core.reference import Reference, get_book
+from core.db import Database
+from core.reference import Reference
 
 DEFAULT_CSV_PATH = REPO_ROOT / "favorite_bible_verses.csv"
 DEFAULT_DB_PATH = REPO_ROOT / "data" / "bible.db"

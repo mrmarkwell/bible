@@ -5208,6 +5208,95 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_chat.set_defaults(func=cmd_chat)
 
+    # -------------------------------------------------------------------------
+    # Subcommand: ci (aliases: workflow, workflows, actions)
+    # -------------------------------------------------------------------------
+    parser_ci = subparsers.add_parser(
+        "ci",
+        aliases=["workflow", "workflows", "actions"],
+        help="Query GitHub Actions CI status, view job matrix steps, and watch workflow runs",
+        description=(
+            "Interrogate GitHub Actions continuous integration status and workflow runs. "
+            "Inspect build and test matrix health across Python versions (3.10, 3.11, 3.12, 3.13), "
+            "drill down into individual step failures, or watch in-progress runs after pushing."
+        ),
+    )
+    parser_ci.add_argument(
+        "--repo",
+        "-r",
+        help="Target GitHub repository in 'owner/repo' format (auto-detected by default)",
+    )
+    parser_ci.add_argument(
+        "--token",
+        "-t",
+        help="GitHub Personal Access Token (defaults to GITHUB_TOKEN or GH_TOKEN env var)",
+    )
+    parser_ci.add_argument(
+        "--branch",
+        "-b",
+        help="Filter workflow runs by branch (e.g. 'main')",
+    )
+    parser_ci.add_argument(
+        "--limit",
+        "-n",
+        type=int,
+        default=5,
+        help="Number of workflow runs to fetch (default: 5)",
+    )
+    parser_ci.add_argument(
+        "--details",
+        "-d",
+        action="store_true",
+        help="Show detailed job matrix steps for latest run or specified run",
+    )
+    parser_ci.add_argument(
+        "--run-id",
+        type=int,
+        help="Specific workflow run ID to inspect or watch",
+    )
+    parser_ci.add_argument(
+        "--watch",
+        "-w",
+        action="store_true",
+        help="Continuously monitor latest or specified run until completion",
+    )
+    parser_ci.add_argument(
+        "--interval",
+        type=float,
+        default=6.0,
+        help="Polling interval in seconds for --watch (default: 6.0)",
+    )
+    parser_ci.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON telemetry",
+    )
+
+    def cmd_ci(args: argparse.Namespace) -> int:
+        from tools import ci
+        ci_args = []
+        if getattr(args, "repo", None):
+            ci_args.extend(["--repo", args.repo])
+        if getattr(args, "token", None):
+            ci_args.extend(["--token", args.token])
+        if getattr(args, "branch", None):
+            ci_args.extend(["--branch", args.branch])
+        if getattr(args, "limit", None) is not None:
+            ci_args.extend(["--limit", str(args.limit)])
+        if getattr(args, "details", False):
+            ci_args.append("--details")
+        if getattr(args, "run_id", None) is not None:
+            ci_args.extend(["--run-id", str(args.run_id)])
+        if getattr(args, "watch", False):
+            ci_args.append("--watch")
+        if getattr(args, "interval", None) is not None:
+            ci_args.extend(["--interval", str(args.interval)])
+        if getattr(args, "json", False):
+            ci_args.append("--json")
+        return ci.main(ci_args)
+
+    parser_ci.set_defaults(func=cmd_ci)
+
     return parser
 
 
@@ -5248,6 +5337,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "issues", "bug", "bugs",
         "ask", "rag", "inquiry",
         "chat", "persona", "character", "dialogue",
+        "ci", "workflow", "workflows", "actions",
     }
 
     pos_idx = -1

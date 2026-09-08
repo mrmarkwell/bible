@@ -5,8 +5,6 @@ Tests pure Python SVG vector rendering and system ImageMagick rasterization.
 
 from __future__ import annotations
 
-import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path

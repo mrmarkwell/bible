@@ -9,10 +9,8 @@ from unittest.mock import patch
 
 from core.db import VerseRecord
 from core.terminal import (
-    BOLD,
     BOLD_GOLD,
     RESET,
-    THEMES,
     format_aligned_comparison_styled,
     format_citation_header,
     format_scripture_passage,

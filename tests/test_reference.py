@@ -6,8 +6,6 @@ import unittest
 
 from core.reference import (
     ALL_BOOKS,
-    BOOKS,
-    Book,
     Reference,
     get_book,
     parse_reference,

@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from core.db import Database
-from core.reference import ALL_BOOKS, Book, get_book
+from core.reference import ALL_BOOKS, get_book
 from tools.ingest_web import book_to_filename, parse_book_json, ingest_web, RAW_WEB_DIR
 
 

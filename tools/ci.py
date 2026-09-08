@@ -1,79 +1,345 @@
 #!/usr/bin/env python3
-"""Sovereign Zero-Dependency GitHub Actions Status Query Tool.
+"""Sovereign Zero-Dependency GitHub Actions CI Status & Monitoring Engine.
 
-Fetches real-time GitHub Actions CI status for the bible repository
-using Python standard library urllib (zero external dependencies).
+Zero-dependency tool (Python 3 standard library only per ADR-003):
+- Interrogates the GitHub Actions REST API using urllib.request and json.
+- Automatically detects GitHub repository from git remote origin URL.
+- Supports authenticated requests via GITHUB_TOKEN or GH_TOKEN (5,000 req/hr rate limit).
+- Displays workflow runs across branches with status icons and commit metadata.
+- Drills down into individual job matrix steps (Python 3.10, 3.11, 3.12, 3.13).
+- Real-time watch/polling mode (--watch) to monitor in-progress runs after push.
+- Machine-readable JSON output (--json) for autonomous agents and tooling.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
+import os
+from pathlib import Path
+import re
+import subprocess
 import sys
-import urllib.request
-import urllib.error
+import time
+from typing import Any, Dict, List, Optional, Tuple
+from urllib import error as url_error, parse as url_parse, request as url_request
 
-REPO = 'mrmarkwell/bible'
-API_URL = f'https://api.github.com/repos/{REPO}/actions/runs'
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
-def get_runs(limit=5):
-    url = f'{API_URL}?per_page={limit}'
-    req = urllib.request.Request(url, headers={'User-Agent': 'Bible-Engine-CI'})
+
+def get_repo_info(repo_override: Optional[str] = None, cwd: Optional[Path] = None) -> Tuple[str, str]:
+    """Extract GitHub (owner, repo) pair from argument or git remote origin URL.
+
+    Falls back to ('mrmarkwell', 'bible') if detection fails.
+    """
+    if repo_override:
+        parts = repo_override.strip().split("/")
+        if len(parts) == 2 and parts[0] and parts[1]:
+            return parts[0], parts[1]
+
+    target_dir = cwd or REPO_ROOT
     try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode('utf-8'))
-    except (urllib.error.URLError, Exception) as e:
-        print(f'Error fetching GitHub Actions status: {e}', file=sys.stderr)
+        res = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=str(target_dir),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        url = res.stdout.strip()
+        if url:
+            m = re.search(r"github\.com[:/]([^/]+)/([^/\.]+?)(?:\.git)?$", url)
+            if m:
+                return m.group(1), m.group(2)
+    except Exception:
+        pass
+
+    return "mrmarkwell", "bible"
+
+
+def get_auth_token(token_override: Optional[str] = None) -> Optional[str]:
+    """Retrieve GitHub API personal access token from override or environment."""
+    if token_override and token_override.strip():
+        return token_override.strip()
+    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or None
+
+
+def make_ci_request(
+    url: str,
+    token: Optional[str] = None,
+    timeout: float = 15.0,
+) -> Tuple[int, Any, Dict[str, str]]:
+    """Execute an HTTP GET request to the GitHub Actions REST API using stdlib urllib."""
+    headers = {
+        "User-Agent": "Bible-Engine-CI/1.0",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = url_request.Request(url, headers=headers, method="GET")
+
+    try:
+        with url_request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            body_bytes = resp.read()
+            resp_headers = dict(resp.headers)
+            body_text = body_bytes.decode("utf-8", errors="replace")
+            try:
+                parsed = json.loads(body_text) if body_text.strip() else {}
+            except Exception:
+                parsed = {"raw": body_text}
+            return status, parsed, resp_headers
+    except url_error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(body)
+        except Exception:
+            parsed = {"raw": body}
+        return exc.code, parsed, dict(exc.headers)
+    except Exception as exc:
+        return 0, {"error": str(exc)}, {}
+
+
+def get_runs(
+    owner: str = "mrmarkwell",
+    repo: str = "bible",
+    limit: int = 5,
+    branch: Optional[str] = None,
+    token: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieve recent GitHub Actions workflow runs for the specified repository."""
+    params: Dict[str, str] = {"per_page": str(max(1, min(100, limit)))}
+    if branch:
+        params["branch"] = branch
+
+    query_str = url_parse.urlencode(params)
+    url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs?{query_str}"
+    status, data, _ = make_ci_request(url, token=token)
+
+    if status != 200:
+        err = data.get("message") or data.get("error") or f"HTTP status {status}"
+        print(f"Error fetching GitHub Actions status: {err}", file=sys.stderr)
         return None
 
-def get_jobs(run_id):
-    url = f'{API_URL}/{run_id}/jobs'
-    req = urllib.request.Request(url, headers={'User-Agent': 'Bible-Engine-CI'})
-    try:
-        with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read().decode('utf-8'))
-    except (urllib.error.URLError, Exception) as e:
-        print(f'Error fetching jobs for run {run_id}: {e}', file=sys.stderr)
+    return data
+
+
+def get_jobs(
+    owner: str = "mrmarkwell",
+    repo: str = "bible",
+    run_id: int | str = 0,
+    token: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Retrieve detailed jobs and matrix steps for a specific workflow run."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+    status, data, _ = make_ci_request(url, token=token)
+
+    if status != 200:
+        err = data.get("message") or data.get("error") or f"HTTP status {status}"
+        print(f"Error fetching jobs for run {run_id}: {err}", file=sys.stderr)
         return None
 
-def main():
-    parser = argparse.ArgumentParser(description='Query GitHub Actions CI status')
-    parser.add_argument('--limit', '-n', type=int, default=5, help='Number of runs to inspect')
-    parser.add_argument('--details', '-d', action='store_true', help='Show detailed step status for the latest run')
-    args = parser.parse_args()
+    return data
 
-    data = get_runs(args.limit)
-    if not data or 'workflow_runs' not in data:
-        print('Could not retrieve workflow runs.')
-        sys.exit(1)
 
-    runs = data['workflow_runs']
-    print('=' * 72)
-    print(f' GitHub Actions CI Status: {REPO}')
-    print('=' * 72)
+def format_runs(
+    runs: List[Dict[str, Any]],
+    owner: str,
+    repo: str,
+    title: Optional[str] = None,
+) -> str:
+    """Format workflow runs into human-readable terminal text."""
+    lines = [
+        "=" * 72,
+        f" {title or 'GitHub Actions CI Status'}: {owner}/{repo}",
+        "=" * 72,
+    ]
+    if not runs:
+        lines.append(" No workflow runs found.")
+        return "\n".join(lines)
+
     for r in runs:
-        sha = r['head_sha'][:7]
-        msg = r['head_commit']['message'].splitlines()[0] if r.get('head_commit') else 'N/A'
-        status = r['status']
-        conclusion = r.get('conclusion') or 'in_progress'
-        icon = '✅' if conclusion == 'success' else ('❌' if conclusion == 'failure' else '⏳')
-        print(f' {icon} Run #{r["id"]} [{status}/{conclusion}]')
-        print(f'    Commit: {sha} - "{msg}"')
-        print(f'    URL:    {r["html_url"]}')
-        print()
+        sha = (r.get("head_sha") or "unknown")[:7]
+        msg = (
+            r.get("head_commit", {}).get("message", "N/A").splitlines()[0]
+            if r.get("head_commit")
+            else r.get("display_title", "N/A")
+        )
+        status = r.get("status", "unknown")
+        conclusion = r.get("conclusion") or "in_progress"
+        icon = "✅" if conclusion == "success" else ("❌" if conclusion == "failure" else "⏳")
+        branch = r.get("head_branch") or "main"
+        lines.append(f" {icon} Run #{r.get('id')} [{status}/{conclusion}] (branch: {branch})")
+        lines.append(f"    Commit: {sha} - \"{msg}\"")
+        lines.append(f"    URL:    {r.get('html_url', '')}")
+        lines.append("")
 
-    if args.details and runs:
-        latest = runs[0]
-        jobs_data = get_jobs(latest['id'])
-        if jobs_data and 'jobs' in jobs_data:
-            print('-' * 72)
-            print(f' Detailed Steps for Run #{latest["id"]}:')
-            print('-' * 72)
-            for j in jobs_data['jobs']:
-                j_icon = '✅' if j.get('conclusion') == 'success' else '❌'
-                print(f'  {j_icon} {j["name"]}: {j["status"]} ({j.get("conclusion", "-")})')
-                for s in j.get('steps', []):
-                    s_icon = '✓' if s.get('conclusion') == 'success' else ('✗' if s.get('conclusion') == 'failure' else '○')
-                    print(f'     [{s_icon}] {s["name"]}')
-            print()
+    return "\n".join(lines)
 
-if __name__ == '__main__':
-    main()
+
+def format_jobs(run_id: int | str, jobs_data: Dict[str, Any]) -> str:
+    """Format job matrix and step details into human-readable terminal text."""
+    lines = [
+        "-" * 72,
+        f" Detailed Jobs & Steps for Run #{run_id}:",
+        "-" * 72,
+    ]
+    jobs = jobs_data.get("jobs", [])
+    if not jobs:
+        lines.append("  No jobs reported.")
+        return "\n".join(lines)
+
+    for j in jobs:
+        conclusion = j.get("conclusion") or j.get("status", "unknown")
+        j_icon = "✅" if conclusion == "success" else ("❌" if conclusion == "failure" else "⏳")
+        name = j.get("name", "job")
+        status = j.get("status", "unknown")
+        lines.append(f"  {j_icon} {name}: {status} ({conclusion})")
+        for s in j.get("steps", []):
+            s_conc = s.get("conclusion") or s.get("status")
+            s_icon = "✓" if s_conc == "success" else ("✗" if s_conc == "failure" else "○")
+            s_name = s.get("name", "step")
+            lines.append(f"     [{s_icon}] {s_name}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def watch_run(
+    owner: str,
+    repo: str,
+    run_id: int | str,
+    token: Optional[str] = None,
+    interval: float = 6.0,
+    max_wait_seconds: float = 600.0,
+    json_output: bool = False,
+) -> int:
+    """Poll an in-progress workflow run until it completes or reaches timeout."""
+    start_time = time.time()
+    if not json_output:
+        print(f"[*] Watching GitHub Actions Run #{run_id} in {owner}/{repo} (polling every {interval:.0f}s)...")
+
+    while time.time() - start_time < max_wait_seconds:
+        url = f"https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}"
+        status_code, run_data, _ = make_ci_request(url, token=token)
+        if status_code != 200:
+            err = run_data.get("message") or run_data.get("error") or f"HTTP {status_code}"
+            if json_output:
+                print(json.dumps({"error": err, "run_id": run_id}))
+            else:
+                print(f"Error checking run #{run_id}: {err}", file=sys.stderr)
+            return 1
+
+        run_status = run_data.get("status")
+        conclusion = run_data.get("conclusion")
+
+        if run_status == "completed":
+            if json_output:
+                jobs_data = get_jobs(owner, repo, run_id, token=token) or {}
+                print(json.dumps({"run": run_data, "jobs": jobs_data.get("jobs", [])}, indent=2))
+            else:
+                icon = "✅" if conclusion == "success" else "❌"
+                elapsed = time.time() - start_time
+                print(f"\n{icon} Run #{run_id} completed in {elapsed:.1f}s: {conclusion.upper()}")
+                jobs_data = get_jobs(owner, repo, run_id, token=token)
+                if jobs_data:
+                    print(format_jobs(run_id, jobs_data))
+            return 0 if conclusion == "success" else 1
+
+        if not json_output:
+            elapsed = time.time() - start_time
+            print(f"  ... Run #{run_id} still {run_status} ({elapsed:.0f}s elapsed)")
+        time.sleep(interval)
+
+    msg = f"Timed out waiting for run #{run_id} after {max_wait_seconds:.0f}s."
+    if json_output:
+        print(json.dumps({"error": msg, "run_id": run_id}))
+    else:
+        print(f"\n[!] {msg}", file=sys.stderr)
+    return 1
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """CLI entrypoint for sovereign CI status and monitoring tool."""
+    parser = argparse.ArgumentParser(
+        prog="tools/ci.py",
+        description="Bible Engine Sovereign Zero-Dependency GitHub Actions CI Status & Monitoring Engine.",
+    )
+    parser.add_argument("--repo", "-r", help="Target repository in 'owner/repo' format (auto-detected from git)")
+    parser.add_argument("--token", "-t", help="GitHub Personal Access Token (defaults to GITHUB_TOKEN or GH_TOKEN)")
+    parser.add_argument("--branch", "-b", help="Filter workflow runs by branch (e.g. main)")
+    parser.add_argument("--limit", "-n", type=int, default=5, help="Number of workflow runs to fetch (default: 5)")
+    parser.add_argument("--details", "-d", action="store_true", help="Show detailed job matrix steps for latest run")
+    parser.add_argument("--run-id", type=int, help="Specific workflow run ID to inspect or watch")
+    parser.add_argument("--watch", "-w", action="store_true", help="Continuously monitor latest or specified run until complete")
+    parser.add_argument("--interval", type=float, default=6.0, help="Polling interval in seconds for --watch (default: 6.0)")
+    parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
+
+    args = parser.parse_args(argv)
+
+    owner, repo = get_repo_info(args.repo)
+    token = get_auth_token(args.token)
+
+    # Watch mode for specific run ID
+    if args.watch and args.run_id:
+        return watch_run(
+            owner,
+            repo,
+            args.run_id,
+            token=token,
+            interval=args.interval,
+            json_output=args.json,
+        )
+
+    # Fetch workflow runs
+    data = get_runs(owner, repo, limit=args.limit, branch=args.branch, token=token)
+    if not data or "workflow_runs" not in data:
+        if args.json:
+            print(json.dumps({"error": "Could not retrieve workflow runs", "owner": owner, "repo": repo}))
+        else:
+            print(f"Could not retrieve workflow runs for {owner}/{repo}.", file=sys.stderr)
+        return 1
+
+    runs = data.get("workflow_runs", [])
+
+    if args.watch and runs:
+        latest_id = runs[0].get("id")
+        return watch_run(
+            owner,
+            repo,
+            latest_id,
+            token=token,
+            interval=args.interval,
+            json_output=args.json,
+        )
+
+    if args.json:
+        payload: Dict[str, Any] = {
+            "owner": owner,
+            "repo": repo,
+            "total_count": data.get("total_count", len(runs)),
+            "workflow_runs": runs,
+        }
+        if args.details and runs:
+            latest = runs[0]
+            jobs_data = get_jobs(owner, repo, latest.get("id"), token=token)
+            payload["latest_jobs"] = jobs_data.get("jobs", []) if jobs_data else []
+        print(json.dumps(payload, indent=2))
+        return 0
+
+    # Human-readable text display
+    print(format_runs(runs, owner, repo))
+
+    if (args.details or args.run_id) and runs:
+        target_id = args.run_id or runs[0].get("id")
+        jobs_data = get_jobs(owner, repo, target_id, token=token)
+        if jobs_data:
+            print(format_jobs(target_id, jobs_data))
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

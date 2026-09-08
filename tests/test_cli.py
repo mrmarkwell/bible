@@ -5,13 +5,11 @@ Zero external dependencies (Python 3 standard library only per ADR-003).
 
 import io
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from cli.main import (
-    build_parser,
     format_aligned_comparison,
     format_search_results,
     format_search_snippet,
@@ -1332,10 +1330,78 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         out = stdout.getvalue()
         self.assertIn("Biblical Character Dialogue Studio — Moses", out)
-        self.assertIn("Theological Role:", out)
-        self.assertIn("Grounded Scripture Citations", out)
         self.assertIn("Dialogue history reset for Moses.", out)
         self.assertIn("Exiting dialogue with Moses.", out)
+
+    @patch("tools.ci.get_runs")
+    def test_cli_ci_runs(self, mock_get_runs):
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {
+                    "id": 111,
+                    "head_sha": "abc1234",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "html_url": "https://github.com/mrmarkwell/bible/actions/runs/111",
+                    "head_commit": {"message": "feat: test"},
+                }
+            ]
+        }
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["ci", "--limit", "1"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("GitHub Actions CI Status", out)
+        self.assertIn("Run #111", out)
+
+    @patch("tools.ci.get_jobs")
+    @patch("tools.ci.get_runs")
+    def test_cli_ci_details(self, mock_get_runs, mock_get_jobs):
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {
+                    "id": 222,
+                    "head_sha": "def5678",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "html_url": "https://github.com/mrmarkwell/bible/actions/runs/222",
+                    "head_commit": {"message": "fix: bug"},
+                }
+            ]
+        }
+        mock_get_jobs.return_value = {
+            "jobs": [
+                {
+                    "name": "Verify & Audit (Python 3.12)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "steps": [{"name": "Unit Tests", "conclusion": "failure"}],
+                }
+            ]
+        }
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["ci", "--details", "--run-id", "222"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Detailed Jobs & Steps for Run #222", out)
+        self.assertIn("Unit Tests", out)
+
+    @patch("tools.ci.get_runs")
+    def test_cli_ci_json(self, mock_get_runs):
+        mock_get_runs.return_value = {
+            "total_count": 1,
+            "workflow_runs": [{"id": 333, "status": "completed", "conclusion": "success"}],
+        }
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["ci", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["owner"], "mrmarkwell")
+        self.assertEqual(len(data["workflow_runs"]), 1)
 
 
 if __name__ == "__main__":

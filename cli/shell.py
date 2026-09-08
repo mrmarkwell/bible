@@ -2702,6 +2702,36 @@ class BibleShell(cmd.Cmd):
         return [c for c in commands if c.startswith(text.lower())]
 
     # --------------------------------------------------------------------------
+    # GitHub Actions CI Commands
+    # --------------------------------------------------------------------------
+
+    def do_ci(self, arg: str) -> None:
+        """Inspect GitHub Actions CI status, matrix jobs, and watch workflow runs.
+
+        Usage:
+          /ci [--limit=N] [--branch=main] [-d]
+          /ci --details [--run-id=N]
+          /ci --watch [--run-id=N] [--interval=N]
+        """
+        import shlex
+        from tools import ci
+        parts = shlex.split(arg) if arg.strip() else []
+        ci.main(parts)
+
+    def do_actions(self, arg: str) -> None:
+        """Alias for /ci."""
+        self.do_ci(arg)
+
+    def do_workflow(self, arg: str) -> None:
+        """Alias for /ci."""
+        self.do_ci(arg)
+
+    def complete_ci(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /ci command."""
+        commands = ["--details", "--watch", "--json", "--limit", "--branch", "--run-id", "-d", "-w", "-n"]
+        return [c for c in commands if c.startswith(text.lower())]
+
+    # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
 
@@ -2730,6 +2760,7 @@ Study & Search:
   /chat [id] [message]    Canonical Biblical Character Dialogue Studio (aliases: /persona, /character)
   /characters             List all 19 canonical biblical characters and theological roles
   /issues [command]       Inspect and triage GitHub issues & bug reports (aliases: /bug, /bugs)
+  /ci [options]           Inspect GitHub Actions CI runs, step details, and watch builds (alias: /actions)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)

@@ -1,4 +1,4 @@
-"""Hermetic unit tests for tools/ci.py GitHub Actions query utility.
+"""Hermetic unit tests for tools/ci.py GitHub Actions query and monitoring utility.
 
 Zero external dependencies (Python 3 standard library only per ADR-003).
 """
@@ -9,15 +9,74 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
-from tools.ci import get_runs, get_jobs, main
+from tools.ci import (
+    format_jobs,
+    format_runs,
+    get_auth_token,
+    get_jobs,
+    get_repo_info,
+    get_runs,
+    main,
+    make_ci_request,
+    watch_run,
+)
 
 
 class TestCITool(unittest.TestCase):
     """Unit tests for tools/ci.py GitHub Actions status tool."""
 
+    def test_get_repo_info_default_and_override(self):
+        # Override takes precedence
+        owner, repo = get_repo_info(repo_override="custom_owner/custom_repo")
+        self.assertEqual(owner, "custom_owner")
+        self.assertEqual(repo, "custom_repo")
+
+        # Invalid override falls back
+        owner, repo = get_repo_info(repo_override="invalid")
+        self.assertIsInstance(owner, str)
+        self.assertIsInstance(repo, str)
+
+    def test_get_auth_token(self):
+        # Override takes precedence
+        self.assertEqual(get_auth_token("my_token"), "my_token")
+
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "token_abc"}, clear=False):
+            self.assertEqual(get_auth_token(), "token_abc")
+
+        with patch.dict("os.environ", {"GH_TOKEN": "token_xyz"}, clear=False):
+            with patch.dict("os.environ", {"GITHUB_TOKEN": ""}, clear=False):
+                self.assertEqual(get_auth_token(), "token_xyz")
+
     @patch("urllib.request.urlopen")
-    def test_get_runs_success(self, mock_urlopen):
+    def test_make_ci_request_success(self, mock_urlopen):
         mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.read.return_value = json.dumps({"status": "ok"}).encode("utf-8")
+        mock_response.headers = {"Content-Type": "application/json"}
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        status, parsed, headers = make_ci_request("https://api.github.com/test", token="sec_tok")
+        self.assertEqual(status, 200)
+        self.assertEqual(parsed.get("status"), "ok")
+
+    @patch("urllib.request.urlopen")
+    def test_make_ci_request_http_error(self, mock_urlopen):
+        mock_err = urllib.error.HTTPError(
+            url="https://api.github.com/test",
+            code=404,
+            msg="Not Found",
+            hdrs={},
+            fp=io.BytesIO(b'{"message": "Not Found"}'),
+        )
+        mock_urlopen.side_effect = mock_err
+
+        status, parsed, _ = make_ci_request("https://api.github.com/test")
+        self.assertEqual(status, 404)
+        self.assertEqual(parsed.get("message"), "Not Found")
+
+    @patch("tools.ci.make_ci_request")
+    def test_get_runs_success(self, mock_request):
         payload = {
             "total_count": 1,
             "workflow_runs": [
@@ -31,9 +90,7 @@ class TestCITool(unittest.TestCase):
                 }
             ],
         }
-        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
-        mock_response.__enter__.return_value = mock_response
-        mock_urlopen.return_value = mock_response
+        mock_request.return_value = (200, payload, {})
 
         res = get_runs(limit=5)
         self.assertIsNotNone(res)
@@ -41,16 +98,15 @@ class TestCITool(unittest.TestCase):
         self.assertEqual(len(res["workflow_runs"]), 1)
         self.assertEqual(res["workflow_runs"][0]["id"], 123456)
 
-    @patch("urllib.request.urlopen")
-    def test_get_runs_network_error(self, mock_urlopen):
-        mock_urlopen.side_effect = urllib.error.URLError("Network unreachable")
+    @patch("tools.ci.make_ci_request")
+    def test_get_runs_network_error(self, mock_request):
+        mock_request.return_value = (500, {"error": "Server Error"}, {})
         with patch("sys.stderr", new_callable=io.StringIO):
             res = get_runs(limit=2)
             self.assertIsNone(res)
 
-    @patch("urllib.request.urlopen")
-    def test_get_jobs_success(self, mock_urlopen):
-        mock_response = MagicMock()
+    @patch("tools.ci.make_ci_request")
+    def test_get_jobs_success(self, mock_request):
         payload = {
             "total_count": 1,
             "jobs": [
@@ -66,22 +122,28 @@ class TestCITool(unittest.TestCase):
                 }
             ],
         }
-        mock_response.read.return_value = json.dumps(payload).encode("utf-8")
-        mock_response.__enter__.return_value = mock_response
-        mock_urlopen.return_value = mock_response
+        mock_request.return_value = (200, payload, {})
 
-        res = get_jobs(123456)
+        res = get_jobs("mrmarkwell", "bible", 123456)
         self.assertIsNotNone(res)
         self.assertIn("jobs", res)
         self.assertEqual(len(res["jobs"]), 1)
         self.assertEqual(res["jobs"][0]["name"], "Verify & Audit (Python 3.12)")
 
-    @patch("urllib.request.urlopen")
-    def test_get_jobs_network_error(self, mock_urlopen):
-        mock_urlopen.side_effect = Exception("Connection reset by peer")
+    @patch("tools.ci.make_ci_request")
+    def test_get_jobs_network_error(self, mock_request):
+        mock_request.return_value = (0, {"error": "Connection reset"}, {})
         with patch("sys.stderr", new_callable=io.StringIO):
-            res = get_jobs(123456)
+            res = get_jobs("mrmarkwell", "bible", 123456)
             self.assertIsNone(res)
+
+    def test_format_runs_empty(self):
+        out = format_runs([], "owner", "repo")
+        self.assertIn("No workflow runs found", out)
+
+    def test_format_jobs_empty(self):
+        out = format_jobs(123, {"jobs": []})
+        self.assertIn("No jobs reported", out)
 
     @patch("tools.ci.get_runs")
     def test_main_runs_display(self, mock_get_runs):
@@ -106,15 +168,15 @@ class TestCITool(unittest.TestCase):
             ]
         }
 
-        with patch("sys.argv", ["tools/ci.py", "--limit", "2"]):
-            with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-                main()
-                out = mock_stdout.getvalue()
-                self.assertIn("GitHub Actions CI Status", out)
-                self.assertIn("Run #999111", out)
-                self.assertIn("Run #999222", out)
-                self.assertIn("docs: update manifesto", out)
-                self.assertIn("fedcba9", out)
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            code = main(["--limit", "2"])
+            self.assertEqual(code, 0)
+            out = mock_stdout.getvalue()
+            self.assertIn("GitHub Actions CI Status", out)
+            self.assertIn("Run #999111", out)
+            self.assertIn("Run #999222", out)
+            self.assertIn("docs: update manifesto", out)
+            self.assertIn("fedcba9", out)
 
     @patch("tools.ci.get_jobs")
     @patch("tools.ci.get_runs")
@@ -146,23 +208,73 @@ class TestCITool(unittest.TestCase):
             ]
         }
 
-        with patch("sys.argv", ["tools/ci.py", "-d"]):
-            with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-                main()
-                out = mock_stdout.getvalue()
-                self.assertIn("Detailed Steps for Run #555666", out)
-                self.assertIn("Hermetic Unit Test Suite", out)
-                self.assertIn("Subsequent Step", out)
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            code = main(["-d"])
+            self.assertEqual(code, 0)
+            out = mock_stdout.getvalue()
+            self.assertIn("Detailed Jobs & Steps for Run #555666", out)
+            self.assertIn("Hermetic Unit Test Suite", out)
+            self.assertIn("Subsequent Step", out)
+
+    @patch("tools.ci.get_jobs")
+    @patch("tools.ci.get_runs")
+    def test_main_json_output(self, mock_get_runs, mock_get_jobs):
+        mock_get_runs.return_value = {
+            "total_count": 1,
+            "workflow_runs": [
+                {
+                    "id": 111222,
+                    "head_sha": "abcdef123456",
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+            ],
+        }
+        mock_get_jobs.return_value = {"jobs": [{"id": 1, "name": "test_job"}]}
+
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            code = main(["--json", "-d"])
+            self.assertEqual(code, 0)
+            parsed = json.loads(mock_stdout.getvalue())
+            self.assertEqual(parsed["owner"], "mrmarkwell")
+            self.assertEqual(parsed["total_count"], 1)
+            self.assertEqual(len(parsed["workflow_runs"]), 1)
+            self.assertEqual(len(parsed["latest_jobs"]), 1)
 
     @patch("tools.ci.get_runs")
     def test_main_no_runs_exits(self, mock_get_runs):
         mock_get_runs.return_value = None
-        with patch("sys.argv", ["tools/ci.py"]):
-            with patch("sys.stdout", new_callable=io.StringIO):
-                with self.assertRaises(SystemExit) as cm:
-                    main()
-                self.assertEqual(cm.exception.code, 1)
+        with patch("sys.stderr", new_callable=io.StringIO):
+            code = main([])
+            self.assertEqual(code, 1)
+
+    @patch("tools.ci.get_jobs")
+    @patch("tools.ci.make_ci_request")
+    def test_watch_run_completed_success(self, mock_req, mock_jobs):
+        mock_req.return_value = (
+            200,
+            {"id": 444, "status": "completed", "conclusion": "success"},
+            {},
+        )
+        mock_jobs.return_value = {"jobs": []}
+
+        with patch("sys.stdout", new_callable=io.StringIO):
+            code = watch_run("mrmarkwell", "bible", 444, interval=0.01, max_wait_seconds=1.0)
+            self.assertEqual(code, 0)
+
+    @patch("tools.ci.make_ci_request")
+    def test_watch_run_timeout(self, mock_req):
+        mock_req.return_value = (
+            200,
+            {"id": 444, "status": "in_progress", "conclusion": None},
+            {},
+        )
+
+        with patch("sys.stderr", new_callable=io.StringIO), patch("sys.stdout", new_callable=io.StringIO):
+            code = watch_run("mrmarkwell", "bible", 444, interval=0.01, max_wait_seconds=0.03)
+            self.assertEqual(code, 1)
 
 
 if __name__ == "__main__":
     unittest.main()
+

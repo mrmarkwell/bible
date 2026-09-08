@@ -21,20 +21,15 @@ import unittest
 from unittest.mock import patch
 
 from core.crossref import (
-    CANONICAL_CROSS_REFERENCES,
     CrossReferenceService,
-    CrossReferenceSummary,
-    HydratedCrossReference,
     RelationshipType,
 )
-from core.db import Database, CrossReferenceRecord, VerseRecord
-from core.reference import Reference, parse_reference
+from core.db import Database, VerseRecord
 from core.terminal import (
     format_cross_reference_table,
     format_cross_references,
-    strip_ansi,
 )
-from cli.main import main, build_parser
+from cli.main import main
 from cli.shell import BibleShell
 
 

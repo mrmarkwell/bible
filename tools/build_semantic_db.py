@@ -12,7 +12,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Optional
+from typing import List, Optional
 
 # Ensure repository root is on sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -211,7 +211,7 @@ def run_semantic_build(
     return 0 if progress.failed_units == 0 else 1
 
 
-def main() -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     """CLI execution entry point."""
     parser = argparse.ArgumentParser(
         prog="build_semantic_db",
@@ -298,7 +298,7 @@ def main() -> int:
         help="Print detailed progress and failure reasons",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     try:
         return run_semantic_build(

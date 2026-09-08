@@ -22,10 +22,10 @@ if str(REPO_ROOT) not in sys.path:
 
 import time
 import urllib.request
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from core.db import Database, TranslationRecord, VerseRecord
-from core.reference import ALL_BOOKS, Book, BOOKS, get_book, verse_canonical_id
+from core.db import Database, VerseRecord
+from core.reference import ALL_BOOKS, Book, verse_canonical_id
 
 RAW_WEB_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "web"
 DEFAULT_DB_FILE = Path(__file__).resolve().parent.parent / "data" / "bible.db"

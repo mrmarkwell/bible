@@ -14,7 +14,6 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 import argparse
 import csv
 import json
-import os
 from pathlib import Path
 import sys
 import time
@@ -33,18 +32,16 @@ from core.llm import (
     GenerationConfig,
     get_gemini_api_key,
 )
-from core.reference import Book, Reference, get_book, parse_reference
+from core.reference import Reference, get_book, parse_reference
 from core.tag_prompts import (
-    GeneratedTag,
     TaggingResult,
     format_prompt_for_gemini_api,
-    format_taxonomy_for_prompt,
     generate_batch_tagging_prompts,
     generate_tagging_prompt,
     get_tgc_hermeneutical_system_prompt,
     parse_tagging_response,
 )
-from core.tags import CANONICAL_TAXONOMY, TagCategory, TaggingService
+from core.tags import TaggingService
 
 
 # ==============================================================================

@@ -12,18 +12,13 @@ import urllib.request
 from cli.main import build_parser, preprocess_cli_argv
 from cli.shell import BibleShell
 from core.arcs import (
-    ArcEndpoint,
-    ArcNetwork,
-    ArcPath,
     ArcTheme,
-    BookAxisMark,
     RELATIONSHIP_COLORS,
     build_arc_network,
     get_reference_x,
 )
 from core.crossref import RelationshipType
 from core.db import DEFAULT_DB_PATH, Database
-from core.reference import ALL_BOOKS, Book, BOOKS, parse_reference
 from web.server import create_server
 
 

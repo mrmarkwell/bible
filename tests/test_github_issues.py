@@ -10,10 +10,9 @@ from __future__ import annotations
 import io
 import json
 import os
-from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 
 from tools import github_issues
 

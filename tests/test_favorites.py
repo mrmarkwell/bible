@@ -12,12 +12,9 @@ Verifies:
 Zero external dependencies: 100% Python standard library unittest.
 """
 
-import tempfile
 import unittest
-from pathlib import Path
 
 from core.db import Database
-from core.reference import Reference, parse_reference
 from tools.ingest_favorites import (
     DEFAULT_CSV_PATH,
     clean_csv_row,

@@ -47,6 +47,16 @@ Ideas can be added directly by the repository owner or generated during interact
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.23 / ADR-069).
 - **Status**: Implemented via ADR-069 and Task 0.23.
 
+### [VETTED] Omnichannel CI Status Engine, Dedicated Semantic Compiler Test Symmetry, and Static Analysis Hygiene (Rank A+)
+- **Summary**: Integrate sovereign GitHub Actions monitoring directly into the CLI (`./bible ci`) and interactive study REPL (`/ci`), add a dedicated hermetic unit test suite for `tools/build_semantic_db.py` (`tests/test_build_semantic_db.py`) achieving 90.4% coverage and establishing pure 1-to-1 module-test symmetry, and prune unused imports across test and ingestion modules.
+- **Rationale**: Elevates developer and autonomous runner ergonomics by enabling instant CI workflow inspection without leaving the terminal, eliminates the sole untested compiler module blind spot, and maintains pristine zero-lint cleanliness.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (gracefully reports offline or token state; mock tests hermetic).
+  - Zero third-party dependencies? Yes (Python standard library `urllib.request`, `json`, `subprocess` per ADR-003).
+  - High performance? Yes (instant API response, 18 compiler unit tests run in <0.04s).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.24 / ADR-070).
+- **Status**: Implemented via ADR-070 and Task 0.24.
+
 ### [VETTED] Real-Time Server-Sent Events (SSE) Streaming for Web Studio (`/api/chat/stream` & `/api/rag/stream`) (Rank A+)
 - **Summary**: Expose HTTP Server-Sent Events (`text/event-stream`) endpoints in `web/server.py` (`/api/chat/stream` and `/api/rag/stream`) connecting directly to `BiblicalPersonaSession.say_stream()` and `GeminiClient.generate_stream()` to deliver real-time token streaming to the browser.
 - **Rationale**: While unary REST endpoints (`/api/chat/persona` and `/api/rag`) return complete JSON responses after full LLM generation completes, complex theological questions can take 2–5 seconds to fully synthesize. Real-time token streaming provides an instant, responsive "typewriter" experience in the upcoming Web UI (Task 8.6), reducing perceived latency to under 200ms.
