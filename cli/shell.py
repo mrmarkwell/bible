@@ -1515,11 +1515,13 @@ class BibleShell(cmd.Cmd):
         fast_mode = "fast" in arg or "-f" in arg
         fix_mode = "fix" in arg or "--fix" in arg
         json_mode = "json" in arg or "--json" in arg
+        bench_mode = "bench" in arg or "benchmark" in arg or "--bench" in arg
         run_all_checks(
             repo_root=repo_root,
             color=self.use_color and not json_mode,
             fast=fast_mode,
             fix=fix_mode,
+            bench=bench_mode,
             json_output=json_mode,
             stream=self.stdout,
         )
@@ -2295,6 +2297,62 @@ class BibleShell(cmd.Cmd):
         """Auto-complete for /compile-semantic."""
         return self.complete_build_semantic(text, line, begidx, endidx)
 
+    def do_audit_semantic(self, arg: str) -> None:
+        """Audit semantic database coordinates, schema validation, and whole-Bible coverage.
+
+        Usage:
+          /audit-semantic                 Run complete whole-Bible semantic audit
+          /audit-semantic [book]          Audit a specific book (e.g. /audit-semantic Romans)
+          /audit-semantic --json          Output machine-readable JSON telemetry
+          /audit-semantic --verbose       Display detailed finding descriptions
+          /audit-semantic --strict        Enforce strict error severity
+        """
+        import shlex
+        from tools.audit_semantic import run_semantic_audit
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        book_filter = None
+        json_mode = False
+        verbose_mode = False
+        strict_mode = False
+        coverage = True
+
+        for tok in tokens:
+            if tok in ("--json", "-j"):
+                json_mode = True
+            elif tok in ("--verbose", "-v"):
+                verbose_mode = True
+            elif tok in ("--strict", "-s"):
+                strict_mode = True
+            elif tok in ("--no-coverage", "-nc"):
+                coverage = False
+            elif not tok.startswith("-"):
+                book_filter = tok
+
+        run_semantic_audit(
+            db_path=self.db_path,
+            include_coverage=coverage,
+            book_filter=book_filter,
+            json_output=json_mode,
+            verbose=verbose_mode,
+            strict=strict_mode,
+            stream=self.stdout,
+        )
+
+    def do_audit(self, arg: str) -> None:
+        """Alias for /audit-semantic."""
+        self.do_audit_semantic(arg)
+
+    def complete_audit_semantic(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /audit-semantic."""
+        options = ["--json", "--verbose", "--strict", "--no-coverage"]
+        book_names = [b.name for b in ALL_BOOKS if b.name.lower().startswith(text.lower())]
+        return [o for o in options if o.startswith(text.lower())] + book_names
+
+    def complete_audit(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /audit alias."""
+        return self.complete_audit_semantic(text, line, begidx, endidx)
+
     # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
@@ -2317,6 +2375,7 @@ Study & Search:
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
   /vector [action]        Semantic vector similarity engine & search (alias: /vec)
   /build-semantic [act]   Resumable batch semantic compiler & whole-Bible builder (alias: /compile-semantic)
+  /audit-semantic [opts]  Audit semantic database coordinates & 100% whole-Bible coverage (alias: /audit)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
 
@@ -2373,7 +2432,7 @@ System & Web:
 
     def complete_doctor(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete doctor subcommands."""
-        options = ["fast", "fix", "json", "install-hooks", "uninstall-hooks", "hooks", "--fast", "--fix", "--json"]
+        options = ["fast", "fix", "bench", "json", "install-hooks", "uninstall-hooks", "hooks", "--fast", "--fix", "--bench", "--json"]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:

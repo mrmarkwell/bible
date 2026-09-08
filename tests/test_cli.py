@@ -1112,6 +1112,18 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(data["dimensions"], 768)
         self.assertTrue(data["zero_dependencies"])
 
+    def test_cli_audit_semantic(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "audit-semantic", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["status"], "PASSED")
+        self.assertIn("audit_report", data)
+        self.assertIn("coverage_report", data)
+
 
 if __name__ == "__main__":
     unittest.main()

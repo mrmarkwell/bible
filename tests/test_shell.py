@@ -275,6 +275,26 @@ class TestShell(unittest.TestCase):
             opts = shell.complete_vector("stat", "/vector stat", 0, 0)
             self.assertIn("status", opts)
 
+    def test_shell_audit_semantic_command(self):
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            shell.onecmd("/audit-semantic --json")
+            out = stdout.getvalue()
+            self.assertIn('"status": "PASSED"', out)
+            self.assertIn('"audit_report"', out)
+
+            # Test autocompletion
+            opts = shell.complete_audit_semantic("--j", "/audit-semantic --j", 0, 0)
+            self.assertIn("--json", opts)
+            book_opts = shell.complete_audit_semantic("Rom", "/audit-semantic Rom", 0, 0)
+            self.assertIn("Romans", book_opts)
+
+    def test_shell_doctor_bench_completion(self):
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            opts = shell.complete_doctor("ben", "/doctor ben", 0, 0)
+            self.assertIn("bench", opts)
+
 
 class TestDirectReferenceRouting(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""

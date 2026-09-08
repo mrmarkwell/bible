@@ -252,6 +252,33 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertTrue(res.passed, f"DB integrity check failed: {res.details}")
         self.assertIn("PRAGMA quick_check & FK passed", res.details)
         self.assertIn("tables verified", res.details)
+        self.assertIn("semantically audited", res.details)
+        self.assertIn("100.0%", res.details)
+
+    def test_check_database_integrity_semantic_audit_failure(self):
+        from core.db import Database
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_dir = tmp_path / "data"
+            db_dir.mkdir()
+            db_file = db_dir / "bible.db"
+            with Database(db_file, auto_init=True) as db:
+                db.add_translation("WEB", "World English Bible")
+                from core.db import VerseRecord
+                db.insert_verses([VerseRecord("WEB", 1, 1, 1, "In the beginning...")])
+                # Insert pericope with invalid coordinates to trigger audit error
+                db.conn.execute(
+                    "INSERT INTO pericopes (book_id, start_canonical_id, end_canonical_id, human_ref, title) "
+                    "VALUES (1, 1001050, 1001001, 'Gen 1:50-1', 'Invalid Span')"
+                )
+                db.conn.commit()
+
+            from unittest.mock import patch
+            with patch("core.db.Database.count_verses", return_value=31103), \
+                 patch("core.db.Database.search_text", return_value=[{"id": 1}]):
+                res = check_database_integrity(tmp_path, fix=False)
+                self.assertFalse(res.passed)
+                self.assertIn("Semantic quality audit errors detected", res.details)
 
     def test_check_database_integrity_semantic_auto_migrate(self):
         from core.db import Database

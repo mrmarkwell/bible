@@ -606,6 +606,19 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add hermetic unit tests in `tests/test_graph_visualizer.py`.
 - **Status**: [VETTED] (Rank A+; Promoted in Run 054).
 
+---
+
+### [DONE] Deep Semantic Diagnostic Integration, Omnichannel Audit Ergonomics & Doctor Coverage Gates
+- **Summary**: Seamlessly embed the Exegetical Critic and Whole-Bible Verse Coverage Auditor into the core system health suite (`tools/doctor.py`), validating that all 31,103 canonical coordinates, 1,304 pericopes, and 6 semantic layers are verified error-free on every doctor invocation. Expose first-class `/audit-semantic` (alias: `/audit`) commands in the interactive REPL shell (`cli/shell.py`) with full argument parsing and book auto-completion, achieve doctor benchmarking parity (`--bench`) across CLI and REPL, and equip `tools/audit_semantic.py` with custom stream redirection.
+- **Rationale**: While Phase 7 successfully compiled 100.00% semantic coverage into SQLite, the project's health diagnostic infrastructure previously only validated standard database tables and verse counts. If semantic coordinate boundaries or pericope linkages degraded, doctor would pass blindly. Continuous semantic auditing in `doctor.py` prevents silent metadata corruption, while omnichannel REPL integration gives developers instant terminal access to audit metrics.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (queries local SQLite database in ~0.08s).
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+  - High performance? Yes (full database semantic audit completes in <85ms).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.19; ADR-058).
+- **Status**: [DONE] (Rank A+; Implemented in Run 055 / Senior PM Cleanup Sprint).
+
+
 
 
 

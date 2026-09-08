@@ -1873,3 +1873,38 @@ This document is an append-only log of significant design and architectural deci
   - Phase 7 is 100% complete; `data/bible.db` is fully populated with all 6 semantic layers and ready for Phase 8 RAG and persona dialogue.
   - Zero external dependencies preserved (Python 3 standard library only per ADR-003).
   - All 706 unit tests across 34 suites pass in 4.24s.
+
+---
+
+## ADR-058: Deep Semantic Diagnostic Integration, Omnichannel Audit Ergonomics & Doctor Coverage Gates
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - In Run 054, Phase 7 was completed with 100.00% Whole-Bible semantic coverage compiled into `data/bible.db`.
+  - However, during the Senior Product Manager Meta-Improvement Sprint (Run 055), a system health audit revealed a structural divergence:
+    1. The core pre-push and system health diagnostic suite (`tools/doctor.py` / `./bible doctor`) verified SQLite tables and verse counts, but did not continuously audit semantic coordinate validity (`BBCCCVVV`), pericope integrity, or whole-Bible coverage. If corrupted coordinates or pericope gaps were introduced, doctor diagnostics would report clean.
+    2. Interactive developers using the scripture REPL shell (`./bible shell`) lacked direct commands to audit the semantic database (`/audit-semantic` and `/audit`).
+    3. The CLI doctor command (`./bible doctor`) lacked benchmarking parity with `tools/doctor.py`, and the REPL shell `/doctor` lacked benchmarking flag support.
+    4. `tools/audit_semantic.py` wrote directly to standard output via `print(...)`, preventing stream redirection or programmatic capture within REPL shells and test runners without global patch overrides.
+- **Decision**:
+  1. **Continuous Semantic Quality & Coverage Verification in `tools/doctor.py`**:
+     - Embedded `core.semantic_audit.get_semantic_auditor()` into `check_database_integrity(...)`.
+     - Automatically verifies all 31,103 canonical coordinates, 1,304 pericopes, and checks for zero critic errors (`audit_rep.is_clean`).
+     - Emits verified semantic coverage metrics (e.g. `31,103/31,103 verses semantically audited (100.0%)`) in the doctor report.
+  2. **Omnichannel Audit Ergonomics in REPL Shell (`cli/shell.py`)**:
+     - Added `/audit-semantic` (alias: `/audit`) to the interactive REPL shell with flags (`--json`, `--verbose`, `--strict`, `--no-coverage`) and canonical book autocompletion.
+     - Added `/audit-semantic` to the Study & Search help reference in `cli/shell.py`.
+  3. **Doctor CLI & Shell Ergonomics Parity**:
+     - Added `--bench` / `--benchmark` support to `cmd_doctor` in `cli/main.py`.
+     - Added `bench` / `benchmark` parsing and autocompletion to `/doctor` in `cli/shell.py`.
+  4. **Stream Redirection & Zero-Dependency Output Pipeline in `tools/audit_semantic.py`**:
+     - Added optional `stream` parameter to `run_semantic_audit(...)` and converted all output emissions to `emit(...)` writing to the target stream.
+  5. **Hermetic Test Verification**:
+     - Added unit tests in `tests/test_shell.py` for `/audit-semantic` and `/doctor bench`.
+     - Added unit tests in `tests/test_cli.py` for `bible audit-semantic --json`.
+     - Added unit tests in `tests/test_doctor.py` verifying semantic audit pass/fail detection.
+- **Consequences**:
+  - System doctor now guarantees both structural SQLite integrity and 100% semantic coordinate/pericope validity on every run.
+  - Interactive developers have unified, omnichannel access to semantic auditing.
+  - 100% Zero-Dependency compliance verified (Python 3 stdlib only per ADR-003).
+  - All 710 unit tests across 34 suites pass in 4.51s (<5.0s SLA).

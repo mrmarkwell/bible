@@ -36,14 +36,21 @@ def run_semantic_audit(
     json_output: bool = False,
     verbose: bool = False,
     strict: bool = False,
+    stream: Optional[Any] = None,
 ) -> int:
     """Run semantic quality audit and emit results."""
     t0 = time.time()
+    target_stream = stream or sys.stdout
+
+    def emit(text: str = "") -> None:
+        target_stream.write(text + "\n")
+        target_stream.flush()
+
     if not db_path.exists():
         if json_output:
-            print(json.dumps({"error": f"Database file not found: {db_path}"}))
+            emit(json.dumps({"error": f"Database file not found: {db_path}"}))
         else:
-            print(f"\033[31m[!] Error: Database file not found: {db_path}\033[0m")
+            emit(f"\033[31m[!] Error: Database file not found: {db_path}\033[0m")
         return 1
 
     db = Database(db_path)
@@ -55,9 +62,9 @@ def run_semantic_audit(
         b = get_book(book_filter)
         if not b:
             if json_output:
-                print(json.dumps({"error": f"Unknown book: {book_filter}"}))
+                emit(json.dumps({"error": f"Unknown book: {book_filter}"}))
             else:
-                print(f"\033[31m[!] Error: Unknown book '{book_filter}'\033[0m")
+                emit(f"\033[31m[!] Error: Unknown book '{book_filter}'\033[0m")
             return 1
         book_id = b.number
 
@@ -73,53 +80,53 @@ def run_semantic_audit(
         }
         if cov_report:
             payload["coverage_report"] = cov_report.to_dict()
-        print(json.dumps(payload, indent=2))
+        emit(json.dumps(payload, indent=2))
         return 0 if report.is_clean else 1
 
     # Human-readable terminal output
-    print("=" * 78)
-    print(" Bible Engine — Exegetical Critic & Semantic Quality Audit")
-    print(f" Database: {db_path} | Duration: {duration:.3f}s")
-    print("=" * 78)
+    emit("=" * 78)
+    emit(" Bible Engine — Exegetical Critic & Semantic Quality Audit")
+    emit(f" Database: {db_path} | Duration: {duration:.3f}s")
+    emit("=" * 78)
 
     # Print coverage summary table
     if cov_report:
         if book_id is not None and book_id in cov_report.book_stats:
             bst = cov_report.book_stats[book_id]
-            print(f"\n Book Coverage: {bst.book_name}")
-            print(f"  * Verses Covered: {bst.covered_verses} / {bst.total_verses} ({bst.coverage_pct:.1f}%)")
-            print(f"  * Pericopes: {bst.pericope_count}")
-            print(f"  * Status: {'COMPLETE (100%)' if bst.is_complete else 'INCOMPLETE'}")
+            emit(f"\n Book Coverage: {bst.book_name}")
+            emit(f"  * Verses Covered: {bst.covered_verses} / {bst.total_verses} ({bst.coverage_pct:.1f}%)")
+            emit(f"  * Pericopes: {bst.pericope_count}")
+            emit(f"  * Status: {'COMPLETE (100%)' if bst.is_complete else 'INCOMPLETE'}")
         else:
-            print(cov_report.summary_table())
+            emit(cov_report.summary_table())
 
     # Print Audit Findings
-    print("\n Exegetical Critic Findings:")
-    print(f"  * Total Inspected: {report.total_inspected}")
-    print(f"  * Errors: {len(report.errors)}")
-    print(f"  * Warnings: {len(report.warnings)}")
-    print(f"  * Info: {len(report.info)}")
+    emit("\n Exegetical Critic Findings:")
+    emit(f"  * Total Inspected: {report.total_inspected}")
+    emit(f"  * Errors: {len(report.errors)}")
+    emit(f"  * Warnings: {len(report.warnings)}")
+    emit(f"  * Info: {len(report.info)}")
 
     if report.findings:
-        print("\n Diagnostics Details:")
+        emit("\n Diagnostics Details:")
         displayed = report.findings if verbose else report.findings[:25]
         for f in displayed:
             color = "\033[31m" if f.severity in (CriticSeverity.ERROR, CriticSeverity.CRITICAL) else "\033[33m"
             loc = f" [{f.human_ref}]" if f.human_ref else ""
-            print(f"  {color}[{f.severity.value}]{loc} {f.rule_id}\033[0m: {f.message}")
+            emit(f"  {color}[{f.severity.value}]{loc} {f.rule_id}\033[0m: {f.message}")
             if f.suggested_fix and verbose:
-                print(f"    \033[36m-> Fix: {f.suggested_fix}\033[0m")
+                emit(f"    \033[36m-> Fix: {f.suggested_fix}\033[0m")
         if not verbose and len(report.findings) > 25:
-            print(f"  ... and {len(report.findings) - 25} more findings (use --verbose to view all)")
+            emit(f"  ... and {len(report.findings) - 25} more findings (use --verbose to view all)")
     else:
-        print("  \033[32m[✓] All semantic schemas and coordinate boundaries are 100% valid!\033[0m")
+        emit("  \033[32m[✓] All semantic schemas and coordinate boundaries are 100% valid!\033[0m")
 
-    print("-" * 78)
+    emit("-" * 78)
     if report.is_clean:
-        print(f"\033[32m[✓] Semantic Quality Audit: PASSED (Completed in {duration:.3f}s)\033[0m")
+        emit(f"\033[32m[✓] Semantic Quality Audit: PASSED (Completed in {duration:.3f}s)\033[0m")
         return 0
     else:
-        print(f"\033[31m[!] Semantic Quality Audit: FAILED with {len(report.errors)} errors\033[0m")
+        emit(f"\033[31m[!] Semantic Quality Audit: FAILED with {len(report.errors)} errors\033[0m")
         return 1
 
 

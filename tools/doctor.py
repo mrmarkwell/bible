@@ -611,12 +611,32 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
                     time.time() - t0,
                 )
 
+            # 5. Check Phase 7 Semantic Coverage & Exegetical Quality
+            semantic_summary = ""
+            try:
+                from core.semantic_audit import get_semantic_auditor
+                auditor = get_semantic_auditor()
+                audit_rep, cov_rep = auditor.audit_database(db, include_coverage=True, strict=False)
+                if not audit_rep.is_clean:
+                    err_sample = "; ".join(f"{f.rule_id} on {f.human_ref or 'item'}" for f in audit_rep.errors[:3])
+                    return CheckResult(
+                        "SQLite Scripture Database",
+                        False,
+                        f"Semantic quality audit errors detected ({len(audit_rep.errors)} errors): {err_sample}",
+                        time.time() - t0,
+                    )
+                if cov_rep:
+                    semantic_summary = f", {cov_rep.covered_verses_count:,}/{cov_rep.total_verses:,} verses semantically audited ({cov_rep.coverage_pct:.1f}%)"
+            except Exception as e_audit:
+                # Non-fatal if semantic audit module has an unexpected issue
+                semantic_summary = f" (semantic audit warning: {e_audit})"
+
             dur = time.time() - t0
             fix_msg = " (Auto-repaired semantic schema)" if schema_repaired else ""
             return CheckResult(
                 "SQLite Scripture Database",
                 True,
-                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified){fix_msg}",
+                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified{semantic_summary}){fix_msg}",
                 dur,
             )
     except Exception as exc:
