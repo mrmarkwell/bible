@@ -680,7 +680,9 @@ def check_unit_tests(repo_root: Path) -> CheckResult:
         failed_lines = []
         for r in summary.results:
             if not r.passed:
-                failed_lines.append(f"{r.module_name}: {r.error_message}")
+                err = r.error_message.strip()
+                err_last = err.splitlines()[-1] if err else "Failed"
+                failed_lines.append(f"{r.module_name}: {err_last}")
         return CheckResult(
             "Hermetic Test Suite",
             False,
@@ -932,9 +934,13 @@ def _emit_check(res: CheckResult, styler: DoctorStyler, emit: Callable[[str], No
 
     emit(f" {badge} {styler.bold(res.name)} {styler.dim(f'({res.duration_sec:.3f}s)')}")
     if res.passed:
-        emit(f"        {styler.dim(res.details)}")
+        lines = res.details.splitlines()
+        indented = "\n".join(("        " + line) if i > 0 else line for i, line in enumerate(lines))
+        emit(f"        {styler.dim(indented)}")
     else:
-        emit(f"        {styler.red(res.details)}")
+        lines = res.details.splitlines()
+        indented = "\n".join(("        " + line) if i > 0 else line for i, line in enumerate(lines))
+        emit(f"        {styler.red(indented)}")
 
 
 if __name__ == "__main__":

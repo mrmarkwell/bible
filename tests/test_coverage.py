@@ -1,8 +1,10 @@
 """Hermetic unit tests for sovereign zero-dependency code coverage engine."""
 
+import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.coverage import (
     CoverageReport,
@@ -167,9 +169,11 @@ class TestCoverageEngine(unittest.TestCase):
         exit_code = main(["-p", "test_crypto", "-m", "core/crypto.py", "-q", "--threshold", "90.0"])
         self.assertEqual(exit_code, 0)
 
-        # Threshold failure test
-        exit_code_fail = main(["-p", "test_crypto", "-m", "core/crypto.py", "-q", "--threshold", "99.9"])
-        self.assertEqual(exit_code_fail, 1)
+        # Threshold failure test (suppress expected stderr message during test execution)
+        with io.StringIO() as err_buf, patch("sys.stderr", err_buf):
+            exit_code_fail = main(["-p", "test_crypto", "-m", "core/crypto.py", "-q", "--threshold", "99.9"])
+            self.assertEqual(exit_code_fail, 1)
+            self.assertIn("ERROR: Overall coverage", err_buf.getvalue())
 
 
 if __name__ == "__main__":

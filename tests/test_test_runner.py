@@ -90,22 +90,24 @@ class TestRunnerEngine(unittest.TestCase):
     def test_run_tests_sequential(self):
         crypto_file = REPO_ROOT / "tests" / "test_crypto.py"
         terminal_file = REPO_ROOT / "tests" / "test_terminal.py"
-        summary = run_tests_sequential([crypto_file, terminal_file], REPO_ROOT, warn_error=True)
-        self.assertTrue(summary.success)
-        self.assertEqual(summary.total_modules, 2)
-        self.assertEqual(summary.passed_modules, 2)
-        self.assertEqual(summary.failed_modules, 0)
-        self.assertGreaterEqual(summary.total_tests, 25)
+        with patch("tools.test_runner.save_timing_cache"):
+            summary = run_tests_sequential([crypto_file, terminal_file], REPO_ROOT, warn_error=True)
+            self.assertTrue(summary.success)
+            self.assertEqual(summary.total_modules, 2)
+            self.assertEqual(summary.passed_modules, 2)
+            self.assertEqual(summary.failed_modules, 0)
+            self.assertGreaterEqual(summary.total_tests, 25)
 
     def test_run_tests_parallel(self):
         crypto_file = REPO_ROOT / "tests" / "test_crypto.py"
         terminal_file = REPO_ROOT / "tests" / "test_terminal.py"
-        summary = run_tests_parallel([crypto_file, terminal_file], REPO_ROOT, jobs=2, warn_error=True)
-        self.assertTrue(summary.success)
-        self.assertEqual(summary.total_modules, 2)
-        self.assertEqual(summary.passed_modules, 2)
-        self.assertEqual(summary.failed_modules, 0)
-        self.assertGreaterEqual(summary.total_tests, 25)
+        with patch("tools.test_runner.save_timing_cache"):
+            summary = run_tests_parallel([crypto_file, terminal_file], REPO_ROOT, jobs=2, warn_error=True)
+            self.assertTrue(summary.success)
+            self.assertEqual(summary.total_modules, 2)
+            self.assertEqual(summary.passed_modules, 2)
+            self.assertEqual(summary.failed_modules, 0)
+            self.assertGreaterEqual(summary.total_tests, 25)
 
     def test_run_tests_facade_json(self):
         stream = io.StringIO()
