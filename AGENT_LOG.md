@@ -2310,5 +2310,42 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 8.1 is fully verified and complete.
   - Next task on the roadmap is Phase 8, **Task 8.2**: *Implement CLI RAG inquiry command (`./bible ask "Trace the theme of the temple from the Garden of Eden to the New Jerusalem"`, `./bible ask "How does Jesus fulfill the Day of Atonement?"`).*
 
+---
+
+## [Run 058] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Roadmap Lifecycle)
+- **Task Addressed**: Phase 8, **Task 8.2**: *Implement CLI RAG inquiry command (`./bible ask "Trace the theme of the temple from the Garden of Eden to the New Jerusalem"`, `./bible ask "How does Jesus fulfill the Day of Atonement?"`).*
+- **Architectural Context & Goals**:
+  - Expose the newly implemented Scripture RAG engine (`core/rag.py` / ADR-061) through sovereign, user-friendly command-line and interactive REPL interfaces.
+  - Support both offline context inspection (`--context-only`) and online answer synthesis with graceful fallback when `GEMINI_API_KEY` is not present.
+  - Support live real-time token streaming (`--stream`) via Server-Sent Events, underlying context display (`--show-context`), and machine-readable JSON output (`--json`).
+  - Maintain 100% zero external dependencies (Python 3 stdlib only per ADR-003) and <5.0s test execution SLA.
+- **Actions Taken**:
+  - **CLI Subcommand `ask` in `cli/main.py`**:
+    - Registered `ask` (aliases `rag`, `inquiry`) with full options: `query`, `--context-only`, `--stream`, `--show-context`, `--max-passages`, `--max-tokens`, `--model`, `--translation`, `--json`.
+    - Added `ask`, `rag`, `inquiry` to `registered_commands` in `preprocess_cli_argv` to avoid collision with scripture citation arguments.
+    - Updated `cli/main.py` docstring.
+  - **Interactive REPL `/ask` Command in `cli/shell.py`**:
+    - Implemented `do_ask` (aliased as `do_rag`) with autocompletion `complete_ask`.
+    - Supports `/ask <query>`, `/ask --context-only <query>`, and `/ask --show-context <query>`.
+    - Integrated typological arc summaries (`type_human_ref ➔ antitype_human_ref`) and pericope titles.
+    - Updated `/help` reference menu in `cli/shell.py`.
+  - **Offline Fallback & Error Handling**:
+    - Transparently falls back to displaying retrieved Scripture passages, pericopes, and typological arcs when `GEMINI_API_KEY` is not set, with clear guidance for users.
+  - **Hermetic Unit Test Suite**:
+    - Added 5 unit tests in `tests/test_cli.py`: `test_cli_ask_context_only`, `test_cli_ask_json`, `test_cli_ask_missing_api_key_fallback`, `test_cli_ask_mock_generation`, `test_cli_ask_streaming`.
+    - Added 3 unit tests in `tests/test_shell.py`: `test_shell_ask_context_only`, `test_shell_ask_missing_api_key`, `test_shell_ask_streaming`.
+  - **State Synchronization**:
+    - Formulated and recorded **ADR-062** in `DECISIONS.md`.
+    - Marked Task 8.2 as `[x]` completed in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **761 tests across 36 modules passed 100% in 4.71s** (161.6 tests/sec, <5.0s SLA).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (zero external dependencies, 62 ADRs registered, 58 sequential runs, 761 tests passing).
+  - `./bible lint`: 0 errors across 79 files.
+- **Handoff Notes for Next Agent**:
+  - Task 8.2 is fully verified and complete.
+  - Next task on the roadmap is Phase 8, **Task 8.3**: *Implement Biblical Character Dialogue Engine in `core/persona.py` (dynamically loads character scripture citations and historical background, enforces TGC biblical humility, canonical realism, and Christ-centered longing per THEOLOGY.md, and strictly forbids extrabiblical inventions).*
+
+
 
 

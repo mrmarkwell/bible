@@ -1134,6 +1134,76 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("No open issues found", stdout.getvalue())
 
+    def test_cli_ask_context_only(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "ask", "--context-only", "temple"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Scripture RAG Retrieved Context", out)
+        self.assertIn("Inquiry: temple", out)
+
+    def test_cli_ask_json(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "ask", "--context-only", "--json", "temple"])
+        self.assertEqual(code, 0)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["query"], "temple")
+        self.assertIn("passages", data)
+
+    def test_cli_ask_missing_api_key_fallback(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr), patch.dict("os.environ", {}, clear=True):
+            code = main(["--db", str(self.db_path), "ask", "temple"])
+        self.assertEqual(code, 1)
+        err = stderr.getvalue()
+        self.assertIn("GEMINI_API_KEY is not configured", err)
+        out = stdout.getvalue()
+        self.assertIn("Retrieved Scripture Context", out)
+
+    @patch("core.llm.GeminiClient.generate")
+    @patch("core.llm.get_gemini_api_key")
+    def test_cli_ask_mock_generation(self, mock_key, mock_generate):
+        from core.llm import LLMResponse
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        mock_generate.return_value = LLMResponse(
+            text="Christ is the true Temple who tabernacled among us (John 1:14).",
+            model="gemini-2.5-pro",
+            latency_seconds=0.45,
+            usage={"prompt_tokens": 120, "candidate_tokens": 20, "total_tokens": 140},
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "ask", "--show-context", "temple"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Christ is the true Temple", out)
+        self.assertIn("gemini-2.5-pro", out)
+        self.assertIn("Grounded Context Passages", out)
+
+    @patch("core.llm.GeminiClient.generate_stream")
+    @patch("core.llm.get_gemini_api_key")
+    def test_cli_ask_streaming(self, mock_key, mock_stream):
+        from core.llm import StreamChunk
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        mock_stream.return_value = iter([
+            StreamChunk(text="The temple ", finish_reason=None),
+            StreamChunk(text="points to Christ.", finish_reason="STOP"),
+        ])
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "ask", "--stream", "temple"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("The temple points to Christ.", out)
+
 
 if __name__ == "__main__":
     unittest.main()

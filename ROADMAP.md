@@ -92,7 +92,7 @@ This document is the single source of truth for current project status, active t
 
 ### Phase 8: Online Scripture RAG & Biblical Character Dialogue Studio
 - [x] **Task 8.1**: Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows). *(Run 057 / ADR-061)*
-- [ ] **Task 8.2**: Implement CLI RAG inquiry command (`./bible ask "Trace the theme of the temple from the Garden of Eden to the New Jerusalem"`, `./bible ask "How does Jesus fulfill the Day of Atonement?"`).
+- [x] **Task 8.2**: Implement CLI RAG inquiry command (`./bible ask "Trace the theme of the temple from the Garden of Eden to the New Jerusalem"`, `./bible ask "How does Jesus fulfill the Day of Atonement?"`). *(Run 058 / ADR-062)*
 - [ ] **Task 8.3**: Implement Biblical Character Dialogue Engine in `core/persona.py` (dynamically loads character scripture citations and historical background, enforces TGC biblical humility, canonical realism, and Christ-centered longing per THEOLOGY.md, and strictly forbids extrabiblical inventions).
 - [ ] **Task 8.4**: Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`).
 - [ ] **Task 8.5**: Expose REST endpoints in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present.

@@ -2018,6 +2018,126 @@ class BibleShell(cmd.Cmd):
 
     complete_llm = complete_gemini
 
+    def do_ask(self, arg: str) -> None:
+        """Query Scripture RAG engine with biblical, thematic, or typological inquiries.
+        Usage:
+          /ask <query>                      Retrieve grounded Scripture passages and answer via LLM
+          /ask --context-only <query>       Inspect retrieved Scripture passages and scores without LLM
+          /ask --show-context <query>       Synthesize answer and show underlying Scripture context
+        """
+        raw_text = arg.strip()
+        if not raw_text:
+            self.stdout.write("Usage: /ask [--context-only] [--show-context] <query>\n")
+            return
+
+        context_only = False
+        show_context = False
+
+        tokens = raw_text.split()
+        filtered_tokens = []
+        for t in tokens:
+            if t in ("--context-only", "-c"):
+                context_only = True
+            elif t in ("--show-context", "-s"):
+                show_context = True
+            else:
+                filtered_tokens.append(t)
+
+        query = " ".join(filtered_tokens).strip()
+        if not query:
+            self.stdout.write("Usage: /ask [--context-only] [--show-context] <query>\n")
+            return
+
+        if self.db is None:
+            self._init_db()
+
+        from core.rag import ScriptureRAGEngine
+        from core.llm import GeminiClient, LLMError, get_gemini_api_key
+
+        engine = ScriptureRAGEngine(db=self.db, translation=self.translation_id)
+        context = engine.retrieve(
+            query,
+            max_passages=5,
+            max_tokens=4000,
+            preferred_translation=self.translation_id,
+        )
+
+        gold = "\033[1;33m" if self.use_color else ""
+        dim = "\033[2m" if self.use_color else ""
+        bold = "\033[1m" if self.use_color else ""
+        reset = "\033[0m" if self.use_color else ""
+
+        if context_only:
+            self.stdout.write(f"\n{gold}{bold}=== Scripture RAG Retrieved Context ==={reset}\n")
+            self.stdout.write(f"{bold}Inquiry:{reset} {query}\n")
+            self.stdout.write(f"{dim}Passages: {len(context.passages)} | Total Verses: {context.total_verses} | Est. Tokens: {context.estimated_tokens}{reset}\n\n")
+
+            if not context.passages:
+                self.stdout.write(f"{dim}(No matching scripture passages found for this inquiry.){reset}\n\n")
+                return
+
+            for idx, p in enumerate(context.passages, 1):
+                reasons_str = f" [{', '.join(p.retrieval_reasons)}]" if p.retrieval_reasons else ""
+                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}{reasons_str}){reset}\n")
+                if p.pericope_title:
+                    self.stdout.write(f"    {dim}Pericope: {p.pericope_title}{reset}\n")
+                if p.theological_loci:
+                    self.stdout.write(f"    {dim}Loci: {', '.join(p.theological_loci)}{reset}\n")
+                if p.thematic_ribbons:
+                    self.stdout.write(f"    {dim}Thematic Ribbons: {', '.join(p.thematic_ribbons)}{reset}\n")
+                if p.typological_arcs:
+                    arc_summaries = [f"{a.get('type_human_ref', a.get('type_ref'))} ➔ {a.get('antitype_human_ref', a.get('antitype_ref'))}" for a in p.typological_arcs[:2]]
+                    self.stdout.write(f"    {dim}Typological Arcs: {'; '.join(arc_summaries)}{reset}\n")
+                self.stdout.write(f"    {p.text}\n\n")
+            return
+
+        api_key = get_gemini_api_key()
+        if not api_key:
+            self.stdout.write(
+                f"\n{gold}Notice:{reset} GEMINI_API_KEY is not configured. Displaying retrieved Scripture context.\n"
+                f"{dim}To enable AI answer synthesis, set the GEMINI_API_KEY environment variable.{reset}\n\n"
+            )
+            self.stdout.write(f"{gold}{bold}=== Retrieved Scripture Context ==={reset}\n")
+            for idx, p in enumerate(context.passages, 1):
+                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}\n")
+                self.stdout.write(f"    {p.text}\n\n")
+            return
+
+        client = GeminiClient(api_key=api_key)
+        prompt_payload = context.format_prompt_payload()
+        system_text = prompt_payload["system_instruction"]["parts"][0]["text"]
+        user_prompt = prompt_payload["contents"][0]["parts"][0]["text"]
+
+        self.stdout.write(f"\n{dim}Synthesizing grounded answer via Google Gemini ({client.model})...{reset}\n\n")
+        self.stdout.write(f"{bold}Inquiry:{reset} {query}\n\n")
+
+        streamed_text = []
+        try:
+            for chunk in client.generate_stream(user_prompt, system_instruction=system_text):
+                if chunk.text:
+                    streamed_text.append(chunk.text)
+                    self.stdout.write(chunk.text)
+                    self.stdout.flush()
+            self.stdout.write("\n\n")
+        except LLMError as exc:
+            self.stdout.write(f"\nError during streaming generation: {exc}\n")
+            return
+
+        if show_context:
+            self.stdout.write(f"{gold}{bold}--- Retrieved Scripture Context ---{reset}\n")
+            for idx, p in enumerate(context.passages, 1):
+                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}\n")
+                self.stdout.write(f"    {p.text}\n\n")
+
+    do_rag = do_ask
+
+    def complete_ask(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /ask command."""
+        options = ["--context-only", "--show-context"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    complete_rag = complete_ask
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report
@@ -2410,6 +2530,7 @@ Study & Search:
   /audit-semantic [opts]  Audit semantic database coordinates & 100% whole-Bible coverage (alias: /audit)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
+  /ask <query> [options]  Query Scripture RAG engine with biblical inquiries (alias: /rag)
   /issues [command]       Inspect and triage GitHub issues & bug reports (aliases: /bug, /bugs)
 
 Session Settings:

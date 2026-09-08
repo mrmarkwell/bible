@@ -2021,4 +2021,45 @@ This document is an append-only log of significant design and architectural deci
   - Scripture RAG retrieval operational across all 31,103 verses, 1,304 pericopes, 1,305 theological annotations, and 21 typological arcs.
   - All 753 tests across 36 modules pass in 4.68s (<5.0s SLA).
 
+---
+
+## ADR-062: CLI Scripture RAG Inquiry Command (`./bible ask`) & REPL `/ask` Integration
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Following the creation of the Scripture RAG engine in `core/rag.py` (ADR-061 / Task 8.1), users and scholars need sovereign, ergonomic command-line and interactive REPL interfaces to query the RAG system directly.
+  - Inquiries range from redemptive-historical motifs (e.g. *"Trace the theme of the temple from the Garden of Eden to the New Jerusalem"*) to typological questions (e.g. *"How does Jesus fulfill the Day of Atonement?"*).
+  - Requirements:
+    1. Support both offline context inspection (`--context-only`) and online answer synthesis with graceful fallback when `GEMINI_API_KEY` is not present.
+    2. Support real-time token streaming (`--stream`) via Server-Sent Events (SSE) and context inspection (`--show-context`).
+    3. Support structured machine-readable JSON output (`--json`) for scripting and downstream pipelines.
+    4. Provide full parity in the interactive REPL shell (`/ask`, `/rag`) with autocompletion and ANSI color styling.
+    5. Maintain 100% Zero-Dependency architecture (Python 3 stdlib only per ADR-003) and <5.0s test suite SLA.
+- **Decision**:
+  1. **CLI Subcommand `ask` in `cli/main.py`**:
+     - Registered `ask` (with aliases `rag` and `inquiry`) with rich command-line arguments:
+       - `query`: Positional arguments joined as natural language inquiry string.
+       - `--context-only`: Retrieves and displays the grounded Scripture context window (passages, pericopes, loci, typological arcs, and relevance scores) without querying the LLM.
+       - `--show-context`: Displays the underlying retrieved Scripture context passages alongside the synthesized LLM answer.
+       - `--stream`: Streams LLM answer tokens in real time via Server-Sent Events.
+       - `--json`: Outputs structured JSON serialization including query features, retrieved passages, and LLM responses.
+       - `--max-passages` (default: 5) and `--max-tokens` (default: 4000).
+       - `--model`: Configurable model override (defaulting to `gemini-2.5-pro` with `gemini-2.0-flash` fallback).
+       - `--translation`: Configurable translation (defaulting to ESV with WEB fallback).
+     - Added `ask`, `rag`, and `inquiry` to `registered_commands` in `preprocess_cli_argv` to avoid reference collision.
+  2. **REPL Shell Integration in `cli/shell.py`**:
+     - Implemented `do_ask` (aliased as `do_rag`) with autocompletion `complete_ask`.
+     - Supports `/ask <query>`, `/ask --context-only <query>`, and `/ask --show-context <query>`.
+     - Updated shell interactive `/help` reference menu.
+  3. **Offline-Safe Graceful Fallback**:
+     - When `GEMINI_API_KEY` is not configured, both CLI and REPL transparently display the full retrieved Scripture context window, pericopes, typological arcs, and an informative notice explaining how to configure the API key.
+  4. **Hermetic Unit Testing**:
+     - Added 5 unit tests in `tests/test_cli.py` covering context-only mode, JSON mode, missing API key fallback, mock non-streaming generation, and mock streaming generation.
+     - Added 3 unit tests in `tests/test_shell.py` covering shell context-only, shell API key notice, and shell live streaming.
+- **Consequences**:
+  - Task 8.2 is 100% complete.
+  - Total test count expanded to 761 hermetic unit tests passing 100% in 4.71s (<5.0s SLA).
+  - `./bible doctor` passes 100% across all 8 health checks with 0 dependencies and 0 linter findings across 79 files.
+
+
 

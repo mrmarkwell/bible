@@ -306,6 +306,38 @@ class TestShell(unittest.TestCase):
             opts = shell.complete_issues("vi", "/issues vi", 0, 0)
             self.assertIn("view", opts)
 
+    def test_shell_ask_context_only(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_ask("--context-only God")
+        val = out.getvalue()
+        self.assertIn("Scripture RAG Retrieved Context", val)
+        self.assertIn("Inquiry: God", val)
+
+    def test_shell_ask_missing_api_key(self):
+        out = io.StringIO()
+        with patch.dict("os.environ", {}, clear=True):
+            with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+                sh.do_ask("God")
+        val = out.getvalue()
+        self.assertIn("GEMINI_API_KEY is not configured", val)
+        self.assertIn("Retrieved Scripture Context", val)
+
+    @patch("core.llm.GeminiClient.generate_stream")
+    @patch("core.llm.get_gemini_api_key")
+    def test_shell_ask_streaming(self, mock_key, mock_stream):
+        from core.llm import StreamChunk
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        mock_stream.return_value = iter([
+            StreamChunk(text="In the beginning, ", finish_reason=None),
+            StreamChunk(text="God created.", finish_reason="STOP"),
+        ])
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_ask("God")
+        val = out.getvalue()
+        self.assertIn("In the beginning, God created.", val)
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -337,6 +369,8 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["vector", "status"]), ["vector", "status"])
         self.assertEqual(preprocess_cli_argv(["issues"]), ["issues"])
         self.assertEqual(preprocess_cli_argv(["bug"]), ["bug"])
+        self.assertEqual(preprocess_cli_argv(["ask", "temple"]), ["ask", "temple"])
+        self.assertEqual(preprocess_cli_argv(["rag", "temple"]), ["rag", "temple"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

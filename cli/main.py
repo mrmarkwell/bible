@@ -8,6 +8,7 @@ Provides commands:
   - translations: List installed scripture translations, copyright status, and verse counts.
   - doctor: Run comprehensive zero-dependency health, dependency, and documentation diagnostics.
   - summary: Generate executive summary and trajectory briefing across recent Ralph iterations.
+  - ask: Query Scripture RAG engine with biblical, thematic, or typological inquiries.
 """
 
 import argparse
@@ -4669,6 +4670,226 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_issues.set_defaults(func=cmd_issues)
 
+    # -------------------------------------------------------------------------
+    # Subcommand: ask (aliases: rag, inquiry)
+    # -------------------------------------------------------------------------
+    parser_ask = subparsers.add_parser(
+        "ask",
+        aliases=["rag", "inquiry"],
+        help="Query Scripture RAG engine with biblical, thematic, or typological inquiries",
+        description=(
+            "Execute Scripture RAG (Retrieval-Augmented Generation) inquiries. "
+            "Retrieves grounded Scripture passages via multi-signal hybrid search "
+            "(FTS5 keywords, semantic tags, typological arcs, and cross-references) "
+            "and optionally synthesizes answers via Google Gemini under TGC theological guardrails."
+        ),
+    )
+    parser_ask.add_argument(
+        "query",
+        nargs="+",
+        help="Natural language inquiry, question, or thematic prompt (e.g. 'How does Jesus fulfill the Day of Atonement?')",
+    )
+    parser_ask.add_argument(
+        "--context-only",
+        action="store_true",
+        help="Retrieve and display grounded Scripture context window without querying LLM",
+    )
+    parser_ask.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream LLM answer tokens in real time via Server-Sent Events",
+    )
+    parser_ask.add_argument(
+        "--show-context",
+        action="store_true",
+        help="Print retrieved Scripture context window details alongside LLM answer",
+    )
+    parser_ask.add_argument(
+        "--max-passages",
+        type=int,
+        default=5,
+        help="Maximum distinct Scripture passages to retrieve (default: 5)",
+    )
+    parser_ask.add_argument(
+        "--max-tokens",
+        type=int,
+        default=4000,
+        help="Maximum estimated token budget for context window (default: 4000)",
+    )
+    parser_ask.add_argument(
+        "--model",
+        default=None,
+        help="Gemini model identifier (defaults to gemini-2.5-pro with gemini-2.0-flash fallback)",
+    )
+    parser_ask.add_argument(
+        "--translation",
+        default="ESV",
+        help="Scripture translation for context retrieval (default: ESV with WEB fallback)",
+    )
+    parser_ask.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON payload (response and retrieved context)",
+    )
+
+    def cmd_ask(args: argparse.Namespace) -> int:
+        from core.db import Database, DEFAULT_DB_PATH
+        from core.rag import ScriptureRAGEngine
+        from core.llm import GeminiClient, LLMAuthError, LLMError, get_gemini_api_key
+
+        query_text = " ".join(getattr(args, "query", []) or []).strip()
+        if not query_text:
+            sys.stderr.write("Error: Inquiry query text cannot be empty.\n")
+            return 1
+
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Error: Database not found at '{db_path}'. Run './bible init'.\n")
+            return 1
+
+        output_json = getattr(args, "json", False)
+        context_only = getattr(args, "context_only", False)
+        show_context = getattr(args, "show_context", False)
+        do_stream = getattr(args, "stream", False)
+        max_passages = getattr(args, "max_passages", 5)
+        max_tokens = getattr(args, "max_tokens", 4000)
+        target_model = getattr(args, "model", None)
+        target_trans = getattr(args, "translation", "ESV") or "ESV"
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[36m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        green = "\033[32m" if color_enabled else ""
+        bold = "\033[1m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        with Database(db_path, auto_init=False) as db:
+            engine = ScriptureRAGEngine(db=db, translation=target_trans)
+            context = engine.retrieve(
+                query_text,
+                max_passages=max_passages,
+                max_tokens=max_tokens,
+                preferred_translation=target_trans,
+            )
+
+            # Context-only mode
+            if context_only:
+                if output_json:
+                    print(json.dumps(context.to_dict(), indent=2))
+                    return 0
+
+                print(f"\n{gold}{bold}=== Scripture RAG Retrieved Context ==={reset}")
+                print(f"{bold}Inquiry:{reset} {query_text}")
+                print(f"{dim}Passages: {len(context.passages)} | Total Verses: {context.total_verses} | Est. Tokens: {context.estimated_tokens}{reset}\n")
+
+                if not context.passages:
+                    print(f"{dim}(No matching scripture passages found for this inquiry.){reset}\n")
+                    return 0
+
+                for idx, p in enumerate(context.passages, 1):
+                    reasons_str = f" [{', '.join(p.retrieval_reasons)}]" if p.retrieval_reasons else ""
+                    print(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}{reasons_str}){reset}")
+                    if p.pericope_title:
+                        print(f"    {dim}Pericope: {p.pericope_title}{reset}")
+                    if p.theological_loci:
+                        print(f"    {dim}Loci: {', '.join(p.theological_loci)}{reset}")
+                    if p.thematic_ribbons:
+                        print(f"    {dim}Thematic Ribbons: {', '.join(p.thematic_ribbons)}{reset}")
+                    if p.typological_arcs:
+                        arc_summaries = [f"{a.get('type_human_ref', a.get('type_ref'))} ➔ {a.get('antitype_human_ref', a.get('antitype_ref'))}" for a in p.typological_arcs[:2]]
+                        print(f"    {dim}Typological Arcs: {'; '.join(arc_summaries)}{reset}")
+                    print(f"    {p.text}\n")
+                return 0
+
+            # Answer synthesis mode
+            api_key = get_gemini_api_key()
+            if not api_key:
+                if output_json:
+                    print(json.dumps({
+                        "error": "GEMINI_API_KEY is not configured",
+                        "context": context.to_dict(),
+                    }, indent=2))
+                    return 1
+                sys.stderr.write(
+                    f"\n{gold}Notice:{reset} GEMINI_API_KEY is not configured. Displaying retrieved Scripture context.\n"
+                    f"{dim}To enable AI answer synthesis, set the GEMINI_API_KEY environment variable.{reset}\n\n"
+                )
+                print(f"{gold}{bold}=== Retrieved Scripture Context ==={reset}")
+                for idx, p in enumerate(context.passages, 1):
+                    print(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}")
+                    print(f"    {p.text}\n")
+                return 1
+
+            client = GeminiClient(api_key=api_key)
+            prompt_payload = context.format_prompt_payload()
+            system_text = prompt_payload["system_instruction"]["parts"][0]["text"]
+            user_prompt = prompt_payload["contents"][0]["parts"][0]["text"]
+
+            if not output_json and not do_stream:
+                print(f"{dim}Synthesizing grounded answer via Google Gemini ({client.model})...{reset}\n")
+
+            if do_stream:
+                if not output_json:
+                    print(f"{bold}Inquiry:{reset} {query_text}\n")
+                streamed_text = []
+                try:
+                    for chunk in client.generate_stream(user_prompt, system_instruction=system_text, model=target_model):
+                        if chunk.text:
+                            streamed_text.append(chunk.text)
+                            sys.stdout.write(chunk.text)
+                            sys.stdout.flush()
+                    print()
+                except LLMError as exc:
+                    sys.stderr.write(f"\nError during streaming generation: {exc}\n")
+                    return 1
+
+                full_text = "".join(streamed_text)
+                if show_context:
+                    print(f"\n{gold}{bold}--- Retrieved Scripture Context ---{reset}")
+                    for idx, p in enumerate(context.passages, 1):
+                        print(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}")
+                        print(f"    {p.text}\n")
+                return 0
+
+            # Non-streaming generation
+            try:
+                llm_resp = client.generate(user_prompt, system_instruction=system_text, model=target_model)
+            except LLMError as exc:
+                sys.stderr.write(f"Error during LLM answer synthesis: {exc}\n")
+                return 1
+
+            if output_json:
+                res_dict = {
+                    "query": query_text,
+                    "answer": llm_resp.text,
+                    "model": llm_resp.model,
+                    "usage": llm_resp.usage,
+                    "latency_seconds": llm_resp.latency_seconds,
+                    "context": context.to_dict(),
+                }
+                print(json.dumps(res_dict, indent=2))
+                return 0
+
+            print(f"{bold}Inquiry:{reset} {query_text}\n")
+            print(f"{llm_resp.text}\n")
+            print(f"{dim}[Model: {llm_resp.model} | Latency: {llm_resp.latency_seconds:.2f}s | Passages: {len(context.passages)}]{reset}\n")
+
+            if show_context:
+                print(f"{gold}{bold}--- Grounded Context Passages ---{reset}")
+                for idx, p in enumerate(context.passages, 1):
+                    reasons = f" [{', '.join(p.retrieval_reasons)}]" if p.retrieval_reasons else ""
+                    print(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}{reasons}){reset}")
+                    print(f"    {p.text}\n")
+
+            return 0
+
+    parser_ask.set_defaults(func=cmd_ask)
+
     return parser
 
 
@@ -4707,6 +4928,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "audit-semantic", "audit", "audit-critic",
         "build-semantic", "compile-semantic", "build-db",
         "issues", "bug", "bugs",
+        "ask", "rag", "inquiry",
     }
 
     pos_idx = -1
