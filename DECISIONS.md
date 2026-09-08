@@ -2486,4 +2486,32 @@ This document is an append-only log of significant design and architectural deci
   - First-time onboarding is now seamless, welcoming, and self-guided with inline validation.
   - Zero third-party dependencies maintained (100% Python standard library per ADR-003).
 
+---
+
+## ADR-075: Sovereign Local Secret Management, Zero-Leak Git Safeguards, and Development vs Serving Credential Demarcation
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Unlocking modern English Standard Version (ESV) text during application development (such as passage retrieval, semantic tagging context, and embedding generation) requires `ESV_API_KEY` (Crossway).
+  - Secret API keys must be securely stored locally without risk of ever being exposed or uploaded to GitHub.
+  - Furthermore, architectural confusion previously arose regarding the role of `GEMINI_API_KEY`: autonomous agents developing the application are themselves powered by Gemini, rendering calls out to the external Gemini API during development (e.g. for semantic tagging or theological classification) redundant and wasteful.
+  - A clear architectural boundary was required: demarcation of `GEMINI_API_KEY` strictly for runtime app serving (`./bible serve`, `./bible chat`), with development tasks using direct agent cognition via local skills (`skills/semantic-tagging/SKILL.md`).
+- **Decision**:
+  1. **Zero-Leak Local Secret Isolation**:
+     - Configured `.gitignore` to strictly exclude all local secret files: `.env`, `.env.*`, `config/`, `*.key`, and `*api_key*` (while explicitly whitelisting `.env.example`).
+     - Stored developer `ESV_API_KEY` in `.env` and `config/esv_api_key.txt` with POSIX `0600` permissions (`-rw-------`, owner read/write only).
+     - Provided committed `.env.example` template documenting configuration options.
+  2. **Credential Discovery & Developer Workflow**:
+     - `core/esv.py` and `tools/onboarding.py` automatically discover `ESV_API_KEY` across `.env`, `config/esv_api_key.txt`, environment variables, and `~/.config/bible/`.
+     - Verified with live Crossway API probe and verified live ESV passage retrieval (`./bible "John 1:1" --version=ESV`).
+  3. **Development vs Runtime Serving Demarcation**:
+     - Formally established that `GEMINI_API_KEY` is required **ONLY** for serving the app (e.g. live dynamic Scripture RAG synthesis and biblical persona dialogue in `./bible serve`), gathered interactively during `./bible init` or `./bible keys wizard`.
+     - For application development tasks like semantic tagging and metadata classification, agents MUST use local skills (`skills/semantic-tagging/SKILL.md`) and local prompts (`core/tag_prompts.py`, `core/semantic_prompts.py`) rather than calling external Gemini APIs.
+     - Documented in `AGENTS.md`, `GEMINI.md`, `README.md`, and `skills/semantic-tagging/SKILL.md`.
+- **Consequences**:
+  - `ESV_API_KEY` is safely isolated locally and will never be committed or uploaded to GitHub.
+  - Eliminates wasteful API spend during development and clarifies blocker escalation policies for autonomous agents.
+  - Preserves 100% Zero-Dependency and Offline-First invariants per ADR-003.
+
+
 

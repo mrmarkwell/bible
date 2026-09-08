@@ -18,6 +18,7 @@ from tools.doctor import (
     check_bash_scripts,
     check_git_hooks,
     check_ci_workflows,
+    check_secret_leak_prevention,
     check_code_quality,
     check_module_test_symmetry,
     check_database_integrity,
@@ -138,13 +139,14 @@ class TestDoctorChecks(unittest.TestCase):
              patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 7)
+            self.assertEqual(len(results), 8)
             names = [r.name for r in results]
             self.assertIn("Zero External Dependencies (AST Audit)", names)
             self.assertIn("Documentation State Sync", names)
             self.assertIn("Shell Script Integrity", names)
             self.assertIn("Git Hook Safeguards", names)
             self.assertIn("CI/CD Automation & GitHub Actions", names)
+            self.assertIn("Secret Leak Safeguards", names)
             self.assertIn("Code Quality (Static Linter Audit)", names)
             self.assertIn("Module-Test Suite Symmetry", names)
             self.assertNotIn("Hermetic Test Suite", names)
@@ -168,9 +170,10 @@ class TestDoctorChecks(unittest.TestCase):
              patch("tools.doctor.check_unit_tests", return_value=CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 9)
+            self.assertEqual(len(results), 10)
             for r in results:
                 self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
+
 
     def test_check_module_test_symmetry(self):
         res = check_module_test_symmetry(REPO_ROOT)
@@ -259,8 +262,29 @@ class TestDoctorChecks(unittest.TestCase):
             self.assertIn("missing required top-level keys", res.details)
             self.assertIn("no 'runs-on:'", res.details)
 
+    def test_check_secret_leak_prevention_repo_clean(self):
+        res = check_secret_leak_prevention(REPO_ROOT)
+        self.assertTrue(res.passed, f"Secret leak check failed: {res.details}")
+        self.assertIn("0 secret files tracked in git", res.details)
+
+    def test_check_secret_leak_prevention_anomalies(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            # Missing .gitignore
+            res = check_secret_leak_prevention(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("Missing .gitignore", res.details)
+
+            # Incomplete .gitignore
+            gi = tmp_path / ".gitignore"
+            gi.write_text("*.pyc\n", encoding="utf-8")
+            res = check_secret_leak_prevention(tmp_path)
+            self.assertFalse(res.passed)
+            self.assertIn("missing required secret exclusion pattern", res.details)
+
     def test_check_database_integrity_semantic_schema_and_foreign_keys(self):
         res = check_database_integrity(REPO_ROOT)
+
         self.assertTrue(res.passed, f"DB integrity check failed: {res.details}")
         self.assertIn("PRAGMA quick_check & FK passed", res.details)
         self.assertIn("tables verified", res.details)
@@ -386,8 +410,9 @@ class TestDoctorChecks(unittest.TestCase):
              patch("tools.doctor.check_unit_tests", return_value=CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True, credentials=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 10)
+            self.assertEqual(len(results), 11)
             self.assertTrue(any(r.name == "API Credentials & Services" for r in results))
+
 
 
 if __name__ == "__main__":

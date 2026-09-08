@@ -2,8 +2,11 @@
 *.jpg
 *.jpeg
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 *.sqlite
+
 __pycache__/
 *.pyc
 node_modules/
@@ -13,3 +16,8 @@ build/
 .env.*
 !.env.example
 .test_timing_cache.json
+
+# Local Secrets & API Key Storage (Zero-Leak Safeguards)
+config/
+*.key
+*api_key*

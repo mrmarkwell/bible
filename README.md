@@ -196,6 +196,32 @@ Bible Engine is designed to outlive ephemeral framework lifecycles and operate p
    - Git pre-push hook executes complete hermetic test discovery and database validation before remote sync.
 4. **Hermetic & Fast Test Suite**:
    - 350+ unit and integration tests executing in `<5.5s` offline (`python3 -m unittest discover tests`).
+5. **Sovereign Local Secret Management & Zero-Leak Safeguards ([ADR-075](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-075-sovereign-local-secret-management-zero-leak-git-safeguards-and-development-vs-serving-credential-demarcation))**:
+   - Local `.env` and `config/*` secret files are enforced with POSIX `0600` permissions (owner read/write only).
+   - `.gitignore` rigorously isolates all credentials (`.env`, `config/`, `*.key`, `*api_key*`) preventing accidental upload to GitHub.
+   - Pre-commit and doctor audits guarantee no credentials or secret files are ever tracked in version control.
+
+---
+
+## API Credentials & Local Configuration
+
+Bible Engine operates completely offline with the public-domain World English Bible (`WEB`). External credentials unlock enhanced translations and serving capabilities:
+
+| Credential | Scope & Purpose | Where to Find / Configure |
+|---|---|---|
+| `ESV_API_KEY` | **Application Development & Scripture Ingestion**<br>Used for live modern English Standard Version text retrieval, translation comparison, semantic tagging context, and pericope embedding generation. | Stored locally in `.env` (`ESV_API_KEY=...`) or `config/esv_api_key.txt` (POSIX 0600, excluded from git). Managed via `./bible keys set --esv <key>`. Free key from [api.esv.org](https://api.esv.org/). |
+| `GEMINI_API_KEY` | **Runtime App Serving ONLY**<br>Needed strictly for end-user dynamic Scripture RAG answer synthesis and biblical character dialogue in `./bible serve` or `./bible chat`.<br>*(Not needed for application development like semantic tagging; development agents use local skills).* | Configured interactively during `./bible init` or `./bible keys wizard`, or via `.env`. Free key from [Google AI Studio](https://aistudio.google.com/). |
+
+```bash
+# View current credential configuration and probe status:
+./bible keys status
+./bible keys probe
+
+# Configure keys interactively:
+./bible keys wizard
+# Or directly:
+./bible keys set --esv <YOUR_KEY>
+```
 
 ---
 

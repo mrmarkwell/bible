@@ -194,6 +194,9 @@ def run_single_test_module(
     env["PYTHONPATH"] = str(repo_root)
     # Prevent child processes from attempting terminal escapes
     env["TERM"] = "dumb"
+    env["BIBLE_TEST_MODE"] = "1"
+    env["BIBLE_OFFLINE"] = "1"
+
 
     try:
         proc = subprocess.run(

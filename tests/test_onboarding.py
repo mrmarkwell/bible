@@ -40,9 +40,13 @@ class TestOnboarding(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.test_root = Path(self.temp_dir.name)
+        self._repo_patcher = patch("tools.onboarding.REPO_ROOT", self.test_root)
+        self._repo_patcher.start()
 
     def tearDown(self):
+        self._repo_patcher.stop()
         self.temp_dir.cleanup()
+
 
     def test_mask_api_key(self):
         """Verify API keys are masked safely."""

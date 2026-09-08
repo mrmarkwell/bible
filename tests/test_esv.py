@@ -57,8 +57,11 @@ class TestESVKeyDiscovery(unittest.TestCase):
 
     def test_unset_key_returns_none(self):
         with patch.dict(os.environ, {}, clear=True):
-            with patch("core.esv.Path.cwd", return_value=Path("/tmp/nonexistent")):
+            with patch("core.esv.Path.cwd", return_value=Path("/tmp/nonexistent")), \
+                 patch("core.esv.Path.home", return_value=Path("/tmp/nonexistent_home")), \
+                 patch("core.esv.REPO_ROOT", Path("/tmp/nonexistent_repo")):
                 self.assertIsNone(get_esv_api_key(None))
+
 
 
 class TestESVAttributionAndParsing(unittest.TestCase):

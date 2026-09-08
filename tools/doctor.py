@@ -436,6 +436,55 @@ def check_ci_workflows(repo_root: Path) -> CheckResult:
     )
 
 
+def check_secret_leak_prevention(repo_root: Path) -> CheckResult:
+    """Verify that secret credential files (.env, config/ keys) are isolated and not tracked in git."""
+    t0 = time.time()
+    issues: List[str] = []
+
+    # 1. Verify .gitignore isolates secret patterns
+    gitignore = repo_root / ".gitignore"
+    if not gitignore.exists():
+        issues.append("Missing .gitignore file")
+    else:
+        gi_text = gitignore.read_text(encoding="utf-8")
+        for required_pattern in (".env", "config/"):
+            if required_pattern not in gi_text:
+                issues.append(f".gitignore missing required secret exclusion pattern: '{required_pattern}'")
+
+    # 2. Inspect git index for any accidentally tracked secret files
+    git_dir = repo_root / ".git"
+    if git_dir.exists():
+        try:
+            proc = subprocess.run(
+                ["git", "ls-files", ".env*", "config/", "*.key", "*api_key*"],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                tracked_secrets = [
+                    line.strip()
+                    for line in proc.stdout.splitlines()
+                    if line.strip() and not line.strip().endswith(".example")
+                ]
+                if tracked_secrets:
+                    issues.append(f"Secret credential files tracked in git: {tracked_secrets}")
+        except Exception as exc:
+            issues.append(f"Failed to inspect git tracked files: {exc}")
+
+    dur = time.time() - t0
+    if issues:
+        return CheckResult("Secret Leak Safeguards", False, "; ".join(issues), dur)
+    return CheckResult(
+        "Secret Leak Safeguards",
+        True,
+        ".gitignore isolates credentials (.env, config/), 0 secret files tracked in git",
+        dur,
+    )
+
+
+
 def check_code_quality(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify code quality, syntax compilation, and AST hygiene via zero-dependency linter."""
     from tools.linter import lint_repository
@@ -972,8 +1021,16 @@ def run_all_checks(
     if not res.passed:
         failed = True
 
-    # 6. Code Quality & Static Analysis
+    # 6. Secret Leak Safeguards (Zero-Leak Git Isolation)
+    res = check_secret_leak_prevention(root)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 7. Code Quality & Static Analysis
     res = check_code_quality(root, fix=fix)
+
     results.append(res)
     _emit_check(res, styler, emit)
     if not res.passed:

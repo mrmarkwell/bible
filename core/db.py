@@ -12,10 +12,14 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 import re
 import sqlite3
+import sys
+
 from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple, Union
+
 
 from core.reference import (
     ALL_BOOKS,
@@ -1255,15 +1259,27 @@ class Database:
 
             # 2. Attempt live ESV API fetch if allowed
             if allow_network:
-                client = self.get_esv_client()
-                if client.is_available():
-                    try:
-                        fetched = client.fetch_verses(ref)
-                        if fetched:
-                            self.save_esv_cached_verses(fetched)
-                            return fetched, "ESV", False
-                    except Exception:
-                        pass
+                has_custom_client = getattr(self, "_esv_client", None) is not None
+                if has_custom_client:
+                    is_offline = False
+                else:
+                    is_offline = (
+                        os.environ.get("BIBLE_OFFLINE") == "1"
+                        or os.environ.get("BIBLE_TEST_MODE") == "1"
+                        or "unittest" in sys.modules
+                    )
+                if not is_offline:
+                    client = self.get_esv_client()
+                    if client.is_available():
+
+                        try:
+                            fetched = client.fetch_verses(ref)
+                            if fetched:
+                                self.save_esv_cached_verses(fetched)
+                                return fetched, "ESV", False
+                        except Exception:
+                            pass
+
 
             # 3. If ESV unavailable, cascade to fallback
             if fallback_id:

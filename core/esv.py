@@ -27,8 +27,12 @@ from core.reference import (
     verse_canonical_id,
 )
 
+# Base repository root directory
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
 # Crossway ESV API Endpoints & Configuration
 ESV_API_BASE_URL = "https://api.esv.org/v3/passage/text/"
+
 DEFAULT_TRANSLATION = "ESV"
 FALLBACK_TRANSLATION = "WEB"
 ESV_MAX_CACHE_VERSES = 500  # Strict Crossway legal compliance limit
@@ -100,13 +104,19 @@ def get_esv_api_key(explicit_key: Optional[str] = None) -> Optional[str]:
     if env_val and env_val.strip():
         return env_val.strip()
 
+    # In hermetic test mode, do not read local developer secrets from disk unless explicitly passed
+    if os.environ.get("BIBLE_TEST_MODE") == "1":
+        return None
+
     # Search potential file paths
+
     candidate_paths: List[Path] = [
         Path.cwd() / ".env",
-        Path(__file__).resolve().parent.parent / ".env",
-        Path(__file__).resolve().parent.parent / "config" / "esv_api_key.txt",
+        REPO_ROOT / ".env",
+        REPO_ROOT / "config" / "esv_api_key.txt",
         Path.home() / ".config" / "bible" / "esv_api_key",
     ]
+
 
     for p in candidate_paths:
         try:

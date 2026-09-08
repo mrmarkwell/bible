@@ -49,7 +49,11 @@ def discover_esv_api_key(repo_root: Optional[Path] = None) -> Tuple[Optional[str
     if env_val and env_val.strip():
         return env_val.strip(), "environment variable ESV_API_KEY"
 
+    if os.environ.get("BIBLE_TEST_MODE") == "1" and repo_root is None:
+        return None, "not configured"
+
     candidates = [
+
         (root / "config" / "esv_api_key.txt", "repository config file"),
         (root / ".env", "repository .env file"),
         (USER_ESV_KEY_FILE, "user home config (~/.config/bible/esv_api_key)"),
