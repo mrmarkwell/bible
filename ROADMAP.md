@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio (Complete)
-- **Overall Progress**: All 9 Phases Complete (Phase 0 through Phase 8) — 100% Roadmap Achievement (63/63 tasks)
+- **Active Phase**: Phase 0 & Phase 2 (New Feature Requests Ingested)
+- **Overall Progress**: 64 Completed / 66 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -39,7 +39,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.23**: Implement Sovereign Interactive REPL Persona Dialogue Studio (`/chat`, `/persona`, `/characters`), Hermetic Test Suite for `tools/ci.py` (`tests/test_ci.py`), Module-Test Symmetry Diagnostic in `tools/doctor.py`, Dotted Import Resolution in `tools/linter.py`, and Python 3.13 CI Matrix Modernization (ADR-069). *(Run 065 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.24**: Implement Omnichannel CI Status Engine (`./bible ci`, REPL `/ci`), Dedicated Semantic Compiler Test Suite (`tests/test_build_semantic_db.py`), Pure 1-to-1 Module-Test Symmetry, and Static Analysis Namespace Hygiene (ADR-070). *(Run 066 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.25**: Implement Autonomous GitHub Actions CI/CD Pre-Check Sentry (`tools/ci.py check`, `./bible ci check`), Fork-Safe ThreadPool Test Concurrency, and Self-Healing CI Priority Protocol (ADR-072). *(Run 068)*
-
+- [ ] **Task 0.26**: Implement Interactive API Key Setup Wizard in `./bible init` for User-Friendly Onboarding (`ESV_API_KEY`, `GEMINI_API_KEY`, validation probes, and headless flags).
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
@@ -56,6 +56,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`). *(Run 018)*
 - [x] **Task 2.4**: Formatted terminal output (clean margins, text wrapping, optional verse numbers, paragraph breaks, colored ANSI styling using standard library). *(Run 019)*
 - [x] **Task 2.5**: Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041). *(Run 042 / ADR-045)*
+- [ ] **Task 2.6**: Align CLI help texts, argument defaults, and transparent fallback notifications (`default: ESV with offline WEB fallback`).
 
 ### Phase 3: Semantic Tagging & Knowledge Database Engine
 - [x] **Task 3.1**: Create Tagging API allowing tags on individual verses or arbitrary verse spans (e.g., `Romans 8:1-11` -> `Holy Spirit`, `Sanctification`). *(Run 022 / ADR-023)*

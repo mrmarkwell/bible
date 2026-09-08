@@ -721,3 +721,36 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Expose `/chat <character>` in `cli/shell.py` with multi-turn conversation loop and tab autocompletion across personas.
   - [ ] Add hermetic unit tests in `tests/test_cli.py` and `tests/test_shell.py`.
 - **Status**: [VETTED] (Rank A+; Promoted in Run 059).
+
+---
+
+### [VETTED] Interactive API Key Setup Wizard in `./bible init` for Frictionless User Onboarding (Rank A+)
+- **Summary**: Enhance `./bible init` with an interactive, user-friendly onboarding wizard that prompts the user to configure `ESV_API_KEY` (unlocking the primary ESV translation and live passage fetching) and `GEMINI_API_KEY` (unlocking online Scripture RAG and biblical persona dialogue). If keys are provided, securely write them to local configuration (`config/esv_api_key.txt`, `~/.config/bible/esv_api_key`, or `.env`), validate them with live health-check probes, and eliminate silent degradation across the system. Provide non-interactive flags (`--esv-key <key>`, `--gemini-key <key>`, `--non-interactive`) for headless environments.
+- **Rationale**: Currently, when a user boots the platform without pre-existing environment variables, commands silently fall back to `WEB` or emit warnings without guiding the user through how to obtain and persist these free credentials. Making initialization interactive, welcoming, and self-guiding ensures all primary capabilities (ESV word-for-word text, AI RAG exegesis, persona conversations) are unlocked immediately upon install.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (optional keys; if skipped, clearly informs the user of public-domain offline WEB mode without failing).
+  - Zero third-party dependencies? Yes (Python 3 standard library `getpass`/`input`, `pathlib`, `urllib.request`).
+  - Secure? Yes (stores keys in local user configuration with restrictive POSIX permissions `0600`).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.26 / ADR-073).
+- **Suggested Tasks**:
+  - [ ] Add interactive credential prompt to `tools/bootstrap.py` and `cli/main.py` during `./bible init`.
+  - [ ] Provide helper instructions on how to get free keys from api.esv.org and Google AI Studio.
+  - [ ] Add non-interactive flag support for scripted setup.
+  - [ ] Add hermetic unit tests in `tests/test_bootstrap.py` and `tests/test_cli.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Unified Translation Default Alignment & Transparent CLI Fallback Notices (Rank A+)
+- **Summary**: Harmonize all CLI help messages, argument parsers, and execution routines so that the default translation is consistently documented and reported as `ESV` (matching internal routing in `DEFAULT_TRANSLATION` per ADR-041/045). When an ESV query cascades to `WEB` because no `ESV_API_KEY` is configured, always output a clean, non-intrusive one-line informational notice (e.g. `Notice: ESV requested but ESV_API_KEY not configured. Displaying WEB (World English Bible). Run './bible init' to configure ESV.`) rather than silently outputting WEB without explanation.
+- **Rationale**: Resolves the confusing cognitive dissonance where `--help` states `default: WEB`, internal code routes to `ESV`, and the CLI silently produces `WEB` text without explaining that ESV was intended but cascaded due to a missing API key.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes.
+- **Proposed Roadmap Phase**: Phase 2 (Task 2.6).
+- **Suggested Tasks**:
+  - [ ] Update `parser_get`, `parser_compare`, and other CLI help texts in `cli/main.py` to specify `default: ESV (with offline WEB fallback)`.
+  - [ ] Ensure `get_verses_with_fallback` prints a transparent, informative message when cascading from default ESV to WEB.
+  - [ ] Add unit tests verifying consistent help text and fallback messaging in `tests/test_cli.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
