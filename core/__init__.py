@@ -282,6 +282,17 @@ from core.semantic_audit import (
     validate_canonical_coordinate,
     validate_canonical_span,
 )
+from core.semantic_compiler import (
+    CheckpointRecord,
+    CompilationProgress,
+    CompilationUnit,
+    CompilationUnitStatus,
+    RateLimiter,
+    SemanticCheckpointLedger,
+    SemanticDatabaseCompiler,
+    get_semantic_compiler,
+)
+
 
 
 
@@ -545,5 +556,14 @@ __all__ = [
     "is_valid_canonical_coordinate",
     "validate_canonical_coordinate",
     "validate_canonical_span",
+    # Resumable Batch Semantic Compilation Engine & Checkpoint Ledger
+    "CheckpointRecord",
+    "CompilationProgress",
+    "CompilationUnit",
+    "CompilationUnitStatus",
+    "RateLimiter",
+    "SemanticCheckpointLedger",
+    "SemanticDatabaseCompiler",
+    "get_semantic_compiler",
 ]
 

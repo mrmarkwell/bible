@@ -2254,6 +2254,47 @@ class BibleShell(cmd.Cmd):
         """Auto-complete for /vec alias."""
         return self.complete_vector(text, line, begidx, endidx)
 
+    def do_build_semantic(self, arg: str) -> None:
+        """Resumable batch semantic compiler & whole-Bible database builder.
+
+        Usage:
+          /build-semantic status              Inspect compilation ledger status
+          /build-semantic dry-run [book]      Preview compilation units
+          /build-semantic run [book]          Execute compilation
+          /build-semantic reset-failed        Reset failed units back to PENDING
+        """
+        parts = arg.strip().split()
+        action = parts[0].lower() if parts else "status"
+
+        from tools.build_semantic_db import run_semantic_build
+        db_path = self.db_path
+
+        if action == "status":
+            run_semantic_build(db_path=db_path, status_only=True)
+        elif action == "dry-run":
+            b_filter = parts[1] if len(parts) > 1 else None
+            run_semantic_build(db_path=db_path, book_filter=b_filter, dry_run=True)
+        elif action == "reset-failed":
+            run_semantic_build(db_path=db_path, reset_failed=True)
+        elif action in ("run", "start", "compile"):
+            b_filter = parts[1] if len(parts) > 1 else None
+            run_semantic_build(db_path=db_path, book_filter=b_filter)
+        else:
+            self.stdout.write(f"Unknown action '{action}'. Available: status, dry-run, run, reset-failed\n")
+
+    def do_compile_semantic(self, arg: str) -> None:
+        """Alias for /build-semantic."""
+        self.do_build_semantic(arg)
+
+    def complete_build_semantic(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /build-semantic."""
+        options = ["status", "dry-run", "run", "reset-failed"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    def complete_compile_semantic(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /compile-semantic."""
+        return self.complete_build_semantic(text, line, begidx, endidx)
+
     # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
@@ -2275,6 +2316,7 @@ Study & Search:
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
   /vector [action]        Semantic vector similarity engine & search (alias: /vec)
+  /build-semantic [act]   Resumable batch semantic compiler & whole-Bible builder (alias: /compile-semantic)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
 

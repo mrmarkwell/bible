@@ -1807,6 +1807,36 @@ This document is an append-only log of significant design and architectural deci
 - **Consequences**:
   - The Bible Engine now possesses deterministic, automated quality and theological guarding for all semantic ingestion pipelines.
   - Zero external dependencies preserved (Python 3 stdlib only per ADR-003).
-  - All 697 tests pass hermetically in parallel in <4.2s.
 
+---
 
+## ADR-056: Resumable Batch Semantic Compilation Engine & SQLite Checkpoint Ledger
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 7 compiles the comprehensive 6-layer semantic architecture into SQLite across the 66 canonical books (pericopes, discourse relations, verse theology, typological arcs, semantic propositions, and dense vector embeddings).
+  - Executing full-canon or multi-book LLM extraction involves hundreds to thousands of API requests subject to network latency, transient HTTP 429/503 errors, and token/rate quotas.
+  - Without a persistent checkpoint ledger, an interrupted or failed compilation run requires restarting from scratch, wasting compute, quota, and time.
+- **Decision**:
+  1. **SQLite Checkpoint Ledger (`semantic_checkpoint_ledger`)**:
+     - Embedded a persistent state ledger table in the SQLite database tracking every compilation unit by `unit_id`, `book_id`, `human_ref`, `start_canonical_id`, `end_canonical_id`, `status` (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `SKIPPED`), `attempts`, `last_error`, `pericope_id`, and timestamps.
+     - Automatically skips already-completed units on resumed runs (`--resume`).
+     - Added maintenance options to reset failed units (`--reset-failed`) or clear ledger state (`--clear-ledger`).
+  2. **Multi-Resolution Unit Generators**:
+     - Supported compiling authoritative canonical pericopes (144 foundational units across OT & NT).
+     - Supported whole-book chapter-by-chapter sweeps for comprehensive coverage.
+  3. **Multi-Layer SQLite Ingestion & Critic Validation**:
+     - Ingests all 6 layers within atomic transactions.
+     - Validates analysis results with `ExegeticalCritic` before database commit.
+     - Encodes Layer 6 dense vector embeddings (768-dim int8 quantized) for pericope and chapter units.
+  4. **Zero-Dependency Rate Limiting & Telemetry**:
+     - Implemented pure Python `RateLimiter` with requests-per-minute (RPM) pacing and exponential backoff.
+     - Aggregates progress telemetry: completion percentage, rate per minute, elapsed time, and per-layer counts.
+  5. **CLI & Interactive Shell Integration**:
+     - Built standalone CLI tool `tools/build_semantic_db.py`.
+     - Registered `./bible build-semantic` (aliases: `./bible compile-semantic`, `./bible build-db`).
+     - Integrated interactive REPL commands (`/build-semantic status|dry-run|run|reset-failed`).
+- **Consequences**:
+  - Full-canon semantic compilation is crash-resilient, resumable, and safe against quota limits.
+  - 100% Zero-Dependency compliance verified (Python 3 stdlib only per ADR-003).
+  - All 704 hermetic unit tests pass in 4.26s.

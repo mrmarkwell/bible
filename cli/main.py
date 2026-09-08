@@ -4485,6 +4485,103 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_audit_semantic.set_defaults(func=cmd_audit_semantic)
 
+    # Subcommand: build-semantic (aliases: compile-semantic, build-db)
+    parser_build_semantic = subparsers.add_parser(
+        "build-semantic",
+        aliases=["compile-semantic", "build-db"],
+        help="Resumable batch semantic compiler & whole-Bible database builder",
+        description="Compile 6-layer semantic exegesis (pericopes, discourse, theology, typology, propositions, vectors) into SQLite with crash-resilient ledger resumption.",
+    )
+    parser_build_semantic.add_argument(
+        "--book",
+        type=str,
+        default=None,
+        help="Filter compilation to a specific canonical book (e.g. 'Romans', 'Genesis')",
+    )
+    parser_build_semantic.add_argument(
+        "--no-resume",
+        action="store_false",
+        dest="resume",
+        default=True,
+        help="Do not skip previously completed units; reprocess all",
+    )
+    parser_build_semantic.add_argument(
+        "--reset-failed",
+        action="store_true",
+        help="Reset all failed units in the ledger back to PENDING",
+    )
+    parser_build_semantic.add_argument(
+        "--clear-ledger",
+        action="store_true",
+        help="Clear checkpoint records from the ledger",
+    )
+    parser_build_semantic.add_argument(
+        "--status",
+        action="store_true",
+        help="Inspect current checkpoint ledger counts without executing compilation",
+    )
+    parser_build_semantic.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan and list compilation units without executing LLM analysis",
+    )
+    parser_build_semantic.add_argument(
+        "--version",
+        "-v_id",
+        dest="version",
+        type=str,
+        default="ESV",
+        help="Target scripture translation for passage context (default: ESV)",
+    )
+    parser_build_semantic.add_argument(
+        "--rpm",
+        type=float,
+        default=15.0,
+        help="Rate limit in requests per minute (default: 15.0)",
+    )
+    parser_build_semantic.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Skip generating dense vector embeddings",
+    )
+    parser_build_semantic.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enforce strict ExegeticalCritic error thresholds",
+    )
+    parser_build_semantic.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON telemetry",
+    )
+    parser_build_semantic.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print detailed progress and failure reasons",
+    )
+
+    def cmd_build_semantic(args: argparse.Namespace) -> int:
+        from tools.build_semantic_db import run_semantic_build
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        return run_semantic_build(
+            db_path=db_path,
+            book_filter=getattr(args, "book", None),
+            resume=getattr(args, "resume", True),
+            reset_failed=getattr(args, "reset_failed", False),
+            clear_ledger=getattr(args, "clear_ledger", False),
+            status_only=getattr(args, "status", False),
+            dry_run=getattr(args, "dry_run", False),
+            translation_id=getattr(args, "version", "ESV"),
+            rate_limit_rpm=getattr(args, "rpm", 15.0),
+            no_embeddings=getattr(args, "no_embeddings", False),
+            strict_critic=getattr(args, "strict", False),
+            json_output=getattr(args, "json", False),
+            verbose=getattr(args, "verbose", False),
+        )
+
+    parser_build_semantic.set_defaults(func=cmd_build_semantic)
+
     return parser
 
 
@@ -4521,6 +4618,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "bench", "benchmark", "perf",
         "vector", "vec", "embedding", "embeddings",
         "audit-semantic", "audit", "audit-critic",
+        "build-semantic", "compile-semantic", "build-db",
     }
 
     pos_idx = -1
