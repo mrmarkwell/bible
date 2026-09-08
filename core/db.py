@@ -2560,6 +2560,43 @@ class Database:
         cur.close()
         return row[0] if row else 0
 
+    def get_all_pericopes(
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[PericopeRecord]:
+        """Retrieve all pericope records ordered canonically by start coordinate."""
+        cur = self.conn.cursor()
+        query = """
+            SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
+                   redemptive_summary, genre, literary_structure, central_proposition, created_at
+            FROM pericopes
+            ORDER BY start_canonical_id ASC, id ASC
+        """
+        params: List[Any] = []
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            PericopeRecord(
+                id=r["id"],
+                book_id=r["book_id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                title=r["title"],
+                redemptive_summary=r["redemptive_summary"],
+                genre=r["genre"],
+                literary_structure=r["literary_structure"],
+                central_proposition=r["central_proposition"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
     def clear_pericopes(self, book_id: Optional[int] = None) -> int:
         """Remove pericope headings (optionally filtered by book_id)."""
         with self.conn:
@@ -2780,6 +2817,42 @@ class Database:
         row = cur.fetchone()
         cur.close()
         return row[0] if row else 0
+
+    def get_all_discourse_relations(
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[DiscourseRelationRecord]:
+        """Retrieve all discourse relations ordered canonically by source coordinate."""
+        cur = self.conn.cursor()
+        query = """
+            SELECT id, source_canonical_id, source_human_ref, target_canonical_id, target_human_ref,
+                   relation_type, marker_text, greek_marker, notes, created_at
+            FROM discourse_relations
+            ORDER BY source_canonical_id ASC, id ASC
+        """
+        params: List[Any] = []
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            DiscourseRelationRecord(
+                id=r["id"],
+                source_canonical_id=r["source_canonical_id"],
+                source_human_ref=r["source_human_ref"],
+                target_canonical_id=r["target_canonical_id"],
+                target_human_ref=r["target_human_ref"],
+                relation_type=r["relation_type"],
+                marker_text=r["marker_text"],
+                greek_marker=r["greek_marker"],
+                notes=r["notes"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
 
     def clear_discourse_relations(self) -> int:
         """Remove all discourse relations from database."""
@@ -3068,6 +3141,42 @@ class Database:
         cur.close()
         return row[0] if row else 0
 
+    def get_all_verse_theology(
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[VerseTheologyRecord]:
+        """Retrieve all verse theology annotations ordered canonically by start coordinate."""
+        cur = self.conn.cursor()
+        query = """
+            SELECT id, start_canonical_id, end_canonical_id, human_ref, storyline_epoch,
+                   thematic_ribbon, theological_locus, primary_doctrine, confidence, created_at
+            FROM verse_theology
+            ORDER BY start_canonical_id ASC, id ASC
+        """
+        params: List[Any] = []
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            VerseTheologyRecord(
+                id=r["id"],
+                start_canonical_id=r["start_canonical_id"],
+                end_canonical_id=r["end_canonical_id"],
+                human_ref=r["human_ref"],
+                storyline_epoch=r["storyline_epoch"],
+                thematic_ribbon=r["thematic_ribbon"],
+                theological_locus=r["theological_locus"],
+                primary_doctrine=r["primary_doctrine"],
+                confidence=r["confidence"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
     def clear_verse_theology(self) -> int:
         """Remove all verse theology rows."""
         with self.conn:
@@ -3247,6 +3356,43 @@ class Database:
         row = cur.fetchone()
         cur.close()
         return row[0] if row else 0
+
+    def get_all_typological_arcs(
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[TypologicalArcRecord]:
+        """Retrieve all typological arcs ordered canonically by type start coordinate."""
+        cur = self.conn.cursor()
+        query = """
+            SELECT id, type_start_id, type_end_id, type_human_ref, antitype_start_id,
+                   antitype_end_id, antitype_human_ref, theological_correspondence, warrant, confidence, created_at
+            FROM typological_arcs
+            ORDER BY type_start_id ASC, id ASC
+        """
+        params: List[Any] = []
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            TypologicalArcRecord(
+                id=r["id"],
+                type_start_id=r["type_start_id"],
+                type_end_id=r["type_end_id"],
+                type_human_ref=r["type_human_ref"],
+                antitype_start_id=r["antitype_start_id"],
+                antitype_end_id=r["antitype_end_id"],
+                antitype_human_ref=r["antitype_human_ref"],
+                theological_correspondence=r["theological_correspondence"],
+                warrant=r["warrant"],
+                confidence=r["confidence"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
 
     def clear_typological_arcs(self) -> int:
         """Remove all typological arcs."""
@@ -3488,6 +3634,41 @@ class Database:
         row = cur.fetchone()
         cur.close()
         return row[0] if row else 0
+
+    def get_all_semantic_propositions(
+        self,
+        limit: Optional[int] = None,
+        offset: int = 0,
+    ) -> List[SemanticPropositionRecord]:
+        """Retrieve all semantic propositions ordered canonically by verse coordinate."""
+        cur = self.conn.cursor()
+        query = """
+            SELECT id, canonical_verse_id, human_ref, speech_act, agent, action, patient, tone, clause_text, created_at
+            FROM semantic_propositions
+            ORDER BY canonical_verse_id ASC, id ASC
+        """
+        params: List[Any] = []
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            SemanticPropositionRecord(
+                id=r["id"],
+                canonical_verse_id=r["canonical_verse_id"],
+                human_ref=r["human_ref"],
+                speech_act=r["speech_act"],
+                agent=r["agent"],
+                action=r["action"],
+                patient=r["patient"],
+                tone=r["tone"],
+                clause_text=r["clause_text"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
 
     def clear_semantic_propositions(self) -> int:
         """Remove all semantic propositions."""

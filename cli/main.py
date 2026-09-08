@@ -4434,6 +4434,57 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_vector.set_defaults(func=cmd_vector)
 
+    # Subcommand: audit-semantic (aliases: audit, audit-critic)
+    parser_audit_semantic = subparsers.add_parser(
+        "audit-semantic",
+        aliases=["audit", "audit-critic"],
+        help="Audit semantic database coordinates, schemas, and whole-Bible coverage",
+        description="Audit coordinate boundaries (BBCCCVVV), schema validation, character entity deduplication, and whole-Bible coverage.",
+    )
+    parser_audit_semantic.add_argument(
+        "--no-coverage",
+        dest="coverage",
+        action="store_false",
+        default=True,
+        help="Skip whole-Bible verse coverage calculation",
+    )
+    parser_audit_semantic.add_argument(
+        "--book",
+        type=str,
+        default=None,
+        help="Filter audit to a specific canonical book (e.g. 'Romans', 'Genesis')",
+    )
+    parser_audit_semantic.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as machine-readable JSON",
+    )
+    parser_audit_semantic.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show detailed findings and suggested remediation fixes",
+    )
+    parser_audit_semantic.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enforce strict error severity on missing pericope central propositions/summaries",
+    )
+
+    def cmd_audit_semantic(args: argparse.Namespace) -> int:
+        from tools.audit_semantic import run_semantic_audit
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        return run_semantic_audit(
+            db_path=db_path,
+            include_coverage=getattr(args, "coverage", True),
+            book_filter=getattr(args, "book", None),
+            json_output=getattr(args, "json", False),
+            verbose=getattr(args, "verbose", False),
+            strict=getattr(args, "strict", False),
+        )
+
+    parser_audit_semantic.set_defaults(func=cmd_audit_semantic)
+
     return parser
 
 
@@ -4469,6 +4520,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "gemini", "llm", "gemini-api",
         "bench", "benchmark", "perf",
         "vector", "vec", "embedding", "embeddings",
+        "audit-semantic", "audit", "audit-critic",
     }
 
     pos_idx = -1

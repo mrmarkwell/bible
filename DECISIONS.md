@@ -1767,3 +1767,46 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies preserved (ADR-003).
   - All 668 unit tests passing hermetically in <4.0s.
 
+---
+
+## ADR-055: Exegetical Critic Engine, Canonical Coordinate Boundary Catalog & 100% Whole-Bible Coverage Auditor
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 7 of the Bible Engine roadmap aims to construct a 100% whole-Bible semantic database across all 66 canonical books (1,189 chapters, 31,103 verses) with deep relational analysis (pericopes, discourse relations, verse theology, typological arcs, semantic propositions).
+  - Large-scale extraction and enrichment processes are vulnerable to several failure modes:
+    1. **Coordinate Corruption & Hallucination**: AI models and manual annotations may hallucinate verse boundaries beyond canonical chapter limits (e.g. Genesis 1:32 or Psalm 119:177), generate backwards verse spans (`start > end`), or span across book boundaries in an invalid manner.
+    2. **Entity Fragmentation & Aliasing**: Character entities are easily duplicated under disparate aliases (e.g. "Abram" vs "Abraham", "Saul" vs "Paul", "Cephas" vs "Peter", "Yahweh" vs "Lord"), or conflated across homonyms (OT King Saul of Benjamin in 1 Samuel vs NT Apostle Saul of Tarsus in Acts; Mary of Nazareth vs Mary Magdalene vs Mary of Bethany).
+    3. **Theological Drift & Moralism**: Theological propositions risk slipping into moralistic exemplars ("be brave like David") rather than Christocentric, redemptive-historical interpretation consistent with The Gospel Coalition (TGC) Foundation Documents.
+    4. **Coverage Gaps & Overlaps**: Without systematic whole-Bible verification, semantic enrichment risks leaving unnoticed gaps or fragmented overlaps across books.
+- **Decision**:
+  1. **Authoritative Canonical Coordinate Engine (`core/semantic_audit.py`)**:
+     - Embedded the exact verse-count mapping for all 66 Protestant books and 1,189 chapters (`BOOK_CHAPTER_VERSES`), establishing the exact 31,103 canonical verse universe.
+     - Provided coordinate validation (`validate_canonical_coordinate`), span validation (`validate_canonical_span`), and sequential coordinate expansion (`expand_canonical_span`) that gracefully steps across chapter and book boundaries.
+  2. **Character Entity Deduplicator & Disambiguator (`CharacterEntityDeduplicator`)**:
+     - Standardized ~35+ major Biblical characters with canonical IDs, standard display names, testaments, and comprehensive alias mappings (e.g. "Simon Peter", "Cephas", "Simon bar Jonah" -> `PETER`).
+     - Implemented context-sensitive disambiguation based on canonical coordinate boundaries (`BBCCCVVV`):
+       - "Saul" in OT (< 40_000_000) resolves to `SAUL_KING`, while in Acts/Epistles (>= 44_000_000) resolves to `PAUL`.
+       - "Joseph" in Genesis/OT resolves to `JOSEPH_PATRIARCH`, while in the Gospels resolves to `JOSEPH_OF_NAZARETH`.
+       - Disambiguates Mary (Mother of Jesus vs Magdalene vs Bethany) and John (Apostle vs Baptist).
+  3. **Exegetical Critic Engine (`ExegeticalCritic`)**:
+     - Evaluates semantic extraction results against multi-layer quality rules:
+       - Pericopes: Validates coordinate boundaries, title length, genre, literary structure, and central proposition.
+       - Discourse Relations: Validates rhetorical relation types against allowed sets (`ground`, `inference`, `purpose`, `contrast`, `condition`, `progression`, `restatement`, `concession`), asserts verse citations fall strictly within pericope boundaries.
+       - Verse Theology: Enforces valid `RedemptiveEpoch`, `TheologicalLocus`, and `ThematicRibbon` enums, checks confidence scores.
+       - Typological Arcs: Enforces canonical OT-type to NT-antitype directionality, theological correspondence depth, and textual warrant types (`prophetic_fulfillment`, `canonical_thematic_pattern`, `apostolic_citation`, etc.).
+       - Semantic Propositions: Enforces valid proposition types, character deduplication, predicate validation, and truth condition requirements.
+       - TGC Foundation Anti-Moralism: Detects moralistic exemplar language ("be like David", "pull yourself up", "earn salvation", "earn god's favor") and asserts Christological trajectory.
+  4. **100% Whole-Bible Coverage Auditor (`WholeBibleCoverageAuditor`)**:
+     - Tracks verse-level coverage across all 31,103 canonical coordinates.
+     - Detects pericope overlaps and identifies exact contiguous coverage gaps formatted as human references (e.g. `Leviticus 1:1 - 15:33 (369 verses)`).
+     - Computes book-by-book statistics and renders compact ASCII summary tables.
+  5. **Unified Auditor Facade & CLI Tool**:
+     - Created `SemanticQualityAuditor` with `audit_database()` and `audit_analysis_result()` interfaces.
+     - Built `tools/audit_semantic.py` and registered `./bible audit-semantic` (alias `./bible audit`) with `--book`, `--no-coverage`, `--verbose`, and `--strict` flags.
+- **Consequences**:
+  - The Bible Engine now possesses deterministic, automated quality and theological guarding for all semantic ingestion pipelines.
+  - Zero external dependencies preserved (Python 3 stdlib only per ADR-003).
+  - All 697 tests pass hermetically in parallel in <4.2s.
+
+
