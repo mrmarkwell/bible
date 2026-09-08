@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 0 & Phase 2 (New Feature Requests Ingested)
-- **Overall Progress**: 64 Completed / 66 Total Tasks Tracked across 9 Phases
+- **Active Phase**: Phase 0, Phase 2, Phase 3 & Phase 4 (New Feature Requests Ingested)
+- **Overall Progress**: 64 Completed / 70 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -63,6 +63,9 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.2**: Implement verse-to-verse cross-referencing and relationship edges (thematic, prophecy-fulfillment, quotation). *(Run 023 / ADR-024)*
 - [x] **Task 3.3**: Create batch LLM tagging tool/prompt generator to classify and tag scripture into predefined and dynamic semantic taxonomies (`tools/tag_generator.py` / `core/tag_prompts.py`). *(Run 024 / ADR-025)*
 - [x] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring. *(Run 026 / ADR-027)*
+- [ ] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis).
+- [ ] **Task 3.6**: Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag.
+- [ ] **Task 3.7**: Client-Controlled Semantic Tagging Project Skill (`skills/semantic-tagging`) operating strictly on ESV text with TGC exegetical guidelines.
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*
@@ -70,6 +73,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.3**: Implement Canonical Redemptive Ribbon: dual-modal terminal ASCII/Unicode visualizer and Sacred-Modern Web UI Thematic Heatmap across all 66 books of the Bible for any chosen tag/topic. *(Run 030 / ADR-031)*
 - [x] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags. *(Run 031 / ADR-032)*
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
+- [ ] **Task 4.6**: Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs.
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
 - [x] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector). *(Run 033 / ADR-034)*

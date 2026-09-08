@@ -28,7 +28,7 @@ In this mode:
 
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
-2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed.
+2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed. **Mandatory Blocker Rule**: If a task requires external credentials (e.g. `GEMINI_API_KEY` for semantic tagging or `ESV_API_KEY`), you MUST NOT silently generate hollow placeholder data to fake completion; you MUST stop and record a blocker in `BLOCKED.md` requesting the necessary key!
 3. **Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY)**:
    - Check the health of GitHub Actions CI on `origin/main` using `python3 tools/ci.py check` (or `./bible ci check`).
    - If CI/CD is failing or broken on GitHub Actions, **HALT ALL OTHER TASKS AND FIX CI/CD FIRST**.

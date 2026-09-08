@@ -754,3 +754,75 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add unit tests verifying consistent help text and fallback messaging in `tests/test_cli.py`.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
 
+---
+
+### [VETTED] Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (Rank A+)
+- **Summary**: Replace the rigid, pre-assumed 25-tag seed set with an organic, bottom-up dynamic taxonomy system. Reset the `tags` table to retain only the single valid user tag (`favorites`), while removing artificial pre-assumed tags. Provide support for hundreds of fine-grained, emergent semantic tags created during deep textual exegesis (e.g. `money`, `pride`, `prophecy`, `red_letters`, `heaven`, `hell`, `persecution`, `temptation`, `sovereignty`, `adoption`). Enforce strict `snake_case` naming conventions and consistent theological categorization.
+- **Rationale**: Pre-assuming 25 rigid theological tags artificially boxed in the tagging system while leaving 100% of those tags with 0 associated verses. Scripture addresses hundreds of practical, ethical, historical, and doctrinal themes. Allowing the semantic analysis engine to discover and create tags dynamically as it processes scripture text reflects authentic textual exegesis and enables rich discovery for users.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (all created tags and verse associations reside permanently in local SQLite `data/bible.db`).
+  - Zero third-party dependencies? Yes (Python 3 stdlib only).
+  - Format standard? Strict `snake_case` identifiers.
+- **Proposed Roadmap Phase**: Phase 3 (Task 3.5).
+- **Suggested Tasks**:
+  - [ ] Migrate database to prune the unlinked 25 pre-assumed tags, keeping `favorites`.
+  - [ ] Update `TaggingService` in `core/tags.py` to enforce `snake_case` normalization and dynamic tag registration on the fly.
+  - [ ] Update tests in `tests/test_tags.py` and `tests/test_db.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Universal Tagging Unification: Deprecate `starred` Column in Favor of `#starred` Tag (Rank A+)
+- **Summary**: Eliminate the dedicated boolean `starred` column from `verse_tags` (and associated APIs) and unify it into the primary tagging architecture by treating "starred" as simply another first-class tag (`name = 'starred'`). Run an automated migration converting all existing rows where `starred = 1` into standard `verse_tags` entries linked to the `starred` tag.
+- **Rationale**: Having both a `starred` boolean attribute and a tagging system creates schema redundancy and conceptual confusion. In an elegant relational architecture, a priority star is simply a curation tag (`#starred`). Removing the dedicated column simplifies queries, eliminates special-case API flags, and allows users to search, filter, and inspect starred passages through standard tag mechanics (`./bible get --tag starred`, `./bible ribbon starred`).
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (standard SQLite migrations in `core/db.py`).
+- **Proposed Roadmap Phase**: Phase 3 (Task 3.6).
+- **Suggested Tasks**:
+  - [ ] Write non-destructive schema migration in `core/db.py`: insert `starred` tag, map all `starred=1` entries into `verse_tags`, and remove or deprecate the legacy column.
+  - [ ] Update `TaggingService` and CLI/REPL arguments to query `starred` as a standard tag.
+  - [ ] Update hermetic tests across `tests/test_favorites.py`, `tests/test_tags.py`, and `tests/test_db.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI & CLI (Rank A+)
+- **Summary**: Enhance the Web UI (Reader, Heatmaps, and Pericope drill-down) and CLI/terminal outputs to clearly distinguish between tags applied to a single discrete verse (e.g. `John 3:16`) versus tags spanning a wider pericope or multi-verse passage (e.g. `Romans 8:1-11`, `Genesis 1:1 - 2:3`). In the Web UI, use distinct visual chips (e.g. `[Verse Tag: #adoption]` with subtle border vs. `[Span Tag: #sanctification (vv. 1-11)]` with an illuminated bracket enclosing the entire rendered passage). In the CLI, display clear span boundaries beside tag badges.
+- **Rationale**: Currently, when a user views a verse that inherits a tag from a parent pericope or multi-verse span, the UI displays the tag without indicating whether it was placed specifically on that single verse or spans the whole section. Clarifying tag granularity gives readers instant exegetical context.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes (vanilla CSS/JS + standard library ANSI terminal layout).
+- **Proposed Roadmap Phase**: Phase 4 (Task 4.6).
+- **Suggested Tasks**:
+  - [ ] Add `span_range_text` and `is_single_verse` helper indicators to `TaggedPassage` in `core/tags.py`.
+  - [ ] Update terminal badge formatting in `core/terminal.py` to annotate multi-verse spans.
+  - [ ] Update Web UI reader JavaScript (`web/static/app.js`) and CSS (`web/static/style.css`) to render bracketed span boundaries and distinct tag chips.
+  - [ ] Add unit tests in `tests/test_terminal.py` and `tests/test_server.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Client-Controlled Semantic Tagging Project Skill & ESV Exegetical Guidelines Engine (`skills/semantic-tagging`) (Rank A+)
+- **Summary**: Create a dedicated project skill (`skills/semantic-tagging/SKILL.md`) equipping agents to perform client-controlled, book-by-book or range-by-range semantic tagging of the entire Bible. Key characteristics of the skill:
+  1. **Strict ESV Translation Mandate**: Semantic analysis must be conducted exclusively on the ESV text (`core/esv.py`). No other translation may be used for semantic exegesis.
+  2. **Comprehensive Scope**: Processes all verses and pericopes in the commanded book or passage range.
+  3. **Three-Step Exegetical Workflow**:
+     - *Step 1*: Inspect all existing tags currently attached to the verse(s).
+     - *Step 2*: Inspect all available tags across the database taxonomy.
+     - *Step 3*: Analyze the ESV text against THEOLOGY.md principles and assign relevant tags, creating new `snake_case` tags whenever a suitable one does not already exist.
+  4. **Client-Directed Execution**: Repeatedly callable on demand by book (e.g., `"Use your semantic_tagging skill to tag all verses and pericopes in the book of Genesis"`).
+  5. **Curated Biblical Semantic Guidelines**: Incorporate exhaustive, web-curated semantic guidelines aligned with TGC Foundation Documents (thematic motifs, redemptive epochs, Christological fulfillments, ethical teachings, practical topics like `money`, `pride`, `persecution`, `prayer`, `red_letters`, `heaven`, `hell`).
+- **Rationale**: Replaces opaque, monolithic batch jobs with a transparent, client-governed, agentic skill. Allows the client to inspect, guide, and incrementally tag books of the Bible with complete oversight, ensuring high exegetical quality, zero hallucinated schemas, and rich thematic tagging across the entire canon.
+- **Constraints & Alignment**:
+  - Offline-first database storage? Yes (all results persisted directly to SQLite `data/bible.db`).
+  - Zero third-party dependencies? Yes (Python stdlib and Jetski skill standard).
+  - Strict theological guardrails? Yes (grounded in `THEOLOGY.md`).
+- **Proposed Roadmap Phase**: Phase 3 (Task 3.7).
+- **Suggested Tasks**:
+  - [ ] Create `skills/semantic-tagging/SKILL.md` with operational workflows, step-by-step instructions, and TGC-aligned exegetical tagging guidelines.
+  - [ ] Build backing helper CLI/tooling (`tools/semantic_tagger.py` or `./bible tag analyze <book|range> --skill-mode`) operating strictly on ESV text.
+  - [ ] Author hermetic unit tests verifying the skill tooling and ESV passage fetching.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+

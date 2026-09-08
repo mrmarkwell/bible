@@ -190,7 +190,7 @@ Before selecting a roadmap task, check for open GitHub issues using `python3 too
 #### 5. Escalation & Blockers (`BLOCKED.md`)
 Only escalate to the human author when you are **truly blocked**.
 True blockers are strictly defined as:
-- Required secrets, API keys, or external credentials that are absent from the environment.
+- Required secrets, API keys, or external credentials that are absent from the environment (e.g. `GEMINI_API_KEY` for LLM semantic tagging or `ESV_API_KEY` for live ESV fetching). **Failing to ask for a required credential or silently substituting synthetic placeholder data when the task required real API execution is strictly unacceptable. If a task requires external credentials/keys that are missing, you MUST stop working and create `BLOCKED.md`!**
 - Hardware, license, or legal requirements requiring human sign-off.
 - Direct contradictions in instructions that cannot be reconciled safely.
 
@@ -198,8 +198,8 @@ True blockers are strictly defined as:
 1. Create or overwrite `BLOCKED.md`.
 2. Describe:
    - What was being attempted.
-   - The exact blocker / error encountered.
-   - The concrete actions required from the human to unblock.
+   - The exact blocker / missing credential encountered.
+   - The concrete actions required from the human to unblock (e.g., "Export `GEMINI_API_KEY=<key>` in your environment").
    - Suggested options or defaults if applicable.
 3. Commit `BLOCKED.md` with message `chore: record blocker in BLOCKED.md` and immediately push (`git push origin main`).
 4. Self-terminate cleanly.
