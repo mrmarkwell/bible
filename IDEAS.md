@@ -638,3 +638,19 @@ Add the following tables and indices to `core/db.py`:
 
 
 
+
+---
+
+### [VETTED] Interactive REPL `/chat` Persona Subshell & Command-Line REPL Completion (Rank A+)
+- **Summary**: Expose biblical character dialogue not only through a dedicated CLI command (`./bible chat <character> [--stream] [--translation]`), but also inside the interactive `./bible shell` REPL via `/chat <character>` with live tab completion across all 19 canonical persona names and aliases.
+- **Rationale**: Harmonizes with existing `/ask` REPL integration (ADR-062) and provides an immediate, frictionless playground for scholars and students to converse with biblical figures within the interactive shell.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (clean offline fallback card when `GEMINI_API_KEY` is not present).
+  - Zero third-party dependencies? Yes (Python 3 stdlib `cmd`, `readline`, `urllib.request`).
+  - Strict theological guardrails? Yes (governed by `core/persona.py` and TGC Foundation Documents).
+- **Proposed Roadmap Phase**: Phase 8 (Integrated into Task 8.4).
+- **Suggested Tasks**:
+  - [ ] Expose `chat` CLI command in `cli/main.py` with `--stream`, `--translation`, and persona listing.
+  - [ ] Expose `/chat <character>` in `cli/shell.py` with multi-turn conversation loop and tab autocompletion across personas.
+  - [ ] Add hermetic unit tests in `tests/test_cli.py` and `tests/test_shell.py`.
+- **Status**: [VETTED] (Rank A+; Promoted in Run 059).
