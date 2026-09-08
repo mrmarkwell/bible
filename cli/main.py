@@ -5399,7 +5399,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI execution entry point."""
     processed_argv = preprocess_cli_argv(argv)
     parser = build_parser()
-    args = parser.parse_args(processed_argv)
+    args, unknown = parser.parse_known_args(processed_argv)
+
+    # In Python 3.10 and 3.11, options placed between positional arguments (e.g.
+    # 'chat paul --stream Greetings') cause subsequent positional tokens to be left in unknown.
+    # If residual unknown arguments do not start with '-', fold them into the subparser's positional container.
+    if unknown:
+        non_options = [u for u in unknown if not u.startswith("-")]
+        options = [u for u in unknown if u.startswith("-")]
+        if options:
+            parser.error(f"unrecognized arguments: {' '.join(unknown)}")
+        if hasattr(args, "message") and isinstance(args.message, list):
+            args.message.extend(non_options)
+        elif hasattr(args, "query") and isinstance(args.query, list):
+            args.query.extend(non_options)
+        else:
+            parser.error(f"unrecognized arguments: {' '.join(unknown)}")
 
     if getattr(args, "interactive", False):
         from cli.shell import launch_shell
