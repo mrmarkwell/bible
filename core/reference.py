@@ -11,7 +11,7 @@ Zero-dependency implementation providing:
 
 from dataclasses import dataclass
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 @dataclass(frozen=True)

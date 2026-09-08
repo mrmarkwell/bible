@@ -18,7 +18,7 @@ import re
 import sqlite3
 import sys
 
-from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 
 from core.reference import (
@@ -29,7 +29,6 @@ from core.reference import (
     get_book,
     parse_reference,
     verse_canonical_id,
-    canonical_id_to_triple,
 )
 
 # Default location for SQLite database: <repo_root>/data/bible.db

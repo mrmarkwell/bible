@@ -78,6 +78,10 @@ class TestDoctorChecks(unittest.TestCase):
         res = check_database_integrity(REPO_ROOT)
         self.assertTrue(res.passed, f"Database check failed: {res.details}")
         self.assertIn("WEB verses", res.details)
+        self.assertIn("PRAGMA quick_check & FK passed", res.details)
+        self.assertIn("tables verified", res.details)
+        self.assertIn("semantically audited", res.details)
+        self.assertRegex(res.details, r"\d+\.\d+%")
 
     def test_check_unit_tests_clean(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -281,15 +285,6 @@ class TestDoctorChecks(unittest.TestCase):
             res = check_secret_leak_prevention(tmp_path)
             self.assertFalse(res.passed)
             self.assertIn("missing required secret exclusion pattern", res.details)
-
-    def test_check_database_integrity_semantic_schema_and_foreign_keys(self):
-        res = check_database_integrity(REPO_ROOT)
-
-        self.assertTrue(res.passed, f"DB integrity check failed: {res.details}")
-        self.assertIn("PRAGMA quick_check & FK passed", res.details)
-        self.assertIn("tables verified", res.details)
-        self.assertIn("semantically audited", res.details)
-        self.assertRegex(res.details, r"\d+\.\d+%")
 
     def test_check_database_integrity_semantic_audit_failure(self):
         from core.db import Database

@@ -588,7 +588,7 @@ def check_module_test_symmetry(repo_root: Path) -> CheckResult:
     )
 
 
-def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
+def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool = False) -> CheckResult:
     """Verify bundled SQLite scripture database existence, schema integrity, and semantic tables."""
     t0 = time.time()
     db_file = repo_root / "data" / "bible.db"
@@ -623,8 +623,16 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
         from core.db import Database
         with Database(db_file, auto_init=False) as db:
             cur = db.conn.cursor()
-            cur.execute("PRAGMA quick_check")
-            integrity = cur.fetchone()[0]
+            from core.semantic_audit import is_audit_cache_valid, load_audit_cache
+            cache_valid = not re_audit and is_audit_cache_valid(db_file, db=db)
+            cache_data = load_audit_cache().get(str(db_file.resolve())) if cache_valid else None
+            cached_integrity = cache_data.get("integrity") if cache_data else None
+
+            if cached_integrity == "ok":
+                integrity = "ok"
+            else:
+                cur.execute("PRAGMA quick_check")
+                integrity = cur.fetchone()[0]
             if integrity != "ok":
                 if fix:
                     from core.bootstrap import bootstrap_database
@@ -740,9 +748,10 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
             # 5. Check Phase 7 Semantic Coverage & Exegetical Quality
             semantic_summary = ""
             try:
-                from core.semantic_audit import get_semantic_auditor
-                auditor = get_semantic_auditor()
-                audit_rep, cov_rep = auditor.audit_database(db, include_coverage=True, strict=False)
+                from core.semantic_audit import get_cached_or_run_audit
+                audit_rep, cov_rep, was_cached = get_cached_or_run_audit(
+                    db, force_re_audit=re_audit, include_coverage=True, strict=False
+                )
                 if not audit_rep.is_clean:
                     err_sample = "; ".join(f"{f.rule_id} on {f.human_ref or 'item'}" for f in audit_rep.errors[:3])
                     return CheckResult(
@@ -752,7 +761,8 @@ def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
                         time.time() - t0,
                     )
                 if cov_rep:
-                    semantic_summary = f", {cov_rep.covered_verses_count:,}/{cov_rep.total_verses:,} verses semantically audited ({cov_rep.coverage_pct:.1f}%)"
+                    cache_note = " [cached]" if was_cached else ""
+                    semantic_summary = f", {cov_rep.covered_verses_count:,}/{cov_rep.total_verses:,} verses semantically audited ({cov_rep.coverage_pct:.1f}%{cache_note})"
             except Exception as e_audit:
                 # Non-fatal if semantic audit module has an unexpected issue
                 semantic_summary = f" (semantic audit warning: {e_audit})"
@@ -941,6 +951,7 @@ def run_all_checks(
     bench: bool = False,
     credentials: bool = False,
     probe: bool = False,
+    re_audit: bool = False,
     json_output: bool = False,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
@@ -956,6 +967,7 @@ def run_all_checks(
         coverage: If True, run test coverage audit.
         coverage_threshold: Minimum coverage percentage threshold.
         bench: If True, run performance benchmark suite.
+        re_audit: If True, force full fresh semantic audit bypassing cache ledger.
         json_output: If True, emit machine-readable JSON object.
         stream: Optional custom stream (e.g. io.StringIO) for output.
 
@@ -1046,7 +1058,7 @@ def run_all_checks(
     # Fast mode stops here
     if not fast:
         # 6. SQLite Scripture Database
-        res = check_database_integrity(root, fix=fix)
+        res = check_database_integrity(root, fix=fix, re_audit=re_audit)
         results.append(res)
         _emit_check(res, styler, emit)
         if not res.passed:
@@ -1197,6 +1209,11 @@ if __name__ == "__main__":
         help="Perform live network connectivity probe on configured API credentials",
     )
     parser.add_argument(
+        "--re-audit",
+        action="store_true",
+        help="Force full fresh semantic database quality audit bypassing cache ledger",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output machine-readable JSON health report",
@@ -1256,6 +1273,7 @@ if __name__ == "__main__":
         bench=args.bench,
         credentials=args.credentials,
         probe=args.probe,
+        re_audit=args.re_audit,
         json_output=args.json,
     )
     sys.exit(code)

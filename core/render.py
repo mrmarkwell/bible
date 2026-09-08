@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import dataclasses
 import html
-import math
-import os
 import re
 import shutil
 import subprocess

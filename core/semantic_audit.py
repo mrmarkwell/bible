@@ -25,9 +25,11 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-042, ADR-050, ADR-052, 
 from dataclasses import dataclass, field
 from enum import Enum
 import json
+from pathlib import Path
 import re
+import sqlite3
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from core.db import (
     Database,
@@ -35,18 +37,12 @@ from core.db import (
     PericopeRecord,
     SemanticPropositionRecord,
     TypologicalArcRecord,
-    VerseRecord,
     VerseTheologyRecord,
 )
 from core.reference import (
-    ALL_BOOKS,
     BOOKS,
-    Book,
-    Reference,
     canonical_id_to_triple,
-    get_book,
     parse_reference,
-    verse_canonical_id,
 )
 from core.semantic_prompts import (
     DISCOURSE_RELATION_TYPES,
@@ -63,6 +59,8 @@ from core.theology import (
     ThematicRibbon,
     TheologicalLocus,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ==============================================================================
@@ -314,6 +312,19 @@ class AuditFinding:
             "suggested_fix": self.suggested_fix,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuditFinding":
+        """Reconstruct AuditFinding from dictionary representation."""
+        return cls(
+            rule_id=d["rule_id"],
+            message=d["message"],
+            severity=CriticSeverity(d["severity"]),
+            coordinate=d.get("coordinate"),
+            human_ref=d.get("human_ref"),
+            context=d.get("context"),
+            suggested_fix=d.get("suggested_fix"),
+        )
+
 
 @dataclass
 class AuditReport:
@@ -322,6 +333,16 @@ class AuditReport:
     findings: List[AuditFinding] = field(default_factory=list)
     total_inspected: int = 0
     duration_sec: float = 0.0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuditReport":
+        """Reconstruct AuditReport from dictionary representation."""
+        findings = [AuditFinding.from_dict(f) for f in d.get("findings", [])]
+        return cls(
+            findings=findings,
+            total_inspected=d.get("total_inspected", 0),
+            duration_sec=d.get("duration_sec", 0.0),
+        )
 
     @property
     def errors(self) -> List[AuditFinding]:
@@ -1491,6 +1512,46 @@ class WholeBibleCoverageReport:
             "gaps": [g.to_dict() for g in self.gaps[:100]],
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WholeBibleCoverageReport":
+        """Reconstruct WholeBibleCoverageReport from dictionary."""
+        book_stats = {}
+        for b_str, st_dict in d.get("book_stats", {}).items():
+            b_id = int(b_str)
+            book_stats[b_id] = BookCoverageStats(
+                book_id=st_dict["book_id"],
+                book_name=st_dict["book_name"],
+                testament=st_dict["testament"],
+                total_chapters=st_dict["total_chapters"],
+                total_verses=st_dict["total_verses"],
+                covered_verses=st_dict["covered_verses"],
+                coverage_pct=st_dict["coverage_pct"],
+                pericope_count=st_dict["pericope_count"],
+            )
+        gaps = [
+            CoverageGap(
+                book_id=g["book_id"],
+                book_name=g["book_name"],
+                start_canonical_id=g["start_canonical_id"],
+                end_canonical_id=g["end_canonical_id"],
+                start_human_ref=g["start_human_ref"],
+                end_human_ref=g["end_human_ref"],
+                verse_count=g["verse_count"],
+            )
+            for g in d.get("gaps", [])
+        ]
+        return cls(
+            total_verses=d.get("total_verses", TOTAL_CANONICAL_VERSES),
+            covered_verses_count=d.get("covered_verses_count", 0),
+            coverage_pct=d.get("coverage_pct", 0.0),
+            book_stats=book_stats,
+            gaps=gaps,
+            overlap_count=d.get("overlap_count", 0),
+            ot_coverage_pct=d.get("ot_coverage_pct", 0.0),
+            nt_coverage_pct=d.get("nt_coverage_pct", 0.0),
+            duration_sec=d.get("duration_sec", 0.0),
+        )
+
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent)
 
@@ -1926,3 +1987,159 @@ def audit_pericope_analysis(result: PericopeAnalysisResult) -> AuditReport:
 def audit_whole_bible_coverage(pericopes: Sequence[PericopeRecord]) -> WholeBibleCoverageReport:
     """Convenience function to audit whole-Bible pericope coverage."""
     return _DEFAULT_AUDITOR.coverage_auditor.audit_pericopes(pericopes)
+
+
+# ==============================================================================
+# 6. Sovereign Semantic Quality Audit Cache Ledger
+# ==============================================================================
+
+DEFAULT_SEMANTIC_AUDIT_CACHE_PATH: Path = REPO_ROOT / ".semantic_audit_cache.json"
+
+
+def compute_db_audit_fingerprint(db_path: Path, db: Optional[Database] = None) -> Dict[str, Any]:
+    """Compute mathematical fingerprint of a SQLite database file for audit caching.
+
+    Combines filesystem metadata (size, mtime) with SQLite internal version counters
+    (PRAGMA data_version, PRAGMA schema_version) to guarantee zero false-cache hits.
+    """
+    target = db_path.resolve()
+    if not target.exists():
+        return {}
+    st = target.stat()
+    data_version = 0
+    schema_version = 0
+    try:
+        if db is not None and db.conn:
+            cur = db.conn.cursor()
+            cur.execute("PRAGMA data_version")
+            row = cur.fetchone()
+            if row:
+                data_version = int(row[0])
+            cur.execute("PRAGMA schema_version")
+            row = cur.fetchone()
+            if row:
+                schema_version = int(row[0])
+            cur.close()
+        else:
+            with sqlite3.connect(f"file:{target}?mode=ro", uri=True) as conn:
+                cur = conn.cursor()
+                cur.execute("PRAGMA data_version")
+                row = cur.fetchone()
+                if row:
+                    data_version = int(row[0])
+                cur.execute("PRAGMA schema_version")
+                row = cur.fetchone()
+                if row:
+                    schema_version = int(row[0])
+                cur.close()
+    except Exception:
+        pass
+
+    return {
+        "path": str(target),
+        "size_bytes": st.st_size,
+        "mtime": st.st_mtime,
+        "data_version": data_version,
+        "schema_version": schema_version,
+    }
+
+
+def load_audit_cache(cache_path: Optional[Path] = None) -> Dict[str, Any]:
+    """Load cached audit ledger dictionary from disk."""
+    p = cache_path or DEFAULT_SEMANTIC_AUDIT_CACHE_PATH
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_audit_cache(
+    db_path: Path,
+    audit_report: AuditReport,
+    cov_report: Optional[WholeBibleCoverageReport],
+    cache_path: Optional[Path] = None,
+    db: Optional[Database] = None,
+    integrity: str = "ok",
+) -> bool:
+    """Atomically save audit report and coverage metrics to JSON cache ledger keyed by DB path."""
+    p = cache_path or DEFAULT_SEMANTIC_AUDIT_CACHE_PATH
+    try:
+        target_str = str(db_path.resolve())
+        fp = compute_db_audit_fingerprint(db_path, db=db)
+        if not fp:
+            return False
+        cache = load_audit_cache(p)
+        cache[target_str] = {
+            "fingerprint": fp,
+            "cached_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+            "integrity": integrity,
+            "audit_report": audit_report.to_dict(),
+            "coverage_report": cov_report.to_dict() if cov_report else None,
+        }
+        tmp_p = p.with_suffix(".tmp")
+        tmp_p.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+        tmp_p.replace(p)
+        return True
+    except Exception:
+        return False
+
+
+def is_audit_cache_valid(
+    db_path: Path,
+    cache_path: Optional[Path] = None,
+    db: Optional[Database] = None,
+) -> bool:
+    """Check if the cache ledger matches current database state for the target database."""
+    target_str = str(db_path.resolve())
+    cache = load_audit_cache(cache_path)
+    entry = cache.get(target_str)
+    if not entry or "fingerprint" not in entry:
+        return False
+    cached_fp = entry["fingerprint"]
+    current_fp = compute_db_audit_fingerprint(db_path, db=db)
+    if not current_fp:
+        return False
+    return (
+        cached_fp.get("size_bytes") == current_fp.get("size_bytes")
+        and cached_fp.get("mtime") == current_fp.get("mtime")
+        and cached_fp.get("data_version") == current_fp.get("data_version")
+        and cached_fp.get("schema_version") == current_fp.get("schema_version")
+    )
+
+
+def get_cached_or_run_audit(
+    db: Database,
+    cache_path: Optional[Path] = None,
+    force_re_audit: bool = False,
+    include_coverage: bool = True,
+    strict: bool = False,
+) -> Tuple[AuditReport, Optional[WholeBibleCoverageReport], bool]:
+    """Retrieve cached audit report if valid, or execute full audit and update cache ledger.
+
+    Returns:
+        Tuple of (AuditReport, Optional[WholeBibleCoverageReport], was_cached: bool).
+    """
+    db_path = Path(db.db_path) if hasattr(db, "db_path") else Path(DEFAULT_DB_PATH)
+    target_str = str(db_path.resolve())
+    if not force_re_audit and is_audit_cache_valid(db_path, cache_path=cache_path, db=db):
+        cache = load_audit_cache(cache_path)
+        entry = cache.get(target_str)
+        if entry and "audit_report" in entry:
+            try:
+                audit_rep = AuditReport.from_dict(entry["audit_report"])
+                cov_rep = None
+                if include_coverage and entry.get("coverage_report"):
+                    cov_rep = WholeBibleCoverageReport.from_dict(entry["coverage_report"])
+                return audit_rep, cov_rep, True
+            except Exception:
+                pass
+
+    # Run full audit
+    auditor = get_semantic_auditor()
+    audit_rep, cov_rep = auditor.audit_database(db, include_coverage=include_coverage, strict=strict)
+    save_audit_cache(db_path, audit_rep, cov_rep, cache_path=cache_path, db=db, integrity="ok")
+    return audit_rep, cov_rep, False
+

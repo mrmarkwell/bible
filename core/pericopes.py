@@ -7,11 +7,10 @@ Provides:
 - Idempotent database seeding and verification.
 """
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from core.db import Database, PericopeRecord
-from core.reference import Book, Reference, get_book, parse_reference
+from core.reference import Book, Reference, parse_reference
 
 CANONICAL_PERICOPES: List[Tuple[str, str, str]] = [
     (

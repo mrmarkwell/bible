@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Sovereign Test Suite Latency Decoupling, Semantic Audit Cache Ledger & Straggler Telemetry Engine (Rank A+)
+- **Summary**: Implement persistent path-keyed audit cache ledgers (`.semantic_audit_cache.json`) for instant database integrity verification, optimize cold-start bootstrap checks (<0.01s), add straggler telemetry and latency leaderboards to `tools/test_runner.py` (`--slowest`, `--warn-latency`), wire into CLI (`./bible test`) and REPL (`/test`), and prune static analysis warnings across core modules.
+- **Rationale**: Eliminates uncached whole-database disk scans on 168MB databases, slashing `test_bootstrap` runtime by 18x (5.4s -> 0.28s) and `test_doctor` by 3x (7.9s -> 2.7s), reducing overall `tools/doctor.py` pre-push latency from 11.7s to 9.4s, and providing developers and autonomous agents with proactive latency bottleneck observability.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure local filesystem and SQLite version counters).
+  - Zero third-party dependencies? Yes (Python standard library only per ADR-003).
+  - High performance? Yes (audit validation in <0.01s).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.27 / ADR-081).
+- **Status**: Implemented via ADR-081 and Task 0.27.
+
 ### [VETTED] Sovereign Interactive REPL Persona Studio, Module-Test Symmetry Sentry, and Static Hygiene Pruning (Rank A+)
 - **Summary**: Implement interactive biblical character dialogue capabilities (`/chat`, `/persona`, `/characters`) directly into the sovereign interactive study REPL console (`cli/shell.py`), create a dedicated hermetic unit test suite for `tools/ci.py` (`tests/test_ci.py`), add an automated Module-Test Symmetry diagnostic to `tools/doctor.py`, fix dotted import resolution in `tools/linter.py`, and modernize the GitHub Actions CI matrix to include Python 3.13.
 - **Rationale**: Achieves complete capability parity between CLI and interactive REPL, ensuring scholars and readers can converse with all 19 canonical personas in the interactive shell. Eliminates the repository's single untested production tool (`tools/ci.py`), enforces test symmetry so no orphaned tools can slip in, eliminates linter false positives, and ensures Python 3.13 CI coverage.

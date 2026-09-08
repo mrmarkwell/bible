@@ -16,8 +16,7 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 """
 
 from dataclasses import dataclass, field
-import json
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from core.db import (
     CrossReferenceRecord,
@@ -25,11 +24,8 @@ from core.db import (
     VerseRecord,
 )
 from core.reference import (
-    Book,
     Reference,
-    get_book,
     parse_reference,
-    parse_references,
 )
 
 

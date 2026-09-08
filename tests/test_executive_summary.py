@@ -63,7 +63,7 @@ class TestExecutiveSummary(unittest.TestCase):
             self.assertEqual(stats.total_tasks, 5)
 
     def test_generate_summary_live(self):
-        report = generate_summary(window=5, run_doctor=True)
+        report = generate_summary(window=5, run_doctor=False)
         self.assertIsInstance(report, ExecutiveReport)
         self.assertGreater(report.run_count, 0)
         self.assertGreater(report.roadmap_stats.completed_tasks, 0)
@@ -73,6 +73,17 @@ class TestExecutiveSummary(unittest.TestCase):
         self.assertIn("Executive Overview & Trajectory", md)
         self.assertIn("Review of Work Done", md)
         self.assertIn("Overall Project Health", md)
+
+    def test_generate_summary_with_mocked_doctor(self):
+        from unittest.mock import patch
+        from tools.doctor import CheckResult
+        mock_res = CheckResult("SQLite Scripture Database", True, "Mock DB OK", 0.001)
+        with patch("tools.doctor.check_database_integrity", return_value=mock_res):
+            report = generate_summary(window=3, run_doctor=True)
+            self.assertIn("EXCELLENT", report.system_health_status)
+            md = format_markdown_report(report)
+            self.assertIn("Overall Project Health", md)
+            self.assertIn("Mock DB OK", md)
 
     def test_parse_agent_log_resilient(self):
         with tempfile.TemporaryDirectory() as tmpdir:

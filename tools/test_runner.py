@@ -55,6 +55,14 @@ class TestSuiteSummary:
     results: List[TestModuleResult] = field(default_factory=list)
     success: bool = True
 
+    def slowest_modules(self, n: int = 5) -> List[TestModuleResult]:
+        """Return the N test modules with highest duration."""
+        return sorted(self.results, key=lambda r: r.duration_sec, reverse=True)[:n]
+
+    def straggler_modules(self, threshold_sec: float = 2.0) -> List[TestModuleResult]:
+        """Return all test modules whose duration exceeds the threshold in seconds."""
+        return [r for r in self.results if r.duration_sec >= threshold_sec]
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "success": self.success,
@@ -63,6 +71,14 @@ class TestSuiteSummary:
             "failed_modules": self.failed_modules,
             "total_tests": self.total_tests,
             "total_duration_sec": round(self.total_duration_sec, 3),
+            "slowest_modules": [
+                {
+                    "module": r.module_name,
+                    "duration_sec": round(r.duration_sec, 3),
+                    "tests_run": r.tests_run,
+                }
+                for r in self.slowest_modules(5)
+            ],
             "results": [
                 {
                     "module": r.module_name,
@@ -491,6 +507,8 @@ def run_tests(
     color: bool = True,
     output_json: bool = False,
     stream: Optional[Any] = None,
+    slowest: Optional[int] = None,
+    warn_latency: Optional[float] = None,
 ) -> Tuple[int, TestSuiteSummary]:
     """High-level test runner facade.
 
@@ -506,6 +524,8 @@ def run_tests(
         color: Enable ANSI color formatting.
         output_json: Output raw JSON summary.
         stream: Target output stream.
+        slowest: Optional number of slowest modules to display in leaderboard.
+        warn_latency: Optional duration threshold in seconds to trigger straggler warnings.
 
     Returns:
         Tuple of (exit_code, TestSuiteSummary).
@@ -578,6 +598,23 @@ def run_tests(
                 for line in r.error_message.splitlines():
                     emit(f"    {line}")
         emit(styler.bold(styler.red("───────────────────────────────────────────────────────────────────────")))
+
+    # Latency Leaderboard & Straggler Telemetry
+    show_leaderboard = slowest is not None or (warn_latency is not None and bool(summary.straggler_modules(warn_latency)))
+    if show_leaderboard and not quiet and not output_json:
+        n_show = slowest if slowest is not None else 5
+        slow_list = summary.slowest_modules(n_show)
+        stragglers = summary.straggler_modules(warn_latency) if warn_latency is not None else []
+        emit("")
+        emit(styler.bold(styler.yellow("── Test Execution Latency Leaderboard ─────────────────────────────────")))
+        for rank, r in enumerate(slow_list, 1):
+            is_straggler = warn_latency is not None and r.duration_sec >= warn_latency
+            badge = styler.yellow("[SLOW]") if is_straggler else "      "
+            time_str = styler.yellow(f"{r.duration_sec:6.3f}s") if is_straggler else f"{r.duration_sec:6.3f}s"
+            emit(f"  #{rank:2d}  {badge} {r.module_name:28s} │ {r.tests_run:3d} tests │ {time_str}")
+        if stragglers:
+            emit(styler.yellow(f"\n  [!] {len(stragglers)} test suite(s) exceeded the latency threshold of {warn_latency:.2f}s!"))
+        emit(styler.bold(styler.yellow("───────────────────────────────────────────────────────────────────────")))
 
     # Summary bar
     emit(styler.bold("----------------------------------------------------------------------"))
@@ -703,6 +740,20 @@ def main() -> int:
         help="Fail if coverage percentage is below this threshold (requires --coverage)",
     )
     parser.add_argument(
+        "--slowest",
+        type=int,
+        nargs="?",
+        const=5,
+        default=None,
+        help="Show leaderboard of N slowest test modules (default: 5 if flag provided)",
+    )
+    parser.add_argument(
+        "--warn-latency",
+        type=float,
+        default=None,
+        help="Highlight and warn on test modules exceeding latency threshold in seconds",
+    )
+    parser.add_argument(
         "--repo",
         type=str,
         default=None,
@@ -730,6 +781,8 @@ def main() -> int:
         quiet=args.quiet,
         color=is_tty,
         output_json=args.json,
+        slowest=args.slowest,
+        warn_latency=args.warn_latency,
     )
 
     if exit_code == 0 and args.coverage:

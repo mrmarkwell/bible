@@ -16,6 +16,7 @@ build/
 .env.*
 !.env.example
 .test_timing_cache.json
+.semantic_audit_cache.json
 
 # Local Secrets & API Key Storage (Zero-Leak Safeguards)
 config/

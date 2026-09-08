@@ -10,7 +10,6 @@ and user encryption keys without external pip/C dependencies.
 
 import hashlib
 import hmac
-import os
 import secrets
 import struct
 from typing import Optional, Tuple

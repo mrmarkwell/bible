@@ -3523,6 +3523,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Fail if coverage percentage is below threshold (requires --coverage)",
     )
+    parser_test.add_argument(
+        "--slowest",
+        type=int,
+        nargs="?",
+        const=5,
+        default=None,
+        help="Show leaderboard of N slowest test modules (default: 5 if flag provided)",
+    )
+    parser_test.add_argument(
+        "--warn-latency",
+        type=float,
+        default=None,
+        help="Highlight and warn on test modules exceeding latency threshold in seconds",
+    )
 
     def cmd_test(args: argparse.Namespace) -> int:
         from tools.test_runner import REPO_ROOT, run_tests
@@ -3543,6 +3557,8 @@ def build_parser() -> argparse.ArgumentParser:
             quiet=args.quiet,
             color=is_tty,
             output_json=args.json,
+            slowest=getattr(args, "slowest", None),
+            warn_latency=getattr(args, "warn_latency", None),
         )
         if exit_code == 0 and getattr(args, "coverage", False):
             from tools.coverage import collect_coverage, format_terminal_table

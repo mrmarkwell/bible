@@ -11,18 +11,16 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 - Dual-modal terminal ASCII/Unicode visualizer and summary table for CLI and REPL.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import html
-import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.crossref import (
     CrossReferenceService,
     RelationshipType,
 )
-from core.db import CrossReferenceRecord, Database
+from core.db import Database
 from core.reference import (
-    ALL_BOOKS,
     BOOKS,
     Book,
     Reference,

@@ -13,17 +13,14 @@ Provides unified orchestration for:
 """
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
-import sqlite3
 import time
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database
 from core.pericopes import PericopeService
-from core.reference import ALL_BOOKS, Book, BOOKS
-from core.tags import TaggingService
+from core.reference import Book, BOOKS
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RAW_WEB_DIR = REPO_ROOT / "data" / "raw" / "web"
@@ -122,8 +119,16 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         sqlite_ver_row = db.execute_sql("SELECT sqlite_version()").fetchone()
         sqlite_version = sqlite_ver_row[0] if sqlite_ver_row else "unknown"
 
-        integrity_row = db.execute_sql("PRAGMA quick_check").fetchone()
-        integrity = integrity_row[0] if integrity_row else "unknown"
+        from core.semantic_audit import is_audit_cache_valid, load_audit_cache
+        cache_valid = is_audit_cache_valid(target_path, db=db)
+        cache_data = load_audit_cache().get(str(target_path.resolve())) if cache_valid else None
+        cached_integrity = cache_data.get("integrity") if cache_data else None
+
+        if cached_integrity == "ok":
+            integrity = "ok"
+        else:
+            integrity_row = db.execute_sql("PRAGMA quick_check").fetchone()
+            integrity = integrity_row[0] if integrity_row else "unknown"
 
         page_size_row = db.execute_sql("PRAGMA page_size").fetchone()
         page_size = page_size_row[0] if page_size_row else 4096

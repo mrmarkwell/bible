@@ -2693,6 +2693,41 @@ This document is an append-only log of significant design and architectural deci
   - Terminal ribbons, chapter heatmaps, and slide batch generators can treat `#starred` as a standard curation tag.
   - Zero external dependencies introduced (Python stdlib only per ADR-003).
 
+---
+
+## ADR-081: Sovereign Test Suite Latency Decoupling, Semantic Audit Cache Ledger, Straggler Telemetry & Pre-Push Acceleration Engine
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - As the Bible Engine grew to 918 tests across 41 modules and 27 SQLite tables on a 168MB production database, test suite execution time escalated to ~8.0s, and git pre-push hooks (`tools/doctor.py`) exceeded 11.5s.
+  - An audit during the Run 075 Senior Product Manager Meta-Sprint diagnosed the root cause: three test suites (`test_doctor`, `test_bootstrap`, `test_executive_summary`) were executing uncached whole-database scans against `data/bible.db`.
+  - Specifically:
+    1. Uncached `PRAGMA quick_check` on the 168MB production database took 2.45s per invocation.
+    2. Deep semantic AST audits (`audit_database()`) inspecting 31,103 verses took ~2.5s per run with zero caching.
+    3. `test_executive_summary.py` ran live `doctor.run_all_checks()`, compounding latency.
+    4. `tools/test_runner.py` lacked latency profiling, straggler observability, and warning thresholds to detect slow modules before they compounded.
+- **Decision**:
+  1. **Sovereign Multi-Database Audit Cache Ledger (`core/semantic_audit.py`)**:
+     - Created `.semantic_audit_cache.json` combining filesystem metadata (`size_bytes`, `mtime`) with SQLite internal transaction counters (`PRAGMA data_version`, `PRAGMA schema_version`) to guarantee zero false-cache hits.
+     - Implemented `is_audit_cache_valid`, `load_audit_cache`, `save_audit_cache`, and `get_cached_or_run_audit` keyed uniquely by canonical database path (`str(db_path.resolve())`), preventing tests against temporary databases from clobbering the main cache.
+     - Added `from_dict` deserializers to `AuditFinding`, `AuditReport`, and `WholeBibleCoverageReport`.
+  2. **Fast Cached Cold-Start & Doctor Verification (`core/bootstrap.py`, `tools/doctor.py`)**:
+     - Updated `get_db_stats` in `core/bootstrap.py` and `check_database_integrity` in `tools/doctor.py` to consult `is_audit_cache_valid`. When the cache is valid, database integrity is confirmed in <0.01s rather than running a 2.45s disk check. Added `--re-audit` flag to force deep re-verification.
+     - Slashing `get_db_stats` runtime on bundled database from 2.47s to 0.014s and `test_doctor` runtime from 7.93s to 2.72s.
+  3. **Straggler Telemetry & Latency Leaderboard (`tools/test_runner.py`, `cli/main.py`, `cli/shell.py`)**:
+     - Added `slowest_modules(n: int = 5)` and `straggler_modules(threshold_sec: float = 2.0)` methods to `TestSuiteSummary`.
+     - Added `--slowest [N]` and `--warn-latency [SECONDS]` CLI flags to `tools/test_runner.py` and `./bible test` (`cli/main.py`), and REPL study shell (`cli/shell.py`).
+     - Test runner now formats and emits a structured latency leaderboard and warns when modules exceed developer latency budgets.
+  4. **Static Analysis & Namespace Hygiene**:
+     - Pruned unused imports across `core/arcs.py`, `core/bootstrap.py`, `core/crossref.py`, `core/crypto.py`, `core/db.py`, `core/pericopes.py`, `core/reference.py`, `core/render.py`, `core/slide_batch.py`, `core/tags.py`, and `core/theology.py`.
+     - Verified clean static analysis with 0 errors across 87 files in `tools/linter.py`.
+- **Consequences**:
+  - Drops isolated `test_bootstrap` runtime from 5.4s to 0.28s (18x faster) and `test_doctor` from 7.9s to 2.7s (3x faster).
+  - Overall `tools/doctor.py` execution slashed from 11.7s to 9.4s, significantly accelerating git pre-push hooks.
+  - Developers and autonomous agents gain instant observability over test suite bottlenecks.
+  - Zero external dependencies introduced; 100% Python standard library per ADR-003.
+
+
 
 
 

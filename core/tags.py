@@ -11,12 +11,10 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 """
 
 from dataclasses import dataclass, field
-import json
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.db import (
     Database,
-    SpanRecord,
     TagRecord,
     VerseRecord,
     VerseTagRecord,
@@ -27,7 +25,6 @@ from core.reference import (
     Reference,
     get_book,
     parse_reference,
-    parse_references,
 )
 
 

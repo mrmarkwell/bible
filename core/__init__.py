@@ -309,6 +309,12 @@ from core.semantic_audit import (
     is_valid_canonical_coordinate,
     validate_canonical_coordinate,
     validate_canonical_span,
+    DEFAULT_SEMANTIC_AUDIT_CACHE_PATH,
+    compute_db_audit_fingerprint,
+    load_audit_cache,
+    save_audit_cache,
+    is_audit_cache_valid,
+    get_cached_or_run_audit,
 )
 from core.semantic_compiler import (
     CheckpointRecord,
@@ -586,6 +592,12 @@ __all__ = [
     "is_valid_canonical_coordinate",
     "validate_canonical_coordinate",
     "validate_canonical_span",
+    "DEFAULT_SEMANTIC_AUDIT_CACHE_PATH",
+    "compute_db_audit_fingerprint",
+    "load_audit_cache",
+    "save_audit_cache",
+    "is_audit_cache_valid",
+    "get_cached_or_run_audit",
     # Resumable Batch Semantic Compilation Engine & Checkpoint Ledger
     "CheckpointRecord",
     "CompilationProgress",

@@ -21,7 +21,7 @@ Zero-dependency implementation (Python 3 standard library only per ADR-003):
 from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import datetime
 import html
 import json
@@ -31,24 +31,20 @@ import random
 import re
 import sys
 import time
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from core.db import Database, VerseRecord
 from core.pericopes import PericopeService
-from core.plans import ReadingPlan, get_plan
-from core.reference import Book, Reference, get_book, parse_reference
+from core.plans import get_plan
+from core.reference import Reference, get_book, parse_reference
 from core.render import (
     PaginationConfig,
     RenderConfig,
-    RenderError,
-    RenderResult,
     SlideContent,
-    SlideRenderEngine,
     SlideTheme,
     get_default_engine,
     get_theme,
     paginate_verses,
-    parse_resolution,
 )
 from core.tags import TaggingService
 

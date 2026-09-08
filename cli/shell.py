@@ -1554,6 +1554,8 @@ class BibleShell(cmd.Cmd):
         failfast = False
         output_json = False
         warn_error = True
+        slowest = None
+        warn_latency = None
 
         i = 0
         while i < len(tokens):
@@ -1576,6 +1578,19 @@ class BibleShell(cmd.Cmd):
             elif tok in ("--no-warn", "--no-warn-error"):
                 warn_error = False
                 i += 1
+            elif tok == "--slowest":
+                if i + 1 < len(tokens) and tokens[i + 1].isdigit():
+                    slowest = int(tokens[i + 1])
+                    i += 2
+                else:
+                    slowest = 5
+                    i += 1
+            elif tok == "--warn-latency" and i + 1 < len(tokens):
+                try:
+                    warn_latency = float(tokens[i + 1])
+                except ValueError:
+                    pass
+                i += 2
             elif not tok.startswith("-") and pattern is None:
                 pattern = tok
                 i += 1
@@ -1592,6 +1607,8 @@ class BibleShell(cmd.Cmd):
             color=self.use_color,
             output_json=output_json,
             stream=self.stdout,
+            slowest=slowest,
+            warn_latency=warn_latency,
         )
 
     def do_check(self, arg: str) -> None:

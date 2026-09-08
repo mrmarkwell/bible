@@ -19,11 +19,9 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-042, and ADR-052:
   * Canonical character dialogue simulation
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-import json
-import re
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Dict, Optional, Sequence, Union
 
 from core.reference import Reference, parse_reference
 
