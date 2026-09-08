@@ -629,13 +629,13 @@ Add the following tables and indices to `core/db.py`:
 ---
 
 ### [VETTED] Hybrid FTS5 & Dense Vector Reciprocal Rank Fusion (RRF) Search Engine
-- **Summary**: Build a hybrid search orchestrator (`core/hybrid_search.py`) that merges keyword results from SQLite FTS5 (BM25 ranking) with semantic vector results from `core/vector.py` (cosine similarity) using Reciprocal Rank Fusion ($RRF = \sum \frac{1}{60 + \text{rank}_i}$). Supports `--hybrid` flag on `./bible search` and `/search` in the REPL shell, with configurable alpha balancing between lexical and semantic weights.
-- **Rationale**: Lexical search alone misses conceptual synonyms and thematic parallels without keyword overlap, while pure vector search can occasionally miss exact phrase matches or rare biblical names. Hybrid RRF combines the precision of BM25 with the conceptual depth of 768-dimensional dense vectors, delivering the ultimate scripture discovery experience.
+- **Summary**: Build a hybrid search orchestrator (`core/hybrid_search.py`) that merges keyword results from SQLite FTS5 (BM25 ranking) with semantic vector results from `core/vector.py` (cosine similarity of user queries against the offline invariant scripture vector database) using Reciprocal Rank Fusion ($RRF = \sum \frac{1}{60 + \text{rank}_i}$). Supports `--hybrid` flag on `./bible search` and `/search` in the REPL shell, with configurable alpha balancing between lexical and semantic weights.
+- **Rationale**: Lexical search alone misses conceptual synonyms and thematic parallels without keyword overlap, while pure vector search can occasionally miss exact phrase matches or rare biblical names. When a user enters a natural language inquiry or topic, hybrid RRF combines the literal keyword precision of BM25 with the conceptual depth of 768-dimensional dense vectors matched against the pre-computed whole-Bible vector database, delivering the ultimate scripture discovery experience.
 - **Constraints & Alignment**:
-  - Offline-first? Yes (operates 100% locally over SQLite FTS5 and pre-computed packed int8 vectors).
+  - Offline-first? Yes (operates locally over SQLite FTS5 and pre-computed packed int8 vectors).
   - Zero third-party dependencies? Yes (pure Python standard library math and sorting).
   - High performance? Yes (merging two top-100 lists takes <0.2ms).
-- **Proposed Roadmap Phase**: Phase 7 / Phase 8 (Task 7.7 / Task 8.1).
+- **Proposed Roadmap Phase**: Phase 7 / Phase 8 (Task 7.7 / Task 8.1; ADR-076).
 - **Status**: [VETTED] (Rank A+; Promoted in Run 048).
 
 ---
@@ -861,16 +861,19 @@ Add the following tables and indices to `core/db.py`:
 ---
 
 ### [VETTED] Whole-Bible ESV Verse and Pericope Dense Embeddings Generation (Rank A+)
-- **Summary**: Populate `verse_embeddings` and `pericope_embeddings` with real dense vector embeddings (e.g. 768-dim int8 quantized byte buffers, ~24MB total) generated from the **ESV** text using Google's embedding model (`text-embedding-004`). Supports both batch execution and integration into the `semantic-tagging` skill.
-- **Rationale**: The `verse_embeddings` table currently has 0 rows in `data/bible.db`, and `pericope_embeddings` has only coarse synthetic vectors. Populating real ESV vector embeddings unlocks genuine micro-level semantic similarity search (<15ms via `core/vector.py`) and lays the foundation for advanced visual and retrieval interfaces.
+- **Summary**: Populate `verse_embeddings` and `pericope_embeddings` with dense vector embeddings (e.g. 768-dim int8 quantized byte buffers, ~24MB total) generated from the **ESV** text using a standard embedder (e.g. `text-embedding-004`). Because the sacred text of Scripture is fixed and invariant, the entire vector database for all 31,102 verses and 1,304 pericopes is compiled **offline** once into SQLite (`data/bible.db`). The pre-computed embeddings serve dual primary functions:
+  1. **Corpus Similarity Exploration**: Instant passage-to-passage and pericope-to-pericope cosine similarity matching (<15ms via `core/vector.py`) to discover thematic parallels, typological connections, and cross-canonical echoes without keyword dependencies.
+  2. **Vector-Based Natural Language Query Search for RAG**: At runtime, user-input natural language questions or search queries (e.g. *"How much should I tithe?"*, *"What does the Bible teach about anxiety?"*, *"Why did Jesus weep?"*) are embedded via the same standard embedder, and cosine similarity against the offline vector database retrieves the top semantic verse/pericope matches as direct answers or as grounded context for RAG theological exegesis in CLI and Web UI chat.
+- **Rationale**: The `verse_embeddings` table currently has 0 rows in `data/bible.db`, and `pericope_embeddings` has only coarse synthetic vectors. Since scripture never changes, baking real ESV vector embeddings into the database offline guarantees permanent zero-maintenance retrieval with zero ongoing embedding computation for the scripture corpus itself. This unlocks genuine micro-level semantic similarity search and empowers high-precision natural language RAG retrieval.
 - **Constraints & Alignment**:
+  - Scripture invariance: Pre-computed offline once; never recomputed at runtime for static verses.
   - Translation mandate: Strictly generated from **ESV** text (`core/esv.py`).
   - Storage: Quantized int8 packed byte BLOBs in SQLite (<25MB total).
-  - Zero external dependencies: Vector math in pure Python standard library `struct` and `math` (ADR-003/051).
-- **Proposed Roadmap Phase**: Phase 7 (Task 7.7).
+  - Zero external dependencies: Vector similarity math in pure Python standard library `struct` and `math` (ADR-003/051).
+- **Proposed Roadmap Phase**: Phase 7 (Task 7.7; ADR-076).
 - **Suggested Tasks**:
-  - [ ] Add embedding generation method in `core/llm.py` targeting Google's REST embedding endpoint with int8 quantization.
-  - [ ] Implement batch embedder in `tools/build_embeddings.py` operating on ESV text with checkpointing.
+  - [ ] Add standard embedding generation method in `core/llm.py` targeting Google's REST embedding endpoint with int8 quantization.
+  - [ ] Implement batch embedder in `tools/build_embeddings.py` operating offline on ESV text with checkpointing.
   - [ ] Populate `verse_embeddings` (31,102 rows) and `pericope_embeddings` (1,304 rows) in `data/bible.db`.
   - [ ] Add hermetic unit tests in `tests/test_vector.py`.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
@@ -895,17 +898,20 @@ Add the following tables and indices to `core/db.py`:
 ---
 
 ### [VETTED] Vector-Similarity Scripture Retrieval & Pericope Recommender UI (Rank A+)
-- **Summary**: Implement a dedicated Semantic Retrieval & Similarity Explorer panel in the Web UI (`/similarity` or integrated into the Split-Screen Reader) and CLI (`./bible similar <ref>`). When viewing any verse or pericope, displays the most semantically similar passages across the whole Bible ranked by cosine similarity score (e.g., `Romans 3:25` ➔ `Leviticus 16:15` (94% similarity), `Hebrews 9:12` (91% similarity)), with visual score badges, highlighted thematic overlaps, and instant one-click drill-down.
-- **Rationale**: Provides a powerful AI-assisted alternative and complement to traditional word-based concordances. Enables scholars and readers to discover conceptually parallel passages even when they do not share identical vocabulary.
+- **Summary**: Implement a dedicated Semantic Retrieval & Similarity Explorer panel in the Web UI (`/similarity` or integrated into the Split-Screen Reader) and CLI (`./bible similar <ref-or-query>`). Supports dual-mode semantic retrieval:
+  1. **Passage-to-Passage Similarity**: When inspecting any verse or pericope, displays the most semantically similar passages across the whole Bible ranked by cosine similarity score (e.g., `Romans 3:25` ➔ `Leviticus 16:15` [94% similarity], `Hebrews 9:12` [91% similarity]), with visual score badges, highlighted thematic overlaps, and instant one-click drill-down.
+  2. **Natural Language User Query Search**: Allows users to enter natural language questions or topical queries (e.g., *"How much should I tithe?"*, *"Dealing with grief and loss"*, *"Armor of God against spiritual warfare"*). The query is embedded via the standard embedder and matched against the offline verse and pericope vector database, returning ranked matching passages with cosine similarity scores and pericope summaries.
+- **Rationale**: Provides a powerful AI-assisted alternative and complement to traditional word-based concordances. Enables scholars and readers to discover conceptually parallel passages even when they do not share identical vocabulary, and allows users to search Scripture using conversational, natural language questions.
 - **Constraints & Alignment**:
-  - Offline-first? Yes (queries local SQLite int8 vector BLOBs via `core/vector.py` in <15ms).
+  - Offline-first? Yes for passage-to-passage search (queries local SQLite int8 vector BLOBs via `core/vector.py` in <15ms). For user-input query search, embedding is generated via standard embedder and matched locally against the offline database.
   - Zero third-party dependencies? Yes.
-- **Proposed Roadmap Phase**: Phase 4 (Task 4.8).
+- **Proposed Roadmap Phase**: Phase 4 (Task 4.8; ADR-076).
 - **Suggested Tasks**:
   - [ ] Add `find_similar_verses(canonical_id, limit=10)` and `find_similar_pericopes(pericope_id, limit=10)` to `core/vector.py` and `core/db.py`.
-  - [ ] Expose CLI command `./bible similar <ref> [--limit 10] [--threshold 0.7]`.
-  - [ ] Expose REST endpoint `GET /api/similar?ref=<citation>`.
-  - [ ] Add "Similar Passages" accordion tab in Web UI Split-Screen Reader (`web/static/app.js`) with similarity progress bars and click-to-load.
+  - [ ] Add `search_verses_by_vector(embedding, limit=10)` and `search_pericopes_by_vector(embedding, limit=10)` to `core/vector.py`.
+  - [ ] Expose CLI command `./bible similar <ref-or-query> [--limit 10] [--threshold 0.7]`.
+  - [ ] Expose REST endpoints `GET /api/similar?ref=<citation>` and `GET /api/similar?q=<natural-language-query>`.
+  - [ ] Add "Similar Passages" accordion tab and natural language query search in Web UI Split-Screen Reader (`web/static/app.js`) with similarity progress bars and click-to-load.
   - [ ] Add unit tests in `tests/test_vector.py` and `tests/test_server.py`.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
 

@@ -76,7 +76,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
 - [ ] **Task 4.6**: Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs.
 - [ ] **Task 4.7**: Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity).
-- [ ] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (ranked cosine similarity explorer with scores and drill-down).
+- [ ] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer supporting both passage-to-passage similarity and natural language user question vector search with match scores and drill-down).
+
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
 - [x] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector). *(Run 033 / ADR-034)*
@@ -102,7 +103,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 7.4**: Implement Exegetical Critic & Quality Audit Suite (`core/semantic_audit.py`) validating canonical coordinate boundaries (`BBCCCVVV`), schema validation, character entity deduplication, and 100% whole-Bible verse coverage. *(Run 052 / ADR-055)*
 - [x] **Task 7.5**: Implement Resumable Batch Semantic Compilation Engine (`tools/build_semantic_db.py` / `./bible build-semantic`) featuring a SQLite checkpoint ledger, rate limiting, book-by-book resume, and progress telemetry. *(Run 053 / ADR-056)*
 - [x] **Task 7.6**: Execute one-shot compilation over the ESV corpus to generate and compile the complete, permanent semantic database pack into `data/bible.db`, verifying 100% offline queryability, FTS5 sync, and vector search. *(Run 054 / ADR-057)*
-- [ ] **Task 7.7**: Populate Whole-Bible ESV Verse and Pericope Dense Embeddings (`verse_embeddings` & `pericope_embeddings`) using Google text-embedding-004 model.
+- [ ] **Task 7.7**: Offline Whole-Bible Vector Database Generation for All Verses and Pericopes (ADR-076). Since scripture text is fixed and invariant, pre-compute dense vector embeddings offline using a standard embedder (e.g. text-embedding-004) for all 31,102 verses and 1,304 pericopes, storing int8 quantized BLOBs in SQLite (data/bible.db) for permanent zero-dependency offline similarity search and user-query RAG context retrieval.
 
 ### Phase 8: Online Scripture RAG & Biblical Character Dialogue Studio
 - [x] **Task 8.1**: Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows). *(Run 057 / ADR-061)*
@@ -111,6 +112,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 8.4**: Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`). *(Run 063 / ADR-067)*
 - [x] **Task 8.5**: Expose REST endpoints in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present. *(Run 064 / ADR-068)*
 - [x] **Task 8.6**: Build interactive Web UI panels: Split-Screen Scripture Reader with dynamic RAG study notes and Interactive Biblical Character Dialogue Studio. *(Run 067 / ADR-071)*
+- [ ] **Task 8.7**: Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling (ADR-076). When a user submits an inquiry (e.g., "How much should I tithe?", "Why did Jesus weep?"), embed the question via the standard embedder, perform cosine similarity against the pre-computed offline verse and pericope vector database, and supply the top semantic matches as grounded context for RAG response synthesis in CLI and Web UI chat.
+
 
 
 

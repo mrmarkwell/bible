@@ -2513,5 +2513,39 @@ This document is an append-only log of significant design and architectural deci
   - Eliminates wasteful API spend during development and clarifies blocker escalation policies for autonomous agents.
   - Preserves 100% Zero-Dependency and Offline-First invariants per ADR-003.
 
+---
+
+## ADR-076: Invariant Offline Scripture Vector Database, Standard Embedder Compilation, and Dual-Mode Semantic Retrieval (Corpus Similarity & User-Input Query RAG)
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - The sacred text of Scripture is closed, invariant, and fixed across all 31,102 verses and 1,304 pericopes. Unlike streaming datasets or evolving user documents, scripture text never changes once ingested.
+  - Computing dense vector embeddings dynamically at runtime for static verses is wasteful, redundant, and introduces unnecessary latency or network dependency.
+  - The vector database for all verses and pericopes must therefore be pre-computed **offline** once using a standard embedder (e.g. `text-embedding-004`), quantized into compact int8 byte BLOBs (~24MB total), and stored directly in the SQLite database (`data/bible.db`).
+  - Furthermore, clear architectural specification was needed regarding the two (or more) primary applications of these offline embeddings:
+    1. **Corpus Similarity Searches**: Comparing static passages against static passages (e.g. finding verses or pericopes conceptually parallel to `Romans 3:25` or `Leviticus 16:15`) to power cross-canonical thematic links, typological correspondences, and the Visual Similarity Scatter Map.
+    2. **Vector-Based Similarity Search of User Input for RAG**: Allowing users to enter natural language questions or topical queries (e.g. *"How much should I tithe?"*, *"What does the Bible teach about anxiety?"*). The runtime engine embeds the user's inquiry via the same standard embedder, performs cosine similarity against the pre-computed offline vector database, and retrieves top matching verses/pericopes as direct answers or as rich context for RAG response synthesis in CLI and Web UI chat.
+- **Decision**:
+  1. **Offline Invariant Vector Database Compilation (Task 7.7)**:
+     - Scripture embeddings for all 31,102 verses (`verse_embeddings`) and 1,304 pericopes (`pericope_embeddings`) are generated offline in advance using a standard embedder model (`text-embedding-004`, 768 dimensions).
+     - Embeddings are quantized into signed 8-bit integers (`int8`) packed as 768-byte binary BLOBs via Python's standard library `struct` package (`core/vector.py`).
+     - Total storage footprint in SQLite is ~24MB, adhering strictly to the <100MB repository ceiling.
+     - Static scripture embeddings are never generated or re-computed at runtime.
+  2. **Dual-Mode Semantic Retrieval Architecture (Task 4.8 & Task 8.7)**:
+     - **Mode 1 (Corpus-to-Corpus Similarity)**: Computes dot products between pre-computed int8 BLOBs in SQLite in <15ms without external libraries or GPUs. Used for verse-to-verse exploration, pericope recommendations, and the 2D Semantic Scatter Map.
+     - **Mode 2 (User-Input Query Vector Search & RAG Context)**:
+       - At runtime, user natural language queries (e.g. *"How much should I tithe?"*) are embedded via the standard embedder endpoint (`core/llm.py`).
+       - The generated query embedding is matched via cosine similarity (`core/vector.py`) against the offline whole-Bible vector database.
+       - Top semantic matches are fed directly into the Scripture RAG pipeline (`core/rag.py`), providing hermeneutically relevant scripture context for grounded theological synthesis.
+  3. **Hybrid FTS5 & Vector Search Fusion (Task 8.1)**:
+     - Fuses BM25 lexical ranking from SQLite FTS5 with query vector similarity scores using Reciprocal Rank Fusion (RRF), delivering balanced precision and conceptual breadth.
+  4. **Strict Zero External Dependencies (ADR-003)**:
+     - Vector normalization, dot-product calculations, int8 quantization, and cosine similarity calculations operate entirely in pure Python standard library (`struct`, `math`). Zero pip packages (no PyTorch, Chroma, FAISS, or numpy).
+- **Consequences**:
+  - Scripture vector retrieval is instantaneous, deterministic, and 100% functional offline for corpus exploration.
+  - Runtime API usage is minimized strictly to embedding dynamic user inquiries when performing semantic question-answering.
+  - Formally documents the architectural requirements in `ROADMAP.md` (Tasks 4.8, 7.7, 8.7) and `IDEAS.md`.
+
+
 
 
