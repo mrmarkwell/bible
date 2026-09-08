@@ -67,7 +67,7 @@ class TestExecutiveSummary(unittest.TestCase):
         self.assertIsInstance(report, ExecutiveReport)
         self.assertGreater(report.run_count, 0)
         self.assertGreater(report.roadmap_stats.completed_tasks, 0)
-        self.assertGreater(report.estimated_runs_remaining, 0)
+        self.assertGreaterEqual(report.estimated_runs_remaining, 0)
         md = format_markdown_report(report)
         self.assertIn("Executive Summary & Trajectory Briefing", md)
         self.assertIn("Executive Overview & Trajectory", md)

@@ -110,11 +110,53 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnCloseModal = document.getElementById("btn-close-modal");
   const toast = document.getElementById("toast");
 
+  // DOM Elements - RAG Study Stage & Sidebar
+  const inputRagQuery = document.getElementById("input-rag-query");
+  const btnRunRag = document.getElementById("btn-run-rag");
+  const selectRagPassages = document.getElementById("select-rag-passages");
+  const checkRagSynthesize = document.getElementById("check-rag-synthesize");
+  const ragSidebarStatsContent = document.getElementById("rag-sidebar-stats-content");
+  const ragStudyStage = document.getElementById("rag-study-stage");
+  const ragStageApiBadge = document.getElementById("rag-stage-api-badge");
+  const ragStageVersesBadge = document.getElementById("rag-stage-verses-badge");
+  const ragGroundedCount = document.getElementById("rag-grounded-count");
+  const ragPassagesStream = document.getElementById("rag-passages-stream");
+  const ragNotesContent = document.getElementById("rag-notes-content");
+
+  // DOM Elements - Biblical Character Dialogue Studio Stage & Sidebar
+  const selectPersonaCharacter = document.getElementById("select-persona-character");
+  const personaFilterTestament = document.getElementById("persona-filter-testament");
+  const personaSidebarProfile = document.getElementById("persona-sidebar-profile");
+  const personaSidebarAvatar = document.getElementById("persona-sidebar-avatar");
+  const personaSidebarName = document.getElementById("persona-sidebar-name");
+  const personaSidebarRole = document.getElementById("persona-sidebar-role");
+  const personaSidebarDesc = document.getElementById("persona-sidebar-desc");
+  const personaSidebarPassages = document.getElementById("persona-sidebar-passages");
+  const btnPersonaClearHistory = document.getElementById("btn-persona-clear-history");
+  const personaStudioStage = document.getElementById("persona-studio-stage");
+  const personaStageAvatar = document.getElementById("persona-stage-avatar");
+  const personaStageName = document.getElementById("persona-stage-name");
+  const personaStageTestament = document.getElementById("persona-stage-testament");
+  const personaStageEpithet = document.getElementById("persona-stage-epithet");
+  const personaStagePassageCount = document.getElementById("persona-stage-passage-count");
+  const btnPersonaQuickQuote = document.getElementById("btn-persona-quick-quote");
+  const personaChatViewport = document.getElementById("persona-chat-viewport");
+  const personaWelcomeCard = document.getElementById("persona-welcome-card");
+  const personaSuggestedPrompts = document.getElementById("persona-suggested-prompts");
+  const personaMessageInput = document.getElementById("persona-message-input");
+  const btnPersonaSend = document.getElementById("btn-persona-send");
+  const personaTheologicalDesc = document.getElementById("persona-theological-desc");
+  const personaKeyPassagesList = document.getElementById("persona-key-passages-list");
+
   // State
   let arcNetworkData = null;
   let activeArcId = null;
   let allBooks = [];
   let allTags = [];
+  let allCharacters = [];
+  let activeCharacterId = "paul";
+  let activeCharacterData = null;
+  let personaChatHistory = [];
   let currentPassageData = null;
   let activeTagCategory = "";
   let currentFontSize = parseInt(localStorage.getItem("bible_font_size"), 10) || 19;
@@ -228,6 +270,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const viewPanels = {
     passage: document.getElementById("panel-passage"),
     search: document.getElementById("panel-search"),
+    rag: document.getElementById("panel-rag"),
+    persona: document.getElementById("panel-persona"),
     topics: document.getElementById("panel-topics"),
     crossref: document.getElementById("panel-crossref"),
     ribbon: document.getElementById("panel-ribbon"),
@@ -250,10 +294,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Toggle Reader Stage vs. Panoramic Arc Stage
+    // Toggle Stage Views (Reader Stage vs Panoramic Arcs vs RAG Study vs Character Studio)
     const chapterNavBar = document.querySelector(".chapter-nav-bar");
     const stageHeader = document.querySelector(".stage-header");
     const scriptureViewport = document.querySelector(".scripture-viewport");
+
+    // Hide all specialized stages first
+    if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
+    if (ragStudyStage) ragStudyStage.classList.add("hidden");
+    if (personaStudioStage) personaStudioStage.classList.add("hidden");
 
     if (view === "arcs") {
       if (chapterNavBar) chapterNavBar.classList.add("hidden");
@@ -266,12 +315,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
       populateArcBookSelector();
       loadArcNetwork();
+    } else if (view === "rag") {
+      if (chapterNavBar) chapterNavBar.classList.add("hidden");
+      if (stageHeader) stageHeader.classList.add("hidden");
+      if (passageTags) passageTags.classList.add("hidden");
+      if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+      if (scriptureViewport) scriptureViewport.classList.add("hidden");
+      if (crossrefSection) crossrefSection.classList.add("hidden");
+      if (ragStudyStage) ragStudyStage.classList.remove("hidden");
+
+      // Auto-trigger RAG query if stream is currently empty
+      if (!ragPassagesStream.querySelector(".rag-passage-card")) {
+        executeRAGStudy();
+      }
+    } else if (view === "persona") {
+      if (chapterNavBar) chapterNavBar.classList.add("hidden");
+      if (stageHeader) stageHeader.classList.add("hidden");
+      if (passageTags) passageTags.classList.add("hidden");
+      if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+      if (scriptureViewport) scriptureViewport.classList.add("hidden");
+      if (crossrefSection) crossrefSection.classList.add("hidden");
+      if (personaStudioStage) personaStudioStage.classList.remove("hidden");
+
+      if (allCharacters.length === 0) {
+        loadCharacters();
+      } else {
+        renderActivePersona();
+      }
     } else {
       if (chapterNavBar) chapterNavBar.classList.remove("hidden");
       if (stageHeader) stageHeader.classList.remove("hidden");
       if (passageTags) passageTags.classList.remove("hidden");
       if (scriptureViewport) scriptureViewport.classList.remove("hidden");
-      if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
       if (crossrefSection && currentPassageData && currentPassageData.cross_references && currentPassageData.cross_references.length > 0) {
         crossrefSection.classList.remove("hidden");
       }
@@ -1298,6 +1373,443 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchPassage(arc.target_ref);
         showToast(`Loaded ${arc.target_ref}`);
       }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Dynamic Scripture RAG Study & Split-Screen Synthesis
+  // -------------------------------------------------------------------------
+  async function executeRAGStudy() {
+    const query = inputRagQuery ? inputRagQuery.value.trim() : "";
+    if (!query) return;
+
+    const maxPassages = selectRagPassages ? parseInt(selectRagPassages.value, 10) || 5 : 5;
+    const synthesize = checkRagSynthesize ? checkRagSynthesize.checked : true;
+
+    if (ragPassagesStream) {
+      ragPassagesStream.innerHTML = '<div class="loading-state">Retrieving dual-horizon scripture context...</div>';
+    }
+    if (ragNotesContent) {
+      ragNotesContent.innerHTML = '<div class="loading-state">Synthesizing TGC exegetical study notes...</div>';
+    }
+    if (ragSidebarStatsContent) {
+      ragSidebarStatsContent.innerHTML = 'Retrieving context across canon...';
+    }
+
+    try {
+      const res = await fetch("/api/rag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: query,
+          max_passages: maxPassages,
+          synthesize: synthesize,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Update RAG Stage Badges
+      if (ragStageApiBadge) {
+        ragStageApiBadge.textContent = data.model || (data.api_available ? "Gemini Online" : "Offline Context");
+      }
+      const passages = (data.context && data.context.passages) || [];
+      const totalVerses = data.context ? data.context.total_verses : 0;
+
+      if (ragStageVersesBadge) {
+        ragStageVersesBadge.textContent = `${totalVerses} verse${totalVerses === 1 ? '' : 's'} across ${passages.length} passage${passages.length === 1 ? '' : 's'}`;
+      }
+      if (ragGroundedCount) {
+        ragGroundedCount.textContent = passages.length;
+      }
+
+      // Update Sidebar Stats Card
+      if (ragSidebarStatsContent) {
+        const epochs = data.detected_epochs || (data.context && data.context.rag_query && data.context.rag_query.detected_epochs) || [];
+        const ribbons = data.thematic_ribbons || data.detected_ribbons || (data.context && data.context.rag_query && data.context.rag_query.detected_ribbons) || [];
+        const estTokens = data.context ? data.context.estimated_tokens : 0;
+
+        ragSidebarStatsContent.innerHTML = `
+          <p style="font-size: 12px; margin-bottom: 5px;">Grounding: <strong>${passages.length} passages (${totalVerses} verses)</strong></p>
+          <p style="font-size: 12px; margin-bottom: 5px;">Context Size: <strong>~${estTokens} tokens</strong></p>
+          ${epochs.length > 0 ? `<p style="font-size: 11.5px; margin-bottom: 4px; color: #70A9F5;">Epochs: ${epochs.join(", ")}</p>` : ''}
+          ${ribbons.length > 0 ? `<p style="font-size: 11.5px; color: #B97CF2;">Ribbons: ${ribbons.join(", ")}</p>` : ''}
+        `;
+      }
+
+      // Render Left Column: Grounded Canonical Scripture Passages
+      if (ragPassagesStream) {
+        if (passages.length === 0) {
+          ragPassagesStream.innerHTML = '<div class="loading-state">No passages matched this inquiry.</div>';
+        } else {
+          ragPassagesStream.innerHTML = "";
+          passages.forEach((p) => {
+            const card = document.createElement("div");
+            card.className = "rag-passage-card";
+
+            const epochBadges = (p.epochs || []).map((e) => `<span class="rag-pill-epoch">${escapeHtml(e)}</span>`).join("");
+            const ribbonBadges = (p.ribbons || []).map((r) => `<span class="rag-pill-ribbon">${escapeHtml(r)}</span>`).join("");
+
+            card.innerHTML = `
+              <div class="rag-passage-header">
+                <span class="rag-passage-ref">${escapeHtml(p.reference)}</span>
+                <span class="rag-passage-meta">${p.total_verses}v · score: ${(p.relevance_score || 1.0).toFixed(2)}</span>
+              </div>
+              <div class="rag-passage-text">${escapeHtml(p.text)}</div>
+              ${(epochBadges || ribbonBadges) ? `<div class="rag-passage-badges">${epochBadges}${ribbonBadges}</div>` : ''}
+            `;
+
+            const refEl = card.querySelector(".rag-passage-ref");
+            if (refEl) {
+              refEl.addEventListener("click", () => {
+                const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+                if (passageTab) passageTab.click();
+                inputRef.value = p.reference;
+                fetchPassage(p.reference);
+                showToast(`Opened ${p.reference}`);
+              });
+            }
+
+            ragPassagesStream.appendChild(card);
+          });
+        }
+      }
+
+      // Render Right Column: Exegetical Notes & Synthesis
+      if (ragNotesContent) {
+        ragNotesContent.innerHTML = "";
+
+        if (data.answer) {
+          const synthesisEl = document.createElement("div");
+          synthesisEl.className = "rag-synthesis-text";
+          synthesisEl.textContent = data.answer;
+          ragNotesContent.appendChild(synthesisEl);
+
+          const banner = document.createElement("div");
+          banner.className = "rag-theology-banner";
+          banner.innerHTML = `
+            <span>✦</span>
+            <span>Synthesized under TGC Dual-Horizon Hermeneutics (${data.model || "Gemini"})</span>
+          `;
+          ragNotesContent.appendChild(banner);
+        } else if (data.synthesized === false && data.error) {
+          const warnEl = document.createElement("div");
+          warnEl.className = "rag-theology-banner";
+          warnEl.style.borderColor = "rgba(231, 76, 60, 0.4)";
+          warnEl.style.color = "#E74C3C";
+          warnEl.textContent = data.error;
+          ragNotesContent.appendChild(warnEl);
+        } else {
+          // Pure Retrieval Mode (Offline or Unsynthesized)
+          const infoCard = document.createElement("div");
+          infoCard.className = "persona-theological-card";
+          infoCard.innerHTML = `
+            <h4>Grounded Dual-Horizon Context Retrieved</h4>
+            <p>Retrieved <strong>${passages.length} canonical passages</strong> across redemptive history. When GEMINI_API_KEY is configured, this engine synthesizes Christ-centered answers tracing biblical theology across the canon.</p>
+          `;
+          ragNotesContent.appendChild(infoCard);
+        }
+      }
+    } catch (err) {
+      if (ragPassagesStream) ragPassagesStream.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Error: ${escapeHtml(err.message)}</div>`;
+      if (ragNotesContent) ragNotesContent.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed to synthesize: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  if (btnRunRag) {
+    btnRunRag.addEventListener("click", executeRAGStudy);
+  }
+  if (inputRagQuery) {
+    inputRagQuery.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        executeRAGStudy();
+      }
+    });
+  }
+
+  // Quick Chips for RAG Inquiries
+  document.querySelectorAll("[data-rag]").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const q = chip.getAttribute("data-rag");
+      if (q && inputRagQuery) {
+        inputRagQuery.value = q;
+        const ragTab = document.querySelector('.nav-tab[data-view="rag"]');
+        if (ragTab && !ragTab.classList.contains("active")) ragTab.click();
+        executeRAGStudy();
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Biblical Character Dialogue Studio Subsystem
+  // -------------------------------------------------------------------------
+  async function loadCharacters() {
+    try {
+      const res = await fetch("/api/characters");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      allCharacters = data.characters || [];
+      populateCharacterSelector();
+      renderActivePersona();
+    } catch (err) {
+      console.error("Failed to load canonical characters:", err);
+    }
+  }
+
+  function populateCharacterSelector() {
+    if (!selectPersonaCharacter) return;
+    const testamentFilter = personaFilterTestament ? personaFilterTestament.value : "";
+    const filtered = allCharacters.filter((c) => {
+      if (!testamentFilter) return true;
+      return c.testament === testamentFilter || c.testament === "BOTH";
+    });
+
+    selectPersonaCharacter.innerHTML = "";
+    filtered.forEach((char) => {
+      const opt = document.createElement("option");
+      opt.value = char.id;
+      opt.textContent = `${char.name} (${char.testament}) — ${char.epithet}`;
+      if (char.id === activeCharacterId) opt.selected = true;
+      selectPersonaCharacter.appendChild(opt);
+    });
+  }
+
+  if (personaFilterTestament) {
+    personaFilterTestament.addEventListener("change", populateCharacterSelector);
+  }
+
+  if (selectPersonaCharacter) {
+    selectPersonaCharacter.addEventListener("change", (e) => {
+      activeCharacterId = e.target.value;
+      personaChatHistory = [];
+      renderActivePersona();
+    });
+  }
+
+  async function renderActivePersona() {
+    let char = allCharacters.find((c) => c.id === activeCharacterId);
+    if (!char && allCharacters.length > 0) {
+      char = allCharacters[0];
+      activeCharacterId = char.id;
+    }
+    if (!char) return;
+
+    activeCharacterData = char;
+
+    // Update Sidebar Profile Card
+    if (personaSidebarAvatar) personaSidebarAvatar.textContent = char.name.charAt(0);
+    if (personaSidebarName) personaSidebarName.textContent = char.name;
+    if (personaSidebarRole) personaSidebarRole.textContent = `${char.epithet} (${char.testament})`;
+    if (personaSidebarDesc) personaSidebarDesc.textContent = char.historical_context || char.theological_significance || "";
+
+    // Sidebar Passages
+    if (personaSidebarPassages) {
+      personaSidebarPassages.innerHTML = "";
+      (char.key_scriptures || []).slice(0, 4).forEach((ref) => {
+        const pill = document.createElement("span");
+        pill.className = "chip chip-gold";
+        pill.textContent = ref;
+        pill.addEventListener("click", () => {
+          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+          if (passageTab) passageTab.click();
+          inputRef.value = ref;
+          fetchPassage(ref);
+        });
+        personaSidebarPassages.appendChild(pill);
+      });
+    }
+
+    // Update Studio Stage Banner
+    if (personaStageAvatar) personaStageAvatar.textContent = char.name.charAt(0);
+    if (personaStageName) personaStageName.textContent = char.name;
+    if (personaStageTestament) personaStageTestament.textContent = `${char.testament} CANON`;
+    if (personaStageEpithet) personaStageEpithet.textContent = char.epithet;
+    if (personaStagePassageCount) personaStagePassageCount.textContent = (char.key_scriptures || []).length;
+
+    // Update Reference Column
+    if (personaTheologicalDesc) {
+      personaTheologicalDesc.textContent = `${char.historical_context} ${char.theological_significance}`;
+    }
+
+    if (personaKeyPassagesList) {
+      personaKeyPassagesList.innerHTML = "";
+      (char.key_scriptures || []).forEach((ref) => {
+        const item = document.createElement("div");
+        item.className = "persona-key-passage-item";
+        item.innerHTML = `
+          <div class="persona-kp-ref">${escapeHtml(ref)}</div>
+          <div class="persona-kp-text">Click to read in canonical Scripture explorer &rarr;</div>
+        `;
+        item.addEventListener("click", () => {
+          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+          if (passageTab) passageTab.click();
+          inputRef.value = ref;
+          fetchPassage(ref);
+          showToast(`Loaded ${ref}`);
+        });
+        personaKeyPassagesList.appendChild(item);
+      });
+    }
+
+    // Update Welcome Card Suggested Prompts
+    if (personaSuggestedPrompts) {
+      personaSuggestedPrompts.innerHTML = "";
+      const defaultPrompts = [
+        `What is the central theological theme of your calling?`,
+        `How do you understand God's covenant faithfulness?`,
+        `How does your life and writing point forward to Christ?`,
+      ];
+      defaultPrompts.forEach((pText) => {
+        const chip = document.createElement("span");
+        chip.className = "chip chip-gold";
+        chip.textContent = pText;
+        chip.addEventListener("click", () => {
+          if (personaMessageInput) {
+            personaMessageInput.value = pText;
+            sendPersonaMessage();
+          }
+        });
+        personaSuggestedPrompts.appendChild(chip);
+      });
+    }
+
+    // Re-render Chat History
+    renderChatHistory();
+  }
+
+  function renderChatHistory() {
+    if (!personaChatViewport) return;
+    personaChatViewport.innerHTML = "";
+
+    if (personaChatHistory.length === 0) {
+      if (personaWelcomeCard) {
+        personaChatViewport.appendChild(personaWelcomeCard);
+      }
+      return;
+    }
+
+    personaChatHistory.forEach((turn) => {
+      appendChatBubble(turn.role, turn.content, turn.grounded_passages);
+    });
+
+    personaChatViewport.scrollTop = personaChatViewport.scrollHeight;
+  }
+
+  function appendChatBubble(role, content, groundedPassages = []) {
+    if (!personaChatViewport) return;
+
+    const bubble = document.createElement("div");
+    bubble.className = `chat-bubble ${role}`;
+
+    const avatar = document.createElement("div");
+    avatar.className = "chat-bubble-avatar";
+    avatar.textContent = role === "user" ? "You" : (activeCharacterData ? activeCharacterData.name.charAt(0) : "✦");
+
+    const contentBox = document.createElement("div");
+    contentBox.className = "chat-bubble-content";
+    contentBox.textContent = content;
+
+    if (groundedPassages && groundedPassages.length > 0) {
+      const groundedTray = document.createElement("div");
+      groundedTray.className = "chat-grounded-passages";
+      groundedPassages.forEach((ref) => {
+        const pill = document.createElement("span");
+        pill.className = "chat-ref-chip";
+        pill.textContent = ref;
+        pill.addEventListener("click", () => {
+          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+          if (passageTab) passageTab.click();
+          inputRef.value = ref;
+          fetchPassage(ref);
+        });
+        groundedTray.appendChild(pill);
+      });
+      contentBox.appendChild(groundedTray);
+    }
+
+    bubble.appendChild(avatar);
+    bubble.appendChild(contentBox);
+    personaChatViewport.appendChild(bubble);
+    personaChatViewport.scrollTop = personaChatViewport.scrollHeight;
+  }
+
+  async function sendPersonaMessage() {
+    if (!personaMessageInput) return;
+    const msg = personaMessageInput.value.trim();
+    if (!msg) return;
+
+    personaMessageInput.value = "";
+
+    // Append User Message to UI
+    appendChatBubble("user", msg);
+    personaChatHistory.push({ role: "user", content: msg });
+
+    // Show Typing Indicator
+    const typingIndicator = document.createElement("div");
+    typingIndicator.className = "chat-bubble model";
+    typingIndicator.id = "persona-typing-indicator";
+    typingIndicator.innerHTML = `
+      <div class="chat-bubble-avatar">${activeCharacterData ? activeCharacterData.name.charAt(0) : "✦"}</div>
+      <div class="chat-bubble-content" style="font-style: italic; color: var(--text-muted);">
+        Reflecting on canonical Scripture...
+      </div>
+    `;
+    personaChatViewport.appendChild(typingIndicator);
+    personaChatViewport.scrollTop = personaChatViewport.scrollHeight;
+
+    try {
+      const res = await fetch("/api/chat/persona", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          character: activeCharacterId,
+          message: msg,
+          history: personaChatHistory.map((h) => ({ role: h.role, content: h.content })),
+        }),
+      });
+      const data = await res.json();
+
+      const ind = document.getElementById("persona-typing-indicator");
+      if (ind) ind.remove();
+
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      const responseText = data.response || "No reply received.";
+      const grounded = data.grounded_passages || [];
+
+      appendChatBubble("model", responseText, grounded);
+      personaChatHistory.push({
+        role: "model",
+        content: responseText,
+        grounded_passages: grounded,
+      });
+    } catch (err) {
+      const ind = document.getElementById("persona-typing-indicator");
+      if (ind) ind.remove();
+
+      appendChatBubble("model", `Error: ${err.message}`);
+    }
+  }
+
+  if (btnPersonaSend) {
+    btnPersonaSend.addEventListener("click", sendPersonaMessage);
+  }
+
+  if (personaMessageInput) {
+    personaMessageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendPersonaMessage();
+      }
+    });
+  }
+
+  if (btnPersonaClearHistory) {
+    btnPersonaClearHistory.addEventListener("click", () => {
+      personaChatHistory = [];
+      renderChatHistory();
+      showToast("Conversation history cleared.");
     });
   }
 

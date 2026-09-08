@@ -827,6 +827,49 @@ class TestWebServerEndpoints(unittest.TestCase):
             self.assertIn("Content-Type", headers_allowed)
 
 
+    def test_web_ui_rag_study_and_character_studio_integration(self) -> None:
+        """Verify Web UI HTML and JavaScript provide complete RAG Study and Character Dialogue panels."""
+        # 1. Verify index.html contains all RAG and Persona elements
+        status, _, body = self._get("/")
+        self.assertEqual(status, 200)
+        html_text = body.decode("utf-8")
+        self.assertIn('data-view="rag"', html_text)
+        self.assertIn('data-view="persona"', html_text)
+        self.assertIn('id="panel-rag"', html_text)
+        self.assertIn('id="panel-persona"', html_text)
+        self.assertIn('id="rag-study-stage"', html_text)
+        self.assertIn('id="persona-studio-stage"', html_text)
+        self.assertIn('id="input-rag-query"', html_text)
+        self.assertIn('id="btn-run-rag"', html_text)
+        self.assertIn('id="select-persona-character"', html_text)
+        self.assertIn('id="persona-message-input"', html_text)
+        self.assertIn('id="btn-persona-send"', html_text)
+
+        # 2. Verify style.css defines split-screen and studio styles
+        status, _, body = self._get("/style.css")
+        self.assertEqual(status, 200)
+        css_text = body.decode("utf-8")
+        self.assertIn(".rag-split-container", css_text)
+        self.assertIn(".rag-scripture-column", css_text)
+        self.assertIn(".rag-notes-column", css_text)
+        self.assertIn(".persona-studio-split", css_text)
+        self.assertIn(".persona-chat-column", css_text)
+        self.assertIn(".persona-reference-column", css_text)
+        self.assertIn(".chat-bubble", css_text)
+
+        # 3. Verify app.js defines RAG and Character Dialogue functions
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("executeRAGStudy", js_text)
+        self.assertIn("loadCharacters", js_text)
+        self.assertIn("populateCharacterSelector", js_text)
+        self.assertIn("renderActivePersona", js_text)
+        self.assertIn("sendPersonaMessage", js_text)
+        self.assertIn("renderChatHistory", js_text)
+        self.assertIn("appendChatBubble", js_text)
+
+
 class TestWebCliAndShellIntegration(unittest.TestCase):
     """Test CLI argument parsing and REPL shell integration for the web server."""
 

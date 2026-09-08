@@ -2352,4 +2352,42 @@ This document is an append-only log of significant design and architectural deci
   - 1-to-1 test suite symmetry for all 39 production modules with 870 hermetic unit tests passing in <3.5s.
   - 100% zero-dependency compliance maintained per ADR-003.
 
+---
+
+## ADR-071: Sacred-Modern Web UI Split-Screen Scripture RAG Study & Biblical Character Dialogue Studio
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 8 Roadmap culminates in **Task 8.6**: *Build interactive Web UI panels: Split-Screen Scripture Reader with dynamic RAG study notes and Interactive Biblical Character Dialogue Studio.*
+  - Prior iterations implemented the backend retrieval engine (`core/rag.py` / ADR-061), CLI RAG inquiry (`./bible ask` / ADR-062), character persona engine (`core/persona.py` / ADR-063), CLI character dialogue (`./bible chat` / ADR-067), interactive REPL persona studio (`/chat`, `/characters` / ADR-069), and server REST endpoints (`/api/rag`, `/api/characters`, `/api/chat/persona` / ADR-068).
+  - To complete Phase 8, the web interface needed first-class interactive user interfaces for both capabilities:
+    1. **Split-Screen Scripture RAG Study**: A dual-column layout displaying grounded canonical scripture passages retrieved along redemptive history on the left, and dynamic Christ-centered exegetical study notes synthesized under TGC guardrails on the right.
+    2. **Biblical Character Dialogue Studio**: An immersive split-view conversational environment where scholars and readers can choose from all 19 canonical personas (with testament filtering), inspect their theological background, key passages, and engage in multi-turn dialogues with grounded scripture citations.
+  - All implementations must strictly conform to ADR-003: zero external npm/pip packages, vanilla HTML5/CSS3/ES6+ JavaScript, responsive layouts, and graceful offline handling.
+- **Decision**:
+  1. **Dual-Panel Navigation & Stage Architecture (`web/static/index.html`, `web/static/app.js`)**:
+     - Added two first-class navigation tabs: `RAG Study` (`data-view="rag"`) and `Dialogue` (`data-view="persona"`).
+     - Added dedicated responsive stages in `<main class="reader-stage">`: `rag-study-stage` and `persona-studio-stage`.
+     - Integrated `switchView(view)` with hash routing (`#rag`, `#persona`), breadcrumb toggling, and clean stage transitions.
+  2. **Split-Screen Scripture RAG Study Stage (`web/static/index.html`, `web/static/style.css`, `web/static/app.js`)**:
+     - Built dual-column responsive grid layout:
+       - **Left Column (`.rag-scripture-column`)**: Grounded scripture passages stream displaying canonical reference, relevance score, verse count, full text, and theological metadata pills (redemptive epochs and thematic ribbons). Clicking any reference seamlessly opens it in the primary Scripture explorer.
+       - **Right Column (`.rag-notes-column`)**: Dynamic TGC exegetical study notes and Christ-centered synthesis, complete with TGC guardrail badge and token telemetry.
+     - Provided sidebar controls with query input, preset inquiry chips, max passage selector (3, 5, 8, 12), Gemini synthesis toggle, and real-time context metrics.
+  3. **Interactive Biblical Character Dialogue Studio Stage (`web/static/index.html`, `web/static/style.css`, `web/static/app.js`)**:
+     - Built comprehensive dialogue studio with header banner, persona avatar, canonical testament badge, and passage counter.
+     - **Left Column (`.persona-chat-column`)**: Multi-turn conversational feed with user and model chat bubbles, typing indicator, grounded scripture chip links, auto-scrolling viewport, multi-turn history tracking, and keyboard shortcut handling (Enter to send, Shift+Enter for newline).
+     - **Right Column (`.persona-reference-column`)**: Exegetical profile card displaying historical context, theological significance, and interactive list of key passages that jump to the passage explorer on click.
+     - Provided sidebar controls: testament dropdown filter (OT, NT, All), persona picker across all 19 canonical figures, mini profile preview, and clear history action.
+  4. **Sacred-Modern Styling & Zero-Dependency Design System (`web/static/style.css`)**:
+     - Styled all components within the Obsidian Dark / Scriptorium / Monastery design system tokens (`--gold-primary`, `--bg-card`, `--bg-surface`, `--border-subtle`).
+     - Added responsive breakpoint (`@media (max-width: 1050px)`) cleanly collapsing split columns into single-column vertical flows on mobile/tablet viewports.
+  5. **Hermetic Verification & Testing (`tests/test_server.py`)**:
+     - Added `test_web_ui_rag_study_and_character_studio_integration` in `tests/test_server.py` verifying HTML elements, CSS rules, and JavaScript functions.
+     - Verified 100% test pass rate (871 tests passing across 39 modules in 3.2s).
+- **Consequences**:
+  - Phase 8 Roadmap is now 100% complete across both CLI, REPL study shell, REST API, and Sacred-Modern Web UI.
+  - Scholars and readers enjoy a state-of-the-art visual scripture study platform with dual-horizon RAG and 19 canonical character personas.
+  - 100% Zero-Dependency compliance maintained per ADR-003.
+
 
