@@ -825,4 +825,88 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Author hermetic unit tests verifying the skill tooling and ESV passage fetching.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
 
+---
+
+### [VETTED] Bundled King James Version (KJV) Ingestion & Multi-Translation Comparison Parity (Rank A+)
+- **Summary**: Ingest a complete, verified public-domain translation—the **King James Version (KJV)**—into `data/bible.db` as a second permanent offline translation alongside WEB (~31,102 verses). Provide an offline compilation pipeline (`tools/ingest_kjv.py`), raw text cache in `data/raw/kjv/`, and full FTS5 search indexing.
+- **Rationale**: Currently, `data/bible.db` only has 1 translation (`WEB`), rendering `./bible compare` incapable of comparing different translations offline (it compares WEB against fallback WEB). Bundling KJV unlocks authentic offline multi-translation comparison, formal vs. dynamic equivalence study, and historical phrase search without needing external API credentials.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% public domain text committed to repository).
+  - Zero third-party dependencies? Yes (Python 3 stdlib pipeline).
+  - Copyright compliant? Yes (KJV is 100% public domain).
+- **Proposed Roadmap Phase**: Phase 1 (Task 1.7).
+- **Suggested Tasks**:
+  - [ ] Cache clean public domain KJV JSON in `data/raw/kjv/`.
+  - [ ] Implement `tools/ingest_kjv.py` compiling KJV verses into `data/bible.db` with canonical IDs (`BBCCCVVV`).
+  - [ ] Add hermetic unit tests in `tests/test_ingest.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Comprehensive Scripture Cross-Reference Knowledge Graph Ingestion (TSK) (Rank A+)
+- **Summary**: Ingest an authoritative, public-domain cross-reference dataset (such as the **Treasury of Scripture Knowledge - TSK**, containing ~340,000 canonical cross-references) into `cross_references` table in `data/bible.db`, expanding the graph from 67 hand-curated rows to comprehensive whole-Bible coverage.
+- **Rationale**: Currently, `cross_references` contains only 67 rows, making the Web UI's Typological Arc Network and CLI `--refs` look empty for 90% of the Bible. Ingesting TSK equips every chapter with rich canonical intertextual links.
+- **Constraints & Alignment**:
+  - Offline-first? Yes.
+  - Zero third-party dependencies? Yes.
+  - Fast query latency? Yes (indexed by `start_canonical_id` and `end_canonical_id`).
+- **Proposed Roadmap Phase**: Phase 3 (Task 3.8).
+- **Suggested Tasks**:
+  - [ ] Source clean public-domain TSK cross-reference dataset into `data/raw/cross_references/`.
+  - [ ] Build zero-dependency ingestion script `tools/ingest_crossrefs.py`.
+  - [ ] Add unit tests in `tests/test_crossref.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Whole-Bible ESV Verse and Pericope Dense Embeddings Generation (Rank A+)
+- **Summary**: Populate `verse_embeddings` and `pericope_embeddings` with real dense vector embeddings (e.g. 768-dim int8 quantized byte buffers, ~24MB total) generated from the **ESV** text using Google's embedding model (`text-embedding-004`). Supports both batch execution and integration into the `semantic-tagging` skill.
+- **Rationale**: The `verse_embeddings` table currently has 0 rows in `data/bible.db`, and `pericope_embeddings` has only coarse synthetic vectors. Populating real ESV vector embeddings unlocks genuine micro-level semantic similarity search (<15ms via `core/vector.py`) and lays the foundation for advanced visual and retrieval interfaces.
+- **Constraints & Alignment**:
+  - Translation mandate: Strictly generated from **ESV** text (`core/esv.py`).
+  - Storage: Quantized int8 packed byte BLOBs in SQLite (<25MB total).
+  - Zero external dependencies: Vector math in pure Python standard library `struct` and `math` (ADR-003/051).
+- **Proposed Roadmap Phase**: Phase 7 (Task 7.7).
+- **Suggested Tasks**:
+  - [ ] Add embedding generation method in `core/llm.py` targeting Google's REST embedding endpoint with int8 quantization.
+  - [ ] Implement batch embedder in `tools/build_embeddings.py` operating on ESV text with checkpointing.
+  - [ ] Populate `verse_embeddings` (31,102 rows) and `pericope_embeddings` (1,304 rows) in `data/bible.db`.
+  - [ ] Add hermetic unit tests in `tests/test_vector.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (Rank A+)
+- **Summary**: Implement an interactive Web UI panel (`/map` or `/explore/map`) visualizing the entire Bible or selected books as a 2D semantic similarity scatter map. Verses and pericopes appear as clickable dots arranged by conceptual proximity (using pre-projected 2D coordinates derived via t-SNE/UMAP or PCA on ESV vector embeddings). Users can zoom, pan, hover to read tooltips, and click dots to inspect the passage text, active tags, and theological themes in the split-screen reader.
+- **Rationale**: Transforms abstract high-dimensional vector embeddings into an intuitive visual landscape. Allows Bible students to visually discover unexpected conceptual clusters (e.g. sacrificial imagery across Leviticus, Hebrews, and Revelation clustering together) and navigate scripture spatially.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (2D projection coordinates pre-computed and stored in SQLite).
+  - Zero npm dependencies? Yes (vanilla JavaScript + native HTML5 Canvas or SVG).
+- **Proposed Roadmap Phase**: Phase 4 (Task 4.7).
+- **Suggested Tasks**:
+  - [ ] Add 2D coordinate columns (`map_x`, `map_y`) to `verse_embeddings` / `pericope_embeddings` schema.
+  - [ ] Build projection utility in `tools/project_embeddings.py` calculating 2D coordinates.
+  - [ ] Expose REST endpoint `GET /api/embeddings/map`.
+  - [ ] Build interactive Canvas/SVG scatter map component in `web/static/app.js` with hover tooltips, book coloring, and click-to-read integration.
+  - [ ] Add unit tests in `tests/test_server.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Vector-Similarity Scripture Retrieval & Pericope Recommender UI (Rank A+)
+- **Summary**: Implement a dedicated Semantic Retrieval & Similarity Explorer panel in the Web UI (`/similarity` or integrated into the Split-Screen Reader) and CLI (`./bible similar <ref>`). When viewing any verse or pericope, displays the most semantically similar passages across the whole Bible ranked by cosine similarity score (e.g., `Romans 3:25` ➔ `Leviticus 16:15` (94% similarity), `Hebrews 9:12` (91% similarity)), with visual score badges, highlighted thematic overlaps, and instant one-click drill-down.
+- **Rationale**: Provides a powerful AI-assisted alternative and complement to traditional word-based concordances. Enables scholars and readers to discover conceptually parallel passages even when they do not share identical vocabulary.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (queries local SQLite int8 vector BLOBs via `core/vector.py` in <15ms).
+  - Zero third-party dependencies? Yes.
+- **Proposed Roadmap Phase**: Phase 4 (Task 4.8).
+- **Suggested Tasks**:
+  - [ ] Add `find_similar_verses(canonical_id, limit=10)` and `find_similar_pericopes(pericope_id, limit=10)` to `core/vector.py` and `core/db.py`.
+  - [ ] Expose CLI command `./bible similar <ref> [--limit 10] [--threshold 0.7]`.
+  - [ ] Expose REST endpoint `GET /api/similar?ref=<citation>`.
+  - [ ] Add "Similar Passages" accordion tab in Web UI Split-Screen Reader (`web/static/app.js`) with similarity progress bars and click-to-load.
+  - [ ] Add unit tests in `tests/test_vector.py` and `tests/test_server.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+
 

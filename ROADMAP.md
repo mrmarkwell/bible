@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 0, Phase 2, Phase 3 & Phase 4 (New Feature Requests Ingested)
-- **Overall Progress**: 64 Completed / 70 Total Tasks Tracked across 9 Phases
+- **Active Phase**: Phase 0, 1, 2, 3, 4 & 7 (Expanded Feature Roadmap Ingested)
+- **Overall Progress**: 64 Completed / 75 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -48,7 +48,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
 - [x] **Task 1.5**: Hermetic unit tests using `unittest` in `tests/test_core.py`.
 - [x] **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
-
+- [ ] **Task 1.7**: Ingest King James Version (KJV) into SQLite as a second bundled public-domain translation (`tools/ingest_kjv.py`, `data/raw/kjv/`) for multi-translation offline comparison.
 
 ### Phase 2: Command Line Interface (CLI)
 - [x] **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`). *(Run 012)*
@@ -66,6 +66,7 @@ This document is the single source of truth for current project status, active t
 - [ ] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis).
 - [ ] **Task 3.6**: Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag.
 - [ ] **Task 3.7**: Client-Controlled Semantic Tagging Project Skill (`skills/semantic-tagging`) operating strictly on ESV text with TGC exegetical guidelines.
+- [ ] **Task 3.8**: Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`.
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*
@@ -74,6 +75,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags. *(Run 031 / ADR-032)*
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
 - [ ] **Task 4.6**: Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs.
+- [ ] **Task 4.7**: Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity).
+- [ ] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (ranked cosine similarity explorer with scores and drill-down).
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation
 - [x] **Task 5.1**: Implement Rendering Engine abstraction (`core/render.py`) supporting system ImageMagick (`magick`/`convert`) for raster output and pure Python SVG generator (vector). *(Run 033 / ADR-034)*
@@ -99,7 +102,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 7.4**: Implement Exegetical Critic & Quality Audit Suite (`core/semantic_audit.py`) validating canonical coordinate boundaries (`BBCCCVVV`), schema validation, character entity deduplication, and 100% whole-Bible verse coverage. *(Run 052 / ADR-055)*
 - [x] **Task 7.5**: Implement Resumable Batch Semantic Compilation Engine (`tools/build_semantic_db.py` / `./bible build-semantic`) featuring a SQLite checkpoint ledger, rate limiting, book-by-book resume, and progress telemetry. *(Run 053 / ADR-056)*
 - [x] **Task 7.6**: Execute one-shot compilation over the ESV corpus to generate and compile the complete, permanent semantic database pack into `data/bible.db`, verifying 100% offline queryability, FTS5 sync, and vector search. *(Run 054 / ADR-057)*
-
+- [ ] **Task 7.7**: Populate Whole-Bible ESV Verse and Pericope Dense Embeddings (`verse_embeddings` & `pericope_embeddings`) using Google text-embedding-004 model.
 
 ### Phase 8: Online Scripture RAG & Biblical Character Dialogue Studio
 - [x] **Task 8.1**: Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows). *(Run 057 / ADR-061)*
