@@ -1042,6 +1042,13 @@ document.addEventListener("DOMContentLoaded", () => {
           fetchPassage(xref.target_ref);
           closeMobileSidebar();
         });
+        scriptureContainer.appendChild(div);
+      });
+    } catch (err) {
+      scriptureContainer.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed: ${escapeHtml(err.message)}</div>`;
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Typological Arc Network & Cross-Reference Graph Subsystem
   // -------------------------------------------------------------------------

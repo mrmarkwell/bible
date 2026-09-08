@@ -140,6 +140,158 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("populateRibbonTagSelector", js_text)
         self.assertIn("shortcutsModal", js_text)
 
+    def test_app_js_syntax_integrity(self) -> None:
+        """Verify web/static/app.js has zero unclosed brackets, braces, or quotes."""
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        code = body.decode("utf-8")
+
+        stack: list[tuple[str, int, int]] = []
+        i = 0
+        n = len(code)
+        line = 1
+        col = 0
+        state = "NORMAL"
+        escape = False
+
+        while i < n:
+            c = code[i]
+            col += 1
+            if c == "\n":
+                line += 1
+                col = 0
+                if state == "LINE_COMMENT":
+                    state = "NORMAL"
+                i += 1
+                escape = False
+                continue
+
+            if state == "LINE_COMMENT":
+                i += 1
+                continue
+
+            if state == "BLOCK_COMMENT":
+                if c == "*" and i + 1 < n and code[i + 1] == "/":
+                    state = "NORMAL"
+                    i += 2
+                    col += 1
+                    continue
+                i += 1
+                continue
+
+            if state == "SINGLE_QUOTE":
+                if escape:
+                    escape = False
+                elif c == "\\":
+                    escape = True
+                elif c == "'":
+                    state = "NORMAL"
+                i += 1
+                continue
+
+            if state == "DOUBLE_QUOTE":
+                if escape:
+                    escape = False
+                elif c == "\\":
+                    escape = True
+                elif c == '"':
+                    state = "NORMAL"
+                i += 1
+                continue
+
+            if state == "TEMPLATE":
+                if escape:
+                    escape = False
+                elif c == "\\":
+                    escape = True
+                elif c == "`":
+                    if stack and stack[-1][0] == "`":
+                        stack.pop()
+                    state = "NORMAL"
+                elif c == "$" and i + 1 < n and code[i + 1] == "{":
+                    stack.append(("${", line, col))
+                    state = "NORMAL"
+                    i += 2
+                    col += 1
+                    continue
+                i += 1
+                continue
+
+            if state == "REGEX":
+                if escape:
+                    escape = False
+                elif c == "\\":
+                    escape = True
+                elif c == "/":
+                    state = "NORMAL"
+                i += 1
+                continue
+
+            if c == "/" and i + 1 < n:
+                if code[i + 1] == "/":
+                    state = "LINE_COMMENT"
+                    i += 2
+                    col += 1
+                    continue
+                elif code[i + 1] == "*":
+                    state = "BLOCK_COMMENT"
+                    i += 2
+                    col += 1
+                    continue
+
+            if c == "'":
+                state = "SINGLE_QUOTE"
+                i += 1
+                continue
+            if c == '"':
+                state = "DOUBLE_QUOTE"
+                i += 1
+                continue
+            if c == "`":
+                state = "TEMPLATE"
+                stack.append(("`", line, col))
+                i += 1
+                continue
+
+            if c == "/":
+                prev = code[:i].rstrip()
+                if prev and prev[-1] in "=([" + ",:;!&|?{}+-*%^~":
+                    state = "REGEX"
+                    i += 1
+                    continue
+                for kw in ["return", "case", "delete", "throw", "void", "typeof"]:
+                    if prev.endswith(kw):
+                        state = "REGEX"
+                        break
+                if state == "REGEX":
+                    i += 1
+                    continue
+
+            if c in "({[":
+                stack.append((c, line, col))
+            elif c in ")}]":
+                self.assertTrue(bool(stack), f"Unexpected closing '{c}' at line {line}:{col}")
+                top, top_line, top_col = stack[-1]
+                matched = (
+                    (top == "(" and c == ")")
+                    or (top == "{" and c == "}")
+                    or (top == "[" and c == "]")
+                    or (top == "${" and c == "}")
+                )
+                self.assertTrue(
+                    matched,
+                    f"Delimiter mismatch: opened '{top}' at {top_line}:{top_col} but closed with '{c}' at {line}:{col}",
+                )
+                stack.pop()
+                if top == "${":
+                    state = "TEMPLATE"
+
+            i += 1
+
+        self.assertEqual(state, "NORMAL", f"Unfinished token state at EOF: {state}")
+        self.assertEqual(len(stack), 0, f"Unclosed delimiters in app.js: {stack}")
+
+
     def test_serve_missing_file_returns_404(self) -> None:
         status, _, _ = self._get("/nonexistent_asset_404.txt")
         self.assertEqual(status, 404)
