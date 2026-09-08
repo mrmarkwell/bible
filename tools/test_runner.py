@@ -247,6 +247,63 @@ def run_single_test_module(
         )
 
 
+TIMING_CACHE_FILE = ".test_timing_cache.json"
+
+
+def load_timing_cache(repo_root: Path) -> Dict[str, float]:
+    """Load historical test module runtimes from the local timing cache."""
+    cache_path = repo_root / TIMING_CACHE_FILE
+    if not cache_path.is_file():
+        return {}
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return {k: float(v) for k, v in data.items() if isinstance(v, (int, float))}
+    except Exception:
+        pass
+    return {}
+
+
+def save_timing_cache(repo_root: Path, results: Sequence[TestModuleResult]) -> None:
+    """Persist test module runtimes to the local timing cache."""
+    cache_path = repo_root / TIMING_CACHE_FILE
+    existing = load_timing_cache(repo_root)
+    for r in results:
+        if r.passed and r.duration_sec > 0:
+            existing[r.module_name] = round(r.duration_sec, 4)
+    try:
+        tmp_path = cache_path.with_suffix(".tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2)
+        tmp_path.replace(cache_path)
+    except Exception:
+        pass
+
+
+def sort_tests_longest_processing_time(
+    test_files: Sequence[Path],
+    repo_root: Path,
+) -> List[Path]:
+    """Sort test files in descending order of historical execution duration (LPT).
+
+    Longest Processing Time (LPT) scheduling mitigates stragglers in parallel
+    test execution by scheduling heavy test suites first, minimizing worker idle tail latency.
+    Files without cache entries fallback to file size descending as an execution proxy.
+    """
+    cache = load_timing_cache(repo_root)
+    def key_fn(p: Path) -> float:
+        stem = p.stem
+        if stem in cache:
+            return cache[stem]
+        try:
+            return float(p.stat().st_size) / 10000.0
+        except OSError:
+            return 0.0
+
+    return sorted(test_files, key=key_fn, reverse=True)
+
+
 def run_tests_parallel(
     test_files: Sequence[Path],
     repo_root: Path,
@@ -255,7 +312,7 @@ def run_tests_parallel(
     failfast: bool = False,
     on_module_complete: Optional[Callable[[TestModuleResult], None]] = None,
 ) -> TestSuiteSummary:
-    """Execute test modules in parallel using ProcessPoolExecutor.
+    """Execute test modules in parallel using ProcessPoolExecutor with LPT scheduling.
 
     Args:
         test_files: List of test file Paths.
@@ -271,6 +328,9 @@ def run_tests_parallel(
     total_files = len(test_files)
     if total_files == 0:
         return TestSuiteSummary(0, 0, 0, 0, 0.0, [], True)
+
+    # Sort test files via Longest Processing Time (LPT) heuristics to eliminate stragglers
+    sorted_files = sort_tests_longest_processing_time(test_files, repo_root)
 
     max_workers = jobs or max(1, os.cpu_count() or 4)
     max_workers = min(max_workers, total_files)
@@ -291,7 +351,7 @@ def run_tests_parallel(
                 warn_error,
                 failfast,
             ): p
-            for p in test_files
+            for p in sorted_files
         }
 
         for future in as_completed(future_to_path):
@@ -325,6 +385,10 @@ def run_tests_parallel(
                 on_module_complete(res)
 
     total_dur = time.time() - t0
+    # Update timing cache on successful executions
+    if passed_count > 0:
+        save_timing_cache(repo_root, results)
+
     # Sort results by module name for deterministic display
     results.sort(key=lambda r: r.module_name)
     success = (failed_count == 0) and not aborted
@@ -390,6 +454,8 @@ def run_tests_sequential(
             break
 
     total_dur = time.time() - t0
+    if passed_count > 0:
+        save_timing_cache(repo_root, results)
     success = (failed_count == 0)
 
     return TestSuiteSummary(

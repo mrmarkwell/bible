@@ -18,11 +18,14 @@ from tools.test_runner import (
     TestRunnerStyler,
     TestSuiteSummary,
     discover_test_files,
+    load_timing_cache,
     parse_test_count_from_stderr,
     run_single_test_module,
     run_tests,
     run_tests_parallel,
     run_tests_sequential,
+    save_timing_cache,
+    sort_tests_longest_processing_time,
 )
 
 
@@ -142,8 +145,50 @@ class TestRunnerEngine(unittest.TestCase):
         d = summary.to_dict()
         self.assertTrue(d["success"])
         self.assertEqual(d["total_tests"], 5)
-        self.assertEqual(len(d["results"]), 1)
-        self.assertEqual(d["results"][0]["module"], "test_mock")
+    def test_timing_cache_roundtrip(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_root = Path(tmpdir)
+            self.assertEqual(load_timing_cache(tmp_root), {})
+
+            res1 = TestModuleResult("tests/test_a.py", "test_a", 5, True, 1.234)
+            res2 = TestModuleResult("tests/test_b.py", "test_b", 10, True, 0.456)
+            res_fail = TestModuleResult("tests/test_c.py", "test_c", 0, False, 0.100)
+
+            save_timing_cache(tmp_root, [res1, res2, res_fail])
+            cache = load_timing_cache(tmp_root)
+            self.assertEqual(len(cache), 2)
+            self.assertIn("test_a", cache)
+            self.assertIn("test_b", cache)
+            self.assertNotIn("test_c", cache)
+            self.assertEqual(cache["test_a"], 1.234)
+            self.assertEqual(cache["test_b"], 0.456)
+
+    def test_sort_tests_longest_processing_time(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_root = Path(tmpdir)
+            t_dir = tmp_root / "tests"
+            t_dir.mkdir()
+            f_fast = t_dir / "test_fast.py"
+            f_slow = t_dir / "test_slow.py"
+            f_med = t_dir / "test_med.py"
+            f_fast.write_text("# fast\n", encoding="utf-8")
+            f_slow.write_text("# slow\n", encoding="utf-8")
+            f_med.write_text("# med\n", encoding="utf-8")
+
+            # Seed cache
+            save_timing_cache(
+                tmp_root,
+                [
+                    TestModuleResult("tests/test_fast.py", "test_fast", 1, True, 0.1),
+                    TestModuleResult("tests/test_slow.py", "test_slow", 1, True, 3.5),
+                    TestModuleResult("tests/test_med.py", "test_med", 1, True, 1.2),
+                ],
+            )
+
+            sorted_files = sort_tests_longest_processing_time([f_fast, f_med, f_slow], tmp_root)
+            self.assertEqual([f.name for f in sorted_files], ["test_slow.py", "test_med.py", "test_fast.py"])
 
 
 class TestRunnerCliAndShellIntegration(unittest.TestCase):

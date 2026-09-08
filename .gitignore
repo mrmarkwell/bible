@@ -12,3 +12,4 @@ build/
 .env
 .env.*
 !.env.example
+.test_timing_cache.json

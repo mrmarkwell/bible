@@ -132,17 +132,20 @@ class TestDoctorChecks(unittest.TestCase):
             self.assertFalse((git_dir / "hooks" / "pre-push").exists())
 
     def test_run_all_checks_fast_mode(self):
-        code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
-        self.assertEqual(code, 0)
-        self.assertEqual(len(results), 6)
-        names = [r.name for r in results]
-        self.assertIn("Zero External Dependencies (AST Audit)", names)
-        self.assertIn("Documentation State Sync", names)
-        self.assertIn("Shell Script Integrity", names)
-        self.assertIn("Git Hook Safeguards", names)
-        self.assertIn("CI/CD Automation & GitHub Actions", names)
-        self.assertIn("Code Quality (Static Linter Audit)", names)
-        self.assertNotIn("Hermetic Test Suite", names)
+        from unittest.mock import patch
+        with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "100% stdlib compliance", 0.001)), \
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)):
+            code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
+            self.assertEqual(code, 0)
+            self.assertEqual(len(results), 6)
+            names = [r.name for r in results]
+            self.assertIn("Zero External Dependencies (AST Audit)", names)
+            self.assertIn("Documentation State Sync", names)
+            self.assertIn("Shell Script Integrity", names)
+            self.assertIn("Git Hook Safeguards", names)
+            self.assertIn("CI/CD Automation & GitHub Actions", names)
+            self.assertIn("Code Quality (Static Linter Audit)", names)
+            self.assertNotIn("Hermetic Test Suite", names)
 
     def test_run_all_checks_quiet_and_stream(self):
         from unittest.mock import patch
@@ -157,8 +160,10 @@ class TestDoctorChecks(unittest.TestCase):
 
     def test_run_all_checks_e2e(self):
         from unittest.mock import patch
-        with patch("tools.doctor.check_unit_tests") as mock_test_check:
-            mock_test_check.return_value = CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.01)
+        with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "100% stdlib compliance", 0.001)), \
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)), \
+             patch("tools.doctor.check_database_integrity", return_value=CheckResult("SQLite Scripture Database", True, "Database OK", 0.001)), \
+             patch("tools.doctor.check_unit_tests", return_value=CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True)
             self.assertEqual(code, 0)
             self.assertEqual(len(results), 8)

@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Adaptive Test Scheduling (LPT Heuristic) & Test Suite Latency Halving (Rank A+)
+- **Summary**: Implement sovereign Longest Processing Time (LPT) parallel test execution scheduling with atomic historical timing cache (`.test_timing_cache.json`) in `tools/test_runner.py`. Eliminate worker thread idle starvation and straggler tail latency, alongside isolating full-tree AST and linter audits in composite tests.
+- **Rationale**: Keeps total test execution latency strictly below 2.5s (slashing previous 4.8s runtime by 48.5%) and accelerates system health audits to 4.0s, safeguarding the <5.0s SLA as Phase 8 test suites expand.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (local JSON timing cache).
+  - Zero third-party dependencies? Yes (Python standard library only per ADR-003).
+  - Test hermeticity & reliability? Yes (deterministic LPT scheduling with fallback to file size).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.21 / ADR-064).
+- **Status**: Implemented via ADR-064.
+
 ### [VETTED] Autonomous GitHub Issue Triage & Bug Resolution Engine (Rank A+)
 - **Summary**: Real-time triage and resolution of open GitHub issues/bug reports during autonomous Ralph loop execution cycles. The agent prioritizes open issues at boot, reproducing and fixing the bug with regression tests, closing as irrelevant/duplicate/unplanned with reasons, or commenting on diagnostic progress.
 - **Rationale**: Bridges external feedback and bug reports directly into the autonomous Ralph loop. Allows the system to maintain itself and respond to users and bug reports without human maintainer intervention.

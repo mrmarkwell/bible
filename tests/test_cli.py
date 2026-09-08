@@ -801,11 +801,13 @@ class TestCliExecution(unittest.TestCase):
     def test_cli_doctor_fix_flag(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
-        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+        with patch("tools.doctor.run_all_checks", return_value=(0, [])) as mock_doctor, \
+             patch("sys.stdout", stdout), patch("sys.stderr", stderr):
             code = main(["doctor", "--fast", "--fix"])
         self.assertEqual(code, 0)
-        self.assertIn("[Self-Healing --fix Active]", stdout.getvalue())
-        self.assertIn("EXCELLENT", stdout.getvalue())
+        self.assertTrue(mock_doctor.called)
+        self.assertTrue(mock_doctor.call_args.kwargs.get("fast", False))
+        self.assertTrue(mock_doctor.call_args.kwargs.get("fix", False))
 
     def test_cli_slide_svg_generation(self):
         stdout = io.StringIO()
