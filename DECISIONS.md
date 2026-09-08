@@ -2063,3 +2063,44 @@ This document is an append-only log of significant design and architectural deci
 
 
 
+
+
+---
+
+## ADR-063: Biblical Character Dialogue Engine, Canonical Persona Modeling & TGC Hermeneutical Guardrails
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 8, Task 8.3 requires implementing the Biblical Character Dialogue Engine in `core/persona.py`.
+  - The feature enables users, students, and scholars to engage in simulated dialogue with key biblical figures (e.g. Paul, Moses, David, Peter, Isaiah, Abraham, John the Baptist, Mary).
+  - To prevent dangerous theological aberrations, the dialogue must adhere strictly to The Gospel Coalition (TGC) Foundation Documents (detailed in `THEOLOGY.md` / ADR-006 / ADR-049):
+    1. **Canonical Horizon Constraint**: Figures speak strictly from the historical horizon of their biblical lifespan and testimony, without modern anachronisms, 21st-century science, or future historical events.
+    2. **Biblical Humility & Anti-Moralism**: Figures acknowledge their human frailty, trials, and biblical sins (e.g. Moses striking the rock, David's adultery, Peter's denials, Paul's persecution of the church and struggle with indwelling sin). They boast only in God's sovereign grace and steadfast love.
+    3. **Christ-Centered Teleology**: OT saints look forward with covenant faith to the promised Seed/Messiah; NT saints testify as eyewitnesses to Jesus Christ crucified and bodily risen.
+    4. **Prohibition of Extrabiblical Inventions**: Strict refusal to fabricate unrecorded backstories, private dialogues, or speculative myths, submitting humbly to Deuteronomy 29:29.
+    5. **Dynamic Scripture Grounding**: Relevant canonical scripture texts must be dynamically loaded from `data/bible.db` to ground each figure's speech in inspired Scripture.
+    6. **Zero External Dependencies**: Implemented in pure Python 3 standard library per ADR-003, with fast hermetic tests (<5.0s SLA).
+- **Decision**:
+  1. **Canonical Persona Definitions in `core/persona.py`**:
+     - Modeled 19 foundational biblical figures across the Old and New Testaments (`CANONICAL_PERSONAS`).
+     - Defined `CharacterPersonaDefinition`: immutable dataclass capturing canonical name, testament, era, lifespan description, theological role, key passage citations, core trials and failures, Christ-centered orientation, speaking style, and aliases.
+  2. **Lookup & Entity Deduplication**:
+     - Fast index maps (`_PERSONA_BY_ID`, `_PERSONA_BY_NAME`) supporting exact IDs, hyphenated IDs (`john-the-baptist`), aliases (`Simon Peter`, `Saul of Tarsus`), and title-stripped names (`King David`, `Prophet Isaiah`).
+  3. **Dynamic Scripture Grounding (`load_character_scripture_passages`)**:
+     - Retrieves key biblical verses from SQLite database with translation cascade (ESV with WEB fallback), formatting into `GroundedScripturePassage` objects.
+  4. **TGC Guardrailed System Prompt Generator (`generate_persona_system_prompt`)**:
+     - Combines persona identity, trials, Christological teleology, loaded Scripture texts, and strict TGC theological directives into an exhaustive system prompt.
+  5. **Dialogue Session Manager (`BiblicalPersonaSession`)**:
+     - Manages multi-turn history (`history: List[ChatMessage]`).
+     - Provides unary generation (`say`) and incremental streaming (`say_stream`).
+     - Provides clean offline fallback card with persona identity and scripture references when `GEMINI_API_KEY` is not present.
+  6. **Database Schema & Bootstrap Integration**:
+     - Added `CharacterProfileRecord` dataclass and CRUD methods (`insert_character_profile`, `get_character_profile`, `get_all_character_profiles`) in `core/db.py`.
+     - Integrated automatic character profile seeding into `core/bootstrap.py` (`bootstrap_database`, `get_db_stats`).
+     - Seeded all 19 canonical profiles into production `data/bible.db`.
+  7. **Hermetic Test Suite (`tests/test_persona.py`)**:
+     - Authored 26 hermetic unit tests verifying catalog integrity, lookup resolution, scripture grounding, system prompt generation, session turn tracking, offline cards, mocked Gemini generation/streaming, and database operations.
+- **Consequences**:
+  - Task 8.3 is 100% complete.
+  - Test suite expanded to 787 tests across 37 modules passing 100% in 4.82s (<5.0s SLA).
+  - System Doctor (`./bible doctor`) passes 100% across all 8 health checks with 0 external dependencies and 0 linter errors across 81 files.

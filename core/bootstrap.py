@@ -192,6 +192,10 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         pe_row = db.execute_sql("SELECT count(*) FROM pericope_embeddings").fetchone()
         total_pericope_embeddings = pe_row[0] if pe_row else 0
 
+        # Canonical Character Profiles
+        cp_row = db.execute_sql("SELECT count(*) FROM character_profiles").fetchone()
+        total_character_profiles = cp_row[0] if cp_row else 0
+
         # FTS5 Index status
         fts_row = db.execute_sql(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='verses_fts'"
@@ -211,6 +215,7 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         "total_favorites": total_favorites,
         "total_starred": total_starred,
         "total_pericopes": total_pericopes,
+        "total_character_profiles": total_character_profiles,
         "total_discourse_relations": total_discourse_relations,
         "total_verse_theology": total_verse_theology,
         "total_typological_arcs": total_typological_arcs,
@@ -372,6 +377,18 @@ def bootstrap_database(
     _notify("Seeding canonical pericope headings and redemptive summaries...", 0.88)
     pericope_service = PericopeService(db)
     seeded_pericopes = pericope_service.seed_canonical_pericopes()
+
+    # 6b. Seed Canonical Character Profiles
+    _notify("Seeding canonical biblical character profiles...", 0.90)
+    from core.persona import CANONICAL_PERSONAS
+    import json
+    for p in CANONICAL_PERSONAS:
+        db.insert_character_profile(
+            name=p.canonical_name,
+            canonical_spans=json.dumps(list(p.key_passages)),
+            historical_context=f"{p.canonical_era} | {p.lifespan_description}",
+            theological_role=p.theological_role,
+        )
 
     # 7. Compile Permanent Semantic Pack (Phase 7 Whole-Bible Coverage)
     if not quick and books is None:

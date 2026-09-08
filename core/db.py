@@ -378,6 +378,29 @@ class SemanticPropositionRecord:
 
 
 @dataclass(frozen=True)
+class CharacterProfileRecord:
+    """Represents a canonical biblical character profile entity."""
+
+    id: Optional[int]
+    name: str
+    canonical_spans: Optional[str] = None
+    historical_context: Optional[str] = None
+    theological_role: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert character profile record to dictionary representation."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "canonical_spans": self.canonical_spans,
+            "historical_context": self.historical_context,
+            "theological_role": self.theological_role,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(frozen=True)
 class VerseEmbeddingRecord:
     """Represents a dense vector embedding stored as a binary BLOB for a canonical verse."""
 
@@ -4034,3 +4057,76 @@ class Database:
         with self.conn:
             cur = self.conn.execute("DELETE FROM pericope_embeddings")
             return cur.rowcount
+
+    def insert_character_profile(
+        self,
+        name: str,
+        canonical_spans: Optional[str] = None,
+        historical_context: Optional[str] = None,
+        theological_role: Optional[str] = None,
+    ) -> int:
+        """Insert or replace a character profile in the database."""
+        now = _utc_now_iso()
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO character_profiles (
+                    name, canonical_spans, historical_context, theological_role, created_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    canonical_spans = excluded.canonical_spans,
+                    historical_context = excluded.historical_context,
+                    theological_role = excluded.theological_role
+                """,
+                (name.strip(), canonical_spans, historical_context, theological_role, now),
+            )
+            return cur.lastrowid or 0
+
+    def get_character_profile(self, name: str) -> Optional[CharacterProfileRecord]:
+        """Fetch character profile by exact name."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, name, canonical_spans, historical_context, theological_role, created_at
+            FROM character_profiles
+            WHERE name = ?
+            """,
+            (name.strip(),),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return None
+        return CharacterProfileRecord(
+            id=row["id"],
+            name=row["name"],
+            canonical_spans=row["canonical_spans"],
+            historical_context=row["historical_context"],
+            theological_role=row["theological_role"],
+            created_at=row["created_at"],
+        )
+
+    def get_all_character_profiles(self) -> List[CharacterProfileRecord]:
+        """Fetch all stored character profiles ordered by name."""
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, name, canonical_spans, historical_context, theological_role, created_at
+            FROM character_profiles
+            ORDER BY name ASC
+            """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        return [
+            CharacterProfileRecord(
+                id=r["id"],
+                name=r["name"],
+                canonical_spans=r["canonical_spans"],
+                historical_context=r["historical_context"],
+                theological_role=r["theological_role"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+

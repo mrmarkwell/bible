@@ -16,6 +16,7 @@ from core.crypto import (
 )
 from core.db import (
     DEFAULT_DB_PATH,
+    CharacterProfileRecord,
     CrossReferenceRecord,
     Database,
     DiscourseRelationRecord,
@@ -111,6 +112,19 @@ from core.rag import (
     extract_query_features,
     get_rag_engine,
     retrieve_rag_context,
+)
+
+from core.persona import (
+    CANONICAL_PERSONAS,
+    BiblicalPersonaSession,
+    CharacterPersonaDefinition,
+    GroundedScripturePassage,
+    PersonaDialogueResponse,
+    create_persona_session,
+    generate_persona_system_prompt,
+    get_persona_definition,
+    list_canonical_personas,
+    load_character_scripture_passages,
 )
 
 from core.bootstrap import (
@@ -336,6 +350,7 @@ __all__ = [
     "SemanticPropositionRecord",
     "VerseEmbeddingRecord",
     "PericopeEmbeddingRecord",
+    "CharacterProfileRecord",
     "SearchResult",
     "sanitize_fts_query",
     # Pericopes & Headings
@@ -589,5 +604,16 @@ __all__ = [
     "extract_query_features",
     "get_rag_engine",
     "retrieve_rag_context",
+    # Biblical Character Dialogue Studio
+    "CANONICAL_PERSONAS",
+    "BiblicalPersonaSession",
+    "CharacterPersonaDefinition",
+    "GroundedScripturePassage",
+    "PersonaDialogueResponse",
+    "create_persona_session",
+    "generate_persona_system_prompt",
+    "get_persona_definition",
+    "list_canonical_personas",
+    "load_character_scripture_passages",
 ]
 
