@@ -211,6 +211,9 @@ def run_single_test_module(
         err_msg = ""
         if not passed:
             err_msg = proc.stderr.strip() or proc.stdout.strip() or f"Process exited with code {proc.returncode}"
+            # Print immediately to standard error for real-time CI diagnostic visibility
+            sys.stderr.write(f"\n[TEST FAILURE] {mod_name} (code {proc.returncode}):\n{err_msg}\n")
+            sys.stderr.flush()
 
         return TestModuleResult(
             module_path=rel_path,
