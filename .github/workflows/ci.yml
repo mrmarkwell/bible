@@ -38,13 +38,13 @@ jobs:
         run: |
           python3 tools/doctor.py --fast
 
-      - name: Run System Doctor & Full Diagnostic Suite
-        run: |
-          python3 tools/doctor.py
-
       - name: Run Hermetic Unit Test Suite (Parallel)
         run: |
           python3 tools/test_runner.py --verbose
+
+      - name: Run System Doctor & Full Diagnostic Suite
+        run: |
+          python3 tools/doctor.py
 
       - name: Run Sovereign Static Analysis & Linter
         run: |
