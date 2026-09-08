@@ -667,6 +667,9 @@ class GeminiClient:
 
         raise last_error or LLMError("Gemini content generation failed.")
 
+    # Alias for canonical Gemini SDK naming compatibility
+    generate_content = generate
+
     def generate_stream(
         self,
         prompt: Union[str, Sequence[ChatMessage]],

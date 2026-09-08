@@ -2549,5 +2549,67 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 8.4 is 100% complete, verified, and unblocked.
   - Next task on the roadmap is Phase 8, **Task 8.5**: *Expose REST endpoints in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present.*
 
+---
+
+## [Run 064] — 2026-09-08
+- **Agent**: Ralph Loop Agent
+- **Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio
+- **Task Addressed**: Task 8.5 — *Expose REST endpoints in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present.*
+- **Context & Objectives**:
+  - Connect the built-in HTTP web server (`web/server.py`) to the Phase 8 Scripture RAG retrieval engine (`core/rag.py`) and Biblical Character Dialogue Studio (`core/persona.py`).
+  - Required capabilities:
+    1. HTTP POST request support with payload length checking and safe UTF-8 JSON body decoding in `BibleRequestHandler`.
+    2. Comprehensive CORS headers supporting GET, POST, and preflight OPTIONS (`Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`).
+    3. `/api/characters` (and `/api/personas`): Canonical catalog listing, testament filtering (`testament=OT|NT|BOTH`), substring search (`q=...`), and single character profile inspection by path (`/api/characters/<id>`), query (`?id=...`), or POST body (`{"id": "..."}`) with dynamic grounded scripture text projection (`load_character_scripture_passages`).
+    4. `/api/rag`: Multi-signal scripture retrieval (FTS5 search, tags, epochs, ribbons, cross-references) with retrieval-only mode (default `synthesize=False`) and optional generative theological synthesis (`synthesize=True`).
+    5. `/api/chat/persona` (and `/api/chat`, `/api/persona/chat`): Unary and multi-turn character dialogue turns with TGC theological guardrails, scripture grounding, and stateful replayable `history` payloads for stateless web clients.
+    6. Seamless offline degradation: when `GEMINI_API_KEY` is absent, endpoints do not throw HTTP 500 errors or crash; instead, they return HTTP 200 with complete retrieval contexts, canonical offline profile response cards, informative status messages, and `offline_fallback: true` flags.
+    7. System diagnostics enhancement: updated `/api/health` to expose `gemini_api_available` and `canonical_characters`.
+- **Actions Taken**:
+  - **HTTP POST & Unified Parameter Extraction (`web/server.py`)**:
+    - Added `do_POST` to `BibleRequestHandler` with content length validation and error-resilient JSON parsing.
+    - Updated CORS headers across all response helpers (`send_json`, `send_json_error`, `send_svg`) and `do_OPTIONS` to allow `GET, POST, OPTIONS` and `Content-Type, Authorization, X-Requested-With`.
+    - Added `_get_param(query, body_data, name, default)` static method cleanly unifying argument extraction across GET query dictionaries and POST JSON bodies.
+  - **REST API Endpoints Implemented (`web/server.py`)**:
+    - `handle_characters`: Supports catalog listing, testament filtering, query search, and single-character detail lookup by path or parameter with scripture texts.
+    - `handle_rag`: Executes `ScriptureRAGEngine.retrieve(...)`, returning full context windows, detected epochs, and thematic ribbons. When `synthesize=True`, executes answer generation if keyed, or returns graceful offline fallback with informative notice without crashing.
+    - `handle_chat_persona`: Resolves canonical character definitions, restores optional `history` arrays for multi-turn sessions, executes `BiblicalPersonaSession.say(...)`, and returns updated dialogue history, latency, grounded citations, and offline fallback telemetry.
+    - `handle_health`: Projections expanded with `gemini_api_available` and `canonical_characters`.
+  - **SDK Compatibility (`core/llm.py`)**:
+    - Added `generate_content = generate` alias on `GeminiClient` ensuring canonical Gemini SDK naming compatibility.
+  - **Hermetic Unit Test Suite (`tests/test_server.py`)**:
+    - Added 20 unit tests covering:
+      - `test_api_health_includes_gemini_and_characters`
+      - `test_api_characters_list`
+      - `test_api_characters_testament_filter`
+      - `test_api_characters_search_filter`
+      - `test_api_characters_single_by_path`
+      - `test_api_characters_single_by_query`
+      - `test_api_characters_single_by_post`
+      - `test_api_characters_not_found`
+      - `test_api_rag_missing_query_error`
+      - `test_api_rag_get_retrieval`
+      - `test_api_rag_post_retrieval`
+      - `test_api_rag_offline_synthesis`
+      - `test_api_rag_mock_online_synthesis`
+      - `test_api_chat_persona_missing_params`
+      - `test_api_chat_persona_unknown_character`
+      - `test_api_chat_persona_offline_get`
+      - `test_api_chat_persona_offline_post`
+      - `test_api_chat_persona_with_multi_turn_history`
+      - `test_api_chat_persona_mock_online_generation`
+      - `test_api_cors_options_post_allowed`
+  - **State Machine Synchronization**:
+    - Recorded **ADR-068** in `DECISIONS.md`.
+    - Marked Task 8.5 as `[x]` completed in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **821 tests across 37 modules passed 100% in 2.627s** (312.6 tests/sec, <3.0s SLA).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (68 ADRs registered, 64 sequential runs, 61 roadmap tasks tracked, 0 dependencies, 0 linter errors across 81 files).
+- **Handoff Notes for Next Agent**:
+  - Task 8.5 is 100% complete, verified, and unblocked.
+  - Next cycle is Run 065 — a dedicated **Senior Product Manager Meta-Improvement & System Health Sprint** (divisible by 5 per AGENTS.md).
+  - Domain roadmap next priority is Phase 8, **Task 8.6**: *Build interactive Web UI panels: Split-Screen Scripture Reader with dynamic RAG study notes and Interactive Biblical Character Dialogue Studio.*
+
+
 
 

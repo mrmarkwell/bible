@@ -26,7 +26,28 @@ import webbrowser
 from core.arcs import ArcTheme, build_arc_network
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database, PericopeRecord
+from core.llm import (
+    DEFAULT_GEMINI_MODEL,
+    ChatMessage,
+    GeminiClient,
+    LLMAuthError,
+    LLMError,
+)
 from core.pericopes import PericopeService
+from core.persona import (
+    CANONICAL_PERSONAS,
+    BiblicalPersonaSession,
+    CharacterPersonaDefinition,
+    get_persona_definition,
+    list_canonical_personas,
+    load_character_scripture_passages,
+)
+from core.rag import (
+    RAGContextWindow,
+    RAGResponse,
+    ScriptureRAGEngine,
+    get_rag_engine,
+)
 from core.reference import (
     ALL_BOOKS,
     Book,
@@ -57,6 +78,24 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             )
 
     # -------------------------------------------------------------------------
+    # Parameter Extraction Helper
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _get_param(
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]],
+        name: str,
+        default: Any = None,
+    ) -> Any:
+        """Extract parameter from JSON body or URL query dictionary."""
+        if body_data and name in body_data and body_data[name] is not None:
+            return body_data[name]
+        if query and name in query and query[name] and query[name][0] is not None:
+            return query[name][0]
+        return default
+
+    # -------------------------------------------------------------------------
     # Response Helpers
     # -------------------------------------------------------------------------
 
@@ -72,8 +111,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(payload)
@@ -85,8 +124,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
         self.end_headers()
         self.wfile.write(payload)
 
@@ -97,7 +136,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(payload)
@@ -106,8 +146,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         """Handle CORS pre-flight requests."""
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -122,11 +162,43 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
 
         if path.startswith("/api/"):
-            self.route_api(path, query)
+            self.route_api(path, query, body_data=None)
         else:
             self.serve_static(path)
 
-    def route_api(self, path: str, query: Dict[str, List[str]]) -> None:
+    def do_POST(self) -> None:
+        """Route POST requests to REST API handlers with JSON body parsing."""
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+
+        if not path.startswith("/api/"):
+            self.send_json_error("POST method is only supported for /api/ endpoints.", status=405)
+            return
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        body_data: Dict[str, Any] = {}
+        if content_length > 0:
+            raw_body = self.rfile.read(content_length)
+            try:
+                decoded = raw_body.decode("utf-8")
+                if decoded.strip():
+                    body_data = json.loads(decoded)
+                    if not isinstance(body_data, dict):
+                        self.send_json_error("JSON body must be a JSON object/dictionary.", status=400)
+                        return
+            except Exception as exc:
+                self.send_json_error(f"Invalid JSON payload: {exc}", status=400)
+                return
+
+        self.route_api(path, query, body_data=body_data)
+
+    def route_api(
+        self,
+        path: str,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Dispatch REST API endpoint paths."""
         clean_path = path.rstrip("/")
         if clean_path == "/api/health":
@@ -165,6 +237,16 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_slide(query)
         elif clean_path == "/api/stats":
             self.handle_stats()
+        elif clean_path.startswith("/api/characters/") or clean_path.startswith("/api/personas/"):
+            prefix = "/api/characters/" if clean_path.startswith("/api/characters/") else "/api/personas/"
+            sub_id = clean_path[len(prefix):].strip()
+            self.handle_characters(query, body_data=body_data, path_id=sub_id)
+        elif clean_path in ("/api/characters", "/api/personas"):
+            self.handle_characters(query, body_data=body_data)
+        elif clean_path == "/api/rag":
+            self.handle_rag(query, body_data=body_data)
+        elif clean_path in ("/api/chat/persona", "/api/chat", "/api/persona/chat"):
+            self.handle_chat_persona(query, body_data=body_data)
         else:
             self.send_json_error(f"Unknown API endpoint: '{path}'", status=404)
 
@@ -177,6 +259,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         try:
             verse_count = self.db.count_verses()
             translations = self.db.get_available_translation_ids()
+            api_avail = GeminiClient().is_available()
             data = {
                 "status": "ok",
                 "engine": "Bible Engine",
@@ -184,8 +267,12 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "database": str(self.db.db_path),
                 "total_verses": verse_count,
                 "translations": translations,
+                "gemini_api_available": api_avail,
+                "canonical_characters": len(list_canonical_personas()),
             }
             self.send_json(data)
+        except Exception as exc:
+            self.send_json_error(f"Database error during health check: {exc}", status=500)
         except Exception as exc:
             self.send_json_error(f"Database error during health check: {exc}", status=500)
 
@@ -1103,6 +1190,308 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             })
         except Exception as exc:
             self.send_json_error(f"Failed to retrieve database stats: {exc}", status=500)
+
+    def handle_characters(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+        path_id: Optional[str] = None,
+    ) -> None:
+        """GET/POST /api/characters — Biblical character personas catalog and detail."""
+        char_id = path_id
+        if not char_id:
+            char_id = self._get_param(query, body_data, "id") or self._get_param(query, body_data, "character")
+
+        if char_id:
+            persona = get_persona_definition(str(char_id).strip())
+            if not persona:
+                self.send_json_error(
+                    f"Biblical character persona '{char_id}' not found. "
+                    f"Available: {', '.join(p.id for p in CANONICAL_PERSONAS)}",
+                    status=404,
+                )
+                return
+
+            version = str(self._get_param(query, body_data, "version", "ESV")).strip().upper()
+            try:
+                passages = load_character_scripture_passages(
+                    persona=persona,
+                    db=self.db,
+                    translation=version,
+                )
+            except Exception:
+                passages = []
+
+            api_avail = GeminiClient().is_available()
+            self.send_json({
+                "character": persona.to_dict(),
+                "api_available": api_avail,
+                "grounded_passages": [
+                    {
+                        "reference": p.reference,
+                        "text": p.text,
+                        "translation": p.translation,
+                        "verse_count": p.verse_count,
+                    }
+                    for p in passages
+                ],
+            })
+            return
+
+        testament_filter = self._get_param(query, body_data, "testament")
+        if testament_filter:
+            testament_filter = str(testament_filter).strip().upper()
+
+        q_filter = self._get_param(query, body_data, "q") or self._get_param(query, body_data, "query")
+        if q_filter:
+            q_filter = str(q_filter).strip().lower()
+
+        characters = list_canonical_personas()
+        filtered = []
+        for p in characters:
+            if testament_filter and p.testament != testament_filter and p.testament != "BOTH":
+                continue
+            if q_filter:
+                match = (
+                    q_filter in p.id.lower()
+                    or q_filter in p.canonical_name.lower()
+                    or q_filter in p.theological_role.lower()
+                    or q_filter in p.canonical_era.lower()
+                    or any(q_filter in alias.lower() for alias in p.aliases)
+                )
+                if not match:
+                    continue
+            filtered.append(p)
+
+        api_avail = GeminiClient().is_available()
+        self.send_json({
+            "total": len(filtered),
+            "api_available": api_avail,
+            "testament_filter": testament_filter,
+            "query": q_filter,
+            "characters": [p.to_dict() for p in filtered],
+        })
+
+    def handle_rag(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET/POST /api/rag — Scripture RAG retrieval and optional TGC theological synthesis."""
+        q_text = self._get_param(query, body_data, "q") or self._get_param(query, body_data, "query")
+        if not q_text or not str(q_text).strip():
+            self.send_json_error("Missing required parameter: 'query' (or 'q')", status=400)
+            return
+
+        q_text = str(q_text).strip()
+
+        # Parse options
+        max_passages_raw = self._get_param(query, body_data, "max_passages", 5)
+        try:
+            max_passages = max(1, min(20, int(max_passages_raw)))
+        except (ValueError, TypeError):
+            max_passages = 5
+
+        max_tokens_raw = self._get_param(query, body_data, "max_tokens", 4000)
+        try:
+            max_tokens = max(100, min(16000, int(max_tokens_raw)))
+        except (ValueError, TypeError):
+            max_tokens = 4000
+
+        version = str(self._get_param(query, body_data, "version", "ESV")).strip().upper()
+        model = self._get_param(query, body_data, "model")
+        if model:
+            model = str(model).strip()
+
+        synthesize_raw = self._get_param(query, body_data, "synthesize", False)
+        if isinstance(synthesize_raw, str):
+            synthesize = synthesize_raw.lower() in ("true", "1", "yes", "on")
+        else:
+            synthesize = bool(synthesize_raw)
+
+        try:
+            rag_engine = get_rag_engine(self.db)
+            context = rag_engine.retrieve(
+                query=q_text,
+                max_passages=max_passages,
+                max_tokens=max_tokens,
+                preferred_translation=version,
+            )
+        except Exception as exc:
+            self.send_json_error(f"Scripture RAG retrieval error: {exc}", status=500)
+            return
+
+        api_avail = GeminiClient().is_available()
+
+        if synthesize:
+            if not api_avail:
+                # Graceful offline response without 500 error
+                self.send_json({
+                    "query": q_text,
+                    "answer": None,
+                    "synthesized": False,
+                    "api_available": False,
+                    "offline_fallback": True,
+                    "offline_message": (
+                        "GEMINI_API_KEY is not configured. Grounded Scripture RAG retrieval succeeded, "
+                        "but theological answer synthesis requires an API key in the environment or "
+                        "~/.config/bible/gemini_api_key."
+                    ),
+                    "context": context.to_dict(),
+                })
+                return
+
+            try:
+                rag_resp = rag_engine.answer(
+                    query=q_text,
+                    max_passages=max_passages,
+                    model=model,
+                )
+                self.send_json({
+                    "query": q_text,
+                    "answer": rag_resp.answer,
+                    "model": rag_resp.model,
+                    "token_usage": rag_resp.token_usage,
+                    "context": context.to_dict(),
+                    "synthesized": True,
+                    "api_available": True,
+                    "offline_fallback": False,
+                })
+                return
+            except Exception as exc:
+                self.send_json({
+                    "query": q_text,
+                    "answer": None,
+                    "error": f"Generative synthesis error: {exc}",
+                    "synthesized": False,
+                    "api_available": True,
+                    "offline_fallback": True,
+                    "context": context.to_dict(),
+                })
+                return
+
+        # Retrieval-only response
+        detected_epochs = (
+            [e.value for e in context.rag_query.detected_epochs]
+            if (context.rag_query and context.rag_query.detected_epochs)
+            else []
+        )
+        detected_ribbons = (
+            [r.value for r in context.rag_query.detected_ribbons]
+            if (context.rag_query and context.rag_query.detected_ribbons)
+            else []
+        )
+        self.send_json({
+            "query": q_text,
+            "context": context.to_dict(),
+            "total_passages": len(context.passages),
+            "total_verses": context.total_verses,
+            "estimated_tokens": context.estimated_tokens,
+            "detected_epochs": detected_epochs,
+            "detected_ribbons": detected_ribbons,
+            "thematic_ribbons": detected_ribbons,
+            "api_available": api_avail,
+            "synthesized": False,
+            "offline_fallback": False,
+        })
+
+    def handle_chat_persona(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET/POST /api/chat/persona — Biblical character dialogue studio turn."""
+        char_id = (
+            self._get_param(query, body_data, "character")
+            or self._get_param(query, body_data, "persona")
+            or self._get_param(query, body_data, "id")
+        )
+        if not char_id:
+            self.send_json_error(
+                "Missing required parameter: 'character' (e.g. 'paul', 'moses', 'david', 'peter')",
+                status=400,
+            )
+            return
+
+        persona = get_persona_definition(str(char_id).strip())
+        if not persona:
+            self.send_json_error(
+                f"Unknown biblical persona '{char_id}'. Available: {', '.join(p.id for p in CANONICAL_PERSONAS)}",
+                status=404,
+            )
+            return
+
+        message = (
+            self._get_param(query, body_data, "message")
+            or self._get_param(query, body_data, "q")
+            or self._get_param(query, body_data, "prompt")
+        )
+        if not message or not str(message).strip():
+            self.send_json_error("Missing required parameter: 'message'", status=400)
+            return
+
+        clean_message = str(message).strip()
+        version = str(self._get_param(query, body_data, "version", "ESV")).strip().upper()
+        model = self._get_param(query, body_data, "model")
+        if model:
+            model = str(model).strip()
+
+        temperature_raw = self._get_param(query, body_data, "temperature", 0.7)
+        try:
+            temperature = max(0.0, min(1.0, float(temperature_raw)))
+        except (ValueError, TypeError):
+            temperature = 0.7
+
+        max_tokens_raw = self._get_param(query, body_data, "max_tokens", 2048)
+        try:
+            max_tokens = max(100, min(8192, int(max_tokens_raw)))
+        except (ValueError, TypeError):
+            max_tokens = 2048
+
+        try:
+            session = BiblicalPersonaSession(
+                persona=persona,
+                db=self.db,
+                translation=version,
+                model=model or DEFAULT_GEMINI_MODEL,
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+
+            # Replay conversation history if provided (enables stateless web clients)
+            history_raw = self._get_param(query, body_data, "history")
+            if isinstance(history_raw, str):
+                try:
+                    history_raw = json.loads(history_raw)
+                except Exception:
+                    history_raw = []
+
+            if isinstance(history_raw, list):
+                for item in history_raw:
+                    if isinstance(item, dict) and "role" in item and "content" in item:
+                        r = str(item["role"]).strip().lower()
+                        c = str(item["content"]).strip()
+                        if r in ("user", "model", "assistant") and c:
+                            norm_role = "model" if r == "assistant" else r
+                            session.history.append(ChatMessage(role=norm_role, content=c))
+
+            # Dialogue turn (handles offline automatically if unkeyed)
+            dialogue_resp = session.say(clean_message)
+
+            self.send_json({
+                "character": persona.to_dict(),
+                "user_message": clean_message,
+                "response": dialogue_resp.text,
+                "model": dialogue_resp.model,
+                "latency_seconds": dialogue_resp.latency_seconds,
+                "grounded_passages": dialogue_resp.grounded_passages,
+                "turn_count": session.turn_count,
+                "history": [{"role": m.role, "content": m.content} for m in session.history],
+                "offline_fallback": dialogue_resp.offline_fallback,
+                "api_available": session.llm_client.is_available(),
+            })
+        except Exception as exc:
+            self.send_json_error(f"Dialogue processing error: {exc}", status=500)
 
     # -------------------------------------------------------------------------
     # Static File Serving

@@ -2232,3 +2232,47 @@ This document is an append-only log of significant design and architectural deci
   - Full CLI character dialogue capability available to users and scripts via `./bible chat`.
   - 100% Zero-Dependency compliance maintained (Python 3 standard library only).
   - All 801 unit tests pass in 2.6s (<3.0s SLA).
+
+---
+
+## ADR-068: REST Endpoints for Scripture RAG, Biblical Character Persona Studio, and Canonical Character Discovery with Graceful Offline Degradation
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Task 8.5 on the roadmap requires exposing REST API endpoints in the built-in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present.
+  - While Phase 4 created the HTTP server and scripture lookup/search/tagging REST endpoints (`web/server.py`), and Phase 8 introduced `core/rag.py` (Scripture RAG) and `core/persona.py` (Biblical Character Studio), the web layer lacked standard HTTP endpoints to connect web applications, mobile tools, and external services to these AI and theological retrieval capabilities.
+  - Additionally, web and client applications require:
+    1. HTTP POST support with JSON body parsing alongside existing GET query parameter support.
+    2. Comprehensive CORS headers supporting GET, POST, and preflight OPTIONS (`Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`).
+    3. Seamless offline degradation: when `GEMINI_API_KEY` is not configured, endpoints must NOT crash or return HTTP 500 errors; instead, they must return HTTP 200 with complete retrieval contexts, informative status messages, and `offline_fallback: true` flags.
+    4. Stateless multi-turn conversation support via replayable `history` payloads.
+    5. Detailed character profile inspection, search filtering, and grounded scripture passage text projection.
+- **Decision**:
+  1. **HTTP POST & CORS Preflight Expansion (`web/server.py`)**:
+     - Added `do_POST` to `BibleRequestHandler` with content length verification and safe UTF-8 JSON parsing.
+     - Updated CORS headers across `send_json`, `send_json_error`, `send_svg`, and `do_OPTIONS` to allow `GET, POST, OPTIONS` and headers `Content-Type, Authorization, X-Requested-With`.
+     - Implemented static parameter extractor helper `_get_param(query, body_data, name, default)` to unify parameter extraction across GET query strings and POST JSON bodies.
+  2. **Canonical Characters Catalog & Detail Endpoint (`/api/characters`, `/api/personas`)**:
+     - Supports list view with optional testament filtering (`testament=OT|NT|BOTH`) and substring search (`q=...`).
+     - Supports individual character profile inspection by path (`/api/characters/<id>`), query (`?id=...`), or POST body (`{"id": "..."}`).
+     - Proactively loads and projects grounded scripture passage citations and verse texts (`load_character_scripture_passages`), returning `character`, `api_available`, and `grounded_passages`.
+  3. **Scripture RAG Retrieval & Synthesis Endpoint (`/api/rag`)**:
+     - Performs multi-signal hybrid retrieval via `ScriptureRAGEngine` (FTS5 BM25 search, semantic tag intersection, theological epochs, thematic ribbons, cross-references).
+     - Supports retrieval-only mode (default `synthesize=False`) returning full context window, total passages, verse count, token estimate, detected epochs, and thematic ribbons.
+     - Supports generative synthesis mode (`synthesize=True`):
+       - If `GEMINI_API_KEY` is configured: generates grounded theological answer via `rag_engine.answer(...)`.
+       - If `GEMINI_API_KEY` is NOT configured: returns HTTP 200 with `offline_fallback: true`, `api_available: false`, descriptive `offline_message`, and the complete retrieved scripture context for client-side display.
+  4. **Biblical Character Dialogue Studio Endpoint (`/api/chat/persona`, `/api/chat`, `/api/persona/chat`)**:
+     - Supports unary inquiries and multi-turn conversations with character identifier (`character`, `persona`, or `id`) and user message.
+     - Accepts optional `history` array enabling stateless client sessions across HTTP turns.
+     - Dynamically applies TGC theological guardrails and grounded scripture passages via `BiblicalPersonaSession`.
+     - Gracefully degrades in unkeyed environments by returning the character's canonical offline profile response card, grounded citations, and `offline_fallback: true`.
+  5. **System Health Diagnostic Projection (`/api/health`)**:
+     - Updated `handle_health` to project `gemini_api_available` and `canonical_characters` count.
+  6. **Hermetic Unit Test Suite (`tests/test_server.py`)**:
+     - Added 20 unit tests covering character listing, testament filtering, search, path lookup, query lookup, POST lookup, 404 errors, RAG retrieval GET and POST, RAG offline synthesis, RAG mocked online synthesis, persona chat missing parameters, unknown characters, offline GET, offline POST, multi-turn history preservation, mocked online generation, and CORS OPTIONS headers.
+     - Expanded full test suite to 821 passing tests across 37 modules in ~2.6s.
+- **Consequences**:
+  - Web UI, client apps, and external integrations have direct, robust REST API access to Scripture RAG and Character Studio.
+  - Zero external dependencies maintained (Python 3 stdlib only per ADR-003).
+  - Unkeyed environments operate seamlessly with informative fallback cards without HTTP 500 errors.

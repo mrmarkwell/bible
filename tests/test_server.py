@@ -18,7 +18,9 @@ import json
 from pathlib import Path
 import threading
 import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 import unittest
+from unittest.mock import MagicMock, patch
 import urllib.error
 import urllib.request
 
@@ -72,6 +74,31 @@ class TestWebServerEndpoints(unittest.TestCase):
     def _get_json(self, path: str) -> tuple[int, dict]:
         """Perform HTTP GET request expecting JSON response."""
         status, _, body = self._get(path)
+        data = json.loads(body.decode("utf-8"))
+        return status, data
+
+    def _post(self, path: str, payload: Optional[Any] = None) -> tuple[int, dict, bytes]:
+        """Perform HTTP POST request with JSON payload."""
+        url = f"{self.server.url}{path}"
+        data_bytes = json.dumps(payload).encode("utf-8") if payload is not None else b""
+        req = urllib.request.Request(
+            url,
+            data=data_bytes,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                status = resp.status
+                headers = dict(resp.headers)
+                body = resp.read()
+                return status, headers, body
+        except urllib.error.HTTPError as exc:
+            return exc.code, dict(exc.headers), exc.read()
+
+    def _post_json(self, path: str, payload: Optional[Any] = None) -> tuple[int, dict]:
+        """Perform HTTP POST request expecting JSON response."""
+        status, _, body = self._post(path, payload)
         data = json.loads(body.decode("utf-8"))
         return status, data
 
@@ -586,6 +613,219 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertGreater(total_pages, 1)
         self.assertTrue(headers.get("X-Bible-Slide-Citation", "").startswith("Romans 8:"))
         self.assertEqual(headers.get("X-Bible-Slide-Indicator"), f"2 / {total_pages}")
+
+    # -------------------------------------------------------------------------
+    # Phase 8: Character Persona & Scripture RAG Endpoints (Task 8.5)
+    # -------------------------------------------------------------------------
+
+    def test_api_health_includes_gemini_and_characters(self) -> None:
+        status, data = self._get_json("/api/health")
+        self.assertEqual(status, 200)
+        self.assertIn("gemini_api_available", data)
+        self.assertIn("canonical_characters", data)
+        self.assertGreaterEqual(data["canonical_characters"], 19)
+
+    def test_api_characters_list(self) -> None:
+        status, data = self._get_json("/api/characters")
+        self.assertEqual(status, 200)
+        self.assertIn("total", data)
+        self.assertGreaterEqual(data["total"], 19)
+        self.assertIn("api_available", data)
+        self.assertIn("characters", data)
+        self.assertTrue(any(c["id"] == "paul" for c in data["characters"]))
+        self.assertTrue(any(c["id"] == "moses" for c in data["characters"]))
+
+    def test_api_characters_testament_filter(self) -> None:
+        status, data = self._get_json("/api/characters?testament=NT")
+        self.assertEqual(status, 200)
+        self.assertTrue(all(c["testament"] in ("NT", "BOTH") for c in data["characters"]))
+        self.assertTrue(any(c["id"] == "paul" for c in data["characters"]))
+        self.assertFalse(any(c["id"] == "abraham" for c in data["characters"]))
+
+    def test_api_characters_search_filter(self) -> None:
+        status, data = self._get_json("/api/characters?q=exile")
+        self.assertEqual(status, 200)
+        self.assertGreaterEqual(data["total"], 1)
+
+    def test_api_characters_single_by_path(self) -> None:
+        status, data = self._get_json("/api/characters/paul")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["character"]["id"], "paul")
+        self.assertEqual(data["character"]["canonical_name"], "Paul (Apostle)")
+        self.assertIn("grounded_passages", data)
+        self.assertGreaterEqual(len(data["grounded_passages"]), 1)
+        self.assertTrue(any("Romans" in p["reference"] for p in data["grounded_passages"]))
+
+    def test_api_characters_single_by_query(self) -> None:
+        status, data = self._get_json("/api/characters?id=moses")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["character"]["id"], "moses")
+        self.assertIn("grounded_passages", data)
+        self.assertTrue(any("Exodus" in p["reference"] for p in data["grounded_passages"]))
+
+    def test_api_characters_single_by_post(self) -> None:
+        status, data = self._post_json("/api/characters", {"id": "david"})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["character"]["id"], "david")
+        self.assertIn("grounded_passages", data)
+
+    def test_api_characters_not_found(self) -> None:
+        status, data = self._get_json("/api/characters/nonexistent_character")
+        self.assertEqual(status, 404)
+        self.assertIn("error", data)
+        self.assertIn("Available", data["error"])
+
+    def test_api_rag_missing_query_error(self) -> None:
+        status, data = self._get_json("/api/rag")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required parameter: 'query'", data["error"])
+
+    def test_api_rag_get_retrieval(self) -> None:
+        status, data = self._get_json("/api/rag?q=temple+dwelling+presence&max_passages=3")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["query"], "temple dwelling presence")
+        self.assertIn("context", data)
+        self.assertFalse(data["synthesized"])
+        self.assertIn("thematic_ribbons", data)
+        self.assertLessEqual(data["total_passages"], 3)
+        self.assertGreaterEqual(data["total_passages"], 1)
+
+    def test_api_rag_post_retrieval(self) -> None:
+        status, data = self._post_json(
+            "/api/rag",
+            {"query": "Garden of Eden to New Jerusalem", "max_passages": 2},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(data["query"], "Garden of Eden to New Jerusalem")
+        self.assertLessEqual(data["total_passages"], 2)
+        self.assertIn("passages", data["context"])
+
+    def test_api_rag_offline_synthesis(self) -> None:
+        # In unkeyed environment, requesting synthesis must produce graceful offline status without 500 error
+        status, data = self._get_json("/api/rag?q=justification+by+faith&synthesize=true")
+        self.assertEqual(status, 200)
+        self.assertIsNone(data["answer"])
+        self.assertTrue(data["offline_fallback"])
+        self.assertFalse(data["api_available"])
+        self.assertIn("offline_message", data)
+        self.assertIn("context", data)
+
+    def test_api_rag_mock_online_synthesis(self) -> None:
+        from core.rag import RAGContextWindow, RAGResponse
+
+        with patch("core.llm.GeminiClient.is_available", return_value=True):
+            with patch("core.rag.ScriptureRAGEngine.answer") as mock_answer:
+                mock_answer.return_value = RAGResponse(
+                    query="temple theme",
+                    answer="From Eden to New Jerusalem, God dwells with man.",
+                    context=RAGContextWindow(query="temple theme", passages=[]),
+                    model="gemini-2.5-pro",
+                    token_usage={"total_tokens": 150},
+                )
+                status, data = self._post_json(
+                    "/api/rag",
+                    {"query": "temple theme", "synthesize": True},
+                )
+                self.assertEqual(status, 200)
+                self.assertTrue(data["synthesized"])
+                self.assertTrue(data["api_available"])
+                self.assertFalse(data["offline_fallback"])
+                self.assertEqual(data["answer"], "From Eden to New Jerusalem, God dwells with man.")
+                self.assertEqual(data["model"], "gemini-2.5-pro")
+
+    def test_api_chat_persona_missing_params(self) -> None:
+        status, data = self._post_json("/api/chat/persona", {"message": "Hello"})
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required parameter: 'character'", data["error"])
+
+        status, data = self._post_json("/api/chat/persona", {"character": "paul"})
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required parameter: 'message'", data["error"])
+
+    def test_api_chat_persona_unknown_character(self) -> None:
+        status, data = self._post_json("/api/chat/persona", {"character": "nobody", "message": "Hi"})
+        self.assertEqual(status, 404)
+        self.assertIn("Unknown biblical persona", data["error"])
+
+    def test_api_chat_persona_offline_get(self) -> None:
+        status, data = self._get_json(
+            "/api/chat/persona?character=paul&message=Why+do+you+boast+in+weakness?"
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(data["character"]["id"], "paul")
+        self.assertEqual(data["user_message"], "Why do you boast in weakness?")
+        self.assertTrue(data["offline_fallback"])
+        self.assertIn("OFFLINE PERSONA PROFILE", data["response"])
+        self.assertGreaterEqual(len(data["grounded_passages"]), 1)
+        self.assertEqual(len(data["history"]), 2)
+        self.assertEqual(data["history"][0]["role"], "user")
+        self.assertEqual(data["history"][1]["role"], "model")
+
+    def test_api_chat_persona_offline_post(self) -> None:
+        status, data = self._post_json(
+            "/api/chat/persona",
+            {"character": "moses", "message": "Why did you strike the rock?"},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(data["character"]["id"], "moses")
+        self.assertTrue(data["offline_fallback"])
+        self.assertIn("OFFLINE PERSONA PROFILE", data["response"])
+        self.assertEqual(len(data["history"]), 2)
+
+    def test_api_chat_persona_with_multi_turn_history(self) -> None:
+        history = [
+            {"role": "user", "content": "Who called you to journey?"},
+            {"role": "model", "content": "The Lord called me out of Ur of the Chaldees."},
+        ]
+        status, data = self._post_json(
+            "/api/chat/persona",
+            {
+                "character": "abraham",
+                "message": "What was God's covenant promise?",
+                "history": history,
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(len(data["history"]), 4)
+        self.assertEqual(data["history"][0]["content"], "Who called you to journey?")
+        self.assertEqual(data["history"][1]["content"], "The Lord called me out of Ur of the Chaldees.")
+        self.assertEqual(data["history"][2]["content"], "What was God's covenant promise?")
+        self.assertIn("OFFLINE PERSONA PROFILE", data["history"][3]["content"])
+
+    def test_api_chat_persona_mock_online_generation(self) -> None:
+        from core.llm import LLMResponse
+
+        mock_llm_resp = LLMResponse(
+            text="Grace to you and peace from God our Father and the Lord Jesus Christ.",
+            model="gemini-2.5-pro",
+        )
+        with patch("core.llm.GeminiClient.is_available", return_value=True):
+            with patch("core.llm.GeminiClient.generate_content", return_value=mock_llm_resp):
+                status, data = self._post_json(
+                    "/api/chat/persona",
+                    {"character": "paul", "message": "Greetings, Apostle Paul!"},
+                )
+                self.assertEqual(status, 200)
+                self.assertFalse(data["offline_fallback"])
+                self.assertTrue(data["api_available"])
+                self.assertEqual(
+                    data["response"],
+                    "Grace to you and peace from God our Father and the Lord Jesus Christ.",
+                )
+                self.assertEqual(len(data["history"]), 2)
+
+    def test_api_cors_options_post_allowed(self) -> None:
+        req = urllib.request.Request(
+            f"{self.server.url}/api/chat/persona",
+            method="OPTIONS",
+        )
+        with urllib.request.urlopen(req) as resp:
+            self.assertEqual(resp.status, 204)
+            methods = resp.headers.get("Access-Control-Allow-Methods", "")
+            self.assertIn("POST", methods)
+            self.assertIn("GET", methods)
+            headers_allowed = resp.headers.get("Access-Control-Allow-Headers", "")
+            self.assertIn("Content-Type", headers_allowed)
 
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
