@@ -27,6 +27,7 @@ from core.tags import TaggingService
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RAW_WEB_DIR = REPO_ROOT / "data" / "raw" / "web"
+DEFAULT_RAW_KJV_DIR = REPO_ROOT / "data" / "raw" / "kjv"
 DEFAULT_FAVORITES_CSV = REPO_ROOT / "favorite_bible_verses.csv"
 
 
@@ -54,7 +55,7 @@ class BootstrapReport:
         pragmas_text = "Complete (PRAGMA optimize)" if self.pragmas_optimized else "Skipped"
         return [
             f"Database Path:           {self.db_path}",
-            f"Verses Ingested:         {self.verses_count:,} (WEB Translation)",
+            f"Verses Ingested:         {self.verses_count:,} (Bundled Public Domain Translations)",
             f"Translations:            {self.translations_count}",
             f"Curated Favorites:       {self.favorites_count} passages ({self.starred_count} starred)",
             f"Canonical Tags:          {self.tags_count} theological/redemptive taxonomies",
@@ -254,6 +255,7 @@ def is_database_healthy(db_path: Optional[Union[str, Path]] = None) -> bool:
 def bootstrap_database(
     db_path: Optional[Union[str, Path]] = None,
     raw_web_dir: Optional[Union[str, Path]] = None,
+    raw_kjv_dir: Optional[Union[str, Path]] = None,
     favorites_csv: Optional[Union[str, Path]] = None,
     force: bool = False,
     install_git_hooks: bool = True,
@@ -299,6 +301,7 @@ def bootstrap_database(
     t0 = time.time()
     target_path = Path(db_path).resolve() if db_path else DEFAULT_DB_PATH
     target_raw_dir = Path(raw_web_dir).resolve() if raw_web_dir else DEFAULT_RAW_WEB_DIR
+    target_raw_kjv_dir = Path(raw_kjv_dir).resolve() if raw_kjv_dir else DEFAULT_RAW_KJV_DIR
     target_csv = Path(favorites_csv).resolve() if favorites_csv else DEFAULT_FAVORITES_CSV
 
     def _notify(step: str, pct: float) -> None:
@@ -374,6 +377,18 @@ def bootstrap_database(
         verbose=False,
         books=target_books,
     )
+
+    if target_raw_kjv_dir.exists():
+        _notify("Compiling King James Version scripture texts...", 0.45)
+        from tools.ingest_kjv import ingest_kjv
+        kjv_verses = ingest_kjv(
+            db_path=target_path,
+            raw_dir=target_raw_kjv_dir,
+            force_download=False,
+            verbose=False,
+            books=target_books,
+        )
+        ingested_verses += kjv_verses
 
     # 3. Ingest Curated Favorites
     favorites_count = 0

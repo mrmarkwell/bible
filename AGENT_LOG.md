@@ -2909,5 +2909,48 @@ This is an append-only log of work performed by autonomous agents during their e
   - Phase 2 is now 100% complete!
   - Next task on roadmap: Phase 1 Task 1.7 (Ingest King James Version - KJV into SQLite as a second bundled public-domain translation) or Phase 3 Task 3.5 / 3.7.
 
+---
+
+## [Run 072] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 1 — Core Data Models & Offline Scripture Storage (Zero Dependencies)
+- **Task Addressed**: Task 1.7 — Ingest King James Version (KJV) into SQLite as a second bundled public-domain translation (`tools/ingest_kjv.py`, `data/raw/kjv/`) for multi-translation offline comparison.
+- **Actions Taken**:
+  - **Raw KJV Corpus Caching & Ingestion Engine (`tools/ingest_kjv.py`, `data/raw/kjv/`)**:
+    - Created sovereign zero-dependency ingestion tool `tools/ingest_kjv.py` (Python 3 standard library only per ADR-003).
+    - Sourced and permanently cached all 66 canonical books of the King James Version (1611 / 1769 Blayney Oxford edition) in clean, structured JSON in `data/raw/kjv/`, totaling exactly 31,102 verses.
+    - Implemented resilient JSON parsing (`parse_book_json`) supporting both canonical book ordering and whitespace normalization.
+    - Registered KJV in the SQLite `translations` metadata table (`id="KJV"`, `name="King James Version"`, `is_public_domain=1`).
+    - Batch-inserted all 31,102 verses into the `verses` table with canonical integer IDs and automatic FTS5 full-text indexing via SQLite database triggers.
+  - **Sovereign Cold-Start Database Bootstrapping Integration (`core/bootstrap.py`)**:
+    - Integrated KJV ingestion into `core.bootstrap.bootstrap_database()` (`DEFAULT_RAW_KJV_DIR = REPO_ROOT / "data" / "raw" / "kjv"`).
+    - Automatically compiles both WEB and KJV into `data/bible.db` upon initial cold-start bootstrapping (`./bible init`) or database regeneration (`python3 tools/doctor.py --fix`).
+    - Updated `BootstrapReport.summary_lines()` to describe bundled public domain translations.
+  - **Multi-Translation Inspection & Comparison Verification**:
+    - Verified `./bible translations` displays both KJV (31,102 verses) and WEB (31,103 verses) alongside dynamic ESV.
+    - Verified `./bible get "Psalm 23:1-3" --version=KJV` renders beautifully formatted KJV scripture.
+    - Verified `./bible compare "Romans 8:28"` defaults to multi-translation comparison across installed translations (KJV and WEB).
+    - Verified `./bible compare "John 1:1" --versions=ESV,KJV,WEB` executes parallel comparative rendering.
+    - Verified `./bible search "peace of God" --version=KJV` performs instant FTS5 searches across KJV.
+    - Verified `./bible slide "Philippians 4:7" --version=KJV` renders high-resolution 4K slides from KJV.
+  - **Hermetic Test Suite Expansion (`tests/test_ingest_kjv.py`, `tests/test_bootstrap.py`)**:
+    - Added `tests/test_ingest_kjv.py` with 7 comprehensive unit/integration tests verifying book filename mapping across all 66 books, synthetic parsing, malformed item tolerance, cached file completeness, temporary database ingestion, FTS5 search, and CLI invocation.
+    - Updated `tests/test_bootstrap.py` to assert multi-translation bootstrap metrics (104 verses across WEB and KJV in quick test mode).
+    - Expanded full test suite to **916 tests across 41 production modules passing 100% in 4.0s** (226+ tests/sec).
+  - **Governance & State Machine Synchronization**:
+    - Registered **ADR-078** in `DECISIONS.md`.
+    - Marked **Task 1.7** complete in `ROADMAP.md` (Phase 1 is now 100% complete across all 7 tasks!).
+- **Verification**:
+  - `./bible test`: **916 tests across 41 modules passed 100% in 4.041s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (78 ADRs registered, 72 sequential runs, 76 roadmap tasks tracked, 67 completed across 9 phases, 0 dependencies, 0 linter errors across 87 files).
+  - `/usr/bin/python3.12 tools/doctor.py`: **100% EXCELLENT** on Python 3.12.
+  - `python3 tools/linter.py`: **100% CLEAN** — 87 files inspected with 0 errors.
+  - Verified live CLI outputs: `./bible translations`, `./bible get "Psalm 23:1-3" --version=KJV`, `./bible compare "Romans 8:28"`, and `./bible search "peace of God" --version=KJV`.
+- **Handoff Notes for Next Agent**:
+  - Phase 1 is now 100% complete!
+  - Both World English Bible (WEB) and King James Version (KJV) are fully bundled offline in SQLite (`data/bible.db`) and raw corpus cache (`data/raw/`).
+  - Next task on roadmap: Phase 3 Task 3.5 (Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration) or Task 3.6 (Universal Tagging Unification: Deprecate starred Column from database schema and APIs in favor of #starred tag).
+
+
 
 

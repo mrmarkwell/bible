@@ -83,8 +83,9 @@ class TestBootstrapModule(unittest.TestCase):
 
             self.assertTrue(rep.is_clean)
             self.assertTrue(tmp_db.exists())
-            self.assertEqual(rep.verses_count, 52)
-            self.assertEqual(rep.translations_count, 1)
+            # 52 verses in WEB + 52 verses in KJV = 104 total verses
+            self.assertEqual(rep.verses_count, 104)
+            self.assertEqual(rep.translations_count, 2)
             self.assertGreaterEqual(rep.tags_count, 20)
             self.assertGreaterEqual(rep.cross_references_count, 40)
             self.assertTrue(len(notified_steps) >= 5)
@@ -96,30 +97,33 @@ class TestBootstrapModule(unittest.TestCase):
 
             # Verify Database query against compiled temp file
             with Database(tmp_db) as db:
-                verse = db.get_verse("2 John", 1, 1, translation_id="WEB")
-                self.assertIsNotNone(verse)
-                self.assertIn("elder", verse.text.lower())
+                verse_web = db.get_verse("2 John", 1, 1, translation_id="WEB")
+                self.assertIsNotNone(verse_web)
+                self.assertIn("elder", verse_web.text.lower())
+                verse_kjv = db.get_verse("2 John", 1, 1, translation_id="KJV")
+                self.assertIsNotNone(verse_kjv)
+                self.assertIn("elder", verse_kjv.text.lower())
 
     def test_bootstrap_force_rebuild(self):
         """Verify --force flag recompiles database from scratch."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_db = Path(tmpdir) / "test_force.db"
-            # First pass: 2 John (13 verses)
+            # First pass: 2 John (13 verses WEB + 13 verses KJV = 26 verses)
             rep1 = bootstrap_database(
                 db_path=tmp_db,
                 books=[BOOKS[63]],
                 install_git_hooks=False,
             )
-            self.assertEqual(rep1.verses_count, 13)
+            self.assertEqual(rep1.verses_count, 26)
 
-            # Second pass: 2 John and 3 John with force=True (27 verses)
+            # Second pass: 2 John and 3 John with force=True (27 verses WEB + 27 verses KJV = 54 verses)
             rep2 = bootstrap_database(
                 db_path=tmp_db,
                 books=[BOOKS[63], BOOKS[64]],
                 force=True,
                 install_git_hooks=False,
             )
-            self.assertEqual(rep2.verses_count, 27)
+            self.assertEqual(rep2.verses_count, 54)
 
     def test_bootstrap_with_onboarding_keys(self):
         """Verify bootstrap_database passes explicit API keys and onboarding wizard flag."""
@@ -136,7 +140,7 @@ class TestBootstrapModule(unittest.TestCase):
                     gemini_key="test_gem_boot",
                     probe_keys=False,
                 )
-                self.assertEqual(rep.verses_count, 13)
+                self.assertEqual(rep.verses_count, 26)
                 mock_wizard.assert_called_once()
                 kwargs = mock_wizard.call_args[1]
                 self.assertTrue(kwargs["interactive"])

@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 0, 1, 2, 3, 4 & 7 (Expanded Feature Roadmap Ingested)
-- **Overall Progress**: 66 Completed / 76 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 67 Completed / 76 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -48,7 +48,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 1.4**: Implement zero-dependency keystream encryption/obfuscation module in `core/crypto.py` for copyrighted translations.
 - [x] **Task 1.5**: Hermetic unit tests using `unittest` in `tests/test_core.py`.
 - [x] **Task 1.6**: Ingest user's curated favorites (`favorite_bible_verses.csv`, 829 passages, 50 starred) into database as a first-class `favorites` tag with `starred` boolean attribute.
-- [ ] **Task 1.7**: Ingest King James Version (KJV) into SQLite as a second bundled public-domain translation (`tools/ingest_kjv.py`, `data/raw/kjv/`) for multi-translation offline comparison.
+- [x] **Task 1.7**: Ingest King James Version (KJV) into SQLite as a second bundled public-domain translation (`tools/ingest_kjv.py`, `data/raw/kjv/`) for multi-translation offline comparison. *(Run 072 / ADR-078)*
 
 ### Phase 2: Command Line Interface (CLI)
 - [x] **Task 2.1**: Implement CLI entry point `bible.py` (executable `./bible`) with verse lookup command (`./bible get "John 3:16"`, `./bible get "Romans 8:28-30"`). *(Run 012)*

@@ -2581,6 +2581,42 @@ This document is an append-only log of significant design and architectural deci
   - Preserves 100% offline-first resilience: unkeyed or offline users receive seamless WEB fallbacks with zero crash risk.
   - Preserves 100% Zero-Dependency architecture (ADR-003) and 100% passing hermetic unit tests (909 tests in <3.7s).
 
+---
+
+## ADR-078: Ingestion of King James Version (KJV) as Bundled Public-Domain Translation, Raw Corpus Offline Hermeticism, and Multi-Translation Offline Comparison Architecture
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Task 1.7 on the roadmap requested ingesting the King James Version (KJV) into SQLite as a second bundled public-domain translation alongside the World English Bible (WEB), cached in `data/raw/kjv/` for 100% offline reproducibility and multi-translation comparison.
+  - While the World English Bible (WEB) provides a modern, public-domain English text, the King James Version (1611 / 1769 Blayney Oxford edition) remains a foundational, highly requested English translation for comparative exegesis, historical literary analysis, and memorization.
+  - Furthermore, having two distinct offline public-domain translations natively compiled in SQLite unlocks instant, hermetic offline comparison (`./bible compare "Romans 8:28"` or `./bible compare "John 1:1" --versions=ESV,KJV,WEB`) without requiring external internet or API keys.
+- **Decision**:
+  1. **Raw KJV Corpus Caching & Zero-Dependency Parsing (`tools/ingest_kjv.py`, `data/raw/kjv/`)**:
+     - Built `tools/ingest_kjv.py` using Python standard library only (`urllib.request`, `json`, `pathlib`, `sqlite3`).
+     - Sourced and cached all 66 canonical books of the King James Version in clean, structured JSON format in `data/raw/kjv/` (totaling exactly 31,102 verses).
+     - Implemented resilient JSON parsing (`parse_book_json`) supporting both canonical book ordering and whitespace normalization.
+     - Registered KJV in the SQLite `translations` metadata table (`id="KJV"`, `name="King James Version"`, `is_public_domain=1`).
+     - Batch-inserted all 31,102 verses into the `verses` table with canonical integer IDs and automatic FTS5 full-text indexing via SQLite database triggers.
+  2. **Unified Sovereign Bootstrap Integration (`core/bootstrap.py`)**:
+     - Integrated KJV ingestion into `core.bootstrap.bootstrap_database()` (`DEFAULT_RAW_KJV_DIR = REPO_ROOT / "data" / "raw" / "kjv"`).
+     - Automatically compiles both WEB and KJV into `data/bible.db` upon initial cold-start bootstrapping (`./bible init`) or database regeneration (`python3 tools/doctor.py --fix`).
+     - Maintained fast sample bootstrap mode (`quick=True`) for swift CI test runs.
+  3. **Multi-Translation Comparison & Inspection Parity (`cli/main.py`, `cli/shell.py`)**:
+     - Verified that `./bible compare` automatically detects multiple installed translations and performs parallel aligned/stacked comparison across KJV and WEB.
+     - Verified that `./bible get <ref> --version=KJV` immediately renders KJV passages with custom margins, ANSI colors, and box framing.
+     - Verified that `./bible search <query> --version=KJV` performs instant FTS5 full-text searching across KJV.
+     - Verified that `./bible translations` lists both KJV (31,102 verses) and WEB (31,103 verses) alongside ESV.
+     - Verified that the interactive study REPL (`./bible shell`) dynamically tab-completes `KJV` and switches active translations via `/version KJV`.
+  4. **Hermetic Test Suite & Module Symmetry (`tests/test_ingest_kjv.py`, `tests/test_bootstrap.py`)**:
+     - Created `tests/test_ingest_kjv.py` verifying filename mapping across all 66 books, synthetic parsing, malformed item tolerance, cached file completeness, temporary database ingestion, FTS5 search, and CLI invocation.
+     - Updated `tests/test_bootstrap.py` to assert correct multi-translation metrics (104 verses across WEB and KJV in quick test mode).
+     - Expanded test suite to **916 tests across 41 production modules passing 100% in ~4.0s**.
+- **Consequences**:
+  - 100% offline multi-translation comparison is now fully operational between WEB and KJV, with ESV supported dynamically.
+  - Zero external dependencies introduced (Python stdlib only, no pip/npm).
+  - All 66 KJV books permanently cached locally in `data/raw/kjv/` for hermetic reproducibility.
+
+
 
 
 
