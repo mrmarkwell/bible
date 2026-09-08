@@ -375,12 +375,13 @@ class TestTagGeneratorTool(unittest.TestCase):
         self.assertEqual(code_write, 0)
         self.assertIn("Successfully applied 2 tag(s)", buf2.getvalue())
 
-        # Verify DB has stored tags
+        # Verify DB has stored tags (including unified 'starred' tag)
         tags = svc.get_tags_for_passage("Romans 8:1")
-        self.assertEqual(len(tags), 2)
+        self.assertEqual(len(tags), 3)
         tag_names = {t.tag_name for t in tags}
         self.assertIn("justification", tag_names)
         self.assertIn("holy_spirit", tag_names)
+        self.assertIn("starred", tag_names)
 
     def test_call_gemini_api_mock(self):
         mock_response_data = {
@@ -435,11 +436,13 @@ class TestTagGeneratorTool(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("Successfully stored tags for John 3:16", buf.getvalue())
 
-        # Verify DB
+        # Verify DB (contains 'love' and unified 'starred')
         svc = TaggingService(self.db)
         tags = svc.get_tags_for_passage("John 3:16")
-        self.assertEqual(len(tags), 1)
-        self.assertEqual(tags[0].tag_name, "love")
+        self.assertEqual(len(tags), 2)
+        names = {t.tag_name for t in tags}
+        self.assertIn("love", names)
+        self.assertIn("starred", names)
 
     def test_cmd_generate_missing_api_key(self):
         parser = build_tool_parser()

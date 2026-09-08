@@ -1010,6 +1010,9 @@ class Database:
         # Clean-slate dynamic taxonomy migration (Task 3.5 / ADR-079)
         self.migrate_clean_slate_tags()
 
+        # Universal tagging unification migration (Task 3.6 / ADR-080)
+        self.migrate_starred_to_tag()
+
     # --- Translations ---
 
     def add_translation(
@@ -1998,6 +2001,46 @@ class Database:
                 )
                 vt_id = cur.lastrowid
 
+            # If marked starred and this is not already the 'starred' tag itself,
+            # ensure a first-class 'starred' tag association exists (Task 3.6 / ADR-080).
+            if starred and tag.name != "starred":
+                cur_star = self.conn.cursor()
+                cur_star.execute(
+                    "SELECT id FROM tags WHERE name = 'starred' LIMIT 1"
+                )
+                starred_tag_row = cur_star.fetchone()
+                if not starred_tag_row:
+                    cur_star.execute(
+                        """
+                        INSERT INTO tags (name, category, description, created_at)
+                        VALUES ('starred', 'curation', 'Priority starred scripture citations and key verses', ?)
+                        """,
+                        (now,),
+                    )
+                    starred_tag_id = cur_star.lastrowid
+                else:
+                    starred_tag_id = starred_tag_row["id"]
+
+                cur_star.execute(
+                    """
+                    SELECT id FROM verse_tags
+                    WHERE tag_id = ? AND start_canonical_id = ? AND end_canonical_id = ?
+                    LIMIT 1
+                    """,
+                    (starred_tag_id, start_id, end_id),
+                )
+                if not cur_star.fetchone():
+                    cur_star.execute(
+                        """
+                        INSERT INTO verse_tags (
+                            tag_id, span_id, start_canonical_id, end_canonical_id, human_ref,
+                            confidence, source, starred, notes, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        """,
+                        (starred_tag_id, resolved_span_id, start_id, end_id, human, confidence, source, notes, now),
+                    )
+                cur_star.close()
+
         return VerseTagRecord(
             id=vt_id,
             tag_id=tag.id,
@@ -2145,7 +2188,18 @@ class Database:
                 """,
                 (tag.id, start_id, end_id),
             )
-            return cur.rowcount
+            deleted = cur.rowcount
+            # If removing the 'starred' tag, also reset legacy starred = 0 on any overlapping rows
+            if tag.name == "starred":
+                self.conn.execute(
+                    """
+                    UPDATE verse_tags
+                    SET starred = 0
+                    WHERE start_canonical_id = ? AND end_canonical_id = ?
+                    """,
+                    (start_id, end_id),
+                )
+            return deleted
 
     def delete_tag(self, name: str) -> bool:
         """Delete a tag definition and all its associations from the database.
@@ -2205,10 +2259,10 @@ class Database:
             for r in rows
         ]
 
-    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites",)) -> int:
+    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites", "starred")) -> int:
         """Prune unused tags that have zero verse associations in verse_tags.
 
-        Preserves 'favorites' (and any other specified tags) even if empty.
+        Preserves 'favorites' and 'starred' (and any other specified tags) even if empty.
         Returns the count of deleted tags.
         """
         preserve_normalized = {normalize_tag_name(t) for t in preserve_tags}
@@ -2283,6 +2337,69 @@ class Database:
                         cur.execute("UPDATE tags SET name = ? WHERE id = ?", (norm_name, t_id))
             cur.close()
             return pruned_count
+
+    def migrate_starred_to_tag(self) -> int:
+        """Migrate legacy starred=1 column flags to first-class #starred tag (Task 3.6 / ADR-080).
+
+        - Finds all verse_tags rows where starred = 1.
+        - If any exist, ensures the 'starred' tag exists in category 'curation'.
+        - Creates a verse_tags association with tag 'starred' for each, idempotently.
+        - Returns the count of migrated starred associations.
+        """
+        now = _utc_now_iso()
+        with self.conn:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT span_id, start_canonical_id, end_canonical_id, human_ref, confidence, source, notes
+                FROM verse_tags
+                WHERE starred = 1
+                """
+            )
+            rows = cur.fetchall()
+            if not rows:
+                cur.close()
+                return 0
+
+            tag = self.get_or_create_tag(
+                name="starred",
+                category="curation",
+                description="Priority starred scripture citations and key verses",
+            )
+            assert tag.id is not None
+            starred_tag_id = tag.id
+
+            migrated_count = 0
+            for r in rows:
+                span_id = r["span_id"]
+                s_cid = r["start_canonical_id"]
+                e_cid = r["end_canonical_id"]
+                human_ref = r["human_ref"]
+                conf = r["confidence"]
+                src = r["source"]
+                notes = r["notes"]
+
+                cur.execute(
+                    """
+                    SELECT id FROM verse_tags
+                    WHERE tag_id = ? AND start_canonical_id = ? AND end_canonical_id = ?
+                    LIMIT 1
+                    """,
+                    (starred_tag_id, s_cid, e_cid),
+                )
+                if not cur.fetchone():
+                    cur.execute(
+                        """
+                        INSERT INTO verse_tags (
+                            tag_id, span_id, start_canonical_id, end_canonical_id, human_ref,
+                            confidence, source, starred, notes, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        """,
+                        (starred_tag_id, span_id, s_cid, e_cid, human_ref, conf, src, notes, now),
+                    )
+                    migrated_count += 1
+            cur.close()
+            return migrated_count
 
     # --- Cross References ---
 
@@ -2448,6 +2565,66 @@ class Database:
                 """,
                 rows,
             )
+
+            # If any items are starred and tag is not already 'starred',
+            # also batch-link them to the first-class 'starred' tag (Task 3.6 / ADR-080).
+            if tag.name != "starred":
+                starred_items = [(ref_input, s, notes) for (ref_input, s, notes) in items if s]
+                if starred_items:
+                    cur_star = self.conn.cursor()
+                    cur_star.execute("SELECT id FROM tags WHERE name = 'starred' LIMIT 1")
+                    starred_row = cur_star.fetchone()
+                    if not starred_row:
+                        cur_star.execute(
+                            """
+                            INSERT INTO tags (name, category, description, created_at)
+                            VALUES ('starred', 'curation', 'Priority starred scripture citations and key verses', ?)
+                            """,
+                            (now,),
+                        )
+                        starred_tag_id = cur_star.lastrowid
+                    else:
+                        starred_tag_id = starred_row["id"]
+
+                    starred_rows = []
+                    for ref_input, _, notes in starred_items:
+                        ref = parse_reference(ref_input) if isinstance(ref_input, str) else ref_input
+                        s_id = ref.canonical_start_id
+                        e_id = ref.canonical_end_id
+                        cur_star.execute(
+                            """
+                            SELECT id FROM verse_tags
+                            WHERE tag_id = ? AND start_canonical_id = ? AND end_canonical_id = ?
+                            LIMIT 1
+                            """,
+                            (starred_tag_id, s_id, e_id),
+                        )
+                        if not cur_star.fetchone():
+                            starred_rows.append(
+                                (
+                                    starred_tag_id,
+                                    s_id,
+                                    e_id,
+                                    ref.format(),
+                                    confidence,
+                                    source,
+                                    1,
+                                    notes,
+                                    now,
+                                )
+                            )
+                    if starred_rows:
+                        self.conn.executemany(
+                            """
+                            INSERT INTO verse_tags (
+                                tag_id, start_canonical_id, end_canonical_id, human_ref,
+                                confidence, source, starred, notes, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            starred_rows,
+                        )
+                    cur_star.close()
+
         return len(rows)
 
     def clear_tag(self, tag_name: str) -> int:

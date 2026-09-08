@@ -588,11 +588,14 @@ class TestSpansTagsAndCrossReferences(unittest.TestCase):
         self.assertEqual(vt.tag_name, "providence")
         self.assertTrue(vt.starred)
 
-        # Querying Romans 8:29 should match because 8:29 is inside 8:28-30
+        # Querying Romans 8:29 should match because 8:29 is inside 8:28-30 (matches 'providence' and '#starred')
         tags_on_v29 = self.db.get_tags_for_reference("Romans 8:29")
-        self.assertEqual(len(tags_on_v29), 1)
-        self.assertEqual(tags_on_v29[0].tag_name, "providence")
-        self.assertTrue(tags_on_v29[0].starred)
+        tag_names_v29 = {t.tag_name for t in tags_on_v29}
+        self.assertIn("providence", tag_names_v29)
+        self.assertIn("starred", tag_names_v29)
+        self.assertEqual(len(tags_on_v29), 2)
+        providence_tag = next(t for t in tags_on_v29 if t.tag_name == "providence")
+        self.assertTrue(providence_tag.starred)
 
         # Querying all passages for tag 'providence'
         passages = self.db.get_references_for_tag("providence")

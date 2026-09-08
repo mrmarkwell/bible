@@ -142,16 +142,16 @@ class TestESVClient(unittest.TestCase):
     """Test HTTP client operations, authentication, and status codes."""
 
     def test_client_availability(self):
-        c_no_key = ESVClient(api_key=None)
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"BIBLE_TEST_MODE": "1"}, clear=True):
+            c_no_key = ESVClient(api_key=None)
             self.assertFalse(c_no_key.is_available())
 
         c_with_key = ESVClient(api_key="valid_token")
         self.assertTrue(c_with_key.is_available())
 
     def test_missing_key_raises_auth_error(self):
-        c = ESVClient(api_key=None)
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"BIBLE_TEST_MODE": "1"}, clear=True):
+            c = ESVClient(api_key=None)
             with self.assertRaises(ESVAuthError):
                 c.fetch_passage_raw("John 3:16")
 

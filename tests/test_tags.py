@@ -189,12 +189,52 @@ class TestTaggingServiceBasics(unittest.TestCase):
         # Test prune unlinked tags
         self.svc.add_tag("unlinked_one")
         self.svc.add_tag("favorites")  # protected by default
+        self.svc.add_tag("starred")    # protected by default
         self.svc.tag_passage("John 3:16", "linked_tag")
         pruned_count = self.svc.prune_unlinked_tags()
         self.assertGreaterEqual(pruned_count, 1)
         self.assertIsNone(self.svc.get_tag("unlinked_one"))
         self.assertIsNotNone(self.svc.get_tag("favorites"))
+        self.assertIsNotNone(self.svc.get_tag("starred"))
         self.assertIsNotNone(self.svc.get_tag("linked_tag"))
+
+    def test_starred_tag_unification_and_migration(self) -> None:
+        """Test ADR-080 / Task 3.6: Universal Tagging Unification for #starred."""
+        # 1. Tag a passage with starred=True creates both the tag and the #starred tag
+        recs = self.svc.tag_passage("John 3:16", "salvation", starred=True)
+        self.assertEqual(len(recs), 1)
+        self.assertTrue(recs[0].starred)
+
+        # Verify 'starred' tag now exists and contains John 3:16
+        starred_tag = self.svc.get_tag("starred")
+        self.assertIsNotNone(starred_tag)
+        starred_passages = self.svc.get_passages_for_tag("starred")
+        self.assertEqual(len(starred_passages), 1)
+        self.assertEqual(starred_passages[0].human_ref, "John 3:16")
+
+        # 2. Tag multiple with batch
+        items = [
+            ("Romans 8:1", True, "Key verse"),
+            ("Romans 8:2", False, "Normal verse"),
+        ]
+        self.db.tag_references_batch(items, tag_name="romans_test")
+        starred_passages = self.svc.get_passages_for_tag("starred")
+        refs = [p.human_ref for p in starred_passages]
+        self.assertIn("John 3:16", refs)
+        self.assertIn("Romans 8:1", refs)
+        self.assertNotIn("Romans 8:2", refs)
+
+        # 3. Idempotent migration
+        migrated = self.db.migrate_starred_to_tag()
+        self.assertEqual(migrated, 0)  # already synchronized
+
+        # 4. Untagging 'starred' clears starred status
+        deleted = self.svc.untag_passage("Romans 8:1", "starred")
+        self.assertEqual(deleted, 1)
+        tags_r8 = self.svc.get_tags_for_passage("Romans 8:1", exact_only=True)
+        for t in tags_r8:
+            self.assertFalse(t.starred)
+
 
 
 class TestPassageTaggingAndSpans(unittest.TestCase):
@@ -241,9 +281,12 @@ class TestPassageTaggingAndSpans(unittest.TestCase):
         self.assertTrue(r2[0].starred)
         self.assertEqual(r2[0].notes, "Updated note")
 
-        # Ensure no duplicate rows created
+        # Ensure no duplicate rows created for the tag itself, plus the unified #starred tag
         tags = self.svc.get_tags_for_passage("John 3:16", exact_only=True)
-        self.assertEqual(len(tags), 1)
+        tag_names = {t.tag_name for t in tags}
+        self.assertIn("faith", tag_names)
+        self.assertIn("starred", tag_names)
+        self.assertEqual(len(tags), 2)
 
     def test_untag_passage(self) -> None:
         self.svc.tag_passage("Romans 8:1-4", ["Holy Spirit", "Sanctification"])
@@ -310,9 +353,10 @@ class TestTagQueriesAndHydration(unittest.TestCase):
         exact_v1 = self.svc.get_tags_for_passage("Romans 8:1", exact_only=True)
         self.assertEqual([t.tag_name for t in exact_v1], ["freedom"])
 
-        # Exact on Romans 8:1-4
+        # Exact on Romans 8:1-4 (matches 'no_condemnation' and unified 'starred')
         exact_span = self.svc.get_tags_for_passage("Romans 8:1-4", exact_only=True)
-        self.assertEqual([t.tag_name for t in exact_span], ["no_condemnation"])
+        exact_names = {t.tag_name for t in exact_span}
+        self.assertEqual(exact_names, {"no_condemnation", "starred"})
 
     def test_get_passages_for_tag_hydrated(self) -> None:
         passages = self.svc.get_passages_for_tag("no_condemnation", translation_id="WEB")
@@ -519,7 +563,7 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         john = next(d for d in densities if d.book_name == "John")
         self.assertEqual(john.passage_count, 2)
         self.assertEqual(john.starred_count, 1)
-        self.assertEqual(john.distinct_tags, 3)
+        self.assertEqual(john.distinct_tags, 4)  # gospel, grace, love, starred
         self.assertEqual(john.tag_counts["gospel"], 2)
         self.assertEqual(john.tag_counts["grace"], 1)
 
@@ -527,7 +571,7 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         romans = next(d for d in densities if d.book_name == "Romans")
         self.assertEqual(romans.passage_count, 2)
         self.assertEqual(romans.starred_count, 1)
-        self.assertEqual(romans.distinct_tags, 3)
+        self.assertEqual(romans.distinct_tags, 4)  # sanctification, grace, flesh, starred
         self.assertEqual(romans.tag_counts["sanctification"], 2)
 
         # Filter by specific tag

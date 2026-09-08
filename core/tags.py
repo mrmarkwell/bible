@@ -363,8 +363,8 @@ class TaggingService:
         clean_name = normalize_tag_name(name)
         return self.db.delete_tag(clean_name)
 
-    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites",)) -> int:
-        """Prune unused tags that have zero verse associations (preserves favorites)."""
+    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites", "starred")) -> int:
+        """Prune unused tags that have zero verse associations (preserves favorites and starred)."""
         return self.db.prune_unlinked_tags(preserve_tags=preserve_tags)
 
     def list_tags(

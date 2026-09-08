@@ -2985,6 +2985,44 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 3.5 is complete and the tag taxonomy is clean-slate and strictly `snake_case`.
   - Next task on roadmap: Phase 3 Task 3.6 (Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag) or Task 3.7 (Client-Controlled Semantic Tagging Project Skill).
 
+---
+
+## [Run 074] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
+- **Task Addressed**: Task 3.6 — Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag (ADR-080).
+- **Actions Taken**:
+  - **Automated Idempotent Schema Migration (`Database.migrate_starred_to_tag`)**:
+    - Implemented `Database.migrate_starred_to_tag() -> int` in `core/db.py`:
+      - Queries all rows in `verse_tags` where `starred = 1`.
+      - If any rows exist, creates or retrieves the canonical `starred` tag (`category="curation"`, `description="Priority starred scripture citations and key verses"`).
+      - Idempotently copies all starred passage citations into `verse_tags` associated with the `starred` tag.
+      - Wired directly into `Database.init_schema()` so cold-start and upgraded databases migrate automatically.
+      - Migrated all 50 curated starred favorites in `data/bible.db`.
+  - **Tagging API State Synchronization (`Database.tag_reference`, `Database.tag_references_batch`, `Database.untag_reference`)**:
+    - Updated `tag_reference()`: when `starred=True`, in addition to setting the legacy `starred=1` column, it automatically ensures a corresponding association with the first-class `starred` tag exists.
+    - Updated `tag_references_batch()`: batch operations flagging `starred=True` atomically insert both the source tag and the `#starred` tag associations.
+    - Updated `untag_reference()`: untagging `'starred'` automatically clears legacy `starred = 0` on any overlapping associations.
+  - **Tag Pruning Safeguards**:
+    - Updated `Database.prune_unlinked_tags(preserve_tags=("favorites", "starred"))` and `TaggingService.prune_unlinked_tags` to protect `#starred` from accidental deletion.
+  - **Test Suite Updates & Test Isolation Fixes**:
+    - Fixed test isolation in `tests/test_esv.py` lines 145 and 153 to pass `{"BIBLE_TEST_MODE": "1"}` to ensure `.env` file credentials on disk do not interfere with unit assertions.
+    - Added comprehensive unit tests in `tests/test_tags.py` (`test_starred_tag_unification_and_migration`) testing single tagging, batch ingestion, migration idempotency, and untag synchronization.
+    - Updated `tests/test_db.py` and `tests/test_tag_prompts.py` assertions to reflect first-class `#starred` tag associations.
+    - Verified all 41 test modules pass 100% (918 tests in 7.88s).
+  - **Governance & State Machine Synchronization**:
+    - Registered **ADR-080** in `DECISIONS.md`.
+    - Marked **Task 3.6** complete in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **918 tests across 41 modules passed 100% in 7.884s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (80 ADRs registered, 74 sequential runs, 76 roadmap tasks tracked, 69 completed across 9 phases, 0 dependencies, 0 linter errors across 87 files).
+  - `python3 tools/linter.py`: **100% CLEAN** — 87 files inspected with 0 errors.
+  - Verified live CLI outputs: `./bible tag list` (shows `favorites` [829] and `starred` [50]), `./bible tag show starred --limit 2`.
+- **Handoff Notes for Next Agent**:
+  - Task 3.6 is complete and verified. The `#starred` tag is now a first-class citizen of the semantic taxonomy while maintaining 100% backward compatibility for legacy queries and flags.
+  - Next task on roadmap: Phase 3 Task 3.7 (Client-Controlled Semantic Tagging Project Skill `skills/semantic-tagging` operating strictly on ESV text with TGC exegetical guidelines) or Task 3.8 (TSK Cross-Reference Knowledge Graph Ingestion).
+
+
 
 
 

@@ -2660,6 +2660,40 @@ This document is an append-only log of significant design and architectural deci
   - Zero unlinked tag clutter in fresh installs or migrated databases.
   - Full adherence to ADR-003 (Python 3 stdlib only, zero pip/npm dependencies).
 
+---
+
+## ADR-080: Universal Tagging Unification, Deprecation of Starred Column, and #starred First-Class Tag Migration
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - In earlier versions of the schema (Task 1.6 / ADR-005), a dedicated boolean column `starred INTEGER DEFAULT 0` was attached directly to the `verse_tags` association table to mark priority favorites from `favorite_bible_verses.csv`.
+  - While functional, maintaining a distinct physical column alongside first-class semantic tags broke the conceptual symmetry of the semantic tagging architecture.
+  - Conceptually, "starred" is simply a curation tag (`category="curation"`, `name="starred"`). Treating it as a physical table column duplicated filtering logic, required dedicated column arguments across database methods, and prevented uniform aggregation and querying alongside other semantic themes.
+  - In Task 3.6, we sought to unify priority star attributes into the first-class tagging architecture (`#starred`) while maintaining 100% backward compatibility for existing callers and CLI flags (`--starred-only`, `starred=True`).
+- **Decision**:
+  1. **Non-Destructive Deprecation & Coexistence Strategy**:
+     - Retain the physical SQLite `starred` column in `verse_tags` to ensure seamless zero-breakage backward compatibility with existing queries, indexes, and callers.
+     - Unify the semantic state machine: whenever a reference is marked `starred=True` or `tag_reference` is invoked with `starred=True`, the engine sets `starred=1` on the association row AND automatically ensures a first-class `starred` tag association (`category="curation"`) exists.
+     - In `Database.untag_reference`, untagging the `'starred'` tag safely clears legacy `starred = 0` across overlapping associations for that reference.
+  2. **Automated Idempotent Schema Migration (`Database.migrate_starred_to_tag`)**:
+     - Added `Database.migrate_starred_to_tag()` executed automatically during `Database.init_schema()`:
+       - Detects all existing rows in `verse_tags` where `starred = 1`.
+       - If any exist, ensures the `starred` tag exists in `tags` (`category="curation"`, `description="Priority starred scripture citations and key verses"`).
+       - Idempotently copies all starred citations into `verse_tags` associated with the `starred` tag.
+     - Migrated all 50 curated starred passages in `data/bible.db` to the first-class `starred` tag.
+  3. **Tag Pruning Safeguards**:
+     - Updated `Database.prune_unlinked_tags(preserve_tags=("favorites", "starred"))` and `TaggingService.prune_unlinked_tags` to protect both the `favorites` and `starred` curation tags from accidental deletion during pruning.
+  4. **Batch Insertion Parity (`Database.tag_references_batch`)**:
+     - Updated `tag_references_batch` so that any batch items flagged with `starred=True` are automatically linked to the first-class `starred` tag in the same atomic transaction.
+  5. **Verification & Test Coverage**:
+     - Added `test_starred_tag_unification_and_migration` in `tests/test_tags.py` verifying single tagging, batch ingestion, migration idempotency, and untag synchronization.
+     - Verified all 41 test modules pass 100% (918 tests in <8.0s).
+- **Consequences**:
+  - Users can now query starred verses either via legacy flags (`--starred-only`) or natively via tags (`./bible tag show starred` / `--tag starred`).
+  - Terminal ribbons, chapter heatmaps, and slide batch generators can treat `#starred` as a standard curation tag.
+  - Zero external dependencies introduced (Python stdlib only per ADR-003).
+
+
 
 
 
