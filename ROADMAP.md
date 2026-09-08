@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: Phase 7 — Offline Theological Enrichment & Whole-Bible Semantic Database Compiler (ADR-042)
-- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, and Phase 6 complete (100%); Phase 7 next
+- **Active Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio
+- **Overall Progress**: Phase 0, Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, and Phase 7 complete (100%); Phase 8 next
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -85,7 +85,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 7.2**: Implement Zero-Dependency Vector Similarity Engine (`core/vector.py`) for packed byte embeddings, int8 quantization, and ultra-fast pure Python cosine similarity (<15ms across 31,102 vectors without numpy or external vector DBs). *(Run 048 / ADR-051)*
 - [x] **Task 7.4**: Implement Exegetical Critic & Quality Audit Suite (`core/semantic_audit.py`) validating canonical coordinate boundaries (`BBCCCVVV`), schema validation, character entity deduplication, and 100% whole-Bible verse coverage. *(Run 052 / ADR-055)*
 - [x] **Task 7.5**: Implement Resumable Batch Semantic Compilation Engine (`tools/build_semantic_db.py` / `./bible build-semantic`) featuring a SQLite checkpoint ledger, rate limiting, book-by-book resume, and progress telemetry. *(Run 053 / ADR-056)*
-- [ ] **Task 7.6**: Execute one-shot compilation over the ESV corpus to generate and compile the complete, permanent semantic database pack into `data/bible.db`, verifying 100% offline queryability, FTS5 sync, and vector search.
+- [x] **Task 7.6**: Execute one-shot compilation over the ESV corpus to generate and compile the complete, permanent semantic database pack into `data/bible.db`, verifying 100% offline queryability, FTS5 sync, and vector search. *(Run 054 / ADR-057)*
 
 
 ### Phase 8: Online Scripture RAG & Biblical Character Dialogue Studio

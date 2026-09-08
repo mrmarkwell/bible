@@ -4366,11 +4366,21 @@ def build_parser() -> argparse.ArgumentParser:
                         sys.stderr.write(f"Error: Invalid reference '{ref_input}': {e}\n")
                         return 1
 
-                    source_emb = db.get_verse_embedding(ref_obj)
-                    if not source_emb:
-                        sys.stderr.write(f"Error: No embedding stored for reference '{ref_obj.format()}'.\n")
-                        return 1
-                    query_bytes = source_emb.embedding
+                    if target == "pericopes":
+                        matching_pericopes = db.get_pericopes_for_reference(ref_obj)
+                        source_emb = None
+                        if matching_pericopes:
+                            source_emb = db.get_pericope_embedding(matching_pericopes[0].id)
+                        if not source_emb:
+                            sys.stderr.write(f"Error: No pericope embedding stored for reference '{ref_obj.format()}'.\n")
+                            return 1
+                        query_bytes = source_emb.embedding
+                    else:
+                        source_emb = db.get_verse_embedding(ref_obj)
+                        if not source_emb:
+                            sys.stderr.write(f"Error: No verse embedding stored for reference '{ref_obj.format()}'.\n")
+                            return 1
+                        query_bytes = source_emb.embedding
                 else:
                     raw_q = " ".join(getattr(args, "query", [])).strip()
                     if not raw_q:
@@ -4378,17 +4388,21 @@ def build_parser() -> argparse.ArgumentParser:
                         return 1
 
                     api_key = get_gemini_api_key()
-                    if not api_key:
-                        sys.stderr.write("Error: GEMINI_API_KEY required to embed query text for vector search.\n")
-                        return 1
-
-                    client = GeminiClient(api_key=api_key)
-                    try:
-                        q_floats = client.embed_content(raw_q)
-                        query_bytes = bytes(q_floats)  # VectorIndex handles float lists or bytes
-                    except Exception as exc:
-                        sys.stderr.write(f"Error generating query embedding: {exc}\n")
-                        return 1
+                    if api_key:
+                        client = GeminiClient(api_key=api_key)
+                        try:
+                            q_floats = client.embed_content(raw_q)
+                            query_bytes = bytes(q_floats)
+                        except Exception as exc:
+                            sys.stderr.write(f"Error generating query embedding: {exc}\n")
+                            return 1
+                    else:
+                        # Deterministic offline vector query embedding (ADR-003, ADR-042)
+                        from core.semantic_compiler import SemanticDatabaseCompiler
+                        from core.vector import normalize_vector, quantize_float_to_int8
+                        pseudo_vec = normalize_vector(SemanticDatabaseCompiler._pseudo_embed(raw_q, dim=DEFAULT_VECTOR_DIM))
+                        packed_bytes, _ = quantize_float_to_int8(pseudo_vec)
+                        query_bytes = packed_bytes
 
                 # Build filter function if book or testament specified
                 book_filter = getattr(args, "book", None)
@@ -4493,6 +4507,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Compile 6-layer semantic exegesis (pericopes, discourse, theology, typology, propositions, vectors) into SQLite with crash-resilient ledger resumption.",
     )
     parser_build_semantic.add_argument(
+        "--all",
+        action="store_true",
+        dest="compile_all",
+        help="Compile complete permanent semantic pack (144 pericopes + 1,189 chapters across all 66 books)",
+    )
+    parser_build_semantic.add_argument(
         "--book",
         type=str,
         default=None,
@@ -4567,6 +4587,7 @@ def build_parser() -> argparse.ArgumentParser:
         return run_semantic_build(
             db_path=db_path,
             book_filter=getattr(args, "book", None),
+            compile_all=getattr(args, "compile_all", False),
             resume=getattr(args, "resume", True),
             reset_failed=getattr(args, "reset_failed", False),
             clear_ledger=getattr(args, "clear_ledger", False),

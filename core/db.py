@@ -2597,6 +2597,44 @@ class Database:
             for r in rows
         ]
 
+    def update_pericope(
+        self,
+        pericope_id: int,
+        title: Optional[str] = None,
+        redemptive_summary: Optional[str] = None,
+        genre: Optional[str] = None,
+        literary_structure: Optional[str] = None,
+        central_proposition: Optional[str] = None,
+    ) -> bool:
+        """Update semantic attributes for an existing pericope record."""
+        fields: List[str] = []
+        params: List[Any] = []
+        if title is not None:
+            fields.append("title = ?")
+            params.append(title.strip())
+        if redemptive_summary is not None:
+            fields.append("redemptive_summary = ?")
+            params.append(redemptive_summary.strip() if redemptive_summary else None)
+        if genre is not None:
+            fields.append("genre = ?")
+            params.append(genre.strip() if genre else None)
+        if literary_structure is not None:
+            fields.append("literary_structure = ?")
+            params.append(literary_structure.strip() if literary_structure else None)
+        if central_proposition is not None:
+            fields.append("central_proposition = ?")
+            params.append(central_proposition.strip() if central_proposition else None)
+
+        if not fields:
+            return False
+
+        query = f"UPDATE pericopes SET {', '.join(fields)} WHERE id = ?"
+        params.append(pericope_id)
+
+        with self.conn:
+            cur = self.conn.execute(query, params)
+            return cur.rowcount > 0
+
     def clear_pericopes(self, book_id: Optional[int] = None) -> int:
         """Remove pericope headings (optionally filtered by book_id)."""
         with self.conn:

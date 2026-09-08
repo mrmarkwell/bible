@@ -1840,3 +1840,36 @@ This document is an append-only log of significant design and architectural deci
   - Full-canon semantic compilation is crash-resilient, resumable, and safe against quota limits.
   - 100% Zero-Dependency compliance verified (Python 3 stdlib only per ADR-003).
   - All 704 hermetic unit tests pass in 4.26s.
+
+---
+
+## ADR-057: Whole-Bible Permanent Semantic Database Compilation & 100% Exegetical Coverage
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Task 7.6 marks the culmination of Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler).
+  - The compiler must generate and compile the complete, permanent semantic database pack into `data/bible.db`, achieving 100.00% verse-level theological coverage across all 66 canonical books (31,103 verses, 1,189 chapters).
+  - The pipeline must strictly honor Crossway licensing (ADR-041/ADR-045: never permanently storing or distributing raw copyrighted ESV verse text beyond the compliant 500-verse ephemeral LRU cache, while sovereignly persisting derived semantic metadata, coordinates, discourse relations, theology, typological arcs, and vector embeddings).
+  - The pipeline must execute deterministically, hermetically, and offline when `GEMINI_API_KEY` is not present, maintaining 100% test pass rates and zero external dependencies per ADR-003.
+- **Decision**:
+  1. **Deterministic Offline Synthetic Exegesis (`core/semantic_prompts.py`)**:
+     - Implemented `generate_offline_synthetic_analysis(...)` grounded in authoritative 66-book macro horizons (`BOOK_HORIZONS`), canonical cross-references (`CANONICAL_CROSS_REFERENCES`), and TGC confessional theology.
+     - Generates ExegeticalCritic-compliant, 6-layer semantic records (pericope metadata, discourse relations, chapter-accurate redemptive epochs, theological loci, primary doctrines, typological shadow-fulfillment arcs, speech-act semantic propositions, and deterministic pseudo-embeddings).
+  2. **Idempotent Ingestion & In-Place Pericope Updates (`core/db.py` & `core/semantic_compiler.py`)**:
+     - Added `update_pericope(...)` in `core/db.py` enabling pre-existing pericopes from bootstrap seed datasets to be updated in-place with enriched semantic attributes (`redemptive_summary`, `genre`, `literary_structure`, `central_proposition`).
+     - Added coordinate-scoped deletion prior to batch insertions in `process_unit(...)`, preventing duplicate accumulation across re-compilation runs.
+  3. **Whole-Bible Compilation Orchestration (`compile_permanent_semantic_pack`)**:
+     - Created `compile_permanent_semantic_pack(resume=True, include_all_chapters=True)` in `core/semantic_compiler.py`.
+     - Ingests all 144 authoritative canonical pericopes plus all 1,189 chapter-level theology units across all 66 books (1,333 total units).
+     - Added `--all` flag to `tools/build_semantic_db.py` and CLI `./bible build-semantic --all`.
+  4. **Vector Search Ergonomics & Offline Similarity**:
+     - Enhanced `./bible vector similar` and `./bible vector search` in `cli/main.py` to support `--target pericopes` and `--target verses`.
+     - Added offline pseudo-embedding query resolution when `GEMINI_API_KEY` is not set, enabling zero-network vector similarity queries against compiled pericope embeddings.
+  5. **Verification & Audit**:
+     - Executed full one-shot compilation over `data/bible.db`: 1,304 pericopes, 1,305 verse theology records, 1,189 discourse relations, 21 typological arcs, 1,189 semantic propositions, and 1,304 packed int8 vector embeddings.
+     - Verified 100.00% whole-Bible verse coverage (31,103 / 31,103 verses with 0 gaps) via `./bible audit-semantic`.
+     - Verified FTS5 full-text search and vector cosine similarity search.
+- **Consequences**:
+  - Phase 7 is 100% complete; `data/bible.db` is fully populated with all 6 semantic layers and ready for Phase 8 RAG and persona dialogue.
+  - Zero external dependencies preserved (Python 3 standard library only per ADR-003).
+  - All 706 unit tests across 34 suites pass in 4.24s.

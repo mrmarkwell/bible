@@ -33,6 +33,7 @@ from core.semantic_compiler import (
 def run_semantic_build(
     db_path: Path,
     book_filter: Optional[str] = None,
+    compile_all: bool = False,
     resume: bool = True,
     reset_failed: bool = False,
     clear_ledger: bool = False,
@@ -120,7 +121,12 @@ def run_semantic_build(
 
     # Gather units to compile
     units = []
-    if book_obj:
+    if compile_all:
+        # Complete permanent semantic database pack: 144 pericopes + 1,189 chapters across 66 books
+        units.extend(compiler.get_canonical_pericope_units())
+        for b_num in range(1, 67):
+            units.extend(compiler.get_chapter_units(b_num))
+    elif book_obj:
         units = compiler.get_canonical_pericope_units(book_filter=book_obj)
         if not units:
             units = compiler.get_chapter_units(book_filter=book_obj)
@@ -218,6 +224,12 @@ def main() -> int:
         help=f"Path to target SQLite database (default: {DEFAULT_DB_PATH})",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="compile_all",
+        help="Compile complete permanent semantic pack (144 pericopes + 1,189 chapters across all 66 books)",
+    )
+    parser.add_argument(
         "--book",
         type=str,
         default=None,
@@ -292,6 +304,7 @@ def main() -> int:
         return run_semantic_build(
             db_path=args.db,
             book_filter=args.book,
+            compile_all=getattr(args, "compile_all", False),
             resume=args.resume,
             reset_failed=args.reset_failed,
             clear_ledger=args.clear_ledger,

@@ -1654,6 +1654,11 @@ class WholeBibleCoverageAuditor:
         total_covered = len(covered_set)
         coverage_pct = (total_covered / TOTAL_CANONICAL_VERSES) * 100.0 if TOTAL_CANONICAL_VERSES > 0 else 0.0
 
+        ot_covered = 0
+        ot_total = 0
+        nt_covered = 0
+        nt_total = 0
+
         book_stats: Dict[int, BookCoverageStats] = {}
         for b_id in range(1, 67):
             b_obj = BOOKS.get(b_id)
@@ -1663,6 +1668,14 @@ class WholeBibleCoverageAuditor:
             b_cov = len(expected_set.intersection(covered_set))
             b_total = len(expected_set)
             b_pct = (b_cov / b_total) * 100.0 if b_total > 0 else 0.0
+
+            if testament == "OT":
+                ot_covered += b_cov
+                ot_total += b_total
+            else:
+                nt_covered += b_cov
+                nt_total += b_total
+
             book_stats[b_id] = BookCoverageStats(
                 book_id=b_id,
                 book_name=b_name,
@@ -1674,6 +1687,9 @@ class WholeBibleCoverageAuditor:
                 pericope_count=0,
             )
 
+        ot_pct = (ot_covered / ot_total) * 100.0 if ot_total > 0 else 0.0
+        nt_pct = (nt_covered / nt_total) * 100.0 if nt_total > 0 else 0.0
+
         return WholeBibleCoverageReport(
             total_verses=TOTAL_CANONICAL_VERSES,
             covered_verses_count=total_covered,
@@ -1681,8 +1697,8 @@ class WholeBibleCoverageAuditor:
             book_stats=book_stats,
             gaps=[],
             overlap_count=0,
-            ot_coverage_pct=0.0,
-            nt_coverage_pct=0.0,
+            ot_coverage_pct=ot_pct,
+            nt_coverage_pct=nt_pct,
             duration_sec=time.time() - t0,
         )
 

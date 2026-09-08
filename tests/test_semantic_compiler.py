@@ -334,5 +334,51 @@ class TestSemanticDatabaseCompiler(unittest.TestCase):
         self.assertEqual(progress3.skipped_units, 0)
 
 
+    def test_offline_synthetic_compilation(self) -> None:
+        """Test deterministic offline synthetic analysis and storage without LLM client."""
+        ref = parse_reference("Romans 8:28-30")
+        unit = CompilationUnit(
+            unit_id="rom_8_synthetic",
+            reference=ref,
+            book=ref.book,
+            passage_text="Passage text for Romans 8:28-30",
+            title="Romans 8 Sovereign Purpose",
+            summary="God works all things together for the good of His people.",
+        )
+
+        ok, err, res = self.compiler.process_unit(unit)
+        self.assertTrue(ok, f"Offline unit processing failed: {err}")
+        self.assertIsNone(err)
+        self.assertIsNotNone(res)
+        self.assertIn("Romans", res.central_proposition)
+
+        # Verify database record updates
+        theos = self.db.get_verse_theology_for_reference(ref)
+        self.assertTrue(len(theos) >= 1)
+        self.assertEqual(theos[0].theological_locus, "soteriology")
+
+        props = self.db.get_semantic_propositions_for_verse("Romans 8:28")
+        self.assertTrue(len(props) >= 1)
+        self.assertEqual(props[0].agent, "God")
+
+    def test_compile_permanent_semantic_pack_hermetic(self) -> None:
+        """Test compile_permanent_semantic_pack with single-chapter book (Obadiah)."""
+        from core.db import VerseRecord
+        self.db.insert_verses([
+            VerseRecord("WEB", 31, 1, 1, "The vision of Obadiah. This is what the Lord GOD says about Edom..."),
+        ])
+        ob_units = self.compiler.get_chapter_units(31)
+        self.assertEqual(len(ob_units), 1)
+        progress = self.compiler.compile_units(ob_units, resume=False)
+        self.assertEqual(progress.completed_units, 1)
+        self.assertEqual(progress.failed_units, 0)
+
+        # Verify theology recorded for Obadiah
+        ob_theos = self.db.get_verse_theology_for_reference("Obadiah 1:1-21")
+        self.assertEqual(len(ob_theos), 1)
+        self.assertEqual(ob_theos[0].theological_locus, "eschatology")
+
+
 if __name__ == "__main__":
     unittest.main()
+
