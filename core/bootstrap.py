@@ -261,6 +261,10 @@ def bootstrap_database(
     quick: bool = False,
     books: Optional[Sequence[Book]] = None,
     progress_callback: Optional[Callable[[str, float], None]] = None,
+    onboarding_wizard: bool = False,
+    esv_key: Optional[str] = None,
+    gemini_key: Optional[str] = None,
+    probe_keys: bool = True,
 ) -> BootstrapReport:
     """Bootstrap and compile complete sovereign scripture and knowledge database.
 
@@ -272,6 +276,7 @@ def bootstrap_database(
     5. Seeds curated canonical OT/NT typological cross-reference links (67 edges).
     6. Optimizes SQLite storage via PRAGMA optimize & ANALYZE.
     7. Optionally installs automated git hook safeguards (pre-commit & pre-push).
+    8. Optionally executes API key onboarding wizard and connectivity probes.
 
     Args:
         db_path: Target SQLite database path (defaults to DEFAULT_DB_PATH).
@@ -283,6 +288,10 @@ def bootstrap_database(
         quick: If True, inits schema and seeds tags/crossrefs with sample books only.
         books: Optional explicit list of canonical books to compile.
         progress_callback: Optional callback receiving (step_description, pct_complete).
+        onboarding_wizard: If True, launches interactive API key onboarding wizard.
+        esv_key: Optional explicit ESV key to save during bootstrap.
+        gemini_key: Optional explicit Gemini key to save during bootstrap.
+        probe_keys: Whether to execute live network connectivity probe on configured keys.
 
     Returns:
         BootstrapReport with verified counts, timings, and status.
@@ -297,6 +306,21 @@ def bootstrap_database(
             progress_callback(step, pct)
         if verbose:
             print(f"[{pct * 100:3.0f}%] {step}")
+
+    # Run onboarding wizard if requested or explicit keys provided
+    if onboarding_wizard or esv_key is not None or gemini_key is not None:
+        try:
+            from tools.onboarding import run_onboarding_wizard
+            run_onboarding_wizard(
+                repo_root=REPO_ROOT,
+                interactive=onboarding_wizard,
+                esv_key=esv_key,
+                gemini_key=gemini_key,
+                probe=probe_keys,
+            )
+        except Exception as exc:
+            if verbose:
+                print(f"[Notice] Onboarding wizard notice: {exc}")
 
     # Check for fast idempotent exit if healthy and not forced
     if not force and not quick and books is None and is_database_healthy(target_path):

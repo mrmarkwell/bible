@@ -454,6 +454,19 @@ class TestShell(unittest.TestCase):
             comp_w = sh.complete_ci("--wat", "--wat", 0, 5)
             self.assertIn("--watch", comp_w)
 
+    def test_shell_keys(self):
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=io.StringIO()) as sh:
+            with patch("tools.onboarding.main") as mock_main:
+                sh.do_keys("status --json")
+                mock_main.assert_called_once_with(["status", "--json"])
+
+            with patch("tools.onboarding.main") as mock_main:
+                sh.do_key("probe")
+                mock_main.assert_called_once_with(["probe"])
+
+            completions = sh.complete_keys("sta", "sta", 0, 3)
+            self.assertIn("status", completions)
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -490,6 +503,9 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["ci"]), ["ci"])
         self.assertEqual(preprocess_cli_argv(["workflow"]), ["workflow"])
         self.assertEqual(preprocess_cli_argv(["actions"]), ["actions"])
+        self.assertEqual(preprocess_cli_argv(["keys"]), ["keys"])
+        self.assertEqual(preprocess_cli_argv(["key"]), ["key"])
+        self.assertEqual(preprocess_cli_argv(["onboarding"]), ["onboarding"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

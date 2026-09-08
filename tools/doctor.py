@@ -840,6 +840,46 @@ def check_performance_benchmarks(
         return CheckResult("Performance Benchmarks", False, f"Benchmark execution error: {exc}", time.time() - t0)
 
 
+def check_credentials_and_services(repo_root: Path, probe: bool = False) -> CheckResult:
+    """Audit external API credential configuration (ESV and Gemini) and optional live connectivity."""
+    t0 = time.time()
+    try:
+        from tools.onboarding import (
+            discover_esv_api_key,
+            discover_gemini_api_key,
+            probe_esv_api_key,
+            probe_gemini_api_key,
+        )
+        esv_key, esv_src = discover_esv_api_key(repo_root)
+        gem_key, gem_src = discover_gemini_api_key(repo_root)
+
+        if probe:
+            esv_ok, esv_msg, _ = probe_esv_api_key(esv_key) if esv_key else (False, "ESV API key not configured", {})
+            gem_ok, gem_msg, _ = probe_gemini_api_key(gem_key) if gem_key else (False, "Gemini API key not configured", {})
+            dur = time.time() - t0
+            details = f"ESV: {esv_msg} | Gemini: {gem_msg}"
+            return CheckResult("API Credentials & Services (Live Probe)", True, details, dur)
+
+        dur = time.time() - t0
+        parts = []
+        if esv_key:
+            parts.append(f"ESV configured via {esv_src}")
+        else:
+            parts.append("ESV not configured (using offline WEB)")
+
+        if gem_key:
+            parts.append(f"Gemini configured via {gem_src}")
+        else:
+            parts.append("Gemini not configured (theological exegesis offline)")
+
+        msg = "; ".join(parts)
+        if not esv_key and not gem_key:
+            msg += " — Run './bible init --wizard' to configure"
+        return CheckResult("API Credentials & Services", True, msg, dur)
+    except Exception as exc:
+        return CheckResult("API Credentials & Services", True, f"Informational: {exc}", time.time() - t0)
+
+
 def run_all_checks(
     repo_root: Optional[Path] = None,
     color: bool = True,
@@ -850,6 +890,8 @@ def run_all_checks(
     coverage: bool = False,
     coverage_threshold: float = 70.0,
     bench: bool = False,
+    credentials: bool = False,
+    probe: bool = False,
     json_output: bool = False,
     stream: Optional[Any] = None,
 ) -> Tuple[int, List[CheckResult]]:
@@ -976,6 +1018,14 @@ def run_all_checks(
             if not res.passed:
                 failed = True
 
+        # 10. API Credentials & Services (Optional or when --credentials / --probe requested)
+        if credentials or probe:
+            res = check_credentials_and_services(root, probe=probe)
+            results.append(res)
+            _emit_check(res, styler, emit)
+            if not res.passed:
+                failed = True
+
     total_dur = time.time() - total_start
     if json_output:
         health_status = "EXCELLENT" if not failed else "UNHEALTHY"
@@ -1080,6 +1130,16 @@ if __name__ == "__main__":
         help="Include performance benchmark suite in diagnostics",
     )
     parser.add_argument(
+        "--credentials",
+        action="store_true",
+        help="Audit external API credential configuration (ESV and Gemini)",
+    )
+    parser.add_argument(
+        "--probe",
+        action="store_true",
+        help="Perform live network connectivity probe on configured API credentials",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Output machine-readable JSON health report",
@@ -1137,6 +1197,8 @@ if __name__ == "__main__":
         coverage=args.coverage,
         coverage_threshold=args.coverage_threshold,
         bench=args.bench,
+        credentials=args.credentials,
+        probe=args.probe,
         json_output=args.json,
     )
     sys.exit(code)

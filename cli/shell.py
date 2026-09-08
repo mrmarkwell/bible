@@ -2732,6 +2732,42 @@ class BibleShell(cmd.Cmd):
         return [c for c in commands if c.startswith(text.lower())]
 
     # --------------------------------------------------------------------------
+    # API Credentials & Onboarding Commands
+    # --------------------------------------------------------------------------
+
+    def do_keys(self, arg: str) -> None:
+        """Inspect and manage external API credentials (ESV and Gemini) or run setup wizard.
+
+        Usage:
+          /keys [status] [--probe] [--json]
+          /keys wizard
+          /keys probe
+          /keys set --esv <key> --gemini <key>
+          /keys clear <esv|gemini|all>
+        """
+        import shlex
+        from tools import onboarding
+        parts = shlex.split(arg) if arg.strip() else []
+        onboarding.main(parts)
+
+    def do_key(self, arg: str) -> None:
+        """Alias for /keys."""
+        self.do_keys(arg)
+
+    def do_onboarding(self, arg: str) -> None:
+        """Alias for /keys."""
+        self.do_keys(arg)
+
+    def do_credentials(self, arg: str) -> None:
+        """Alias for /keys."""
+        self.do_keys(arg)
+
+    def complete_keys(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /keys command."""
+        commands = ["status", "wizard", "probe", "set", "clear", "--probe", "--json", "--esv", "--gemini"]
+        return [c for c in commands if c.startswith(text.lower())]
+
+    # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
 
@@ -2778,6 +2814,7 @@ System & Web:
   /gemini [status|context] Google Gemini LLM client, model fallback & prompt context (alias: /llm)
   /test [pattern]         Run hermetic unit test suite in parallel (alias: /check)
   /bench [options]        Run performance benchmarks & statistical latency profiler (alias: /benchmark)
+  /keys [status|probe]    Manage external API credentials and run onboarding wizard
   /doctor                 Run comprehensive repository health check
   /summary [window]       Generate executive trajectory report
   /clear                  Clear terminal screen

@@ -1830,6 +1830,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include sovereign performance benchmark suite in diagnostics",
     )
     parser_doctor.add_argument(
+        "--credentials",
+        action="store_true",
+        help="Audit external API credential configuration (ESV and Gemini)",
+    )
+    parser_doctor.add_argument(
+        "--probe",
+        action="store_true",
+        help="Perform live network connectivity probe on configured API credentials",
+    )
+    parser_doctor.add_argument(
         "--json",
         action="store_true",
         help="Output machine-readable JSON health report",
@@ -1860,6 +1870,8 @@ def build_parser() -> argparse.ArgumentParser:
         quiet_mode = getattr(args, "quiet", False)
         fix_mode = getattr(args, "fix", False)
         bench_mode = getattr(args, "bench", False)
+        credentials_mode = getattr(args, "credentials", False)
+        probe_mode = getattr(args, "probe", False)
         json_mode = getattr(args, "json", False)
         code, _ = run_all_checks(
             repo_root=repo_root,
@@ -1868,6 +1880,8 @@ def build_parser() -> argparse.ArgumentParser:
             quiet=quiet_mode,
             fix=fix_mode,
             bench=bench_mode,
+            credentials=credentials_mode,
+            probe=probe_mode,
             json_output=json_mode,
         )
         return code
@@ -2038,6 +2052,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip automatic installation of git pre-commit and pre-push hooks",
     )
     parser_init.add_argument(
+        "--wizard",
+        "-w",
+        action="store_true",
+        help="Launch interactive API key onboarding wizard (ESV and Gemini exegesis)",
+    )
+    parser_init.add_argument(
+        "--esv-key",
+        type=str,
+        default=None,
+        help="Configure Crossway ESV API key during initialization",
+    )
+    parser_init.add_argument(
+        "--gemini-key",
+        type=str,
+        default=None,
+        help="Configure Google Gemini API key during initialization",
+    )
+    parser_init.add_argument(
+        "--no-probe",
+        action="store_true",
+        help="Skip live network connectivity probes on configured API keys",
+    )
+    parser_init.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -2051,6 +2088,10 @@ def build_parser() -> argparse.ArgumentParser:
         quick = getattr(args, "quick", False)
         no_hooks = getattr(args, "no_hooks", False)
         quiet = getattr(args, "quiet", False)
+        wizard = getattr(args, "wizard", False)
+        esv_key = getattr(args, "esv_key", None)
+        gemini_key = getattr(args, "gemini_key", None)
+        probe_keys = not getattr(args, "no_probe", False)
 
         if not quiet:
             mode_str = " (Quick/Sample Mode)" if quick else ""
@@ -2064,6 +2105,10 @@ def build_parser() -> argparse.ArgumentParser:
             quick=quick,
             install_git_hooks=not no_hooks,
             verbose=not quiet,
+            onboarding_wizard=wizard,
+            esv_key=esv_key,
+            gemini_key=gemini_key,
+            probe_keys=probe_keys,
         )
 
         if not quiet:
@@ -5315,6 +5360,88 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_ci.set_defaults(func=cmd_ci)
 
+    # Subcommand: keys / key / onboarding / credentials
+    parser_keys = subparsers.add_parser(
+        "keys",
+        aliases=["key", "onboarding", "credentials"],
+        help="Manage external API credentials (ESV and Gemini) and run onboarding wizard",
+        description="Configure, probe, and manage external API credentials with secure POSIX permissions.",
+    )
+    parser_keys.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "wizard", "probe", "set", "clear"],
+        help="Action: 'status' (view config), 'wizard' (interactive setup), 'probe' (test connectivity), 'set' (save keys), 'clear' (remove keys)",
+    )
+    parser_keys.add_argument(
+        "--wizard",
+        "-w",
+        action="store_true",
+        help="Launch interactive setup wizard",
+    )
+    parser_keys.add_argument(
+        "--probe",
+        "-p",
+        action="store_true",
+        help="Perform live network connectivity probe on configured API keys",
+    )
+    parser_keys.add_argument(
+        "--esv",
+        type=str,
+        default=None,
+        help="Set Crossway ESV API key",
+    )
+    parser_keys.add_argument(
+        "--gemini",
+        type=str,
+        default=None,
+        help="Set Google Gemini API key",
+    )
+    parser_keys.add_argument(
+        "--user-config",
+        action="store_true",
+        help="Save credentials to ~/.config/bible/ instead of repository config/",
+    )
+    parser_keys.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON telemetry",
+    )
+
+    def cmd_keys(args: argparse.Namespace) -> int:
+        from tools import onboarding
+        action = getattr(args, "action", "status") or "status"
+        if getattr(args, "wizard", False) or action == "wizard":
+            return onboarding.main(["wizard"])
+        elif action == "set" or getattr(args, "esv", None) or getattr(args, "gemini", None):
+            set_args = ["set"]
+            if getattr(args, "esv", None):
+                set_args.extend(["--esv", args.esv])
+            if getattr(args, "gemini", None):
+                set_args.extend(["--gemini", args.gemini])
+            if getattr(args, "user_config", False):
+                set_args.append("--user-config")
+            if getattr(args, "probe", False):
+                set_args.append("--probe")
+            return onboarding.main(set_args)
+        elif action == "clear":
+            return onboarding.main(["clear", "all"])
+        elif action == "probe":
+            probe_args = ["probe"]
+            if getattr(args, "json", False):
+                probe_args.append("--json")
+            return onboarding.main(probe_args)
+        else:
+            status_args = ["status"]
+            if getattr(args, "probe", False):
+                status_args.append("--probe")
+            if getattr(args, "json", False):
+                status_args.append("--json")
+            return onboarding.main(status_args)
+
+    parser_keys.set_defaults(func=cmd_keys)
+
     return parser
 
 
@@ -5356,6 +5483,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "ask", "rag", "inquiry",
         "chat", "persona", "character", "dialogue",
         "ci", "workflow", "workflows", "actions",
+        "keys", "key", "onboarding", "credentials",
     }
 
     pos_idx = -1

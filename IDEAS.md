@@ -731,13 +731,14 @@ Add the following tables and indices to `core/db.py`:
   - Offline-first? Yes (optional keys; if skipped, clearly informs the user of public-domain offline WEB mode without failing).
   - Zero third-party dependencies? Yes (Python 3 standard library `getpass`/`input`, `pathlib`, `urllib.request`).
   - Secure? Yes (stores keys in local user configuration with restrictive POSIX permissions `0600`).
-- **Proposed Roadmap Phase**: Phase 0 (Task 0.26 / ADR-073).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.26 / ADR-074).
 - **Suggested Tasks**:
-  - [ ] Add interactive credential prompt to `tools/bootstrap.py` and `cli/main.py` during `./bible init`.
-  - [ ] Provide helper instructions on how to get free keys from api.esv.org and Google AI Studio.
-  - [ ] Add non-interactive flag support for scripted setup.
-  - [ ] Add hermetic unit tests in `tests/test_bootstrap.py` and `tests/test_cli.py`.
-- **Status**: [VETTED] (Rank A+; Feature Request added).
+  - [x] Implement sovereign zero-dependency API key onboarding engine and connectivity probes in `tools/onboarding.py`.
+  - [x] Add interactive credential prompt and instructions to `core/bootstrap.py` and `cli/main.py` during `./bible init`.
+  - [x] Expose top-level `./bible keys` CLI command and `/keys` REPL command.
+  - [x] Add non-interactive flag support (`--esv-key`, `--gemini-key`, `--no-probe`) for scripted setup.
+  - [x] Add hermetic unit tests across `tests/test_onboarding.py`, `tests/test_bootstrap.py`, `tests/test_cli.py`, and `tests/test_shell.py`.
+- **Status**: [DONE] (Rank A+; Implemented via ADR-074 and Task 0.26 in Run 070).
 
 ---
 

@@ -2818,3 +2818,54 @@ This is an append-only log of work performed by autonomous agents during their e
   - CI/CD health fix and annotation diagnostics are verified and ready for continuous automated development.
   - All tests passing 100% across the full suite in <3.5 seconds.
 
+---
+
+## [Run 070] — 2026-09-08
+- **Agent**: Senior Product Manager & Meta-Architect (10th-Iteration Double Milestone: Senior PM Cleanup Sprint & Executive Briefing)
+- **Context / Directive**: Mandatory 10th-iteration double milestone cadence (run_number % 10 == 0). Stepped into Senior Product Manager persona to audit project structure and execution processes, answer the Two Core Diagnostic Questions, conceive and execute a Rank A+ meta-improvement, verify 100% tests and zero dependencies, record ADR-074, promote in IDEAS.md and ROADMAP.md, and curate the 10-iteration retrospective and executive trajectory briefing.
+- **Phase**: Phase 0 — Repository Architecture & Autonomous Harness
+- **Task Addressed**: Phase 0, **Task 0.26**: *Implement Interactive API Key Setup Wizard in `./bible init` for User-Friendly Onboarding (`ESV_API_KEY`, `GEMINI_API_KEY`, validation probes, and headless flags) (ADR-074).*
+- **The Two Core Diagnostic Questions Answered**:
+  1. *What is the weakest aspect of this project structure?*
+     - **First-Time Developer & User Credential Onboarding Friction**: Prior to this sprint, when a user cloned the repository or executed `./bible init`, the tool compiled the database and installed git hooks, but gave zero guidance or feedback on how to obtain or persist `ESV_API_KEY` (Crossway) and `GEMINI_API_KEY` (Google AI Studio). Users were left to manually discover environment variables, while missing or expired keys caused silent fallback degradation to WEB without informative validation.
+  2. *What is preventing this from being more incredible?*
+     - **Lack of an Interactive, Self-Healing Onboarding & Diagnostic Probe Experience**: Without an interactive wizard, inline live network connectivity probes, and secure POSIX 0600 persistence, configuring external services felt like an obscure chore rather than a welcoming, delightful first-run experience.
+- **Actions Taken**:
+  - **Sovereign Onboarding & Credential Probing Engine (`tools/onboarding.py`)**:
+    - Created `tools/onboarding.py` adhering strictly to ADR-003 (Python 3 stdlib only: `urllib.request`, `json`, `os`, `pathlib`, `stat`).
+    - Implemented `discover_esv_api_key` and `discover_gemini_api_key` searching env vars, `.env`, repository `config/`, and user configuration (`~/.config/bible/`).
+    - Implemented live HTTP connectivity and authorization probes (`probe_esv_api_key` and `probe_gemini_api_key`), testing credentials against Crossway and Google AI Studio APIs with granular error categorization: HTTP 200 (authorized), 400/401 (unauthorized/invalid), 403 (quota/forbidden), and `URLError` (offline).
+    - Implemented `save_api_key` enforcing strict POSIX `0600` permissions (`stat.S_IRUSR | stat.S_IWUSR`), ensuring credentials remain private to the local user account.
+    - Implemented `mask_api_key` safely obscuring sensitive tokens in logs and terminal outputs.
+    - Added standalone CLI commands: `status`, `wizard`, `probe`, `set`, and `clear`.
+  - **Cold-Start Bootstrap Integration (`core/bootstrap.py`, `cli/main.py`)**:
+    - Enhanced `bootstrap_database` in `core/bootstrap.py` to accept `onboarding_wizard`, `esv_key`, `gemini_key`, and `probe_keys`.
+    - Added `--wizard` / `-w`, `--esv-key`, `--gemini-key`, and `--no-probe` flags to `parser_init` in `cli/main.py`.
+  - **Omnichannel CLI & Interactive REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added top-level CLI subcommand `./bible keys` (aliases: `key`, `onboarding`, `credentials`) supporting `status`, `probe`, `set`, and `clear` with `--json` output.
+    - Added `/keys` command in interactive study REPL `cli/shell.py` with tab autocompletion.
+    - Updated argument preprocessor `preprocess_cli_argv` to recognize `keys`, `key`, `onboarding`, and `credentials`.
+  - **System Doctor Credential Health Audit (`tools/doctor.py`)**:
+    - Implemented `check_credentials_and_services(repo_root, probe=False)` in `tools/doctor.py`.
+    - Added `--credentials` and `--probe` flags to `tools/doctor.py` and `./bible doctor`.
+    - Maintained strict offline-first invariants: missing keys report as `Offline Public-Domain Mode (WEB default)` and never fail pre-commit or CI health checks.
+  - **Hermetic Unit Test Suite (`tests/test_onboarding.py`, `tests/test_bootstrap.py`, `tests/test_cli.py`, `tests/test_shell.py`, `tests/test_doctor.py`)**:
+    - Created `tests/test_onboarding.py` with 20 hermetic tests (100% mock HTTP and file persistence).
+    - Added integration unit tests across `test_bootstrap.py`, `test_cli.py`, `test_shell.py`, and `test_doctor.py`.
+    - Expanded full test suite to **905 tests across 40 production modules passing 100% in 3.6s** (250+ tests/sec).
+  - **Governance & State Machine Synchronization**:
+    - Registered **ADR-074** in `DECISIONS.md`.
+    - Marked **Task 0.26** complete in `ROADMAP.md`.
+    - Promoted and resolved Rank A+ feature in `IDEAS.md`.
+- **Verification**:
+  - `./bible test`: **905 tests across 40 modules passed 100% in 3.612s** (250.5 tests/sec).
+  - `./bible doctor`: **100% EXCELLENT** — all 9 health checks passed (74 ADRs registered, 70 sequential runs, 75 roadmap tasks tracked, 65 completed across 9 phases, 0 dependencies, 0 linter errors across 85 files).
+  - `./bible doctor --credentials`: Verified 10th check passes and reports informative offline WEB mode.
+  - `python3 tools/linter.py`: **100% CLEAN** — 85 files inspected with 0 errors and 0 style notices.
+  - `./bible keys status`: Verified terminal output and `--json` format.
+- **Handoff Notes for Next Agent**:
+  - Task 0.26 is 100% complete and verified.
+  - 10th-iteration double milestone complete.
+  - Next cycle is Run 071.
+
+

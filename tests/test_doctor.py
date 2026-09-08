@@ -370,6 +370,26 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertTrue(args.json)
         self.assertTrue(args.fast)
 
+    def test_check_credentials_and_services(self):
+        from tools.doctor import check_credentials_and_services
+        res = check_credentials_and_services(REPO_ROOT, probe=False)
+        self.assertTrue(res.passed)
+        self.assertEqual(res.name, "API Credentials & Services")
+        self.assertIn("ESV", res.details)
+        self.assertIn("Gemini", res.details)
+
+    def test_run_all_checks_with_credentials_flag(self):
+        from unittest.mock import patch
+        with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "100% stdlib compliance", 0.001)), \
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)), \
+             patch("tools.doctor.check_database_integrity", return_value=CheckResult("SQLite Scripture Database", True, "Database OK", 0.001)), \
+             patch("tools.doctor.check_unit_tests", return_value=CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.001)):
+            code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True, credentials=True)
+            self.assertEqual(code, 0)
+            self.assertEqual(len(results), 10)
+            self.assertTrue(any(r.name == "API Credentials & Services" for r in results))
+
 
 if __name__ == "__main__":
     unittest.main()
+

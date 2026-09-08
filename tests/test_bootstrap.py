@@ -121,6 +121,29 @@ class TestBootstrapModule(unittest.TestCase):
             )
             self.assertEqual(rep2.verses_count, 27)
 
+    def test_bootstrap_with_onboarding_keys(self):
+        """Verify bootstrap_database passes explicit API keys and onboarding wizard flag."""
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = Path(tmpdir) / "test_onboard.db"
+            with patch("tools.onboarding.run_onboarding_wizard") as mock_wizard:
+                rep = bootstrap_database(
+                    db_path=tmp_db,
+                    books=[BOOKS[63]],
+                    install_git_hooks=False,
+                    onboarding_wizard=True,
+                    esv_key="test_esv_boot",
+                    gemini_key="test_gem_boot",
+                    probe_keys=False,
+                )
+                self.assertEqual(rep.verses_count, 13)
+                mock_wizard.assert_called_once()
+                kwargs = mock_wizard.call_args[1]
+                self.assertTrue(kwargs["interactive"])
+                self.assertEqual(kwargs["esv_key"], "test_esv_boot")
+                self.assertEqual(kwargs["gemini_key"], "test_gem_boot")
+                self.assertFalse(kwargs["probe"])
+
 
 if __name__ == "__main__":
     unittest.main()

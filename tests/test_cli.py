@@ -7,7 +7,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from cli.main import (
     format_aligned_comparison,
@@ -1402,6 +1402,36 @@ class TestCliExecution(unittest.TestCase):
         data = json.loads(stdout.getvalue())
         self.assertEqual(data["owner"], "mrmarkwell")
         self.assertEqual(len(data["workflow_runs"]), 1)
+
+    def test_cli_keys_status(self):
+        with patch("tools.onboarding.main") as mock_onboard:
+            mock_onboard.return_value = 0
+            code = main(["keys", "status"])
+            self.assertEqual(code, 0)
+            mock_onboard.assert_called_once_with(["status"])
+
+    def test_cli_keys_probe(self):
+        with patch("tools.onboarding.main") as mock_onboard:
+            mock_onboard.return_value = 0
+            code = main(["keys", "probe", "--json"])
+            self.assertEqual(code, 0)
+            mock_onboard.assert_called_once_with(["probe", "--json"])
+
+    def test_cli_init_wizard_flags(self):
+        with patch("core.bootstrap.bootstrap_database") as mock_boot:
+            mock_report = MagicMock()
+            mock_report.is_clean = True
+            mock_report.summary_lines.return_value = []
+            mock_boot.return_value = mock_report
+
+            code = main(["init", "--wizard", "--esv-key", "key_esv", "--gemini-key", "key_gem", "--no-probe", "--quiet"])
+            self.assertEqual(code, 0)
+            mock_boot.assert_called_once()
+            kwargs = mock_boot.call_args[1]
+            self.assertTrue(kwargs["onboarding_wizard"])
+            self.assertEqual(kwargs["esv_key"], "key_esv")
+            self.assertEqual(kwargs["gemini_key"], "key_gem")
+            self.assertFalse(kwargs["probe_keys"])
 
 
 if __name__ == "__main__":

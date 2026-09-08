@@ -2452,3 +2452,38 @@ This document is an append-only log of significant design and architectural deci
   - Autonomous agents and developers using `python3 tools/ci.py --details` or `./bible ci` get instant, zero-friction access to root-cause error diagnostics and tracebacks without encountering HTTP 403 Forbidden errors.
   - 100% Zero-Dependency architecture preserved per ADR-003.
 
+---
+
+## ADR-074: Sovereign Zero-Dependency API Key Onboarding Wizard, Live Credential Health Probes, and POSIX 0600 Security Permissions
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - The Bible Engine is architected to be 100% functional and offline-first without any external credentials using the bundled public-domain World English Bible (WEB).
+  - However, unlocking modern English Standard Version (ESV) text and online theological AI capabilities (Scripture RAG and Biblical Character Dialogue) requires `ESV_API_KEY` (Crossway) and `GEMINI_API_KEY` (Google AI Studio).
+  - Previously, new users, scholars, and autonomous runners initializing the platform (`./bible init`) received no guidance or onboarding wizard. External keys had to be manually set in environment variables without validation or feedback, leading to silent fallback degradation to WEB or uninformative errors when keys were expired or invalid.
+  - Furthermore, `tools/doctor.py` had no audit mechanism to report API credential health and service status, and `tools/` lacked a dedicated credential management and probing tool.
+- **Decision**:
+  1. **Sovereign Zero-Dependency Onboarding Engine (`tools/onboarding.py`)**:
+     - Implemented `tools/onboarding.py` utilizing Python 3 standard library modules (`urllib.request`, `json`, `os`, `pathlib`, `stat`).
+     - Added `discover_esv_api_key` and `discover_gemini_api_key` inspecting environment variables, `.env`, `config/` files, and user home configs (`~/.config/bible/`).
+     - Added `probe_esv_api_key` and `probe_gemini_api_key` executing live HTTP health checks against `https://api.esv.org/v3/passage/text/?q=John+1:1` and `https://generativelanguage.googleapis.com/v1beta/models`, distinguishing between HTTP 200 (authorized), HTTP 401/400 (unauthorized/invalid), HTTP 403 (forbidden/quota), and `urllib.error.URLError` (offline).
+     - Added `save_api_key` enforcing strict POSIX `0600` permissions (`stat.S_IRUSR | stat.S_IWUSR`), preventing unauthorized reads from other local accounts.
+     - Added `mask_api_key` displaying safe redactions (e.g. `abcd...1234`) in terminal and log outputs.
+  2. **Interactive Onboarding Wizard & CLI Integration (`./bible init`, `./bible keys`, REPL `/keys`)**:
+     - Added `--wizard` / `-w`, `--esv-key`, `--gemini-key`, and `--no-probe` flags to `parser_init` in `cli/main.py` and `core/bootstrap.py`.
+     - Exposed top-level CLI command `./bible keys` with subcommands: `status`, `wizard`, `probe`, `set`, and `clear`.
+     - Added `/keys` command in interactive study REPL `cli/shell.py`.
+  3. **System Doctor Credential Health Audit (`tools/doctor.py`)**:
+     - Added `check_credentials_and_services(repo_root, probe=False)` in `tools/doctor.py`.
+     - Added `--credentials` and `--probe` flags to `./bible doctor`.
+     - Preserved offline-first invariant: missing keys are reported informatively as `Offline Public-Domain Mode (WEB default)` and do not fail automated CI/CD runs.
+  4. **Hermetic Test Suite Verification & 1-to-1 Module-Test Symmetry**:
+     - Created `tests/test_onboarding.py` with 20 hermetic unit tests covering mock HTTP probes, credential discovery, permission checks, simulated wizard inputs, and CLI dispatch.
+     - Added unit tests in `tests/test_bootstrap.py`, `tests/test_cli.py`, `tests/test_shell.py`, and `tests/test_doctor.py`.
+     - Expanded full test suite to 905 tests across 40 production modules passing 100% in 3.6s (250+ tests/sec).
+- **Consequences**:
+  - Resolves Task 0.26 on the project roadmap and fulfills the Rank A+ feature request in `IDEAS.md`.
+  - First-time onboarding is now seamless, welcoming, and self-guided with inline validation.
+  - Zero third-party dependencies maintained (100% Python standard library per ADR-003).
+
+

@@ -39,7 +39,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.23**: Implement Sovereign Interactive REPL Persona Dialogue Studio (`/chat`, `/persona`, `/characters`), Hermetic Test Suite for `tools/ci.py` (`tests/test_ci.py`), Module-Test Symmetry Diagnostic in `tools/doctor.py`, Dotted Import Resolution in `tools/linter.py`, and Python 3.13 CI Matrix Modernization (ADR-069). *(Run 065 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.24**: Implement Omnichannel CI Status Engine (`./bible ci`, REPL `/ci`), Dedicated Semantic Compiler Test Suite (`tests/test_build_semantic_db.py`), Pure 1-to-1 Module-Test Symmetry, and Static Analysis Namespace Hygiene (ADR-070). *(Run 066 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.25**: Implement Autonomous GitHub Actions CI/CD Pre-Check Sentry (`tools/ci.py check`, `./bible ci check`), Fork-Safe ThreadPool Test Concurrency, and Self-Healing CI Priority Protocol (ADR-072). *(Run 068)*
-- [ ] **Task 0.26**: Implement Interactive API Key Setup Wizard in `./bible init` for User-Friendly Onboarding (`ESV_API_KEY`, `GEMINI_API_KEY`, validation probes, and headless flags).
+- [x] **Task 0.26**: Implement Interactive API Key Setup Wizard in `./bible init` for User-Friendly Onboarding (`ESV_API_KEY`, `GEMINI_API_KEY`, validation probes, and headless flags) (ADR-074). *(Run 070 / Senior PM Double Milestone)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
