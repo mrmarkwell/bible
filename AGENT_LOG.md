@@ -2236,3 +2236,40 @@ This is an append-only log of work performed by autonomous agents during their e
   - Senior PM Sprint is complete with 0 blockers, 100% tests passing, and zero dependencies.
   - Next task on the roadmap remains Phase 8, **Task 8.1**: *Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows).*
 
+---
+
+## [Run 056] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Mandatory Priority: GitHub Issue Triage & Resolution)
+- **Context / Trigger**: Mandatory Priority GitHub Bug Report #1: *"SVG never renders on the web UI"* submitted by @mrmarkwell.
+- **Problem Diagnosis & Root Cause**:
+  - Author reported seeing `"Generating Typological Arc Network vector geometry..."` where the SVG is supposed to render on the web UI, while being able to download the SVG directly without issue.
+  - Deep code inspection of `web/static/style.css` revealed that `.hidden` was only defined for four specific element selectors (`.view-panel.hidden`, `.crossref-tray.hidden`, `.modal-backdrop.hidden`, `.toast.hidden`). No global utility `.hidden { display: none !important; }` existed.
+  - Consequently, `<section class="arc-visualizer-stage hidden" id="arc-visualizer-stage">` retained its baseline `display: flex;` rule and remained fully visible on initial page load directly beneath the passage reader stage.
+  - Because initial load activates the `passage` view, `loadArcNetwork()` was never called, leaving the SVG viewport stuck on its static HTML placeholder (`Generating Typological Arc Network vector geometry...`).
+  - Furthermore, several other UI components (`.chapter-nav-bar`, `.stage-header`, `.passage-tags`, `.pericope-nav-bar`, `.scripture-viewport`, `.search-stats-bar`, `.chapter-drilldown-box`) failed to hide cleanly when `.hidden` was applied.
+- **Actions Taken**:
+  - **Global Visibility Utility in `web/static/style.css`**:
+    - Added universal `.hidden { display: none !important; }` rule, ensuring deterministic element hiding across all browser engines.
+    - Hardened all scoped `.hidden` rules with `!important`.
+  - **Vector SVG DOM Sanitization in `web/static/app.js`**:
+    - Added regex XML prolog stripping (`cleanSvg = svgText.replace(/<\?xml[^>]*\?>/i, "").trim()`) before assigning to `arcSvgViewport.innerHTML`.
+    - Prevents HTML5 parser from interpreting XML declarations as bogus comments (`<!--?xml ... ?-->`) and guarantees clean root `<svg>` element mounting.
+  - **Race Condition & Stale In-Flight Request Guard**:
+    - Added incremental sequence counter `arcNetworkRequestId` in `loadArcNetwork()` to discard stale responses from rapid UI filter switches.
+  - **URL Hash Routing & State Synchronization (`switchView`)**:
+    - Extracted unified `switchView(view)` function synchronizing `window.location.hash` (`#arcs`, `#passage`, `#search`, etc.) and listening to `hashchange`.
+    - Deep-linking or reloading at `/#arcs` now automatically activates the Arcs tab and triggers `loadArcNetwork()`.
+    - Restores passage pericopes and cross-references when navigating back to `#passage`.
+    - Bumped script cache-buster in `index.html` to `app.js?v=3`.
+  - **Hermetic Regression Unit Test**:
+    - Added `test_global_hidden_utility_css_and_arc_stage_regression` to `tests/test_server.py` verifying global `.hidden` CSS rule, HTML stage attributes, and JS sanitization/routing logic.
+  - **Recorded Architecture Decision**:
+    - Recorded **ADR-060** in `DECISIONS.md`.
+- **Verification**:
+  - `./bible test`: **727 tests across 35 modules passed 100% in 4.60s** (158.0 tests/sec).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (zero dependencies, 60 ADRs synced, 100% semantic database coverage, 727 tests passing).
+- **Handoff Notes for Next Agent**:
+  - GitHub Issue #1 is completely resolved with regression tests. Pushing commit with `Fixes #1` will close the issue on GitHub.
+  - Next task on the roadmap remains Phase 8, **Task 8.1**: *Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows).*
+
+

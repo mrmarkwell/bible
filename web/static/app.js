@@ -235,65 +235,88 @@ document.addEventListener("DOMContentLoaded", () => {
     api: document.getElementById("panel-api"),
   };
 
+  function switchView(view) {
+    if (!view || !viewPanels[view]) return;
+
+    navTabs.forEach((t) => {
+      const isMatch = t.getAttribute("data-view") === view;
+      t.classList.toggle("active", isMatch);
+      t.setAttribute("aria-selected", isMatch ? "true" : "false");
+    });
+
+    Object.keys(viewPanels).forEach((k) => {
+      if (viewPanels[k]) {
+        viewPanels[k].classList.toggle("hidden", k !== view);
+      }
+    });
+
+    // Toggle Reader Stage vs. Panoramic Arc Stage
+    const chapterNavBar = document.querySelector(".chapter-nav-bar");
+    const stageHeader = document.querySelector(".stage-header");
+    const scriptureViewport = document.querySelector(".scripture-viewport");
+
+    if (view === "arcs") {
+      if (chapterNavBar) chapterNavBar.classList.add("hidden");
+      if (stageHeader) stageHeader.classList.add("hidden");
+      if (passageTags) passageTags.classList.add("hidden");
+      if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+      if (scriptureViewport) scriptureViewport.classList.add("hidden");
+      if (crossrefSection) crossrefSection.classList.add("hidden");
+      if (arcVisualizerStage) arcVisualizerStage.classList.remove("hidden");
+
+      populateArcBookSelector();
+      loadArcNetwork();
+    } else {
+      if (chapterNavBar) chapterNavBar.classList.remove("hidden");
+      if (stageHeader) stageHeader.classList.remove("hidden");
+      if (passageTags) passageTags.classList.remove("hidden");
+      if (scriptureViewport) scriptureViewport.classList.remove("hidden");
+      if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
+      if (crossrefSection && currentPassageData && currentPassageData.cross_references && currentPassageData.cross_references.length > 0) {
+        crossrefSection.classList.remove("hidden");
+      }
+      if (pericopeNavBar && currentPassageData && currentPassageData.pericopes && currentPassageData.pericopes.length > 0) {
+        pericopeNavBar.classList.remove("hidden");
+      }
+    }
+
+    if (view === "topics" && allTags.length === 0) {
+      loadTags();
+    } else if (view === "crossref") {
+      loadCrossrefStats();
+    } else if (view === "ribbon") {
+      if (allTags.length === 0) {
+        loadTags().then(() => populateRibbonTagSelector());
+      } else {
+        populateRibbonTagSelector();
+      }
+      if (Object.keys(ribbonDensityMap).length === 0) {
+        loadRibbonDensity();
+      } else {
+        renderCanonicalRibbon();
+      }
+    }
+  }
+
   navTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       const view = tab.getAttribute("data-view");
-      navTabs.forEach((t) => {
-        t.classList.remove("active");
-        t.setAttribute("aria-selected", "false");
-      });
-      tab.classList.add("active");
-      tab.setAttribute("aria-selected", "true");
-
-      Object.keys(viewPanels).forEach((k) => {
-        if (k === view) {
-          viewPanels[k].classList.remove("hidden");
+      if (window.location.hash !== `#${view}`) {
+        if (history.pushState) {
+          history.pushState(null, "", `#${view}`);
         } else {
-          viewPanels[k].classList.add("hidden");
-        }
-      });
-
-      // Toggle Reader Stage vs. Panoramic Arc Stage
-      const chapterNavBar = document.querySelector(".chapter-nav-bar");
-      const stageHeader = document.querySelector(".stage-header");
-      const scriptureViewport = document.querySelector(".scripture-viewport");
-
-      if (view === "arcs") {
-        if (chapterNavBar) chapterNavBar.classList.add("hidden");
-        if (stageHeader) stageHeader.classList.add("hidden");
-        if (passageTags) passageTags.classList.add("hidden");
-        if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
-        if (scriptureViewport) scriptureViewport.classList.add("hidden");
-        if (crossrefSection) crossrefSection.classList.add("hidden");
-        if (arcVisualizerStage) arcVisualizerStage.classList.remove("hidden");
-
-        populateArcBookSelector();
-        loadArcNetwork();
-      } else {
-        if (chapterNavBar) chapterNavBar.classList.remove("hidden");
-        if (stageHeader) stageHeader.classList.remove("hidden");
-        if (passageTags) passageTags.classList.remove("hidden");
-        if (scriptureViewport) scriptureViewport.classList.remove("hidden");
-        if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
-      }
-
-      if (view === "topics" && allTags.length === 0) {
-        loadTags();
-      } else if (view === "crossref") {
-        loadCrossrefStats();
-      } else if (view === "ribbon") {
-        if (allTags.length === 0) {
-          loadTags().then(() => populateRibbonTagSelector());
-        } else {
-          populateRibbonTagSelector();
-        }
-        if (Object.keys(ribbonDensityMap).length === 0) {
-          loadRibbonDensity();
-        } else {
-          renderCanonicalRibbon();
+          window.location.hash = view;
         }
       }
+      switchView(view);
     });
+  });
+
+  window.addEventListener("hashchange", () => {
+    const view = window.location.hash.replace("#", "");
+    if (view && viewPanels[view]) {
+      switchView(view);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -345,6 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       updateChapterDropdown();
       renderCanonicalRibbon();
+      populateArcBookSelector();
     } catch (err) {
       console.error("Failed to load books catalog:", err);
     }
@@ -1070,7 +1094,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return "obsidian";
   }
 
+  let arcNetworkRequestId = 0;
+
   async function loadArcNetwork() {
+    const reqId = ++arcNetworkRequestId;
     const relType = selectArcType ? selectArcType.value : "";
     const book = selectArcBook ? selectArcBook.value : "";
     const scope = selectArcScope ? selectArcScope.value : "OT-NT";
@@ -1094,10 +1121,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!jsonRes.ok || !svgRes.ok) throw new Error("Failed to fetch arc network");
 
-      arcNetworkData = await jsonRes.json();
+      const netData = await jsonRes.json();
       const svgText = await svgRes.text();
 
-      arcSvgViewport.innerHTML = svgText;
+      // Discard stale responses if user rapidly toggled filters
+      if (reqId !== arcNetworkRequestId) return;
+
+      arcNetworkData = netData;
+      // Strip XML declaration so browser mounts clean pure vector DOM without bogus comment nodes
+      const cleanSvg = svgText.replace(/<\?xml[^>]*\?>/i, "").trim();
+      arcSvgViewport.innerHTML = cleanSvg;
 
       if (arcStatsSidebarContent) {
         const typeBreakdown = Object.entries(arcNetworkData.connections_by_type || {})
@@ -1122,7 +1155,9 @@ document.addEventListener("DOMContentLoaded", () => {
         inspectArc(arcNetworkData.arcs[0]);
       }
     } catch (err) {
-      arcSvgViewport.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed to load Arc Network: ${escapeHtml(err.message)}</div>`;
+      if (reqId === arcNetworkRequestId) {
+        arcSvgViewport.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed to load Arc Network: ${escapeHtml(err.message)}</div>`;
+      }
     }
   }
 
@@ -1347,5 +1382,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loadBooks();
   loadRibbonDensity();
   fetchPassage("Romans 8:28-39", "WEB");
+
+  const initialHash = window.location.hash.replace("#", "");
+  if (initialHash && viewPanels[initialHash]) {
+    switchView(initialHash);
+  }
 });
 

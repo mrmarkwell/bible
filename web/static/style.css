@@ -134,6 +134,11 @@ body {
   transition: background-color var(--transition-smooth), color var(--transition-smooth);
 }
 
+/* Universal Visibility Utility */
+.hidden {
+  display: none !important;
+}
+
 /* App Layout Container */
 .app-layout {
   display: flex;

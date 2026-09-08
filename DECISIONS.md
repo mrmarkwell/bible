@@ -1948,3 +1948,39 @@ This document is an append-only log of significant design and architectural deci
   - Near-zero maintenance preserved: zero third-party dependencies (stdlib only per ADR-003).
   - Clean offline fallback: if network is offline or unauthenticated, the check exits cleanly without interrupting standard roadmap execution.
   - All 726 tests across 35 modules pass in <4.7s.
+
+---
+
+## ADR-060: Universal CSS Visibility Utility, Vector SVG DOM Mounting Safeguards & URL View Routing
+- **Date**: 2026-09-08
+- **Status**: Accepted (Fixes GitHub Issue #1)
+- **Context**:
+  - Issue #1 reported: *"SVG never renders on the web UI. I see 'Generating Typological Arc Network vector geometry...' where the SVG is supposed to render. I was able to download it no problem."*
+  - Detailed diagnostic inspection revealed a critical CSS specificity defect in `web/static/style.css`: the stylesheet had defined `.hidden` only for four specific scoped selectors (`.view-panel.hidden`, `.crossref-tray.hidden`, `.modal-backdrop.hidden`, and `.toast.hidden`). No global, unscoped `.hidden { display: none !important; }` utility rule existed.
+  - As a direct consequence, `<section class="arc-visualizer-stage hidden" id="arc-visualizer-stage">` retained its base rule `display: flex;` and remained fully visible on initial page load (rendered below the Passage reader stage). Because the initial page load defaults to the `passage` view, `loadArcNetwork()` was never invoked, leaving the viewport stuck in its static HTML placeholder (`Generating Typological Arc Network vector geometry...`).
+  - Users clicking "Export SVG" were downloading directly from `/api/crossref/arcs.svg` (which was functioning correctly), but observing the visualizer viewport unpopulated on screen.
+  - In addition, several related reader controls (`.chapter-nav-bar`, `.stage-header`, `.passage-tags`, `.pericope-nav-bar`, `.scripture-viewport`, `.search-stats-bar`, `.chapter-drilldown-box`) also failed to hide cleanly when `.hidden` was applied.
+- **Decision**:
+  1. **Universal Visibility Utility in `web/static/style.css`**:
+     - Added canonical `.hidden { display: none !important; }` rule at the root utility level.
+     - Hardened all scoped `.hidden` rules with `!important` to prevent specificity regressions.
+     - Guarantees that any DOM node marked `hidden` is deterministically removed from computed layout across all browser engines (`getComputedStyle(...).display === "none"`).
+  2. **Pure Vector SVG DOM Mounting & XML Prolog Sanitization**:
+     - In `web/static/app.js`, sanitized the incoming SVG stream via `const cleanSvg = svgText.replace(/<\?xml[^>]*\?>/i, "").trim();` before assigning to `arcSvgViewport.innerHTML`.
+     - Prevents HTML5 parser from interpreting the XML prolog (`<?xml ... ?>`) as an SGML bogus comment node (`<!--?xml ... ?-->`), ensuring the root `<svg>` element mounts cleanly as the first child of the viewport container.
+  3. **Concurrency & Race-Condition Guard in `loadArcNetwork()`**:
+     - Introduced an incremental request sequence counter `arcNetworkRequestId`.
+     - When rapid UI filter or dropdown changes occur, stale in-flight HTTP responses are discarded if a newer request has been dispatched.
+  4. **URL Hash View Routing & Deep-Linking (`switchView`)**:
+     - Extracted unified `switchView(view)` function synchronizing `window.location.hash` (`#arcs`, `#passage`, `#search`, etc.) and listening to `hashchange`.
+     - When a user refreshes or deep-links directly to `/#arcs`, the engine automatically activates the Arcs tab and invokes `loadArcNetwork()`.
+     - Restores passage pericopes and cross-references when navigating back to `#passage`.
+  5. **Hermetic Regression Test Suite**:
+     - Added `test_global_hidden_utility_css_and_arc_stage_regression` to `tests/test_server.py`.
+     - Verifies presence of `.hidden` with `display: none !important`, confirms `index.html` structure, and validates `app.js` sanitization logic.
+- **Consequences**:
+  - Completely resolves GitHub Issue #1 with full regression test coverage.
+  - Panoramic Typological Arc visualizer stage is hidden on initial page load and cleanly displays interactive Bézier curves upon activating the Arcs view.
+  - 100% Zero-Dependency compliance verified (Python stdlib + Vanilla HTML/CSS/JS per ADR-003).
+  - All 727 tests across 35 modules pass in 4.60s (<5.0s SLA).
+

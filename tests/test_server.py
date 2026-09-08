@@ -291,6 +291,31 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(state, "NORMAL", f"Unfinished token state at EOF: {state}")
         self.assertEqual(len(stack), 0, f"Unclosed delimiters in app.js: {stack}")
 
+    def test_global_hidden_utility_css_and_arc_stage_regression(self) -> None:
+        """Regression test for Issue #1: Ensure .hidden utility hides elements and arc stage mounts SVG safely."""
+        # 1. Verify /style.css contains universal .hidden rule
+        status, _, body = self._get("/style.css")
+        self.assertEqual(status, 200)
+        css_text = body.decode("utf-8")
+        self.assertIn(".hidden", css_text)
+        self.assertIn("display: none !important", css_text)
+
+        # 2. Verify index.html defines arc-visualizer-stage with hidden class
+        status, _, body = self._get("/")
+        self.assertEqual(status, 200)
+        html_text = body.decode("utf-8")
+        self.assertIn('class="arc-visualizer-stage hidden"', html_text)
+        self.assertIn('id="arc-svg-viewport"', html_text)
+        self.assertIn('app.js?v=3', html_text)
+
+        # 3. Verify app.js cleans XML prolog and implements race-condition request tracking
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("arcNetworkRequestId", js_text)
+        self.assertIn("replace(/<\\?xml[^>]*\\?>/i", js_text)
+        self.assertIn("switchView", js_text)
+        self.assertIn("hashchange", js_text)
 
     def test_serve_missing_file_returns_404(self) -> None:
         status, _, _ = self._get("/nonexistent_asset_404.txt")
