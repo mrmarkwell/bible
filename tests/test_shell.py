@@ -113,10 +113,21 @@ class TestShell(unittest.TestCase):
         self.assertIn("WEB", out)
         self.assertIn("KJV", out)
 
-        # Switch version
+        # Switch version to KJV
         shell.onecmd("/version KJV")
         self.assertEqual(shell.translation_id, "KJV")
         self.assertIn("Switched session translation to KJV", stdout.getvalue())
+
+        # Switch version to ESV
+        shell.onecmd("/version ESV")
+        self.assertEqual(shell.translation_id, "ESV")
+        self.assertIn("Switched session translation to ESV", stdout.getvalue())
+        self.assertNotIn("Warning: Translation 'ESV' has 0 verses installed", stdout.getvalue())
+
+        # Verify ESV is listed in /versions
+        shell.onecmd("/versions")
+        self.assertIn("ESV", stdout.getvalue())
+        self.assertIn("English Standard Version", stdout.getvalue())
 
     def test_shell_theme_switching(self):
         shell, stdout = self._create_shell()

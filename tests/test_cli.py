@@ -508,6 +508,7 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         out = stdout.getvalue()
         self.assertIn("Installed Scripture Translations:", out)
+        self.assertIn("[ESV] English Standard Version", out)
         self.assertIn("[WEB] World English Bible", out)
         self.assertIn("[KJV] King James Version", out)
 
@@ -518,6 +519,7 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 0)
         out = stdout.getvalue()
         self.assertIn("Installed Scripture Translations:", out)
+        self.assertIn("[ESV] English Standard Version", out)
         self.assertIn("[WEB] World English Bible", out)
 
     def test_cli_search_basic(self):
@@ -1432,6 +1434,45 @@ class TestCliExecution(unittest.TestCase):
             self.assertEqual(kwargs["esv_key"], "key_esv")
             self.assertEqual(kwargs["gemini_key"], "key_gem")
             self.assertFalse(kwargs["probe_keys"])
+
+    def test_cli_translation_help_alignment(self):
+        """Verify CLI --help strings consistently document ESV default with offline WEB fallback."""
+        subcommands = [
+            ["get", "--help"],
+            ["shell", "--help"],
+            ["slide", "--help"],
+            ["slide-batch", "--help"],
+            ["tag", "show", "--help"],
+            ["tag", "prompt", "--help"],
+            ["tag", "generate", "--help"],
+            ["tag", "batch", "--help"],
+            ["tag", "relevance", "--help"],
+            ["crossref", "for", "--help"],
+        ]
+        for cmd in subcommands:
+            stdout = io.StringIO()
+            with patch("sys.stdout", stdout):
+                try:
+                    main(cmd)
+                except SystemExit:
+                    pass
+                out = stdout.getvalue()
+                norm_out = " ".join(out.split())
+                self.assertIn(
+                    "default: ESV with offline WEB fallback",
+                    norm_out,
+                    f"Command '{' '.join(cmd)}' failed to document 'default: ESV with offline WEB fallback'",
+                )
+
+    def test_cli_get_verbose_fallback_notice(self):
+        """Verify get command with --verbose emits transparent fallback notice when falling back to WEB."""
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16", "--verbose"])
+        self.assertEqual(code, 0)
+        self.assertIn("Notice: Translation 'ESV' not available; falling back to 'WEB'.", stderr.getvalue())
+        self.assertIn("=== John 3:16 (WEB [fallback for ESV]) ===", stdout.getvalue())
 
 
 if __name__ == "__main__":

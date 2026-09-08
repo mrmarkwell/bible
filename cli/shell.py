@@ -55,7 +55,7 @@ class BibleShell(cmd.Cmd):
     def __init__(
         self,
         db_path: Optional[Path] = None,
-        translation_id: str = "WEB",
+        translation_id: str = "ESV",
         theme: str = "sacred",
         margin: int = 2,
         width: Optional[int] = None,
@@ -1400,8 +1400,11 @@ class BibleShell(cmd.Cmd):
         if not arg:
             self.stdout.write(f"Current active translation: {self.translation_id}\n")
             return
-        if self.db is None:
-            self._init_db()
+        if arg == "ESV":
+            self.translation_id = "ESV"
+            self._update_prompt()
+            self.stdout.write("Switched session translation to ESV (API & LRU cache with offline WEB fallback).\n")
+            return
         available = self.db.get_available_translation_ids()
         if arg not in available:
             self.stdout.write(
@@ -1422,6 +1425,8 @@ class BibleShell(cmd.Cmd):
             return
 
         self.stdout.write("\nInstalled Scripture Translations:\n")
+        esv_marker = " (active)" if self.translation_id == "ESV" else ""
+        self.stdout.write(f"  • {'ESV':6s}: English Standard Version   [API & 500-verse LRU cache]{esv_marker}\n")
         for t in translations:
             count = self.db.count_verses(t.id)
             active_marker = " (active)" if t.id == self.translation_id else ""
@@ -2922,7 +2927,8 @@ System & Web:
         """Auto-complete translation identifiers."""
         if self.db is None:
             self._init_db()
-        return [v for v in self.db.get_available_translation_ids() if v.startswith(text.upper())]
+        opts = ["ESV"] + [v for v in self.db.get_available_translation_ids() if v != "ESV"]
+        return [v for v in opts if v.startswith(text.upper())]
 
     def completenames(self, text: str, *ignored) -> List[str]:
         """Support auto-completion for slash commands as well as normal commands."""
@@ -2936,7 +2942,7 @@ System & Web:
 
 def launch_shell(
     db_path: Optional[Path] = None,
-    translation_id: str = "WEB",
+    translation_id: str = "ESV",
     theme: str = "sacred",
     margin: int = 2,
     flow: bool = False,

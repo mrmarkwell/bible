@@ -529,7 +529,7 @@ class TaggingService:
     def get_passages_for_tag(
         self,
         tag_name: str,
-        translation_id: str = "WEB",
+        translation_id: str = "ESV",
         starred_only: bool = False,
         limit: Optional[int] = None,
         offset: int = 0,
@@ -539,7 +539,7 @@ class TaggingService:
 
         Args:
             tag_name: Tag name to inspect.
-            translation_id: Bible translation ID for verse text hydration (default 'WEB').
+            translation_id: Bible translation ID for verse text hydration (default 'ESV' with WEB fallback).
             starred_only: Only return starred passages.
             limit: Maximum passages to return.
             offset: Pagination offset.
@@ -559,7 +559,9 @@ class TaggingService:
             ref = parse_reference(r.human_ref)
             verses: List[VerseRecord] = []
             if hydrate_verses:
-                verses = self.db.get_verses_by_reference(ref, translation_id=translation_id)
+                verses, _, _ = self.db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, fallback_id="WEB"
+                )
 
             results.append(
                 TaggedPassage(
@@ -945,7 +947,7 @@ class TaggingService:
     def score_verse_relevance(
         self,
         tags: Union[str, Sequence[str]],
-        translation_id: str = "WEB",
+        translation_id: str = "ESV",
         starred_only: bool = False,
         min_score: float = 0.0,
         limit: Optional[int] = None,
@@ -1076,7 +1078,9 @@ class TaggingService:
             verses: List[VerseRecord] = []
             text = ""
             if hydrate_verses:
-                verses = self.db.get_verses_by_reference(ref, translation_id=translation_id)
+                verses, _, _ = self.db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, fallback_id="WEB"
+                )
                 text = " ".join(v.text for v in verses)
 
             ranked.append(

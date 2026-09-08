@@ -406,7 +406,7 @@ def cmd_get(args: argparse.Namespace) -> int:
                         )
                     return 1
 
-                fb_for = req_id if (is_fb and has_explicit_version) else None
+                fb_for = req_id if (is_fb and (has_explicit_version or getattr(args, "verbose", False))) else None
                 formatted = format_verse_lines(
                     verses,
                     show_verse_numbers=show_nums,
@@ -739,6 +739,7 @@ def cmd_translations(args: argparse.Namespace) -> int:
                 return 0
 
             print("Installed Scripture Translations:")
+            print("  [ESV] English Standard Version (Crossway API & 500-verse LRU cache, default with WEB fallback)")
             for rec in records:
                 count = db.count_verses(rec.id)
                 pd_status = (
@@ -828,7 +829,7 @@ def cmd_tag(args: argparse.Namespace) -> int:
 
             elif tag_action == "show":
                 tag_name = args.tag
-                version = getattr(args, "version", "WEB") or "WEB"
+                version = getattr(args, "version", "ESV") or "ESV"
                 starred_only = getattr(args, "starred_only", False)
                 limit = getattr(args, "limit", 20)
                 as_json = getattr(args, "json", False)
@@ -993,7 +994,7 @@ def cmd_tag(args: argparse.Namespace) -> int:
 
             elif tag_action in ("relevance", "rank"):
                 tags_list = args.tags
-                version = getattr(args, "version", "WEB") or "WEB"
+                version = getattr(args, "version", "ESV") or "ESV"
                 starred_only = getattr(args, "starred_only", False)
                 min_score = getattr(args, "min_score", 0.0)
                 limit = getattr(args, "limit", 20)
@@ -1085,7 +1086,7 @@ def cmd_crossref(args: argparse.Namespace) -> int:
                     return 1
 
                 rel_type = getattr(args, "type", None)
-                trans_id = getattr(args, "version", "WEB")
+                trans_id = getattr(args, "version", "ESV") or "ESV"
                 as_json = getattr(args, "json", False)
                 min_wt = getattr(args, "min_weight", 0.0)
 
@@ -1315,7 +1316,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="version",
         action="append",
         default=None,
-        help="Translation identifier(s) (e.g. 'WEB', 'ESV', or comma-separated 'WEB,KJV', default: WEB)",
+        help="Translation identifier(s) (e.g. 'ESV', 'WEB', or comma-separated 'ESV,WEB', default: ESV with offline WEB fallback)",
     )
     parser_get.add_argument(
         "--fallback",
@@ -1331,6 +1332,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--strict",
         action="store_true",
         help="Alias for --no-fallback: strictly require requested translation",
+    )
+    parser_get.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Display verbose diagnostics and translation fallback notifications",
     )
     parser_get.add_argument(
         "--no-numbers",
@@ -1420,7 +1427,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="versions",
         action="append",
         default=None,
-        help="Translations to compare (comma-separated or repeated, default: installed versions)",
+        help="Translations to compare (comma-separated or repeated, e.g. 'ESV,WEB', default: installed versions or ESV,WEB)",
     )
     parser_compare.add_argument(
         "--fallback",
@@ -1509,7 +1516,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-t",
         dest="version",
         default="WEB",
-        help="Translation to search (e.g. 'WEB', 'ESV', or 'all', default: WEB)",
+        help="Translation to search in local database (e.g. 'WEB', 'all', default: WEB [offline public domain])",
     )
     parser_search.add_argument(
         "--fallback",
@@ -1627,7 +1634,7 @@ def build_parser() -> argparse.ArgumentParser:
     # tag show
     p_tag_show = tag_subparsers.add_parser("show", help="Display passages associated with a specific tag")
     p_tag_show.add_argument("tag", help="Tag name to inspect")
-    p_tag_show.add_argument("--version", "-t", default="WEB", help="Scripture translation for verse text (default: WEB)")
+    p_tag_show.add_argument("--version", "-t", default="ESV", help="Scripture translation for verse text (default: ESV with offline WEB fallback)")
     p_tag_show.add_argument("--starred-only", action="store_true", help="Only show starred passages")
     p_tag_show.add_argument("--limit", "-n", type=int, default=20, help="Maximum passages to show (default: 20)")
     p_tag_show.add_argument("--json", action="store_true", help="Output results in JSON format")
@@ -1658,7 +1665,7 @@ def build_parser() -> argparse.ArgumentParser:
     # tag prompt
     p_tag_prompt = tag_subparsers.add_parser("prompt", help="Generate and display LLM tagging prompt for a passage")
     p_tag_prompt.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1-11')")
-    p_tag_prompt.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_prompt.add_argument("--version", "-t", default="ESV", help="Scripture translation ID (default: ESV with offline WEB fallback)")
     p_tag_prompt.add_argument("--category", help="Comma-separated category filter (e.g. 'theological,historical')")
     p_tag_prompt.add_argument("--custom-tags", help="Comma-separated custom candidate tags")
     p_tag_prompt.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags outside taxonomy")
@@ -1671,7 +1678,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_tag_gen.add_argument("reference", help="Scripture citation or span (e.g. 'Romans 8:1-11')")
     p_tag_gen.add_argument("--api-key", help="Google Gemini API key (defaults to $GEMINI_API_KEY)")
     p_tag_gen.add_argument("--model", default="gemini-2.5-pro", help="Gemini model ID (default: gemini-2.5-pro)")
-    p_tag_gen.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_gen.add_argument("--version", "-t", default="ESV", help="Scripture translation ID (default: ESV with offline WEB fallback)")
     p_tag_gen.add_argument("--category", help="Comma-separated category filter")
     p_tag_gen.add_argument("--custom-tags", help="Comma-separated custom candidate tags")
     p_tag_gen.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags")
@@ -1694,7 +1701,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_tag_batch.add_argument("--book", help="Generate prompts for all chapters of a book")
     p_tag_batch.add_argument("--input-file", help="Path to text file containing references (one per line)")
     p_tag_batch.add_argument("--limit", type=int, help="Maximum passages to process")
-    p_tag_batch.add_argument("--version", "-t", default="WEB", help="Scripture translation ID (default: WEB)")
+    p_tag_batch.add_argument("--version", "-t", default="ESV", help="Scripture translation ID (default: ESV with offline WEB fallback)")
     p_tag_batch.add_argument("--category", help="Comma-separated category filter")
     p_tag_batch.add_argument("--no-new-tags", action="store_true", help="Disallow novel tags")
     p_tag_batch.add_argument("--max-tags", type=int, default=6, help="Maximum tags per passage")
@@ -1720,7 +1727,7 @@ def build_parser() -> argparse.ArgumentParser:
     # tag relevance (aliases: rank)
     p_tag_rel = tag_subparsers.add_parser("relevance", aliases=["rank"], help="Rank scripture passages matching query tags by relevance")
     p_tag_rel.add_argument("tags", nargs="+", help="One or more topic tag names to score (e.g. 'Atonement' 'Redemption')")
-    p_tag_rel.add_argument("--version", "-t", default="WEB", help="Scripture translation for text hydration (default: WEB)")
+    p_tag_rel.add_argument("--version", "-t", default="ESV", help="Scripture translation for text hydration (default: ESV with offline WEB fallback)")
     p_tag_rel.add_argument("--starred-only", action="store_true", help="Only rank starred passages")
     p_tag_rel.add_argument("--min-score", type=float, default=0.0, help="Minimum relevance score threshold (0.0 to 1.0, default: 0.0)")
     p_tag_rel.add_argument("--limit", "-n", type=int, default=20, help="Maximum ranked results to display (default: 20)")
@@ -1742,7 +1749,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_xr_for = xref_subparsers.add_parser("for", help="Display all cross-references connected to a passage citation")
     p_xr_for.add_argument("reference", help="Scripture citation or span (e.g. 'Genesis 3:15', 'John 3:16')")
     p_xr_for.add_argument("--type", "-T", help="Filter by relationship type (thematic, prophecy_fulfillment, typology, quotation, allusion, parallel)")
-    p_xr_for.add_argument("--version", "-t", default="WEB", help="Scripture translation for related verse texts (default: WEB)")
+    p_xr_for.add_argument("--version", "-t", default="ESV", help="Scripture translation for related verse texts (default: ESV with offline WEB fallback)")
     p_xr_for.add_argument("--min-weight", type=float, default=0.0, help="Minimum relationship weight threshold (default: 0.0)")
     p_xr_for.add_argument("--json", action="store_true", help="Output results in JSON format")
 
@@ -1925,8 +1932,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser_shell.add_argument(
         "--version",
         "-t",
-        default="WEB",
-        help="Initial active translation ID (default: WEB)",
+        default="ESV",
+        help="Initial active translation ID (default: ESV with offline WEB fallback)",
     )
     parser_shell.add_argument(
         "--theme",
@@ -2493,8 +2500,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser_slide.add_argument(
         "--version",
         dest="version",
-        default="WEB",
-        help="Scripture translation identifier (default: WEB)",
+        default="ESV",
+        help="Scripture translation identifier (default: ESV with offline WEB fallback)",
     )
     parser_slide.add_argument(
         "--font",
@@ -2992,8 +2999,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser_slide_batch.add_argument(
         "--version",
         dest="version",
-        default="WEB",
-        help="Scripture translation identifier (default: WEB)",
+        default="ESV",
+        help="Scripture translation identifier (default: ESV with offline WEB fallback)",
     )
     parser_slide_batch.add_argument(
         "--backend",

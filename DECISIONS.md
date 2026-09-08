@@ -2546,6 +2546,42 @@ This document is an append-only log of significant design and architectural deci
   - Runtime API usage is minimized strictly to embedding dynamic user inquiries when performing semantic question-answering.
   - Formally documents the architectural requirements in `ROADMAP.md` (Tasks 4.8, 7.7, 8.7) and `IDEAS.md`.
 
+---
+
+## ADR-077: Unified CLI Translation Alignment, Standard Help String Modernization, and Transparent Fallback Architecture (Default: ESV with Offline WEB Fallback)
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - In ADR-041 and ADR-045, the project designated the English Standard Version (ESV) as the primary default translation across the platform while strictly honoring Crossway API terms of service (500-verse ephemeral LRU cache) and providing graceful offline fallback to the bundled public-domain World English Bible (WEB).
+  - However, several CLI subcommands (`shell`, `slide`, `slide-batch`, `tag show`, `tag prompt`, `tag generate`, `tag batch`, `tag relevance`, `crossref for`), service hydration routines, and argparse help texts had previously retained legacy defaults (`default: WEB`), creating cognitive divergence between command execution and `--help` output.
+  - Task 2.6 required auditing and aligning all CLI help texts, argument defaults, service hydration functions, and transparent fallback notifications so that ESV is consistently documented and executed as the primary default translation, with transparent cascading to WEB when offline or unconfigured.
+- **Decision**:
+  1. **Standardized Argument Defaults & Help Strings Across CLI Subcommands (`cli/main.py`)**:
+     - Aligned argument defaults to `"ESV"` across `get`, `shell`, `slide`, `slide-batch`, `tag show`, `tag prompt`, `tag generate`, `tag batch`, `tag relevance`, and `crossref for`.
+     - Modernized all corresponding `--help` parameter descriptions to explicitly declare: `(default: ESV with offline WEB fallback)`.
+     - Clarified `search` help text to explicitly indicate local database full-text search: `(default: WEB [offline public domain])`.
+     - Clarified `compare` help text to highlight multi-translation comparison: `(e.g. 'ESV,WEB', default: installed versions or ESV,WEB)`.
+     - Added `--verbose` (`-v`) flag to `parser_get` enabling transparent fallback notices on stderr (`Notice: Translation 'ESV' not available; falling back to 'WEB'.`) and annotated verse headers (`[fallback for ESV]`) even during default lookups without explicit `--version`.
+     - Enhanced `translations` subcommand output to display `[ESV] English Standard Version (Crossway API & 500-verse LRU cache, default with WEB fallback)` alongside SQLite-installed translations.
+  2. **Service Layer Verse Hydration Modernization (`core/tags.py`, `core/slide_batch.py`)**:
+     - Updated `TaggingService.get_passages_for_tag` and `score_verse_relevance` in `core/tags.py` to default `translation_id="ESV"` and resolve text via `db.get_verses_with_fallback(ref, translation_id=translation_id, fallback_id="WEB")`.
+     - Updated `SlideBatchExporter.collect_passages` in `core/slide_batch.py` to default `translation_id="ESV"` with documented offline WEB fallback.
+  3. **Interactive Study REPL Parity (`cli/shell.py`)**:
+     - Configured `BibleShell` default `translation_id="ESV"`.
+     - Updated `/version ESV` command handling to recognize ESV as a supported dynamic service without emitting false-alarm zero-verse warnings.
+     - Updated `/versions` listing to display ESV (API & 500-verse LRU cache, default) alongside installed translations.
+     - Added `"ESV"` to `/version` tab-completion candidates.
+  4. **Hermetic Test Suite Expansion (`tests/test_cli.py`, `tests/test_shell.py`)**:
+     - Added `test_cli_translation_help_alignment` verifying that all 10 subcommands consistently document `default: ESV with offline WEB fallback`.
+     - Added `test_cli_get_verbose_fallback_notice` verifying transparent fallback notices and annotated header output when `--verbose` is supplied in offline mode.
+     - Updated `test_cli_translations` and `test_cli_versions_alias` to verify ESV inclusion.
+     - Added test assertions in `test_shell_version_management` verifying clean `/version ESV` switching and `/versions` display.
+- **Consequences**:
+  - Complete, unified alignment across all user-facing CLI commands, REPL shell, slide generation, and tagging engines.
+  - Preserves 100% offline-first resilience: unkeyed or offline users receive seamless WEB fallbacks with zero crash risk.
+  - Preserves 100% Zero-Dependency architecture (ADR-003) and 100% passing hermetic unit tests (909 tests in <3.7s).
+
+
 
 
 

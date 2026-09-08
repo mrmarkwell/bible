@@ -285,7 +285,7 @@ class SlideBatchExporter:
         references: Optional[Sequence[Union[str, Reference]]] = None,
         file_path: Optional[Union[str, Path]] = None,
         csv_path: Optional[Union[str, Path]] = None,
-        translation_id: str = "WEB",
+        translation_id: str = "ESV",
         limit: Optional[int] = None,
         offset: int = 0,
         shuffle: bool = False,
@@ -302,7 +302,7 @@ class SlideBatchExporter:
             references: Explicit list of reference strings or Reference objects.
             file_path: Path to text file containing one reference per line.
             csv_path: Optional override path for favorite_bible_verses.csv.
-            translation_id: Bible translation ID for verse text hydration (default 'WEB').
+            translation_id: Bible translation ID for verse text hydration (default 'ESV' with offline WEB fallback).
             limit: Maximum passages to return.
             offset: Number of passages to skip.
             shuffle: Whether to randomize passage order.

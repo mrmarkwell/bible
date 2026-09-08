@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 0, 1, 2, 3, 4 & 7 (Expanded Feature Roadmap Ingested)
-- **Overall Progress**: 64 Completed / 75 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 66 Completed / 76 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -56,7 +56,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 2.3**: Implement full-text search CLI command (`./bible search "light of the world"`). *(Run 018)*
 - [x] **Task 2.4**: Formatted terminal output (clean margins, text wrapping, optional verse numbers, paragraph breaks, colored ANSI styling using standard library). *(Run 019)*
 - [x] **Task 2.5**: Implement Zero-Dependency ESV API Client (`core/esv.py`), Compliant 500-Verse Ephemeral LRU Cache, and Set ESV as Default Translation with Graceful Offline Fallback (ADR-041). *(Run 042 / ADR-045)*
-- [ ] **Task 2.6**: Align CLI help texts, argument defaults, and transparent fallback notifications (`default: ESV with offline WEB fallback`).
+- [x] **Task 2.6**: Align CLI help texts, argument defaults, and transparent fallback notifications (`default: ESV with offline WEB fallback`). *(Run 071 / ADR-077)*
 
 ### Phase 3: Semantic Tagging & Knowledge Database Engine
 - [x] **Task 3.1**: Create Tagging API allowing tags on individual verses or arbitrary verse spans (e.g., `Romans 8:1-11` -> `Holy Spirit`, `Sanctification`). *(Run 022 / ADR-023)*

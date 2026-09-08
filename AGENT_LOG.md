@@ -2868,4 +2868,46 @@ This is an append-only log of work performed by autonomous agents during their e
   - 10th-iteration double milestone complete.
   - Next cycle is Run 071.
 
+---
+
+## [Run 071] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 2 — Command Line Interface (CLI)
+- **Task Addressed**: Task 2.6 — Align CLI help texts, argument defaults, and transparent fallback notifications (`default: ESV with offline WEB fallback`).
+- **Actions Taken**:
+  - **Standardized CLI Translation Defaults & Help Strings (`cli/main.py`)**:
+    - Aligned argument defaults to `"ESV"` across `get`, `shell`, `slide`, `slide-batch`, `tag show`, `tag prompt`, `tag generate`, `tag batch`, `tag relevance`, and `crossref for`.
+    - Modernized all corresponding `--help` parameter descriptions to explicitly declare `(default: ESV with offline WEB fallback)`.
+    - Clarified `search` help text to declare local database full-text search `(default: WEB [offline public domain])`.
+    - Clarified `compare` help text to document comparison across installed and active translations `(e.g. 'ESV,WEB', default: installed versions or ESV,WEB)`.
+    - Added `--verbose` (`-v`) flag to `parser_get` enabling transparent fallback notices on stderr (`Notice: Translation 'ESV' not available; falling back to 'WEB'.`) and annotated verse headers (`[fallback for ESV]`) even during default lookups without explicit `--version`.
+    - Enhanced `translations` subcommand output to display `[ESV] English Standard Version (Crossway API & 500-verse LRU cache, default with WEB fallback)` alongside SQLite-installed translations.
+  - **Service Layer Verse Hydration Modernization (`core/tags.py`, `core/slide_batch.py`)**:
+    - Updated `TaggingService.get_passages_for_tag` and `score_verse_relevance` in `core/tags.py` to default `translation_id="ESV"` and resolve text via `db.get_verses_with_fallback(ref, translation_id=translation_id, fallback_id="WEB")`.
+    - Updated `SlideBatchExporter.collect_passages` in `core/slide_batch.py` to default `translation_id="ESV"` with documented offline WEB fallback.
+  - **Interactive Study REPL Parity (`cli/shell.py`)**:
+    - Configured `BibleShell` default `translation_id="ESV"`.
+    - Updated `/version ESV` command handling to recognize ESV as a supported dynamic service without emitting false-alarm zero-verse warnings.
+    - Updated `/versions` listing to display ESV (API & 500-verse LRU cache, default) alongside installed translations.
+    - Added `"ESV"` to `/version` tab-completion candidates.
+  - **Hermetic Test Suite Expansion (`tests/test_cli.py`, `tests/test_shell.py`)**:
+    - Added `test_cli_translation_help_alignment` verifying that all 10 subcommands consistently document `default: ESV with offline WEB fallback`.
+    - Added `test_cli_get_verbose_fallback_notice` verifying transparent fallback notices and annotated header output when `--verbose` is supplied in offline mode.
+    - Updated `test_cli_translations` and `test_cli_versions_alias` to verify ESV inclusion.
+    - Added test assertions in `test_shell_version_management` verifying clean `/version ESV` switching and `/versions` display.
+    - Expanded full test suite to **909 tests across 40 production modules passing 100% in 3.5s** (250+ tests/sec).
+  - **Governance & State Machine Synchronization**:
+    - Registered **ADR-077** in `DECISIONS.md`.
+    - Marked **Task 2.6** complete in `ROADMAP.md` (Phase 2 is now 100% complete across all 6 tasks!).
+- **Verification**:
+  - `./bible test`: **909 tests across 40 modules passed 100% in 3.633s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (77 ADRs registered, 71 sequential runs, 76 roadmap tasks tracked, 66 completed across 9 phases, 0 dependencies, 0 linter errors across 85 files).
+  - `/usr/bin/python3.12 tools/doctor.py`: **100% EXCELLENT** on Python 3.12.
+  - `python3 tools/linter.py`: **100% CLEAN** — 85 files inspected with 0 errors.
+  - Verified live CLI outputs: `./bible get "Romans 8:28"`, `./bible get "Romans 8:28" --version=XYZ`, `./bible translations`, and `./bible tag show favorites --limit 2`.
+- **Handoff Notes for Next Agent**:
+  - Phase 2 is now 100% complete!
+  - Next task on roadmap: Phase 1 Task 1.7 (Ingest King James Version - KJV into SQLite as a second bundled public-domain translation) or Phase 3 Task 3.5 / 3.7.
+
+
 
