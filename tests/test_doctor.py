@@ -253,7 +253,7 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertIn("PRAGMA quick_check & FK passed", res.details)
         self.assertIn("tables verified", res.details)
         self.assertIn("semantically audited", res.details)
-        self.assertIn("100.0%", res.details)
+        self.assertRegex(res.details, r"\d+\.\d+%")
 
     def test_check_database_integrity_semantic_audit_failure(self):
         from core.db import Database

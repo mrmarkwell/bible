@@ -373,8 +373,15 @@ def bootstrap_database(
     pericope_service = PericopeService(db)
     seeded_pericopes = pericope_service.seed_canonical_pericopes()
 
-    # 7. Optimize Pragmas and Analyzers
-    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.94)
+    # 7. Compile Permanent Semantic Pack (Phase 7 Whole-Bible Coverage)
+    if not quick and books is None:
+        _notify("Compiling permanent whole-Bible semantic pack...", 0.92)
+        from core.semantic_compiler import SemanticDatabaseCompiler
+        compiler = SemanticDatabaseCompiler(db=db)
+        compiler.compile_permanent_semantic_pack(resume=True, include_all_chapters=True)
+
+    # 8. Optimize Pragmas and Analyzers
+    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.96)
     db.optimize()
     db.close()
 
