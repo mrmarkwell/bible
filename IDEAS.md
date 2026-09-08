@@ -769,7 +769,7 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Migrate database to prune the unlinked 25 pre-assumed tags, keeping `favorites`.
   - [ ] Update `TaggingService` in `core/tags.py` to enforce `snake_case` normalization and dynamic tag registration on the fly.
   - [ ] Update tests in `tests/test_tags.py` and `tests/test_db.py`.
-- **Status**: [VETTED] (Rank A+; Feature Request added).
+- **Status**: Implemented via Task 3.5 and ADR-079.
 
 ---
 
