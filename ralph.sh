@@ -182,16 +182,27 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
 
         # Guardrail 2: Check for remaining roadmap tasks
         if ! grep -q '\[ \]' ROADMAP.md; then
-            echo ""
-            echo " [✓] All roadmap tasks marked [x] / completed! Loop finished."
-            break
+            if python3 "$REPO_DIR/tools/github_issues.py" check --quiet 2>/dev/null; then
+                echo ""
+                echo " [!] All roadmap tasks completed, but open GitHub issue detected. Continuing loop to resolve bug report."
+            else
+                echo ""
+                echo " [✓] All roadmap tasks marked [x] / completed! Loop finished."
+                break
+            fi
         fi
 
         NEXT_RUN=$(get_next_run_number)
         CYCLE_PROMPT="$DEFAULT_PROMPT"
         SPRINT_BANNER="Standard Cycle (Roadmap Task Execution)"
 
-        if is_summary_run "$NEXT_RUN" || is_summary_run "$ITERATION"; then
+        # Priority 1: Check for open GitHub issues / bug reports
+        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+        if [ -n "$GITHUB_PROMPT" ]; then
+            CYCLE_PROMPT="$GITHUB_PROMPT"
+            ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
+            SPRINT_BANNER="BUG REPORT PRIORITY ($ISSUE_SUMMARY)"
+        elif is_summary_run "$NEXT_RUN" || is_summary_run "$ITERATION"; then
             CYCLE_PROMPT="$SUMMARY_PROMPT"
             SPRINT_BANNER="DOUBLE MILESTONE (Senior PM Meta-Improvement & 10th-Iteration Executive Briefing)"
         elif is_cleanup_run "$NEXT_RUN" || is_cleanup_run "$ITERATION"; then
@@ -298,7 +309,12 @@ if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
     if [ "$#" -eq 0 ]; then
-        if is_summary_run "$NEXT_RUN"; then
+        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+        if [ -n "$GITHUB_PROMPT" ]; then
+            ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
+            echo " [!] Open GitHub issue detected: Prioritizing bug report resolution ($ISSUE_SUMMARY)."
+            PROMPT="$GITHUB_PROMPT"
+        elif is_summary_run "$NEXT_RUN"; then
             echo " [!] Run #$NEXT_RUN is a double milestone: triggering Senior PM Meta-Improvement & Executive Briefing."
             PROMPT="$SUMMARY_PROMPT"
         elif is_cleanup_run "$NEXT_RUN"; then
@@ -326,7 +342,14 @@ fi
 # If no arguments provided, launch interactively
 if [ "$#" -eq 0 ]; then
     NEXT_RUN=$(get_next_run_number)
-    if is_summary_run "$NEXT_RUN"; then
+    GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+    if [ -n "$GITHUB_PROMPT" ]; then
+        ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
+        echo "======================================================================"
+        echo " Launching Ralph Loop (Priority: GitHub Bug Report: $ISSUE_SUMMARY)"
+        echo "======================================================================"
+        exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$GITHUB_PROMPT"
+    elif is_summary_run "$NEXT_RUN"; then
         echo "======================================================================"
         echo " Launching Ralph Loop Run #$NEXT_RUN (Cadence: Double Milestone: Senior PM & Summary)"
         echo "======================================================================"

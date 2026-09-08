@@ -56,17 +56,17 @@ Follow the **Boot → Cadence Check → Execute → Log → Push → Terminate**
 ```mermaid
 flowchart TD
     A[1. Boot & Orient] --> B[2. Check Blockers]
-    B --> C{3. Cadence Check: 5th Iteration or --cleanup?}
-    
-    C -- No: Standard Cycle --> D[4a. Select Task from Roadmap]
-    D --> E[5a. Implement Feature & Test]
-    
-    C -- Yes: Senior PM Sprint --> F[4b. Senior PM Meta-System Health Audit]
-    F --> G["5b. Ask: Weakest Aspect? What Prevents Greatness?"]
-    G --> H[5c. Conceive & Execute Rank A+ Meta-Improvement]
-    
-    E --> I[6. Verify 100% Tests & Zero Dependencies]
-    H --> I
+    B --> C{3. GitHub Issue / Bug Report Detected?}
+    C -- Yes: Bug Priority --> D1[4a. Triage & Address Bug Report]
+    D1 --> E1[5a. Fix + Regression Test OR Close Reason OR Diagnostic Comment]
+    C -- No: Cadence Check --> D2{4b. Cadence Check: 5th Iteration or --cleanup?}
+    D2 -- No: Standard Cycle --> D3[5b. Select Task from Roadmap]
+    D2 -- Yes: Senior PM Sprint --> D4[5c. Senior PM Meta-System Audit]
+    E1 --> I[6. Verify 100% Tests & Zero Dependencies]
+    D3 --> E2[6a. Implement Feature & Test]
+    D4 --> E3[6b. Conceive & Execute Rank A+ Meta-Improvement]
+    E2 --> I
+    E3 --> I
     I --> J[7. Log Decisions & Work in AGENT_LOG / DECISIONS]
     J --> K[8. Commit, Push Immediately & Self-Terminate]
 ```
@@ -142,13 +142,21 @@ When the iteration is a standard cycle:
    - If `BLOCKED.md` exists and contains an unanswered blocker: **DO NOT PROCEED**. Terminate or address only items that unblock the state.
    - If `BLOCKED.md` contains a human resolution: Ingest the resolution, apply any necessary setup, **delete or clear `BLOCKED.md`**, and proceed.
 
-#### 2. Task Selection
+#### 2. Priority Check: Open GitHub Issue / Bug Report Triage
+Before selecting a roadmap task, check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`):
+- If an open GitHub issue (bug report) exists, **address it in this iteration before proceeding to roadmap tasks**:
+  1. **Fix & Close (Bug Resolved)**: Reproduce the bug, write hermetic regression unit test(s) in `tests/test_*.py`, fix the code, verify 100% test pass rate (`./bible test`), include `Fixes #<number>` in your git commit message (GitHub automatically closes the issue upon push to `origin/main`), and close the issue via `python3 tools/github_issues.py close <number> --comment "Resolved in commit with regression test."`.
+  2. **Close as Irrelevant / Duplicate / Not Planned**: If the bug report is invalid, duplicate, out-of-scope, or already resolved, close it with a clear, polite explanation via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<explanation>"`.
+  3. **Comment with Stated Diagnostic Reason**: If the issue cannot be resolved in this iteration (e.g. requires reproduction details from author, external credentials, or human clarification), post an explanatory comment via `python3 tools/github_issues.py comment <number> "<diagnostic reason and current status>"`.
+- Record your triage action, reasoning, and resolution in `AGENT_LOG.md`.
+
+#### 3. Task Selection
 1. Open `ROADMAP.md`.
 2. Locate the highest-priority task marked `[TODO]` under the active phase whose prerequisites are satisfied.
 3. Update its status in `ROADMAP.md` to `[IN PROGRESS]` (include your agent identifier / timestamp).
 4. **Scope Control**: Work on **ONE** coherent unit of work only. Do not attempt to complete multiple large milestones in a single turn. Small, atomic iterations prevent context degradation.
 
-#### 3. Execution & Verification
+#### 4. Execution & Verification
 1. **Test-Driven / Verification-Driven**:
    - Before writing or refactoring production code, ensure tests exist or write unit tests.
    - Run the relevant test suite and verify 100% pass status.

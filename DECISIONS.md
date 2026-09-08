@@ -1908,3 +1908,43 @@ This document is an append-only log of significant design and architectural deci
   - Interactive developers have unified, omnichannel access to semantic auditing.
   - 100% Zero-Dependency compliance verified (Python 3 stdlib only per ADR-003).
   - All 710 unit tests across 34 suites pass in 4.51s (<5.0s SLA).
+
+---
+
+## ADR-059: Autonomous GitHub Issue Triage & Bug Resolution Lifecycle
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - The repository author requested: "If a ralph loop iteration starts and there is a github issue (bug report), address it in this iteration. The bug can be fixed/closed, closed as irrelevant or duplicate etc., or a comment can be added to the bug indicating that it wasn't able to be fixed for some stated reason."
+  - Previously, the Ralph loop only executed tasks sequentially from `ROADMAP.md` or performed cadence sprints every 5th/10th run. If an external contributor or user filed a bug report on GitHub, autonomous agents would not see it or act on it unless manually transcribed into `ROADMAP.md`.
+  - The solution must strictly adhere to ADR-003 (Zero external dependencies: Python standard library `urllib.request` only, zero pip requirements like `requests` or `PyGithub`) and operate smoothly both online and offline.
+- **Decision**:
+  1. **Sovereign GitHub Issue Engine (`tools/github_issues.py`)**:
+     - Built a zero-dependency CLI tool using `urllib.request` and `json` interfacing with the GitHub REST API (`https://api.github.com/repos/{owner}/{repo}/issues`).
+     - Auto-detects target GitHub repository from `git config --get remote.origin.url` (fallback: `mrmarkwell/bible`).
+     - Filters out pull requests returned by GitHub's issue endpoint (`pull_request` key check).
+     - Provides subcommands: `list`, `view`, `comment`, `close`, and `check`.
+     - Supports authentication via `GITHUB_TOKEN` or `GH_TOKEN` for write actions (`comment`, `close`), while allowing unauthenticated public read-only requests (`list`, `view`, `check`).
+     - Recommends native git commit keywords (`Fixes #<number>` or `Closes #<number>`) so bug fixes pushed to `origin/main` automatically close issues natively on GitHub even when `GITHUB_TOKEN` is not set locally.
+  2. **Autonomous Ralph Loop Harness Integration (`ralph.sh`)**:
+     - Integrated `tools/github_issues.py check --prompt` as Priority #1 at the start of every Ralph loop iteration (continuous `--loop`, headless `--print`, and interactive).
+     - When open issues exist:
+       - Automatically overrides the iteration prompt with a structured `BUG REPORT PRIORITY` prompt containing the issue number, title, author, labels, and description snippet.
+       - Instructs the agent on the three permitted resolution pathways:
+         1. *Fix & Close*: Write regression unit test, fix code, verify 100% tests pass, commit with `Fixes #<num>`, and close issue.
+         2. *Close with Reason*: Close invalid, duplicate, or un-planned issues via `tools/github_issues.py close <num> --reason not_planned --comment "<reason>"`.
+         3. *Diagnostic Comment*: Post status explanation via `tools/github_issues.py comment <num> "<reason>"`.
+     - In `--loop` mode, prevents premature loop exit if `ROADMAP.md` tasks are completed but open GitHub issues remain.
+  3. **Omnichannel Access Across CLI & REPL Shell**:
+     - Added `./bible issues` (aliases: `bug`, `bugs`) to `cli/main.py`.
+     - Added `/issues` (aliases: `/bug`, `/bugs`) to `cli/shell.py`.
+  4. **Operating Manual Synchronization (`AGENTS.md` & `GEMINI.md`)**:
+     - Updated Ralph loop lifecycle with Step 3 Priority Check for GitHub issue triage.
+  5. **Hermetic Verification**:
+     - Added hermetic unit test suite in `tests/test_github_issues.py` (13 tests mocking HTTP interactions, PR filtering, comment/close logic, prompt generation).
+     - Added CLI and shell integration tests in `tests/test_cli.py` and `tests/test_shell.py`.
+- **Consequences**:
+  - Any open GitHub issue filed by users or maintainers is prioritized and addressed in the very next Ralph loop iteration.
+  - Near-zero maintenance preserved: zero third-party dependencies (stdlib only per ADR-003).
+  - Clean offline fallback: if network is offline or unauthenticated, the check exits cleanly without interrupting standard roadmap execution.
+  - All 726 tests across 35 modules pass in <4.7s.

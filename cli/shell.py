@@ -2354,6 +2354,38 @@ class BibleShell(cmd.Cmd):
         return self.complete_audit_semantic(text, line, begidx, endidx)
 
     # --------------------------------------------------------------------------
+    # GitHub Issues & Bug Triage Commands
+    # --------------------------------------------------------------------------
+
+    def do_issues(self, arg: str) -> None:
+        """Inspect and triage GitHub issues and bug reports.
+
+        Usage:
+          /issues [list] [--state=open|closed|all] [--limit=N]
+          /issues view <number>
+          /issues comment <number> <text>
+          /issues close <number> [--reason=completed|not_planned] [--comment="<text>"]
+          /issues check
+        """
+        import shlex
+        from tools import github_issues
+        parts = shlex.split(arg) if arg.strip() else ["list"]
+        github_issues.main(parts)
+
+    def do_bug(self, arg: str) -> None:
+        """Alias for /issues."""
+        self.do_issues(arg)
+
+    def do_bugs(self, arg: str) -> None:
+        """Alias for /issues."""
+        self.do_issues(arg)
+
+    def complete_issues(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /issues command."""
+        commands = ["list", "view", "comment", "close", "check", "--state=open", "--state=closed", "--json"]
+        return [c for c in commands if c.startswith(text.lower())]
+
+    # --------------------------------------------------------------------------
     # Exit & Help Commands
     # --------------------------------------------------------------------------
 
@@ -2378,6 +2410,7 @@ Study & Search:
   /audit-semantic [opts]  Audit semantic database coordinates & 100% whole-Bible coverage (alias: /audit)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
+  /issues [command]       Inspect and triage GitHub issues & bug reports (aliases: /bug, /bugs)
 
 Session Settings:
   /version [ID]           Show or set active translation (e.g. /version KJV)
@@ -2432,7 +2465,10 @@ System & Web:
 
     def complete_doctor(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete doctor subcommands."""
-        options = ["fast", "fix", "bench", "json", "install-hooks", "uninstall-hooks", "hooks", "--fast", "--fix", "--bench", "--json"]
+        options = [
+            "fast", "fix", "bench", "benchmark", "json", "install-hooks", "uninstall-hooks", "hooks",
+            "--fast", "--fix", "--bench", "--benchmark", "--json",
+        ]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_tag(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:

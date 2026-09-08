@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Autonomous GitHub Issue Triage & Bug Resolution Engine (Rank A+)
+- **Summary**: Real-time triage and resolution of open GitHub issues/bug reports during autonomous Ralph loop execution cycles. The agent prioritizes open issues at boot, reproducing and fixing the bug with regression tests, closing as irrelevant/duplicate/unplanned with reasons, or commenting on diagnostic progress.
+- **Rationale**: Bridges external feedback and bug reports directly into the autonomous Ralph loop. Allows the system to maintain itself and respond to users and bug reports without human maintainer intervention.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (falls back gracefully if network is offline or unauthenticated).
+  - Zero third-party dependencies? Yes (Python standard library `urllib.request` and `json` only, zero pip packages per ADR-003).
+  - Autonomous permission auto-approval? Yes (`--dangerously-skip-permissions`).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.20 in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md) / ADR-059).
+- **Status**: Implemented via ADR-059 and Task 0.20.
+
 ### [VETTED] Terminal-Native Ralph Loop CLI Invocation
 - **Summary**: Replace background `agentapi` loop with direct terminal invocation of Jetski CLI (`/google/bin/releases/jetski-devs/tools/cli --dangerously-skip-permissions -i "Execute one cycle of the Ralph loop per AGENTS.md."`).
 - **Rationale**: Immediate developer visibility, terminal-native interactivity, and elimination of fragile background daemon polling.

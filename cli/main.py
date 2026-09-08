@@ -4603,6 +4603,72 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_build_semantic.set_defaults(func=cmd_build_semantic)
 
+    # -------------------------------------------------------------------------
+    # Subcommand: issues (aliases: bug, bugs)
+    # -------------------------------------------------------------------------
+    parser_issues = subparsers.add_parser(
+        "issues",
+        aliases=["bug", "bugs"],
+        help="GitHub issue triage, bug report inspection, and resolution engine",
+    )
+    parser_issues.add_argument(
+        "--repo",
+        help="Target GitHub repository in 'owner/repo' format (auto-detected by default)",
+    )
+    parser_issues.add_argument(
+        "--token",
+        help="GitHub Personal Access Token (defaults to GITHUB_TOKEN or GH_TOKEN env var)",
+    )
+    issues_subparsers = parser_issues.add_subparsers(dest="issue_command", help="Issue operation to perform")
+
+    p_iss_list = issues_subparsers.add_parser("list", help="List GitHub issues")
+    p_iss_list.add_argument("--state", choices=["open", "closed", "all"], default="open", help="Issue state (default: open)")
+    p_iss_list.add_argument("--limit", type=int, default=30, help="Maximum number of issues to fetch (default: 30)")
+    p_iss_list.add_argument("--json", action="store_true", help="Output raw JSON")
+
+    p_iss_view = issues_subparsers.add_parser("view", help="View issue details and discussion comments")
+    p_iss_view.add_argument("issue_number", type=int, help="Issue number to view")
+    p_iss_view.add_argument("--json", action="store_true", help="Output raw JSON")
+
+    p_iss_comment = issues_subparsers.add_parser("comment", help="Add a comment to an issue")
+    p_iss_comment.add_argument("issue_number", type=int, help="Issue number to comment on")
+    p_iss_comment.add_argument("comment", help="Comment body text")
+
+    p_iss_close = issues_subparsers.add_parser("close", help="Close a GitHub issue")
+    p_iss_close.add_argument("issue_number", type=int, help="Issue number to close")
+    p_iss_close.add_argument("--reason", choices=["completed", "not_planned"], default="completed", help="Close reason (default: completed)")
+    p_iss_close.add_argument("--comment", help="Optional closing explanation comment to post before closing")
+
+    p_iss_check = issues_subparsers.add_parser("check", help="Check for open issues (designed for ralph.sh loop)")
+    p_iss_check.add_argument("--prompt", action="store_true", help="Output full Ralph prompt if open issues exist (exit 0)")
+    p_iss_check.add_argument("--summary", action="store_true", help="Output single-line summary of primary issue (exit 0)")
+    p_iss_check.add_argument("--quiet", "-q", action="store_true", help="Do not output anything, only exit code")
+    p_iss_check.add_argument("--json", action="store_true", help="Output JSON status")
+    p_iss_check.add_argument("--verbose", "-v", action="store_true", help="Print verbose status even if no issues found")
+
+    def cmd_issues(args: argparse.Namespace) -> int:
+        from tools import github_issues
+        cmd = getattr(args, "issue_command", None)
+        if not cmd or cmd == "list":
+            if not hasattr(args, "state") or args.state is None:
+                args.state = "open"
+            if not hasattr(args, "limit") or args.limit is None:
+                args.limit = 30
+            if not hasattr(args, "json"):
+                args.json = False
+            return github_issues.cmd_list(args)
+        elif cmd == "view":
+            return github_issues.cmd_view(args)
+        elif cmd == "comment":
+            return github_issues.cmd_comment(args)
+        elif cmd == "close":
+            return github_issues.cmd_close(args)
+        elif cmd == "check":
+            return github_issues.cmd_check(args)
+        return 0
+
+    parser_issues.set_defaults(func=cmd_issues)
+
     return parser
 
 
@@ -4640,6 +4706,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "vector", "vec", "embedding", "embeddings",
         "audit-semantic", "audit", "audit-critic",
         "build-semantic", "compile-semantic", "build-db",
+        "issues", "bug", "bugs",
     }
 
     pos_idx = -1

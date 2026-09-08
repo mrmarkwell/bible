@@ -1124,6 +1124,16 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("audit_report", data)
         self.assertIn("coverage_report", data)
 
+    @patch("tools.github_issues.list_issues")
+    def test_cli_issues(self, mock_list):
+        mock_list.return_value = (True, [], "")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["issues", "list"])
+        self.assertEqual(code, 0)
+        self.assertIn("No open issues found", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

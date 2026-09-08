@@ -33,6 +33,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.17**: Implement Zero-Dependency GitHub Actions Continuous Integration & Multi-Python Matrix Quality Guard (`.github/workflows/ci.yml`), automated CI/CD workflow structural validator in `tools/doctor.py`, and doctor diagnostics integration (ADR-048). *(Run 045 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.18**: Implement Sovereign System Health Acceleration, Deep Semantic Schema Validation & Machine-Readable Telemetry Engine (`tools/doctor.py` / `bible doctor --json`), foreign key integrity checks, Phase 7 semantic table validation, auto-healing schema migration (`--fix`), benchmark unit test isolation (<3.8s total test suite), and `ROADMAP.md` state machine syntax auditing (ADR-053). *(Run 050 / Senior PM Double Milestone)*
 - [x] **Task 0.19**: Implement Deep Semantic Diagnostic Integration, Omnichannel Audit Ergonomics & Doctor Coverage Gates (`tools/doctor.py`, `cli/shell.py`, `tools/audit_semantic.py`, ADR-058). *(Run 055 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.20**: Implement Autonomous GitHub Issue Triage & Bug Resolution Engine (`tools/github_issues.py`, `./bible issues`, REPL `/issues`, `ralph.sh` priority pre-check, and ADR-059).
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

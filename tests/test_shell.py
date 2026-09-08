@@ -294,9 +294,20 @@ class TestShell(unittest.TestCase):
         with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
             opts = shell.complete_doctor("ben", "/doctor ben", 0, 0)
             self.assertIn("bench", opts)
+            self.assertIn("benchmark", opts)
+
+    @patch("tools.github_issues.list_issues")
+    def test_shell_issues_command(self, mock_list):
+        mock_list.return_value = (True, [], "")
+        stdout = io.StringIO()
+        with BibleShell(db_path=self.db_path, stdout=stdout) as shell:
+            with patch("sys.stdout", stdout):
+                shell.onecmd("/issues")
+            opts = shell.complete_issues("vi", "/issues vi", 0, 0)
+            self.assertIn("view", opts)
 
 
-class TestDirectReferenceRouting(unittest.TestCase):
+class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
 
     def test_preprocess_direct_citation_simple(self):
@@ -324,6 +335,8 @@ class TestDirectReferenceRouting(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["esv", "status"]), ["esv", "status"])
         self.assertEqual(preprocess_cli_argv(["gemini", "status"]), ["gemini", "status"])
         self.assertEqual(preprocess_cli_argv(["vector", "status"]), ["vector", "status"])
+        self.assertEqual(preprocess_cli_argv(["issues"]), ["issues"])
+        self.assertEqual(preprocess_cli_argv(["bug"]), ["bug"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])
