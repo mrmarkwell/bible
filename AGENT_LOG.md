@@ -2511,5 +2511,43 @@ This is an append-only log of work performed by autonomous agents during their e
   - GitHub Issue #2 is completely resolved with hermetic regression tests. Pushing commit with `Fixes #2` will close the issue on GitHub.
   - Next task on the roadmap remains Phase 8, **Task 8.4**: *Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`).*
 
+---
+
+## [Run 063] — 2026-09-08
+- **Agent**: Ralph Loop Agent
+- **Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio
+- **Task Addressed**: Task 8.4 — *Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`)*
+- **Context & Objectives**:
+  - Building on `core/persona.py` (ADR-063) which authored the 19 canonical character profiles, TGC theological guardrails, and dynamic scripture grounding, Task 8.4 called for implementing a dedicated command-line interface for the character dialogue studio (`./bible chat`).
+  - Required capabilities:
+    1. Interactive terminal REPL loop with conversation history, bio commands (`/profile`), loaded scripture inspection (`/passages`), and reset (`/reset`).
+    2. Single-shot non-interactive command answering (e.g. `./bible chat paul "Why do you boast in weakness?"`).
+    3. Character discovery and catalog listing (`--list`) across all 19 canonical figures.
+    4. Biographical profile inspection (`--profile`) displaying theological role, lifespan context, Christ-centered orientation, core trials, and grounded scripture citations.
+    5. Real-time Server-Sent Events (SSE) token streaming (`--stream`).
+    6. Formatted JSON output payload mode (`--json`).
+    7. Informative offline fallback when `GEMINI_API_KEY` is not present, printing the character's canonical profile card and scripture references without crashing.
+- **Actions Taken**:
+  - **CLI Command Architecture (`cli/main.py`)**:
+    - Added `chat` subcommand with aliases `persona`, `character`, and `dialogue`.
+    - Added `chat`, `persona`, `character`, `dialogue` to `registered_commands` set in `preprocess_cli_argv` to avoid collision with citation preprocessing.
+    - Implemented `cmd_chat` supporting listing (`--list`), character resolution via `get_persona_definition`, profile inspection (`--profile`), single-turn invocation with message arguments, Server-Sent Events token streaming (`--stream`), scripture display (`--show-scripture`), translation override, and full multi-turn interactive REPL loop.
+    - Handled offline mode gracefully when `GEMINI_API_KEY` is absent, presenting canonical profile card, theological role, human frailty, and grounded scripture citations.
+  - **Hermetic Unit Test Suite (`tests/test_cli.py`)**:
+    - Added 9 unit tests: `test_cli_chat_list`, `test_cli_chat_list_json`, `test_cli_chat_profile`, `test_cli_chat_profile_json`, `test_cli_chat_unknown_character`, `test_cli_chat_offline_fallback`, `test_cli_chat_offline_fallback_json`, `test_cli_chat_mock_generation`, `test_cli_chat_streaming`, and `test_cli_chat_repl_loop`.
+  - **State Machine Synchronization**:
+    - Recorded **ADR-067** in `DECISIONS.md`.
+    - Marked Task 8.4 as `[x]` completed in `ROADMAP.md`.
+    - Promoted Rank A+ idea for Persistent Multi-Turn Character Dialogue Transcripts to `IDEAS.md`.
+- **Verification**:
+  - `./bible test`: **801 tests across 37 modules passed 100% in 2.619s** (305.8 tests/sec, <3.0s SLA).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (67 ADRs registered, 63 sequential runs, 61 roadmap tasks tracked, 0 dependencies, 0 linter errors across 81 files).
+  - `./bible chat --list`: Displays all 19 canonical personas.
+  - `./bible chat paul --profile`: Displays Paul's full theological profile and grounded passages.
+  - `./bible chat paul "Why do you boast in weakness?"`: Graceful offline card printed when unkeyed; mock test verifies online generation and streaming.
+- **Handoff Notes for Next Agent**:
+  - Task 8.4 is 100% complete, verified, and unblocked.
+  - Next task on the roadmap is Phase 8, **Task 8.5**: *Expose REST endpoints in web server (`/api/rag`, `/api/chat/persona`, `/api/characters`) with graceful offline status handling when `GEMINI_API_KEY` is not present.*
+
 
 

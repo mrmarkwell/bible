@@ -2195,3 +2195,40 @@ This document is an append-only log of significant design and architectural deci
   - Tag category styling (`data-category="curation"`) is properly applied to badges.
   - 100% Zero-Dependency compliance maintained (Python 3 stdlib only, zero npm/pip packages).
   - Test suite passes 100% with 791 tests in 2.47s (<2.5s SLA).
+
+---
+
+## ADR-067: CLI Biblical Character Dialogue Studio Engine (`./bible chat`)
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Task 8.4 on the roadmap requires implementing a command-line interface for the Biblical Character Dialogue Studio (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`).
+  - While `core/persona.py` established the foundational character definitions, dynamic scripture citation retrieval, system prompt generation under TGC theological guardrails, and session management (ADR-063), users and automated workflows need a command-line interface for:
+    1. Interactive terminal REPL dialogue sessions with persistent multi-turn history.
+    2. Single-shot non-interactive inquiries (e.g. `./bible chat paul "Why do you boast in weaknesses?"`).
+    3. Real-time Server-Sent Events (SSE) token streaming (`--stream`).
+    4. Persona catalog discovery (`--list`) and deep canonical biographical inspection (`--profile`).
+    5. Machine-readable JSON output for scriptable pipelines (`--json`).
+    6. Informative offline fallback when `GEMINI_API_KEY` is not present, displaying the character's canonical profile, theological role, human frailty, and grounded scripture citations without crashing.
+- **Decision**:
+  1. **Subcommand Registration & Aliases**:
+     - Register `chat` subcommand with aliases `persona`, `character`, and `dialogue` in `cli/main.py`.
+     - Support direct character identifier or name argument (e.g. `paul`, `moses`, `david`, `peter`, `john`, `mary`, `elijah`).
+  2. **Flexible Invocation Modes**:
+     - **Listing (`--list` or no arguments)**: Lists all canonical characters with their ID, canonical name, testament, and historical era.
+     - **Biographical Profile (`--profile`)**: Displays the character's full theological role, lifespan context, Christ-centered orientation, core trials and failures (canonical realism), and loaded scripture grounding texts.
+     - **Single-Turn Unary Mode**: If a question or message is provided as positional arguments, executes a single turn, prints the character's response, and exits with code 0.
+     - **Interactive Multi-Turn REPL**: If no message is provided, opens an interactive prompt (`<id>> `) supporting continuous conversation, session history reset (`/reset`), bio viewing (`/profile`), and loaded scripture inspection (`/passages`).
+  3. **Streaming & Grounding Ergonomics**:
+     - Support `--stream` for real-time token streaming via Gemini API SSE.
+     - Support `--show-scripture` to print the underlying scripture passage texts loaded into the character's context window.
+     - Support `--translation` (defaulting to ESV with WEB fallback) and `--model` overrides.
+  4. **Strict Zero-Dependency Architecture & Graceful Offline Mode**:
+     - Standard library only (`argparse`, `sys`, `json`, `io`) per ADR-003.
+     - When `GEMINI_API_KEY` is not configured, unary invocations return an informative canonical offline profile card with relevant scripture references and guidance to configure the key, exiting with code 1 (or returning structured JSON when `--json` is supplied).
+  5. **Hermetic Unit Test Suite**:
+     - Added 9 comprehensive unit tests in `tests/test_cli.py`: `--list`, `--list --json`, `--profile`, `--profile --json`, unknown character error handling, offline fallback, offline fallback JSON, mock LLM generation with `--show-scripture`, streaming generation, and interactive REPL command loop handling.
+- **Consequences**:
+  - Full CLI character dialogue capability available to users and scripts via `./bible chat`.
+  - 100% Zero-Dependency compliance maintained (Python 3 standard library only).
+  - All 801 unit tests pass in 2.6s (<3.0s SLA).

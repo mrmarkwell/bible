@@ -37,6 +37,19 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Persistent Multi-Turn Character Dialogue Transcripts & Markdown Export (Rank A+)
+- **Summary**: Enhance the Biblical Character Dialogue Studio (`core/persona.py` / `./bible chat`) to support persistent session saving (`--save-session`, `/save`), resuming prior conversations (`--resume <id>`), and exporting dialogues to beautifully formatted Markdown or JSON transcripts (`--export-transcript`).
+- **Rationale**: Currently, interactive terminal REPL conversations exist in ephemeral memory and evaporate when exiting the session. Allowing users and scholars to persist and export their theological dialogues with biblical characters (e.g., discussions with Paul on Romans 8 or Moses on Deuteronomy 18) turns conversations into permanent study notes and devotional study aids.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (saves to local JSON files in `data/sessions/`).
+  - Zero third-party dependencies? Yes (Python standard library `json` and file I/O per ADR-003).
+  - High performance? Yes (<1ms file operations).
+- **Proposed Roadmap Phase**: Phase 8 (Online Scripture RAG & Biblical Character Dialogue Studio).
+- **Suggested Tasks**:
+  - [ ] Implement `DialogueTranscript` serializer and session persistence engine in `core/persona.py`.
+  - [ ] Add CLI flags `--save`, `--resume`, and `--export` to `./bible chat` and `/save` command in REPL.
+  - [ ] Add hermetic unit tests verifying session serialization, persistence, and markdown export.
+
 ### [VETTED] Hierarchical Agent Log Action Parser & Bugfix Archetype Telemetry (Rank A+)
 - **Summary**: Modernize the retrospective reporting and trajectory engine (`tools/executive_summary.py` / `./bible summary`) to perform hierarchical bullet extraction synthesizing bold headings with nested sub-bullets into comprehensive action highlights, recognize dedicated bug triage sprints (`bugfix` archetype), resolve task and phase names cleanly, and eliminate redundant phase prefixes.
 - **Rationale**: Elevates the executive summary briefing from displaying hollow headings (`**Heading**:`) to fully informative summaries of implemented work and metrics across all past iterations, providing accurate trajectory visibility for both humans and autonomous agents.

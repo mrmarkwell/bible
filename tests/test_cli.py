@@ -1206,6 +1206,137 @@ class TestCliExecution(unittest.TestCase):
         out = stdout.getvalue()
         self.assertIn("The temple points to Christ.", out)
 
+    def test_cli_chat_list(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "--list"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Canonical Biblical Character Studio", out)
+        self.assertIn("paul", out)
+        self.assertIn("moses", out)
+        self.assertIn("david", out)
+        self.assertIn("peter", out)
+
+    def test_cli_chat_list_json(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "--list", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        personas = json.loads(stdout.getvalue())
+        self.assertIsInstance(personas, list)
+        self.assertTrue(any(p["id"] == "paul" for p in personas))
+
+    def test_cli_chat_profile(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "paul", "--profile"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Biblical Character Profile: Paul (Apostle)", out)
+        self.assertIn("Theological Role:", out)
+        self.assertIn("Core Trials & Canonical Realism:", out)
+
+    def test_cli_chat_profile_json(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "david", "--profile", "--json"])
+        self.assertEqual(code, 0)
+        import json
+        prof = json.loads(stdout.getvalue())
+        self.assertEqual(prof["id"], "david")
+        self.assertIn("canonical_name", prof)
+        self.assertIn("grounded_passages", prof)
+
+    def test_cli_chat_unknown_character(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "nonexistent_character_xyz"])
+        self.assertEqual(code, 1)
+        err = stderr.getvalue()
+        self.assertIn("Unknown biblical character persona 'nonexistent_character_xyz'", err)
+
+    def test_cli_chat_offline_fallback(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr), patch.dict("os.environ", {}, clear=True):
+            code = main(["--db", str(self.db_path), "chat", "paul", "Why", "boast", "in", "weakness?"])
+        self.assertEqual(code, 1)
+        err = stderr.getvalue()
+        self.assertIn("GEMINI_API_KEY is not configured", err)
+        out = stdout.getvalue()
+        self.assertIn("OFFLINE PERSONA PROFILE: PAUL", out)
+
+    def test_cli_chat_offline_fallback_json(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr), patch.dict("os.environ", {}, clear=True):
+            code = main(["--db", str(self.db_path), "chat", "paul", "Why", "boast?", "--json"])
+        self.assertEqual(code, 1)
+        import json
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["character_id"], "paul")
+        self.assertTrue(data["offline_fallback"])
+        self.assertIn("GEMINI_API_KEY not configured", data["notice"])
+
+    @patch("core.persona.BiblicalPersonaSession.say")
+    @patch("core.llm.get_gemini_api_key")
+    def test_cli_chat_mock_generation(self, mock_key, mock_say):
+        from core.persona import PersonaDialogueResponse
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        mock_say.return_value = PersonaDialogueResponse(
+            character_name="Paul (Apostle)",
+            character_id="paul",
+            text="I boast gladly in my weaknesses, that the power of Christ may rest upon me.",
+            model="gemini-2.5-pro",
+            latency_seconds=0.38,
+            grounded_passages=["2 Corinthians 12:7-10"],
+            turn_count=1,
+            offline_fallback=False,
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "paul", "Why", "boast?", "--show-scripture"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Paul (Apostle):", out)
+        self.assertIn("I boast gladly in my weaknesses", out)
+        self.assertIn("Grounded Scripture Citations", out)
+
+    @patch("core.persona.BiblicalPersonaSession.say_stream")
+    @patch("core.llm.get_gemini_api_key")
+    def test_cli_chat_streaming(self, mock_key, mock_stream):
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        mock_stream.return_value = iter(["Grace ", "to you ", "and peace."])
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "paul", "--stream", "Greetings"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Grace to you and peace.", out)
+
+    @patch("builtins.input", side_effect=["/profile", "/passages", "/reset", "exit"])
+    def test_cli_chat_repl_loop(self, mock_input):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "chat", "moses"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Biblical Character Dialogue Studio — Moses", out)
+        self.assertIn("Theological Role:", out)
+        self.assertIn("Grounded Scripture Citations", out)
+        self.assertIn("Dialogue history reset for Moses.", out)
+        self.assertIn("Exiting dialogue with Moses.", out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@ Provides commands:
   - doctor: Run comprehensive zero-dependency health, dependency, and documentation diagnostics.
   - summary: Generate executive summary and trajectory briefing across recent Ralph iterations.
   - ask: Query Scripture RAG engine with biblical, thematic, or typological inquiries.
+  - chat: Interactive Biblical Character Dialogue Studio (e.g. paul, moses, david, peter).
 """
 
 import argparse
@@ -4890,6 +4891,323 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_ask.set_defaults(func=cmd_ask)
 
+    # -------------------------------------------------------------------------
+    # Subcommand: chat (aliases: persona, character, dialogue)
+    # -------------------------------------------------------------------------
+    parser_chat = subparsers.add_parser(
+        "chat",
+        aliases=["persona", "character", "dialogue"],
+        help="Interactive Biblical Character Dialogue Studio (e.g. paul, moses, david, peter)",
+        description=(
+            "Engage in reverent, TGC-theologically grounded dialogue with canonical biblical "
+            "figures (Moses, David, Isaiah, Paul, Peter, John, etc.). Dynamically grounds character "
+            "knowledge in their canonical scripture citations and preserves canonical realism."
+        ),
+    )
+    parser_chat.add_argument(
+        "character",
+        nargs="?",
+        default=None,
+        help="Biblical character identifier or name (e.g. 'paul', 'moses', 'david', 'peter')",
+    )
+    parser_chat.add_argument(
+        "message",
+        nargs="*",
+        default=[],
+        help="Optional initial question or message to ask the biblical character (omitting starts interactive REPL)",
+    )
+    parser_chat.add_argument(
+        "--list",
+        action="store_true",
+        help="List all canonical biblical character personas available in the studio",
+    )
+    parser_chat.add_argument(
+        "--profile",
+        action="store_true",
+        help="Display full canonical profile, historical context, and key passages for character",
+    )
+    parser_chat.add_argument(
+        "--stream",
+        action="store_true",
+        help="Stream response tokens in real time via Server-Sent Events",
+    )
+    parser_chat.add_argument(
+        "--show-scripture",
+        action="store_true",
+        help="Display grounded Scripture passages loaded into the character's context window",
+    )
+    parser_chat.add_argument(
+        "--translation",
+        default="ESV",
+        help="Preferred scripture translation for grounding passages (default: ESV with WEB fallback)",
+    )
+    parser_chat.add_argument(
+        "--model",
+        default=None,
+        help="Gemini model identifier (defaults to gemini-2.5-pro with gemini-2.0-flash fallback)",
+    )
+    parser_chat.add_argument(
+        "--temperature",
+        type=float,
+        default=0.4,
+        help="Generation temperature (default: 0.4 for reverent consistency)",
+    )
+    parser_chat.add_argument(
+        "--json",
+        action="store_true",
+        help="Output structured JSON payload (response, profile, and grounded passages)",
+    )
+
+    def cmd_chat(args: argparse.Namespace) -> int:
+        from core.db import Database, DEFAULT_DB_PATH
+        from core.persona import (
+            CANONICAL_PERSONAS,
+            BiblicalPersonaSession,
+            create_persona_session,
+            get_persona_definition,
+            list_canonical_personas,
+        )
+        from core.llm import LLMError, get_gemini_api_key
+
+        output_json = getattr(args, "json", False)
+        do_list = getattr(args, "list", False)
+        do_profile = getattr(args, "profile", False)
+        do_stream = getattr(args, "stream", False)
+        show_scripture = getattr(args, "show_scripture", False)
+        target_trans = getattr(args, "translation", "ESV") or "ESV"
+        target_model = getattr(args, "model", None)
+        temperature = getattr(args, "temperature", 0.4)
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[36m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        green = "\033[32m" if color_enabled else ""
+        bold = "\033[1m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        # Listing mode: --list or no character argument provided
+        char_arg = getattr(args, "character", None)
+        if do_list or not char_arg:
+            personas = list_canonical_personas()
+            if output_json:
+                print(json.dumps([p.to_dict() for p in personas], indent=2))
+                return 0
+
+            print(f"\n{gold}{bold}=== Canonical Biblical Character Studio ==={reset}")
+            print(f"{dim}Total Personas: {len(personas)} | Grounded in Canonical Scripture & TGC Guardrails{reset}\n")
+            print(f"{bold}{'ID':<14} {'Canonical Name':<22} {'Testament':<10} {'Era':<32}{reset}")
+            print(f"{dim}{'─'*14} {'─'*22} {'─'*10} {'─'*32}{reset}")
+            for p in personas:
+                print(f"{gold}{p.id:<14}{reset} {bold}{p.canonical_name:<22}{reset} {cyan}{p.testament:<10}{reset} {dim}{p.canonical_era:<32}{reset}")
+            print(f"\n{dim}To chat: ./bible chat <id> [\"your message\"] (e.g. './bible chat paul \"Why do you boast in weakness?\"'){reset}")
+            print(f"{dim}To view profile: ./bible chat <id> --profile{reset}\n")
+            return 0
+
+        # Resolve character persona definition
+        persona_def = get_persona_definition(char_arg)
+        if not persona_def:
+            sys.stderr.write(
+                f"Error: Unknown biblical character persona '{char_arg}'.\n"
+                f"Run './bible chat --list' to view all {len(CANONICAL_PERSONAS)} available characters.\n"
+            )
+            return 1
+
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        db = Database(db_path, auto_init=False) if db_path.exists() else None
+
+        # Instantiate dialogue session
+        kwargs = {
+            "character_identifier": persona_def.id,
+            "db": db,
+            "translation": target_trans,
+        }
+        if target_model:
+            kwargs["model"] = target_model
+        session = create_persona_session(**kwargs)
+        session.temperature = temperature
+
+        # Profile-only inspection mode
+        if do_profile:
+            if output_json:
+                prof_data = persona_def.to_dict()
+                prof_data["grounded_passages"] = [
+                    {
+                        "reference": p.reference,
+                        "translation": p.translation,
+                        "verse_count": p.verse_count,
+                        "text": p.text,
+                    }
+                    for p in session.grounded_passages
+                ]
+                print(json.dumps(prof_data, indent=2))
+                return 0
+
+            print(f"\n{gold}{bold}=== Biblical Character Profile: {persona_def.canonical_name} ==={reset}")
+            print(f"{bold}Canonical Era:{reset} {persona_def.canonical_era} ({persona_def.testament})")
+            print(f"{bold}Theological Role:{reset} {persona_def.theological_role}")
+            print(f"{bold}Lifespan Context:{reset} {persona_def.lifespan_description}")
+            print(f"{bold}Christ-Centered Orientation:{reset} {persona_def.christ_centered_orientation}")
+            print(f"{bold}Speaking Style:{reset} {persona_def.speaking_style}\n")
+            print(f"{bold}Core Trials & Canonical Realism:{reset}")
+            for t in persona_def.core_trials_and_failures:
+                print(f"  {dim}•{reset} {t}")
+            print(f"\n{bold}Canonical Key Passages:{reset} {', '.join(persona_def.key_passages)}")
+            print(f"{dim}Loaded {len(session.grounded_passages)} scripture passage texts into grounding context.{reset}\n")
+
+            if show_scripture:
+                print(f"{gold}{bold}--- Grounded Scripture Texts ---{reset}")
+                for p in session.grounded_passages:
+                    print(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n")
+            return 0
+
+        # Determine user message
+        raw_msg_tokens = getattr(args, "message", []) or []
+        user_msg = " ".join(raw_msg_tokens).strip()
+
+        # Unary single-turn invocation if message provided
+        if user_msg:
+            # Check API key status
+            api_key = get_gemini_api_key()
+            if not api_key:
+                resp = session.say(user_msg)
+                if output_json:
+                    print(json.dumps({
+                        "character": persona_def.canonical_name,
+                        "character_id": persona_def.id,
+                        "query": user_msg,
+                        "response": resp.text,
+                        "offline_fallback": True,
+                        "notice": "GEMINI_API_KEY not configured",
+                    }, indent=2))
+                    return 1
+
+                sys.stderr.write(
+                    f"\n{gold}Notice:{reset} GEMINI_API_KEY is not configured. Displaying canonical offline character card.\n"
+                    f"{dim}To enable AI character dialogue synthesis, set GEMINI_API_KEY in your environment.{reset}\n\n"
+                )
+                print(f"{bold}Inquirer:{reset} {user_msg}\n")
+                print(f"{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
+                return 1
+
+            if do_stream:
+                if not output_json:
+                    print(f"\n{bold}Inquirer:{reset} {user_msg}\n")
+                    print(f"{gold}{bold}{persona_def.canonical_name}:{reset} ", end="", flush=True)
+                streamed = []
+                try:
+                    for chunk in session.say_stream(user_msg):
+                        streamed.append(chunk)
+                        if not output_json:
+                            sys.stdout.write(chunk)
+                            sys.stdout.flush()
+                    if not output_json:
+                        print("\n")
+                except LLMError as exc:
+                    sys.stderr.write(f"\nError during streaming dialogue: {exc}\n")
+                    return 1
+
+                if show_scripture and not output_json:
+                    print(f"{gold}{bold}--- Grounded Scripture Citations ---{reset}")
+                    for p in session.grounded_passages:
+                        print(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n")
+                return 0
+
+            # Unary non-streaming response
+            try:
+                resp = session.say(user_msg)
+            except LLMError as exc:
+                sys.stderr.write(f"Error during character dialogue: {exc}\n")
+                return 1
+
+            if output_json:
+                res_dict = {
+                    "character": resp.character_name,
+                    "character_id": resp.character_id,
+                    "query": user_msg,
+                    "response": resp.text,
+                    "model": resp.model,
+                    "turn_count": resp.turn_count,
+                    "offline_fallback": resp.offline_fallback,
+                    "grounded_passages": resp.grounded_passages,
+                }
+                print(json.dumps(res_dict, indent=2))
+                return 0
+
+            print(f"\n{bold}Inquirer:{reset} {user_msg}\n")
+            print(f"{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
+            print(f"{dim}[Model: {resp.model} | Latency: {resp.latency_seconds:.2f}s | Grounded Citations: {len(resp.grounded_passages)}]{reset}\n")
+
+            if show_scripture:
+                print(f"{gold}{bold}--- Grounded Scripture Citations ---{reset}")
+                for p in session.grounded_passages:
+                    print(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n")
+            return 0
+
+        # Interactive multi-turn REPL loop
+        has_key = session.llm_client.is_available()
+        print(f"\n{gold}{bold}╔════════════════════════════════════════════════════════════════════════════════╗{reset}")
+        print(f"{gold}{bold}║     Biblical Character Dialogue Studio — {persona_def.canonical_name:<37} ║{reset}")
+        print(f"{gold}{bold}╚════════════════════════════════════════════════════════════════════════════════╝{reset}")
+        print(f"{dim}Era: {persona_def.canonical_era} | Scripture Citations: {len(session.grounded_passages)} passages loaded{reset}")
+        if has_key:
+            print(f"{green}Engine: Online AI Active ({session.model}){reset}")
+        else:
+            print(f"{gold}Engine: Offline Mode (Set GEMINI_API_KEY for dynamic dialogue){reset}")
+        print(f"{dim}Commands: '/profile' (view bio), '/passages' (view scripture), '/reset' (clear history), 'exit' / Ctrl+D (quit){reset}\n")
+
+        prompt_str = f"{gold}{persona_def.id}> {reset}"
+        while True:
+            try:
+                line = input(prompt_str).strip()
+            except (EOFError, KeyboardInterrupt):
+                print(f"\n{dim}Exiting dialogue with {persona_def.canonical_name}. Grace and peace.{reset}\n")
+                break
+
+            if not line:
+                continue
+
+            cmd_lower = line.lower()
+            if cmd_lower in ("exit", "quit", ":q"):
+                print(f"\n{dim}Exiting dialogue with {persona_def.canonical_name}. Grace and peace.{reset}\n")
+                break
+            if cmd_lower == "/reset":
+                session.reset()
+                print(f"{dim}Dialogue history reset for {persona_def.canonical_name}.{reset}\n")
+                continue
+            if cmd_lower in ("/profile", "/bio"):
+                print(f"\n{bold}Theological Role:{reset} {persona_def.theological_role}")
+                print(f"{bold}Lifespan Context:{reset} {persona_def.lifespan_description}")
+                print(f"{bold}Christ-Centered Orientation:{reset} {persona_def.christ_centered_orientation}\n")
+                continue
+            if cmd_lower in ("/passages", "/scripture"):
+                print(f"\n{gold}{bold}--- Grounded Scripture Citations ({len(session.grounded_passages)}) ---{reset}")
+                for p in session.grounded_passages:
+                    print(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n")
+                continue
+            if cmd_lower.startswith("/"):
+                print(f"{dim}Available commands: /profile, /passages, /reset, exit{reset}\n")
+                continue
+
+            # Process dialogue turn
+            if do_stream and has_key:
+                print(f"\n{gold}{bold}{persona_def.canonical_name}:{reset} ", end="", flush=True)
+                for chunk in session.say_stream(line):
+                    sys.stdout.write(chunk)
+                    sys.stdout.flush()
+                print("\n")
+            else:
+                resp = session.say(line)
+                print(f"\n{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
+
+        return 0
+
+    parser_chat.set_defaults(func=cmd_chat)
+
     return parser
 
 
@@ -4929,6 +5247,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "build-semantic", "compile-semantic", "build-db",
         "issues", "bug", "bugs",
         "ask", "rag", "inquiry",
+        "chat", "persona", "character", "dialogue",
     }
 
     pos_idx = -1
