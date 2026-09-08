@@ -338,6 +338,82 @@ class TestShell(unittest.TestCase):
         val = out.getvalue()
         self.assertIn("In the beginning, God created.", val)
 
+    def test_shell_characters_list(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_characters("")
+        val = out.getvalue()
+        self.assertIn("Canonical Biblical Character Studio", val)
+        self.assertIn("paul", val)
+        self.assertIn("moses", val)
+        self.assertIn("david", val)
+
+    def test_shell_chat_unknown_persona(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_chat("unknown_hero")
+        val = out.getvalue()
+        self.assertIn("Unknown biblical character persona 'unknown_hero'", val)
+
+    def test_shell_chat_profile_and_passages(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_persona("paul --profile")
+        val = out.getvalue()
+        self.assertIn("Biblical Character Profile: Paul", val)
+        self.assertIn("Theological Role:", val)
+        self.assertIn("Speaking Style:", val)
+
+        out_pass = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out_pass) as sh:
+            sh.do_chat("paul --passages")
+        val_pass = out_pass.getvalue()
+        self.assertIn("Grounded Scripture Passages: Paul", val_pass)
+
+    @patch("core.llm.get_gemini_api_key")
+    def test_shell_chat_offline_fallback(self, mock_key):
+        mock_key.return_value = ""
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_chat("paul Why do you boast in weakness?")
+        val = out.getvalue()
+        self.assertIn("GEMINI_API_KEY is not configured", val)
+        self.assertIn("Canonical Persona Offline Card: Paul", val)
+
+    def test_shell_chat_set_active_and_exit(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_chat("paul")
+            self.assertEqual(sh._active_persona_id, "paul")
+            self.assertIn("paul", sh.prompt)
+            sh.do_chat("reset")
+            val = out.getvalue()
+            self.assertIn("Active character set to: Paul", val)
+            self.assertIn("Reset dialogue history", val)
+            sh.do_chat("exit")
+            self.assertIsNone(sh._active_persona_id)
+            self.assertNotIn(":paul", sh.prompt)
+
+    def test_shell_complete_chat(self):
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=io.StringIO()) as sh:
+            completions = sh.complete_chat("pau", "pau", 0, 3)
+            self.assertIn("paul", completions)
+            flags = sh.complete_chat("--pro", "--pro", 0, 5)
+            self.assertIn("--profile", flags)
+            resets = sh.complete_chat("res", "res", 0, 3)
+            self.assertIn("reset", resets)
+
+    @patch("core.llm.get_gemini_api_key")
+    def test_shell_chat_streaming(self, mock_key):
+        mock_key.return_value = "AIzaSyFakeKeyTest12345"
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            session = sh._get_persona_session("paul")
+            with patch.object(session, "say_stream", return_value=iter(["I boast ", "in Christ alone."])):
+                sh.do_chat("paul What is your boast?")
+        val = out.getvalue()
+        self.assertIn("Paul (Apostle): I boast in Christ alone.", val)
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""

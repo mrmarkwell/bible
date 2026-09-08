@@ -19,6 +19,7 @@ from tools.doctor import (
     check_git_hooks,
     check_ci_workflows,
     check_code_quality,
+    check_module_test_symmetry,
     check_database_integrity,
     check_unit_tests,
     install_hooks,
@@ -137,7 +138,7 @@ class TestDoctorChecks(unittest.TestCase):
              patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 6)
+            self.assertEqual(len(results), 7)
             names = [r.name for r in results]
             self.assertIn("Zero External Dependencies (AST Audit)", names)
             self.assertIn("Documentation State Sync", names)
@@ -145,6 +146,7 @@ class TestDoctorChecks(unittest.TestCase):
             self.assertIn("Git Hook Safeguards", names)
             self.assertIn("CI/CD Automation & GitHub Actions", names)
             self.assertIn("Code Quality (Static Linter Audit)", names)
+            self.assertIn("Module-Test Suite Symmetry", names)
             self.assertNotIn("Hermetic Test Suite", names)
 
     def test_run_all_checks_quiet_and_stream(self):
@@ -166,9 +168,14 @@ class TestDoctorChecks(unittest.TestCase):
              patch("tools.doctor.check_unit_tests", return_value=CheckResult("Hermetic Test Suite", True, "Mock tests passing", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, quiet=True)
             self.assertEqual(code, 0)
-            self.assertEqual(len(results), 8)
+            self.assertEqual(len(results), 9)
             for r in results:
                 self.assertTrue(r.passed, f"Check {r.name} failed: {r.details}")
+
+    def test_check_module_test_symmetry(self):
+        res = check_module_test_symmetry(REPO_ROOT)
+        self.assertTrue(res.passed, f"Module-Test symmetry failed: {res.details}")
+        self.assertIn("Verified", res.details)
 
     def test_check_code_quality_clean(self):
         res = check_code_quality(REPO_ROOT)

@@ -241,11 +241,17 @@ class ASTSmellAuditor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
+        parts = [node.attr]
         curr = node.value
         while isinstance(curr, ast.Attribute):
+            parts.append(curr.attr)
             curr = curr.value
         if isinstance(curr, ast.Name):
+            parts.append(curr.id)
             self.used_symbols.add(curr.id)
+            rev = list(reversed(parts))
+            for i in range(1, len(rev)):
+                self.used_symbols.add(".".join(rev[:i + 1]))
         self.generic_visit(node)
 
     def visit_Dict(self, node: ast.Dict) -> None:
@@ -341,7 +347,8 @@ class ASTSmellAuditor(ast.NodeVisitor):
         for name, (lineno, col, full_orig) in self.imported_symbols.items():
             if name.startswith("_"):
                 continue
-            if name not in self.used_symbols:
+            root_name = name.split(".")[0]
+            if name not in self.used_symbols and root_name not in self.used_symbols:
                 self.issues.append(
                     LintIssue(
                         code="W201",

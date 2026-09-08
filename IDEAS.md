@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Sovereign Interactive REPL Persona Studio, Module-Test Symmetry Sentry, and Static Hygiene Pruning (Rank A+)
+- **Summary**: Implement interactive biblical character dialogue capabilities (`/chat`, `/persona`, `/characters`) directly into the sovereign interactive study REPL console (`cli/shell.py`), create a dedicated hermetic unit test suite for `tools/ci.py` (`tests/test_ci.py`), add an automated Module-Test Symmetry diagnostic to `tools/doctor.py`, fix dotted import resolution in `tools/linter.py`, and modernize the GitHub Actions CI matrix to include Python 3.13.
+- **Rationale**: Achieves complete capability parity between CLI and interactive REPL, ensuring scholars and readers can converse with all 19 canonical personas in the interactive shell. Eliminates the repository's single untested production tool (`tools/ci.py`), enforces test symmetry so no orphaned tools can slip in, eliminates linter false positives, and ensures Python 3.13 CI coverage.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (instant canonical offline profile card fallback in unkeyed environments).
+  - Zero third-party dependencies? Yes (Python standard library only per ADR-003).
+  - High performance? Yes (symmetry check <0.15s, REPL character dialogues instant).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.23 / ADR-069).
+- **Status**: Implemented via ADR-069 and Task 0.23.
+
 ### [VETTED] Real-Time Server-Sent Events (SSE) Streaming for Web Studio (`/api/chat/stream` & `/api/rag/stream`) (Rank A+)
 - **Summary**: Expose HTTP Server-Sent Events (`text/event-stream`) endpoints in `web/server.py` (`/api/chat/stream` and `/api/rag/stream`) connecting directly to `BiblicalPersonaSession.say_stream()` and `GeminiClient.generate_stream()` to deliver real-time token streaming to the browser.
 - **Rationale**: While unary REST endpoints (`/api/chat/persona` and `/api/rag`) return complete JSON responses after full LLM generation completes, complex theological questions can take 2–5 seconds to fully synthesize. Real-time token streaming provides an instant, responsive "typewriter" experience in the upcoming Web UI (Task 8.6), reducing perceived latency to under 200ms.

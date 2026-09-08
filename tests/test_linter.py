@@ -193,6 +193,18 @@ class TestFileAndRepoLinting(unittest.TestCase):
         self.assertTrue(data["success"])
         self.assertEqual(data["total_errors"], 0)
 
+    def test_linter_dotted_module_import_recognized(self):
+        source = (
+            "import http.server\n"
+            "import urllib.request\n"
+            "class MyHandler(http.server.BaseHTTPRequestHandler):\n"
+            "    def handle(self):\n"
+            "        req = urllib.request.Request('http://localhost')\n"
+        )
+        issues, _, _ = lint_source_text(source, Path("dummy.py"), "dummy.py")
+        w201_issues = [i for i in issues if i.code == "W201"]
+        self.assertEqual(len(w201_issues), 0, f"Expected 0 unused import warnings, got: {w201_issues}")
+
 
 if __name__ == "__main__":
     unittest.main()

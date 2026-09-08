@@ -15,12 +15,11 @@ Verifies:
 
 import io
 import json
-from pathlib import Path
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import urllib.error
 import urllib.request
 

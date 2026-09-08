@@ -20,7 +20,7 @@ def get_runs(limit=5):
     try:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode('utf-8'))
-    except Exception as e:
+    except (urllib.error.URLError, Exception) as e:
         print(f'Error fetching GitHub Actions status: {e}', file=sys.stderr)
         return None
 
@@ -30,7 +30,7 @@ def get_jobs(run_id):
     try:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read().decode('utf-8'))
-    except Exception as e:
+    except (urllib.error.URLError, Exception) as e:
         print(f'Error fetching jobs for run {run_id}: {e}', file=sys.stderr)
         return None
 

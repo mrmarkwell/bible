@@ -462,6 +462,84 @@ def check_code_quality(repo_root: Path, fix: bool = False) -> CheckResult:
     )
 
 
+def check_module_test_symmetry(repo_root: Path) -> CheckResult:
+    """Verify that every first-party production module has test suite symmetry and valid test cases.
+
+    Zero external dependencies (AST inspection only per ADR-003).
+    Ensures zero untested or orphaned tools/modules across core/, cli/, tools/, and web/.
+    """
+    t0 = time.time()
+    issues: List[str] = []
+    tests_dir = repo_root / "tests"
+
+    if not tests_dir.is_dir():
+        return CheckResult("Module-Test Suite Symmetry", False, "Missing tests directory", time.time() - t0)
+
+    test_files = sorted(tests_dir.glob("test_*.py"))
+    if not test_files:
+        return CheckResult("Module-Test Suite Symmetry", False, "No test_*.py files found in tests directory", time.time() - t0)
+
+    total_test_methods = 0
+    test_suite_names = set()
+    for tf in test_files:
+        test_suite_names.add(tf.stem)
+        try:
+            tree = ast.parse(tf.read_text(encoding="utf-8"), filename=str(tf))
+        except Exception as exc:
+            issues.append(f"{tf.name}: AST parse error: {exc}")
+            continue
+
+        methods_in_file = 0
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                methods_in_file += 1
+        if methods_in_file == 0:
+            issues.append(f"{tf.name}: contains no 'test_*' methods")
+        total_test_methods += methods_in_file
+
+    target_dirs = ["core", "cli", "tools", "web"]
+    production_modules = []
+    for d in target_dirs:
+        dir_path = repo_root / d
+        if not dir_path.is_dir():
+            continue
+        for py in sorted(dir_path.glob("*.py")):
+            if py.name == "__init__.py" or py.stem.startswith("_"):
+                continue
+            production_modules.append(py)
+
+    composite_map = {
+        "build_semantic_db": ["test_semantic_compiler", "test_semantic_audit"],
+        "audit_semantic": ["test_semantic_audit"],
+        "tag_generator": ["test_tags", "test_tag_prompts"],
+        "ingest_favorites": ["test_favorites"],
+        "ingest_web": ["test_ingest"],
+        "main": ["test_cli"],
+        "server": ["test_server"],
+    }
+
+    for mod in production_modules:
+        stem = mod.stem
+        direct_test = f"test_{stem}"
+        if direct_test in test_suite_names:
+            continue
+        if stem in composite_map:
+            if any(mapped_suite in test_suite_names for mapped_suite in composite_map[stem]):
+                continue
+        issues.append(f"Production module '{mod.relative_to(repo_root)}' lacks corresponding test suite in tests/")
+
+    dur = time.time() - t0
+    if issues:
+        return CheckResult("Module-Test Suite Symmetry", False, "\n  ".join(issues), dur)
+
+    return CheckResult(
+        "Module-Test Suite Symmetry",
+        True,
+        f"Verified {len(production_modules)} production modules across core/, cli/, tools/, web/ mapped to {len(test_files)} hermetic test suites ({total_test_methods} test cases)",
+        dur,
+    )
+
+
 def check_database_integrity(repo_root: Path, fix: bool = False) -> CheckResult:
     """Verify bundled SQLite scripture database existence, schema integrity, and semantic tables."""
     t0 = time.time()
@@ -855,6 +933,13 @@ def run_all_checks(
 
     # 6. Code Quality & Static Analysis
     res = check_code_quality(root, fix=fix)
+    results.append(res)
+    _emit_check(res, styler, emit)
+    if not res.passed:
+        failed = True
+
+    # 7. Module-Test Suite Symmetry
+    res = check_module_test_symmetry(root)
     results.append(res)
     _emit_check(res, styler, emit)
     if not res.passed:

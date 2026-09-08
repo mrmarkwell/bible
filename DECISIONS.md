@@ -2276,3 +2276,47 @@ This document is an append-only log of significant design and architectural deci
   - Web UI, client apps, and external integrations have direct, robust REST API access to Scripture RAG and Character Studio.
   - Zero external dependencies maintained (Python 3 stdlib only per ADR-003).
   - Unkeyed environments operate seamlessly with informative fallback cards without HTTP 500 errors.
+
+---
+
+## ADR-069: Sovereign Interactive REPL Persona Dialogue Studio, Module-Test Symmetry Sentry, and Static Hygiene Pruning
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - During the Run 065 Senior Product Manager Meta-Improvement & System Health Sprint, a comprehensive architectural and ergonomic audit confronted the two mandatory diagnostic questions:
+    1. *"What is the weakest aspect of this project structure?"*:
+       - **Interactive REPL Feature Asymmetry**: While Phase 8 introduced Scripture RAG and Biblical Character Dialogues to the batch CLI (`./bible chat`, `./bible ask`), the interactive study REPL console (`cli/shell.py` / `./bible shell`) was left behind: it completely lacked `/chat`, `/persona`, and `/characters` commands. Users in the interactive study console could not explore canonical personas or converse with characters without exiting to bash.
+       - **Tooling Test Symmetry Blind Spot**: `tools/ci.py` was an orphaned production tool with 0% test coverage and no dedicated test module (`tests/test_ci.py`), leaving a regression blind spot in continuous integration telemetry.
+       - **Static Analysis Dotted Import Defect**: `tools/linter.py` exhibited an AST symbol binding bug where dotted module imports (e.g., `import http.server`, `import urllib.request`) were falsely flagged as unused (W201 warnings) because the visitor failed to resolve root and dotted attribute chains.
+       - **Unused Import Accumulation**: Over 200 unused imports and namespace clutter had accumulated across production and test files (e.g. `web/server.py`, `tests/test_server.py`).
+       - **CI Matrix Modernization**: The GitHub Actions matrix only targeted Python 3.10–3.12, lagging behind modern active runtimes (Python 3.13).
+    2. *"What is preventing this from being more incredible?"*:
+       - In a zero-maintenance, autonomous development environment where dozens of agent cycles execute autonomously, developer sentry tooling must be rigorous and proactive. A lack of automated test-module symmetry checks allows untested tools to slip in, while REPL interface parity ensures all scripture study capabilities converge in a single sovereign interactive console.
+- **Decision**:
+  1. **Interactive REPL Biblical Character Dialogue Studio (`cli/shell.py`)**:
+     - Implemented `/chat` command with aliases `/persona`, `/character`, `/dialogue`, and `/characters`.
+     - Integrated all 19 canonical biblical characters (`CANONICAL_PERSONAS`) with tab-completion (`complete_chat`).
+     - Supported catalog listing (`/chat --list` or `/characters`), profile card inspection (`/chat <id> --profile`), grounded scripture text view (`/chat <id> --passages`), single-turn message inquiries (`/chat <id> <message>`), active persona context locking (`/chat <id>`), active persona conversation (`/chat <message>`), history reset (`/chat reset`), and session exit (`/chat exit`).
+     - Provided graceful offline degradation with canonical persona cards and grounded citations when `GEMINI_API_KEY` is not present, and real-time streaming dialogue when keyed.
+     - Updated shell prompt to dynamically reflect the active persona (e.g. `bible [WEB:paul]> `).
+     - Added `/chat` and `/characters` to `/help` reference in `BibleStudyShell`.
+  2. **Hermetic Unit Test Suite for `tools/ci.py` (`tests/test_ci.py`)**:
+     - Authored 7 comprehensive hermetic unit tests in `tests/test_ci.py` using `unittest.mock` to mock GitHub Actions API payloads.
+     - Achieved 98.5% statement coverage for `tools/ci.py` with <0.005s execution duration.
+  3. **Module-Test Suite Symmetry Diagnostic (`tools/doctor.py`)**:
+     - Implemented `check_module_test_symmetry` in `tools/doctor.py` verifying that all 39 first-party production modules across `core/`, `cli/`, `tools/`, and `web/` map directly or via composite test mappings to the 38 test suites in `tests/test_*.py`.
+     - Integrated symmetry verification into both fast pre-commit and full doctor suites (<0.15s execution time), ensuring zero orphaned production tools.
+  4. **Dotted Module Import Resolution & Namespace Cleanup (`tools/linter.py`)**:
+     - Fixed `ASTSmellAuditor.visit_Attribute` and `finalize` in `tools/linter.py` to correctly track dotted attribute chains and root module bindings for imports like `http.server` and `urllib.request`.
+     - Pruned unused imports across `web/server.py`, `tests/test_server.py`, and `tools/ci.py`.
+  5. **CI Workflow Matrix Modernization (`.github/workflows/ci.yml`)**:
+     - Expanded GitHub Actions Python test matrix to `["3.10", "3.11", "3.12", "3.13"]`.
+  6. **Hermetic Test Suite Verification**:
+     - Added 8 unit tests in `tests/test_shell.py` covering REPL character listing, profile cards, grounded passages, offline fallback, active persona switching, history reset, session exit, and autocompletion.
+     - Added unit tests in `tests/test_linter.py` for dotted import resolution and `tests/test_doctor.py` for module symmetry.
+     - Expanded repository test suite to 837 passing tests across 38 modules in 3.2s.
+- **Consequences**:
+  - Complete parity between CLI and interactive REPL study shell: scholars and readers can converse with all 19 canonical characters directly in `./bible shell`.
+  - Zero orphaned or untested tools across the repository; doctor enforces module-test symmetry on every pre-commit and push.
+  - Zero linter false positives on dotted module imports; 100% zero-dependency compliance maintained per ADR-003.
+

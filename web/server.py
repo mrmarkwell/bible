@@ -9,54 +9,36 @@ Provides:
   - CORS headers for local API integration and development.
 """
 
-from contextlib import contextmanager
-from dataclasses import asdict
 import http.server
 import json
 import mimetypes
 from pathlib import Path
-import re
-import socketserver
 import sys
 import threading
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 import urllib.parse
 import webbrowser
 
-from core.arcs import ArcTheme, build_arc_network
+from core.arcs import build_arc_network
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database, PericopeRecord
-from core.llm import (
-    DEFAULT_GEMINI_MODEL,
-    ChatMessage,
-    GeminiClient,
-    LLMAuthError,
-    LLMError,
-)
+from core.llm import DEFAULT_GEMINI_MODEL, ChatMessage, GeminiClient
 from core.pericopes import PericopeService
 from core.persona import (
     CANONICAL_PERSONAS,
     BiblicalPersonaSession,
-    CharacterPersonaDefinition,
     get_persona_definition,
     list_canonical_personas,
     load_character_scripture_passages,
 )
-from core.rag import (
-    RAGContextWindow,
-    RAGResponse,
-    ScriptureRAGEngine,
-    get_rag_engine,
-)
+from core.rag import get_rag_engine
 from core.reference import (
     ALL_BOOKS,
-    Book,
-    Reference,
     get_book,
     parse_reference,
     verse_canonical_id,
 )
-from core.tags import ChapterTopicDensity, TaggingService
+from core.tags import TaggingService
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080

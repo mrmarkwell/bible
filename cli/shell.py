@@ -87,6 +87,10 @@ class BibleShell(cmd.Cmd):
         self._server: Optional[Any] = None
         self._server_thread: Optional[Any] = None
 
+        # Canonical biblical persona dialogue tracking
+        self._persona_sessions: Dict[str, Any] = {}
+        self._active_persona_id: Optional[str] = None
+
     def _init_db(self) -> None:
         """Initialize or reopen SQLite database connection."""
         if self.db is not None and getattr(self, "_owns_database", True):
@@ -95,8 +99,10 @@ class BibleShell(cmd.Cmd):
         self._owns_database = True
 
     def _update_prompt(self) -> None:
-        """Update prompt with current translation and color styling."""
+        """Update prompt with current translation, active persona, and color styling."""
         v_tag = f"[{self.translation_id}]"
+        if getattr(self, "_active_persona_id", None):
+            v_tag = f"[{self.translation_id}:{self._active_persona_id}]"
         if self.use_color and self.theme != "plain":
             self.prompt = f"\033[1;33mbible\033[0m \033[2m{v_tag}\033[0m> "
         else:
@@ -2138,6 +2144,196 @@ class BibleShell(cmd.Cmd):
 
     complete_rag = complete_ask
 
+    def _get_persona_session(self, character_id: str):
+        """Retrieve or create a BiblicalPersonaSession for the given character."""
+        if character_id not in self._persona_sessions:
+            from core.persona import create_persona_session
+            session = create_persona_session(
+                character_identifier=character_id,
+                db=self.db,
+                translation=self.translation_id,
+            )
+            self._persona_sessions[character_id] = session
+        return self._persona_sessions[character_id]
+
+    def do_chat(self, arg: str) -> None:
+        """Converse with canonical biblical characters (aliases: /persona, /character, /dialogue).
+
+        Usage:
+          /chat                         List all 19 canonical characters (alias: /characters)
+          /chat --list                  List all available character personas
+          /chat <id>                    Set active character (e.g. /chat paul)
+          /chat <id> --profile          View full canonical character profile & theological role
+          /chat <id> --passages         View grounded scripture texts for character
+          /chat <id> <message>          Converse with character (e.g. /chat paul Why do you boast in weakness?)
+          /chat <message>               Converse with active character
+          /chat reset                   Reset dialogue history for active character
+          /chat exit                    Exit active character session
+        """
+        if self.db is None:
+            self._init_db()
+
+        from core.persona import (
+            CANONICAL_PERSONAS,
+            get_persona_definition,
+            list_canonical_personas,
+        )
+        from core.llm import LLMError, get_gemini_api_key
+
+        gold = "\033[1;33m" if self.use_color else ""
+        cyan = "\033[36m" if self.use_color else ""
+        dim = "\033[2m" if self.use_color else ""
+        green = "\033[32m" if self.use_color else ""
+        bold = "\033[1m" if self.use_color else ""
+        reset = "\033[0m" if self.use_color else ""
+
+        tokens = arg.strip().split()
+        if not tokens or tokens[0] in ("--list", "-l", "list"):
+            personas = list_canonical_personas()
+            self.stdout.write(f"\n{gold}{bold}=== Canonical Biblical Character Studio ==={reset}\n")
+            self.stdout.write(f"{dim}Total Personas: {len(personas)} | Grounded in Canonical Scripture & TGC Guardrails{reset}\n\n")
+            self.stdout.write(f"{bold}{'ID':<14} {'Canonical Name':<22} {'Testament':<10} {'Era':<32}{reset}\n")
+            self.stdout.write(f"{dim}{'─'*14} {'─'*22} {'─'*10} {'─'*32}{reset}\n")
+            for p in personas:
+                self.stdout.write(f"{gold}{p.id:<14}{reset} {bold}{p.canonical_name:<22}{reset} {cyan}{p.testament:<10}{reset} {dim}{p.canonical_era:<32}{reset}\n")
+            self.stdout.write(f"\n{dim}To chat: /chat <id> [message] (e.g. '/chat paul Why do you boast in weakness?'){reset}\n")
+            self.stdout.write(f"{dim}To view profile: /chat <id> --profile (or /persona <id>){reset}\n\n")
+            return
+
+        first = tokens[0].lower()
+
+        if first in ("reset", "--reset"):
+            if self._active_persona_id:
+                if self._active_persona_id in self._persona_sessions:
+                    self._persona_sessions[self._active_persona_id].history.clear()
+                self.stdout.write(f"Reset dialogue history for active character '{self._active_persona_id}'.\n")
+            else:
+                self.stdout.write("No active character session to reset.\n")
+            return
+
+        if first in ("exit", "quit", "leave", "clear", "--clear"):
+            if self._active_persona_id:
+                old = self._active_persona_id
+                self._active_persona_id = None
+                self._update_prompt()
+                self.stdout.write(f"Exited character session '{old}'. Active prompt restored.\n")
+            else:
+                self.stdout.write("No active character session.\n")
+            return
+
+        persona_def = get_persona_definition(first)
+        char_id = None
+        user_msg = ""
+        do_profile = False
+        do_passages = False
+
+        if persona_def:
+            char_id = persona_def.id
+            rest_tokens = tokens[1:]
+            if not rest_tokens:
+                self._active_persona_id = char_id
+                self._update_prompt()
+                session = self._get_persona_session(char_id)
+                self.stdout.write(f"\n{gold}Active character set to: {bold}{persona_def.canonical_name}{reset} ({persona_def.canonical_era})\n")
+                self.stdout.write(f"{dim}Theological Role: {persona_def.theological_role}{reset}\n")
+                self.stdout.write(f"{dim}Type your messages: /chat <your message> | To exit: /chat exit{reset}\n\n")
+                return
+            if "--profile" in rest_tokens or "-p" in rest_tokens:
+                do_profile = True
+            elif "--passages" in rest_tokens or "--scripture" in rest_tokens:
+                do_passages = True
+            else:
+                user_msg = " ".join(rest_tokens).strip()
+        else:
+            if self._active_persona_id:
+                persona_def = get_persona_definition(self._active_persona_id)
+                char_id = self._active_persona_id
+                if "--profile" in tokens or "-p" in tokens:
+                    do_profile = True
+                elif "--passages" in tokens or "--scripture" in tokens:
+                    do_passages = True
+                else:
+                    user_msg = arg.strip()
+            else:
+                self.stdout.write(
+                    f"Error: Unknown biblical character persona '{tokens[0]}'.\n"
+                    f"Type '/chat --list' to see all {len(CANONICAL_PERSONAS)} canonical personas.\n"
+                )
+                return
+
+        session = self._get_persona_session(char_id)
+
+        if do_profile:
+            self.stdout.write(f"\n{gold}{bold}=== Biblical Character Profile: {persona_def.canonical_name} ==={reset}\n")
+            self.stdout.write(f"{bold}Canonical Era:{reset} {persona_def.canonical_era} ({persona_def.testament})\n")
+            self.stdout.write(f"{bold}Theological Role:{reset} {persona_def.theological_role}\n")
+            self.stdout.write(f"{bold}Lifespan Context:{reset} {persona_def.lifespan_description}\n")
+            self.stdout.write(f"{bold}Christ-Centered Orientation:{reset} {persona_def.christ_centered_orientation}\n")
+            self.stdout.write(f"{bold}Speaking Style:{reset} {persona_def.speaking_style}\n\n")
+            self.stdout.write(f"{bold}Core Trials & Canonical Realism:{reset}\n")
+            for t in persona_def.core_trials_and_failures:
+                self.stdout.write(f"  {dim}•{reset} {t}\n")
+            self.stdout.write(f"\n{bold}Key Grounded Passages:{reset} {', '.join(persona_def.key_passages)}\n")
+            self.stdout.write(f"{dim}Loaded {len(session.grounded_passages)} scripture passage texts into grounding context.{reset}\n\n")
+            return
+
+        if do_passages:
+            self.stdout.write(f"\n{gold}{bold}=== Grounded Scripture Passages: {persona_def.canonical_name} ==={reset}\n")
+            for p in session.grounded_passages:
+                self.stdout.write(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n\n")
+            return
+
+        if not user_msg:
+            self.stdout.write(f"Usage: /chat {char_id} <message>\n")
+            return
+
+        api_key = get_gemini_api_key()
+        if not api_key:
+            self.stdout.write(
+                f"\n{gold}Notice:{reset} GEMINI_API_KEY is not configured in environment.\n"
+                f"{dim}Displaying canonical profile context and grounded scriptures for {persona_def.canonical_name}.{reset}\n\n"
+            )
+            self.stdout.write(f"{gold}{bold}=== Canonical Persona Offline Card: {persona_def.canonical_name} ==={reset}\n")
+            self.stdout.write(f"{bold}Era:{reset} {persona_def.canonical_era} ({persona_def.testament})\n")
+            self.stdout.write(f"{bold}Theological Role:{reset} {persona_def.theological_role}\n")
+            self.stdout.write(f"{bold}Christ-Centered Focus:{reset} {persona_def.christ_centered_orientation}\n\n")
+            self.stdout.write(f"{gold}{bold}Grounded Scriptures:{reset}\n")
+            for p in session.grounded_passages[:3]:
+                self.stdout.write(f"  {gold}[{p.reference}]{reset} {dim}{p.text[:120]}...{reset}\n")
+            self.stdout.write(f"\n{dim}To enable live AI dialogue, export GEMINI_API_KEY=\"your_key_here\".{reset}\n\n")
+            return
+
+        self.stdout.write(f"\n{dim}Speaking with {persona_def.canonical_name}...{reset}\n\n")
+        self.stdout.write(f"{gold}{bold}{persona_def.canonical_name}:{reset} ")
+        self.stdout.flush()
+
+        try:
+            for chunk in session.say_stream(user_msg):
+                if chunk:
+                    self.stdout.write(chunk)
+                    self.stdout.flush()
+            self.stdout.write("\n\n")
+        except LLMError as exc:
+            self.stdout.write(f"\nError during character generation: {exc}\n\n")
+
+    do_persona = do_chat
+    do_character = do_chat
+    do_dialogue = do_chat
+
+    def do_characters(self, arg: str) -> None:
+        """List canonical biblical characters."""
+        self.do_chat("--list")
+
+    def complete_chat(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /chat, /persona, /character commands."""
+        from core.persona import CANONICAL_PERSONAS
+        candidates = [p.id for p in CANONICAL_PERSONAS] + ["--list", "--profile", "--passages", "reset", "exit"]
+        return [c for c in candidates if c.startswith(text.lower())]
+
+    complete_persona = complete_chat
+    complete_character = complete_chat
+    complete_dialogue = complete_chat
+
     def do_summary(self, arg: str) -> None:
         """Generate executive summary and trajectory report."""
         from tools.executive_summary import generate_summary, format_markdown_report
@@ -2531,6 +2727,8 @@ Study & Search:
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)
   /ask <query> [options]  Query Scripture RAG engine with biblical inquiries (alias: /rag)
+  /chat [id] [message]    Canonical Biblical Character Dialogue Studio (aliases: /persona, /character)
+  /characters             List all 19 canonical biblical characters and theological roles
   /issues [command]       Inspect and triage GitHub issues & bug reports (aliases: /bug, /bugs)
 
 Session Settings:
