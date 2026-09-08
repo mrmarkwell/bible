@@ -243,11 +243,13 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             verse_items = []
             for v in verses:
                 cid = v.canonical_verse_id or 0
-                matching_tags = [
-                    t.tag_name
-                    for t in tags
-                    if t.start_canonical_id <= cid <= t.end_canonical_id
-                ]
+                matching_tags = list(
+                    dict.fromkeys(
+                        t.tag_name
+                        for t in tags
+                        if t.start_canonical_id <= cid <= t.end_canonical_id
+                    )
+                )
                 verse_items.append({
                     "canonical_verse_id": cid,
                     "book": v.book_name,
@@ -260,17 +262,34 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     "tags": matching_tags,
                 })
 
-            tag_items = [
-                {
-                    "id": t.id,
-                    "tag_id": t.tag_id,
-                    "name": t.tag_name,
-                    "confidence": t.confidence,
-                    "starred": bool(t.starred),
-                    "source": t.source,
-                }
-                for t in tags
-            ]
+            # Deduplicate passage-level tags so each unique tag appears exactly once.
+            # A passage may overlap multiple verse_tag records for the same topic (e.g. multiple
+            # favorite verses within a chapter/pericope). Aggregate confidence and starred status.
+            seen_tags: Dict[str, Dict[str, Any]] = {}
+            for t in tags:
+                tag_key = t.tag_name.strip().lower()
+                cat = getattr(t, "category", None)
+                if tag_key not in seen_tags:
+                    seen_tags[tag_key] = {
+                        "id": t.id,
+                        "tag_id": t.tag_id,
+                        "name": t.tag_name,
+                        "category": cat,
+                        "confidence": t.confidence,
+                        "starred": bool(t.starred),
+                        "source": t.source,
+                    }
+                else:
+                    existing = seen_tags[tag_key]
+                    if t.confidence > existing["confidence"]:
+                        existing["confidence"] = t.confidence
+                    if t.starred:
+                        existing["starred"] = True
+                        existing["id"] = t.id
+                    if not existing.get("category") and cat:
+                        existing["category"] = cat
+
+            tag_items = list(seen_tags.values())
 
             pericope_items = [
                 {

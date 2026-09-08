@@ -182,6 +182,7 @@ class VerseTagRecord:
     notes: Optional[str] = None
     span_id: Optional[int] = None
     created_at: Optional[str] = None
+    category: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -1962,6 +1963,7 @@ class Database:
             notes=notes,
             span_id=resolved_span_id,
             created_at=now,
+            category=tag.category,
         )
 
     def get_tags_for_reference(
@@ -1978,7 +1980,7 @@ class Database:
         if exact_only:
             cur.execute(
                 """
-                SELECT vt.*, t.name as tag_name
+                SELECT vt.*, t.name as tag_name, t.category as category
                 FROM verse_tags vt
                 JOIN tags t ON t.id = vt.tag_id
                 WHERE vt.start_canonical_id = ? AND vt.end_canonical_id = ?
@@ -1989,7 +1991,7 @@ class Database:
         else:
             cur.execute(
                 """
-                SELECT vt.*, t.name as tag_name
+                SELECT vt.*, t.name as tag_name, t.category as category
                 FROM verse_tags vt
                 JOIN tags t ON t.id = vt.tag_id
                 WHERE vt.start_canonical_id <= ? AND vt.end_canonical_id >= ?
@@ -2013,6 +2015,7 @@ class Database:
                 notes=r["notes"],
                 span_id=r["span_id"],
                 created_at=r["created_at"],
+                category=r["category"] if "category" in r.keys() else None,
             )
             for r in rows
         ]
@@ -2031,7 +2034,7 @@ class Database:
         if starred_only:
             cur.execute(
                 """
-                SELECT vt.*, t.name as tag_name
+                SELECT vt.*, t.name as tag_name, t.category as category
                 FROM verse_tags vt
                 JOIN tags t ON t.id = vt.tag_id
                 WHERE vt.tag_id = ? AND vt.starred = 1
@@ -2042,7 +2045,7 @@ class Database:
         else:
             cur.execute(
                 """
-                SELECT vt.*, t.name as tag_name
+                SELECT vt.*, t.name as tag_name, t.category as category
                 FROM verse_tags vt
                 JOIN tags t ON t.id = vt.tag_id
                 WHERE vt.tag_id = ?
@@ -2066,6 +2069,7 @@ class Database:
                 notes=r["notes"],
                 span_id=r["span_id"],
                 created_at=r["created_at"],
+                category=r["category"] if "category" in r.keys() else tag.category,
             )
             for r in rows
         ]

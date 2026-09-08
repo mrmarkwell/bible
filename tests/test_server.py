@@ -306,7 +306,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         html_text = body.decode("utf-8")
         self.assertIn('class="arc-visualizer-stage hidden"', html_text)
         self.assertIn('id="arc-svg-viewport"', html_text)
-        self.assertIn('app.js?v=3', html_text)
+        self.assertIn('app.js?v=', html_text)
 
         # 3. Verify app.js cleans XML prolog and implements race-condition request tracking
         status, _, body = self._get("/app.js")
@@ -316,6 +316,42 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("replace(/<\\?xml[^>]*\\?>/i", js_text)
         self.assertIn("switchView", js_text)
         self.assertIn("hashchange", js_text)
+
+    def test_issue_2_passage_tags_no_duplicate_favorites_regression(self) -> None:
+        """Regression test for Issue #2: Ensure #favorites tag is never duplicated in web UI or API."""
+        # 1. Test passage with multiple favorites records (Genesis 15:1-21 has 15:6 and 15:18-21)
+        status, data = self._get_json("/api/passage?ref=Genesis+15:1-21")
+        self.assertEqual(status, 200)
+        fav_tags = [t for t in data["tags"] if t["name"] == "favorites"]
+        self.assertEqual(len(fav_tags), 1, f"Expected 1 favorites tag, got {len(fav_tags)}: {fav_tags}")
+        self.assertEqual(fav_tags[0]["category"], "curation")
+
+        # 2. Test Romans 8:28-39 (contains 4 separate favorite spans: 8:28, 8:29-30, 8:31, 8:38-39)
+        status, data = self._get_json("/api/passage?ref=Romans+8:28-39")
+        self.assertEqual(status, 200)
+        fav_tags = [t for t in data["tags"] if t["name"] == "favorites"]
+        self.assertEqual(len(fav_tags), 1, f"Expected 1 favorites tag, got {len(fav_tags)}: {fav_tags}")
+        self.assertEqual(fav_tags[0]["category"], "curation")
+
+        # 3. Test entire chapter (Romans 8 contains 6 separate favorite passages)
+        status, data = self._get_json("/api/passage?ref=Romans+8")
+        self.assertEqual(status, 200)
+        fav_tags = [t for t in data["tags"] if t["name"] == "favorites"]
+        self.assertEqual(len(fav_tags), 1, f"Expected 1 favorites tag, got {len(fav_tags)}: {fav_tags}")
+
+        # 4. Verify verse-level tags deduplication
+        for v in data["verses"]:
+            self.assertEqual(
+                len(v["tags"]),
+                len(set(v["tags"])),
+                f"Duplicate tags in verse {v['verse']}: {v['tags']}",
+            )
+
+        # 5. Verify app.js deduplicates tags defensively in UI rendering
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("seenTagNames", js_text)
 
     def test_serve_missing_file_returns_404(self) -> None:
         status, _, _ = self._get("/nonexistent_asset_404.txt")

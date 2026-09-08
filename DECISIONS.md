@@ -2162,4 +2162,36 @@ This document is an append-only log of significant design and architectural deci
   - Bug fixes and maintenance sprints are clearly distinguished from standard feature roadmap runs.
   - Maintains 100% zero-dependency architecture (Python stdlib only per ADR-003) with 790 unit tests passing in <2.5s.
 
+---
 
+## ADR-066: Multi-Span Passage Tag Aggregation, Category Propagation & Defensive Web UI Deduplication
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - In GitHub Issue #2 (*"#favorites tag shown twice in web UI"*), the author reported that some scripture passages in the web UI displayed the `#favorites` topic tag twice (or more) at the top of the reader stage.
+  - Root-cause investigation revealed:
+    1. **Multi-Span Tag Duplication in Database Queries**: When a scripture citation covers a range (e.g. pericope `Genesis 15:1-21`, chapter range `Romans 8:28-39`, or whole chapters), multiple distinct `verse_tags` rows may exist for the same tag name. For example, in Genesis 15:1-21, both verse 6 and verses 18–21 are independently curated favorite verses. `Database.get_tags_for_reference()` returned raw `verse_tags` table rows, producing multiple records with `name="favorites"`.
+    2. **Unaggregated REST API Response**: `/api/passage` in `web/server.py` passed these raw `verse_tags` rows directly into `data["tags"]`, resulting in duplicate tag entries in the API response JSON.
+    3. **Missing Tag Category Attribute**: `VerseTagRecord` and `get_tags_for_reference()` did not join or populate `tags.category`, leaving the frontend unable to resolve semantic category color accents (e.g. `[data-category="curation"]`).
+    4. **Un-deduplicated Web UI Rendering**: `web/static/app.js` rendered a tag badge for every item in `data.tags` without tracking seen tag names, displaying duplicate badges at the top of the passage.
+- **Decision**:
+  1. **Passage-Level Tag Aggregation (`web/server.py`)**:
+     - Deduplicate passage-level tags by normalized tag name (`seen_tags`), returning each unique tag exactly once.
+     - Combine multi-span attributes: take maximum confidence, compute logical OR for `starred` status, and preserve `category`.
+  2. **Verse-Level Tag Pill Deduplication (`web/server.py` & `web/static/app.js`)**:
+     - Deduplicate `matching_tags` on each `verse_item` using `list(dict.fromkeys(...))` so individual verses never show duplicate pill tags.
+     - In `web/static/app.js`, wrap `v.tags` in `Array.from(new Set(v.tags))` as a defensive UI guard.
+  3. **Database Category Projection (`core/db.py`)**:
+     - Added `category: Optional[str] = None` to `VerseTagRecord`.
+     - Updated `tag_reference()`, `get_tags_for_reference()`, and `get_references_for_tag()` to project `t.category as category` in SQL queries and populate `VerseTagRecord.category`.
+  4. **Defensive Web UI Deduplication & State Cleanup (`web/static/app.js`)**:
+     - Added `seenTagNames = new Set()` in `fetchPassage` to defensively guard against duplicate tag badge creation regardless of server payloads.
+     - Clear `passageTags`, `pericopeNavBar`, and `crossrefSection` in `fetchPassagesForTag` when viewing tag relevance results.
+     - Bumped static asset cache-buster in `web/static/index.html` to `app.js?v=4`.
+  5. **Hermetic Regression Test**:
+     - Added `test_issue_2_passage_tags_no_duplicate_favorites_regression` in `tests/test_server.py` verifying exact tag uniqueness for multi-favorite passages (`Genesis 15:1-21`, `Romans 8:28-39`, `Romans 8`), category propagation (`curation`), verse-level tag uniqueness, and defensive UI deduplication logic.
+- **Consequences**:
+  - Scripture passages with multiple favorite verses or spans display `#favorites` exactly once at the top of the web UI.
+  - Tag category styling (`data-category="curation"`) is properly applied to badges.
+  - 100% Zero-Dependency compliance maintained (Python 3 stdlib only, zero npm/pip packages).
+  - Test suite passes 100% with 791 tests in 2.47s (<2.5s SLA).

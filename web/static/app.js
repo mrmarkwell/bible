@@ -606,9 +606,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // Update Breadcrumbs & Chapter Nav
       updateBreadcrumbsAndNav(data);
 
-      // Render Semantic Tags with Categories
+      // Render Semantic Tags with Categories (deduplicated by normalized tag name)
       if (data.tags && data.tags.length > 0) {
+        const seenTagNames = new Set();
         data.tags.forEach((tag) => {
+          const normName = (tag.name || "").trim().toLowerCase();
+          if (!normName || seenTagNames.has(normName)) return;
+          seenTagNames.add(normName);
+
           const tagSpan = document.createElement("span");
           tagSpan.className = "tag-badge";
           if (tag.category) tagSpan.dataset.category = tag.category.toLowerCase();
@@ -676,7 +681,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.id = `v${v.verse}`;
 
         const tagPills = (v.tags && v.tags.length > 0)
-          ? v.tags.map((t) => `<span class="verse-tag-pill" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join("")
+          ? Array.from(new Set(v.tags)).map((t) => `<span class="verse-tag-pill" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join("")
           : "";
 
         row.innerHTML = `
@@ -988,6 +993,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   async function fetchPassagesForTag(tagName) {
+    passageTags.innerHTML = "";
+    pericopeNavBar.classList.add("hidden");
+    crossrefSection.classList.add("hidden");
     scriptureContainer.innerHTML = `<div class="loading-state">Scoring verses for tag "${tagName}"...</div>`;
     displayCitation.textContent = `Topic: #${tagName}`;
     displayMeta.textContent = `Scoring verse relevance across canon...`;

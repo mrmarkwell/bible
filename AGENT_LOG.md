@@ -2473,4 +2473,43 @@ This is an append-only log of work performed by autonomous agents during their e
   - Senior PM meta-sprint is 100% complete, verified, and unblocked.
   - Next task on the roadmap remains Phase 8, **Task 8.4**: *Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`).*
 
+---
+
+## [Run 062] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Mandatory Priority: GitHub Issue Triage & Resolution)
+- **Context / Trigger**: Mandatory Priority GitHub Bug Report #2: *"#favorites tag shown twice in web UI"* submitted by @mrmarkwell.
+- **Problem Diagnosis & Root Cause**:
+  - The author reported: *"Some passages in the web UI show #favorites topic tag twice at the top. Somehow the UI thinks #favorites should be shown twice."*
+  - Deep code and database investigation revealed a multi-tier duplication issue:
+    1. In the database, curated favorite verses (`favorite_bible_verses.csv`) were ingested into `verse_tags` as individual entries. When a queried passage covers a range (such as pericope `Genesis 15:1-21`, chapter range `Romans 8:28-39`, or whole chapters like `Romans 8`), multiple `verse_tags` rows exist for the same tag name (`favorites`). For example, in Genesis 15:1-21, both verse 6 and verses 18–21 are independently curated favorites; in Romans 8:28-39, verses 28, 29–30, 31, and 38–39 are each curated favorites.
+    2. In `web/server.py`, `handle_passage` queried `tagging_svc.get_tags_for_passage(parsed_ref)` which returned every overlapping `verse_tags` row. The handler directly mapped these raw rows into `data["tags"]`, causing the JSON response to contain duplicate tag objects (e.g. 2 for Genesis 15:1-21, 4 for Romans 8:28-39, 6 for Romans 8).
+    3. In `core/db.py`, `VerseTagRecord` and `get_tags_for_reference()` did not project `tags.category`, preventing semantic styling (`[data-category="curation"]`) from rendering in the web UI.
+    4. In `web/static/app.js`, `fetchPassage` iterated over `data.tags` and appended a `.tag-badge` for each item without tracking seen tag names, physically creating duplicate `#favorites` badges in the DOM.
+- **Actions Taken**:
+  - **Passage-Level Tag Aggregation in `web/server.py`**:
+    - Replaced raw mapping with deduplication by normalized tag name (`seen_tags`), ensuring each distinct tag appears exactly once in `data["tags"]`.
+    - Merged multi-span attributes across records: highest confidence, boolean OR on `starred`, and category preservation.
+  - **Verse-Level Tag Pill Deduplication in `web/server.py` & `web/static/app.js`**:
+    - Wrapped verse `matching_tags` in `list(dict.fromkeys(...))` so individual verse pills never duplicate identical tags.
+    - Added `Array.from(new Set(v.tags))` in `web/static/app.js` as an additional defensive guard.
+  - **Database Category Projection in `core/db.py`**:
+    - Added `category: Optional[str] = None` to `VerseTagRecord`.
+    - Updated `tag_reference()`, `get_tags_for_reference()`, and `get_references_for_tag()` to project `t.category as category` in SQL queries and populate `VerseTagRecord.category`.
+  - **Defensive UI Deduplication & State Cleanup in `web/static/app.js`**:
+    - Added `seenTagNames = new Set()` in `fetchPassage` to guarantee single-instance badge rendering in `#passage-tags-container`.
+    - Added state cleanup (`passageTags.innerHTML = ""`, hiding pericope and crossref trays) in `fetchPassagesForTag`.
+    - Bumped static asset cache-buster in `web/static/index.html` to `app.js?v=4`.
+  - **Hermetic Regression Unit Test (`tests/test_server.py`)**:
+    - Added `test_issue_2_passage_tags_no_duplicate_favorites_regression` asserting tag uniqueness for multi-favorite passages (`Genesis 15:1-21`, `Romans 8:28-39`, `Romans 8`), category projection (`curation`), verse-level tag uniqueness, and defensive UI deduplication.
+  - **State Machine Synchronization**:
+    - Recorded **ADR-066** in `DECISIONS.md`.
+- **Verification**:
+  - `./bible test`: **791 tests across 37 modules passed 100% in 2.465s** (320.9 tests/sec, <2.5s SLA).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (66 ADRs registered, 62 sequential runs, 61 roadmap tasks tracked, 0 dependencies, 0 linter errors across 81 files).
+  - `python3 tools/executive_summary.py`: Verified clean 10-run summary with bugfix archetype and action bullets.
+- **Handoff Notes for Next Agent**:
+  - GitHub Issue #2 is completely resolved with hermetic regression tests. Pushing commit with `Fixes #2` will close the issue on GitHub.
+  - Next task on the roadmap remains Phase 8, **Task 8.4**: *Implement CLI character dialogue command (`./bible chat paul`, `./bible chat moses`, `./bible chat david`, `./bible chat peter`).*
+
+
 
