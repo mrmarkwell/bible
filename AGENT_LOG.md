@@ -2272,4 +2272,43 @@ This is an append-only log of work performed by autonomous agents during their e
   - GitHub Issue #1 is completely resolved with regression tests. Pushing commit with `Fixes #1` will close the issue on GitHub.
   - Next task on the roadmap remains Phase 8, **Task 8.1**: *Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows).*
 
+---
+
+## [Run 057] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Roadmap Lifecycle)
+- **Task Addressed**: Phase 8, **Task 8.1**: *Implement Scripture RAG retrieval engine in `core/rag.py` (combines FTS5 keyword search, semantic tag intersection, and cross-reference expansion to build grounded, hermeneutically focused context windows).*
+- **Architectural Context & Goals**:
+  - Phase 8 introduces online Scripture RAG and character dialogue studios governed by the TGC Foundation Documents (`THEOLOGY.md` / ADR-049).
+  - Designed and implemented a sovereign, zero-dependency multi-signal hybrid retrieval engine in `core/rag.py` combining direct citation resolution, SQLite FTS5 BM25 search, canonical tag intersection (`TaggingService`), theological locus/ribbon matching (`verse_theology`), and typological arc shadow-to-fulfillment expansion (`typological_arcs` & `CrossReferenceService`).
+- **Actions Taken**:
+  - **Query Analysis & Feature Extraction (`extract_query_features`)**:
+    - Scans queries for canonical citations (e.g. `Romans 8:28`, `John 3:16`, `Genesis 3:15`), keywords (filtering 100+ stop/inquiry words), registered tags, theological loci (`TheologicalLocus`), redemptive epochs (`RedemptiveEpoch`), and thematic ribbons (`ThematicRibbon`).
+    - Codified `RIBBON_MOTIF_WORDS` mapping canonical motifs to biblical vocabulary for typological arc matching across diverse historical horizons.
+  - **Multi-Signal Hybrid Retrieval Pipeline (`ScriptureRAGEngine.retrieve`)**:
+    - Stage 1: Explicit citations receive highest priority score (1.0).
+    - Stage 2: SQLite FTS5 search with hybrid OR/AND multi-token querying mapped to containing pericopes.
+    - Stage 3: Semantic tag relevance scoring via `TaggingService.score_verse_relevance`.
+    - Stage 4: Phase 7 theological locus and ribbon matching via `verse_theology`.
+    - Stage 5: Typological arc and canonical cross-reference expansion connecting OT shadows (e.g. Exodus 25, Leviticus 16, Genesis 22) to NT fulfillments (e.g. John 1:14, Hebrews 9:11-14, 1 Cor 5:7).
+    - Stage 6: Graph spreading-activation attenuation (`parent_score * 0.70` for arcs, `0.60` for cross-refs) preventing secondary graph neighbors from artificially outranking direct focal hits.
+    - Stage 7: Pericope coherence grouping, long chapter excerpt clamping (max 12 focal verses), and deduplication of overlapping spans.
+  - **Hermeneutically Guarded Context Assembly (`RAGContextWindow`)**:
+    - Injects TGC hermeneutical guardrails via `TGCTheologyEngine.generate_rag_system_prompt()`.
+    - Generates illuminated markdown (`format_context_markdown()`), structured dictionary (`to_dict()`), and Google Gemini API payload (`format_prompt_payload()`).
+    - Implemented optional LLM answering via `GeminiClient` when `GEMINI_API_KEY` is present, with informative offline error handling.
+  - **Hermetic Unit Test Suite (`tests/test_rag.py`)**:
+    - Authored 26 hermetic unit tests covering token estimation, query feature extraction, scoring weights, hybrid retrieval (temple motif, Day of Atonement, FTS5 keywords, token budgeting, passage clamping), deterministic context building, and mock LLM answer synthesis.
+  - **State Machine Synchronization**:
+    - Exported RAG symbols in `core/__init__.py` and updated `__all__`.
+    - Recorded **ADR-061** in `DECISIONS.md`.
+    - Marked Task 8.1 as `[DONE]` in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **753 tests across 36 modules passed 100% in 4.67s** (161.2 tests/sec, <5.0s SLA).
+  - `./bible doctor`: **100% EXCELLENT** — all 8 health checks passed (zero external dependencies, 61 ADRs registered, 753 tests passing).
+  - `./bible lint`: 0 errors across 79 files.
+- **Handoff Notes for Next Agent**:
+  - Task 8.1 is fully verified and complete.
+  - Next task on the roadmap is Phase 8, **Task 8.2**: *Implement CLI RAG inquiry command (`./bible ask "Trace the theme of the temple from the Garden of Eden to the New Jerusalem"`, `./bible ask "How does Jesus fulfill the Day of Atonement?"`).*
+
+
 

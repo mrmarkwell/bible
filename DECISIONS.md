@@ -1984,3 +1984,41 @@ This document is an append-only log of significant design and architectural deci
   - 100% Zero-Dependency compliance verified (Python stdlib + Vanilla HTML/CSS/JS per ADR-003).
   - All 727 tests across 35 modules pass in 4.60s (<5.0s SLA).
 
+---
+
+## ADR-061: Scripture RAG Retrieval Engine, Multi-Signal Hybrid Fusion & Hermeneutical Context Assembly
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 8 requires an online Scripture RAG (Retrieval-Augmented Generation) engine (`core/rag.py`) to answer theological, canonical, and devotional inquiries strictly grounded in Scripture and governed by The Gospel Coalition (TGC) Foundation Documents (THEOLOGY.md / ADR-049).
+  - Simple keyword search or vector search alone is insufficient for biblical inquiries: pure keyword search fails on thematic motifs across differing vocabularies (e.g. "temple" spanning Eden, Tabernacle, Solomon, Christ incarnate, and New Jerusalem), while ungrounded vector search lacks canonical precision and fails to connect Old Testament shadows to New Testament fulfillments.
+  - Furthermore, retrieving isolated single verses produces fragmented context, whereas retrieving whole biblical books or massive chapters (e.g. Luke 2 with 52 verses) quickly exhausts context token limits.
+- **Decision**:
+  1. **Multi-Signal Hybrid Retrieval Pipeline in `core/rag.py`**:
+     - Direct canonical scripture reference parsing and boundary resolution (highest priority score 1.0).
+     - SQLite FTS5 BM25 full-text keyword search across scripture verses with conjunction and disjunction support.
+     - Canonical tag intersection and topic relevance scoring via `TaggingService`.
+     - Phase 7 theological locus and thematic ribbon matching via `verse_theology`.
+     - Typological arc expansion connecting Old Testament types to New Testament antitypes via `typological_arcs`.
+     - Canonical cross-reference expansion via `cross_references`.
+  2. **Motif Lexicon & Graph Attenuation**:
+     - Codified `RIBBON_MOTIF_WORDS` mapping canonical thematic ribbons (e.g. `TEMPLE_PRESENCE`, `SACRIFICE_ATONEMENT`, `PRIESTHOOD_MEDIATION`) to biblical motif vocabulary, enabling typological arcs to match broad thematic queries even when vocabulary differs.
+     - Implemented spreading-activation score attenuation (`parent_score * 0.70` for typological arcs, `parent_score * 0.60` for cross-references) to guarantee that secondary graph neighbors do not artificially outrank direct focal search hits.
+  3. **Pericope Coherence Grouping & Focal Window Clamping**:
+     - Individual verse search hits are dynamically mapped to containing pericopes (`PericopeService`), ensuring context windows provide coherent theological units.
+     - Long pericopes (>14 verses) are clamped to focal 12-verse excerpts to preserve token budgets and allow multiple diverse canonical witnesses.
+  4. **Hermeneutical Context Window Assembly (`RAGContextWindow`)**:
+     - Integrates TGC hermeneutical guardrails (`TGCTheologyEngine.generate_rag_system_prompt()`).
+     - Formats illuminated markdown with pericope titles, redemptive epochs, theological loci, central propositions, typological correspondences, and Crossway-compliant verse attributions.
+     - Provides structured JSON serialization (`to_dict()`) and Google Gemini API payload formatting (`format_prompt_payload()`).
+  5. **Optional LLM Answer Synthesis (`answer`)**:
+     - Connects zero-dependency `GeminiClient` to generate grounded theological answers when `GEMINI_API_KEY` is present, while remaining 100% functional offline for retrieval and inspection.
+  6. **Zero External Dependencies & Hermetic Verification**:
+     - Implemented strictly with Python 3 standard library (`core.rag`).
+     - Authored 26 hermetic unit tests in `tests/test_rag.py`.
+- **Consequences**:
+  - Task 8.1 is 100% complete.
+  - Scripture RAG retrieval operational across all 31,103 verses, 1,304 pericopes, 1,305 theological annotations, and 21 typological arcs.
+  - All 753 tests across 36 modules pass in 4.68s (<5.0s SLA).
+
+

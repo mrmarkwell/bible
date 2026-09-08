@@ -100,6 +100,19 @@ from core.reference import (
     verse_canonical_id,
 )
 
+from core.rag import (
+    RAGContextWindow,
+    RAGQuery,
+    RAGResponse,
+    RAGScoringWeights,
+    RetrievedPassage,
+    ScriptureRAGEngine,
+    estimate_tokens,
+    extract_query_features,
+    get_rag_engine,
+    retrieve_rag_context,
+)
+
 from core.bootstrap import (
     BootstrapReport,
     bootstrap_database,
@@ -565,5 +578,16 @@ __all__ = [
     "SemanticCheckpointLedger",
     "SemanticDatabaseCompiler",
     "get_semantic_compiler",
+    # Scripture RAG Engine
+    "RAGContextWindow",
+    "RAGQuery",
+    "RAGResponse",
+    "RAGScoringWeights",
+    "RetrievedPassage",
+    "ScriptureRAGEngine",
+    "estimate_tokens",
+    "extract_query_features",
+    "get_rag_engine",
+    "retrieve_rag_context",
 ]
 
