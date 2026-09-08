@@ -242,10 +242,11 @@ def generate_tagging_prompt(
 1. Select between 2 and {max_tags} tags that best capture the theological, redemptive-historical, and thematic heart of this passage.
 2. {new_tag_directive}
 3. Category must be one of: {valid_categories_str}.
-4. Designate exactly one primary tag as `"starred": true` (the core theological motif of this passage). All other tags must have `"starred": false`.
-5. Provide a confidence score (between 0.0 and 1.0) indicating how explicitly and prominently the theme is expressed in the text.
-6. Provide concise `"notes"` (1-2 sentences) detailing the theological rationale and citing specific phrases from the passage.
-7. If a tag specifically applies to a sub-range within the passage (e.g. verses 1-2 within a multi-verse span), provide the citation in `"sub_span"`; otherwise, set `"sub_span": null`.
+4. Tag names must be formatted in strict lowercase snake_case (e.g. "holy_spirit", "sovereign_grace", "justification", "prayer").
+5. Designate exactly one primary tag as `"starred": true` (the core theological motif of this passage). All other tags must have `"starred": false`.
+6. Provide a confidence score (between 0.0 and 1.0) indicating how explicitly and prominently the theme is expressed in the text.
+7. Provide concise `"notes"` (1-2 sentences) detailing the theological rationale and citing specific phrases from the passage.
+8. If a tag specifically applies to a sub-range within the passage (e.g. verses 1-2 within a multi-verse span), provide the citation in `"sub_span"`; otherwise, set `"sub_span": null`.
 
 ## Required Output Format
 Respond ONLY with valid JSON conforming strictly to this JSON schema:
@@ -254,7 +255,7 @@ Respond ONLY with valid JSON conforming strictly to this JSON schema:
   "reference": "{human_ref}",
   "tags": [
     {{
-      "name": "TagName",
+      "name": "tag_name_in_snake_case",
       "category": "theological",
       "confidence": 0.95,
       "starred": true,
@@ -351,15 +352,9 @@ def extract_json_payload(raw_text: str) -> str:
 
 
 def normalize_tag_name(name: str) -> str:
-    """Clean and normalize a tag name string."""
-    clean = re.sub(r"\s+", " ", name.strip())
-    # Canonical taxonomy match check (case-insensitive)
-    for tag_list in CANONICAL_TAXONOMY.values():
-        for canonical_name, _, _ in tag_list:
-            if clean.lower() == canonical_name.lower():
-                return canonical_name
-    # Default to Title Case for novel tags
-    return clean.title() if clean.islower() else clean
+    """Clean and normalize a tag name string to strict canonical lowercase snake_case."""
+    from core.tags import normalize_tag_name as _norm
+    return _norm(name)
 
 
 def normalize_category(category: str) -> str:

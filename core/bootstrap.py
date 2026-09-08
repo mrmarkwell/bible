@@ -58,7 +58,7 @@ class BootstrapReport:
             f"Verses Ingested:         {self.verses_count:,} (Bundled Public Domain Translations)",
             f"Translations:            {self.translations_count}",
             f"Curated Favorites:       {self.favorites_count} passages ({self.starred_count} starred)",
-            f"Canonical Tags:          {self.tags_count} theological/redemptive taxonomies",
+            f"Canonical Tags:          {self.tags_count} (dynamic bottom-up taxonomy ready)",
             f"Canonical Pericopes:     {self.pericopes_count} redemptive section headings",
             f"Cross-Reference Edges:   {self.cross_references_count} canonical OT/NT links",
             f"Git Hook Safeguards:     {hooks_text}",
@@ -247,7 +247,7 @@ def is_database_healthy(db_path: Optional[Union[str, Path]] = None) -> bool:
             xr_count = xr_row[0] if xr_row else 0
             p_row = db.execute_sql("SELECT count(*) FROM pericopes").fetchone()
             p_count = p_row[0] if p_row else 0
-            return verse_count >= 31100 and tag_count >= 20 and xr_count >= 40 and p_count >= 100
+            return verse_count >= 31100 and tag_count >= 1 and xr_count >= 40 and p_count >= 100
     except Exception:
         return False
 
@@ -402,10 +402,10 @@ def bootstrap_database(
             clear_existing=True,
         )
 
-    # 4. Seed Canonical TGC Taxonomies
-    _notify("Seeding canonical theological and redemptive taxonomies...", 0.75)
-    tag_service = TaggingService(db)
-    seeded_tags = tag_service.seed_canonical_taxonomies()
+    # 4. Clean-Slate Dynamic Semantic Taxonomy (Task 3.5 / ADR-079)
+    _notify("Initializing clean-slate dynamic semantic taxonomy...", 0.75)
+    db.migrate_clean_slate_tags()
+    seeded_tags = len(db.list_tags())
 
     # 5. Seed Canonical Typological Cross-References
     _notify("Seeding canonical Old/New Testament typological cross-references...", 0.82)

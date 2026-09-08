@@ -1017,6 +1017,12 @@ def cmd_tag(args: argparse.Namespace) -> int:
                     print(format_verse_relevance_table(rankings, styling=color_enabled, show_text=not no_text))
                 return 0
 
+            elif tag_action in ("prune", "clean"):
+                preserve = ("favorites",)
+                deleted = svc.prune_unlinked_tags(preserve_tags=preserve)
+                print(f"Successfully pruned {deleted} unlinked tag(s) with 0 passage associations.")
+                return 0
+
             elif tag_action == "seed":
                 count = svc.seed_canonical_taxonomies()
                 print(f"Successfully seeded {count} canonical theological and redemptive-historical tags.")
@@ -1661,6 +1667,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     # tag seed
     p_tag_seed = tag_subparsers.add_parser("seed", help="Seed canonical TGC theological and redemptive taxonomies")
+
+    # tag prune
+    p_tag_prune = tag_subparsers.add_parser(
+        "prune",
+        aliases=["clean"],
+        help="Prune unlinked tags that have zero verse associations (preserves favorites)",
+    )
 
     # tag prompt
     p_tag_prompt = tag_subparsers.add_parser("prompt", help="Generate and display LLM tagging prompt for a passage")

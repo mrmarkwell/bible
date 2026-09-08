@@ -900,7 +900,7 @@ class TestCliExecution(unittest.TestCase):
             self.assertIn("fill: #D4AF37", content)
             self.assertIn("stroke: #2ECC71", content)
             self.assertIn("John 3:16", content)
-            self.assertIn("Gospel", content)
+            self.assertIn("gospel", content)
             self.assertIn("Generated 3840x2160 SVG slide", stdout.getvalue())
             self.assertIn("Citation:   #D4AF37", stdout.getvalue())
 

@@ -490,7 +490,7 @@ class TestCoreDatabaseIntegration(unittest.TestCase):
         tags = self.db.get_tags_for_reference("Romans 8:1")
         tag_names = [t.tag_name for t in tags]
         self.assertIn("favorites", tag_names)
-        self.assertIn("Justification", tag_names)
+        self.assertIn("justification", tag_names)
 
     def test_cross_references(self):
         """Verify cross-reference graph links between OT prophecy and NT fulfillment."""

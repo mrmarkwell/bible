@@ -88,6 +88,33 @@ def sanitize_fts_query(query: str) -> str:
     return " ".join(valid_tokens)
 
 
+def normalize_tag_name(name: str) -> str:
+    """Normalize a semantic tag name to canonical lowercase snake_case.
+
+    Rules:
+    - Strips leading '#' symbol (e.g. '#starred' -> 'starred').
+    - Strips leading and trailing whitespace.
+    - Replaces spaces, hyphens, and non-alphanumeric characters with underscores.
+    - Strips leading and trailing underscores.
+    - Collapses consecutive underscores into a single underscore.
+    - Converts to lowercase.
+
+    Raises:
+        ValueError: If tag name is empty or contains no alphanumeric characters.
+    """
+    if not isinstance(name, str):
+        raise ValueError("Tag name must be a string.")
+    clean = name.strip()
+    if clean.startswith("#"):
+        clean = clean.lstrip("#").strip()
+    if not clean:
+        raise ValueError("Tag name cannot be empty.")
+    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", clean).strip("_").lower()
+    if not normalized:
+        raise ValueError(f"Tag name '{name}' contains no valid alphanumeric characters.")
+    return normalized
+
+
 # --- Data Transfer Objects & Records ---
 
 
@@ -980,6 +1007,9 @@ class Database:
         self.conn.commit()
         cur.close()
 
+        # Clean-slate dynamic taxonomy migration (Task 3.5 / ADR-079)
+        self.migrate_clean_slate_tags()
+
     # --- Translations ---
 
     def add_translation(
@@ -1817,8 +1847,8 @@ class Database:
         category: str = "thematic",
         description: Optional[str] = None,
     ) -> TagRecord:
-        """Register a new semantic tag definition."""
-        clean_name = name.strip()
+        """Register a new semantic tag definition in canonical snake_case."""
+        clean_name = normalize_tag_name(name)
         now = _utc_now_iso()
         with self.conn:
             self.conn.execute(
@@ -1834,9 +1864,10 @@ class Database:
         return self.get_tag(clean_name)  # type: ignore[return-value]
 
     def get_tag(self, name: str) -> Optional[TagRecord]:
-        """Retrieve tag record by name (case-insensitive)."""
+        """Retrieve tag record by name (case-insensitive, snake_case normalized)."""
+        clean_name = normalize_tag_name(name)
         cur = self.conn.cursor()
-        cur.execute("SELECT * FROM tags WHERE name = ? COLLATE NOCASE", (name.strip(),))
+        cur.execute("SELECT * FROM tags WHERE name = ? COLLATE NOCASE", (clean_name,))
         row = cur.fetchone()
         cur.close()
         if not row:
@@ -1856,10 +1887,11 @@ class Database:
         description: Optional[str] = None,
     ) -> TagRecord:
         """Retrieve tag by name or create it if absent."""
-        existing = self.get_tag(name)
+        clean_name = normalize_tag_name(name)
+        existing = self.get_tag(clean_name)
         if existing:
             return existing
-        return self.add_tag(name, category, description)
+        return self.add_tag(clean_name, category, description)
 
     def list_tags(self, category: Optional[str] = None) -> List[TagRecord]:
         """List all defined tags, optionally filtered by category."""
@@ -2152,7 +2184,7 @@ class Database:
         params: List[Any] = []
         if tag_name:
             query += " WHERE t.name = ? COLLATE NOCASE"
-            params.append(tag_name.strip())
+            params.append(normalize_tag_name(tag_name))
         query += " GROUP BY t.id ORDER BY passage_count DESC, t.name ASC"
         cur.execute(query, params)
         rows = cur.fetchall()
@@ -2172,6 +2204,85 @@ class Database:
             }
             for r in rows
         ]
+
+    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites",)) -> int:
+        """Prune unused tags that have zero verse associations in verse_tags.
+
+        Preserves 'favorites' (and any other specified tags) even if empty.
+        Returns the count of deleted tags.
+        """
+        preserve_normalized = {normalize_tag_name(t) for t in preserve_tags}
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            SELECT id, name FROM tags
+            WHERE id NOT IN (SELECT DISTINCT tag_id FROM verse_tags)
+            """
+        )
+        rows = cur.fetchall()
+        to_delete_ids = [r["id"] for r in rows if normalize_tag_name(r["name"]) not in preserve_normalized]
+        cur.close()
+
+        if not to_delete_ids:
+            return 0
+
+        with self.conn:
+            placeholders = ",".join("?" * len(to_delete_ids))
+            self.conn.execute(f"DELETE FROM tags WHERE id IN ({placeholders})", to_delete_ids)
+        return len(to_delete_ids)
+
+    def migrate_clean_slate_tags(self) -> int:
+        """Migrate existing tags to clean-slate dynamic snake_case architecture (Task 3.5 / ADR-079).
+
+        - Prunes legacy unlinked pre-assumed tags.
+        - Normalizes all remaining tag names to canonical snake_case.
+        - Merges any duplicate tags resulting from case/space normalization.
+        """
+        legacy_unlinked_names = {
+            "creation", "fall", "covenant", "exodus", "temple", "kingship", "exile",
+            "restoration", "redemption", "new creation", "new_creation", "trinity",
+            "christology", "pneumatology", "holy spirit", "holy_spirit", "justification",
+            "sanctification", "sovereign grace", "sovereign_grace", "resurrection",
+            "atonement", "prayer", "wisdom", "suffering", "joy", "faith", "love",
+        }
+        with self.conn:
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                SELECT id, name FROM tags
+                WHERE id NOT IN (SELECT DISTINCT tag_id FROM verse_tags)
+                """
+            )
+            unlinked = cur.fetchall()
+            pruned_count = 0
+            for row in unlinked:
+                clean_n = row["name"].strip().lower()
+                if clean_n in legacy_unlinked_names and clean_n != "favorites":
+                    cur.execute("DELETE FROM tags WHERE id = ?", (row["id"],))
+                    pruned_count += 1
+
+            # Normalize remaining tag names
+            cur.execute("SELECT id, name FROM tags")
+            all_tags = cur.fetchall()
+            for row in all_tags:
+                t_id = row["id"]
+                orig_name = row["name"]
+                try:
+                    norm_name = normalize_tag_name(orig_name)
+                except Exception:
+                    continue
+                if norm_name != orig_name:
+                    cur.execute("SELECT id FROM tags WHERE name = ? AND id != ?", (norm_name, t_id))
+                    dup = cur.fetchone()
+                    if dup:
+                        dup_id = dup["id"]
+                        cur.execute("UPDATE OR IGNORE verse_tags SET tag_id = ? WHERE tag_id = ?", (dup_id, t_id))
+                        cur.execute("DELETE FROM verse_tags WHERE tag_id = ?", (t_id,))
+                        cur.execute("DELETE FROM tags WHERE id = ?", (t_id,))
+                    else:
+                        cur.execute("UPDATE tags SET name = ? WHERE id = ?", (norm_name, t_id))
+            cur.close()
+            return pruned_count
 
     # --- Cross References ---
 

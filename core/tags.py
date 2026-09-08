@@ -20,6 +20,7 @@ from core.db import (
     TagRecord,
     VerseRecord,
     VerseTagRecord,
+    normalize_tag_name,
 )
 from core.reference import (
     Book,
@@ -62,39 +63,39 @@ class TagCategory:
         return category.strip().lower() in cls.ALL
 
 
-# Predefined theological & redemptive-historical taxonomy presets (TGC-aligned)
+# Predefined theological & redemptive-historical taxonomy presets (TGC-aligned, snake_case canonical identifiers)
 CANONICAL_TAXONOMY: Dict[str, List[Tuple[str, str, str]]] = {
     # (tag_name, category, description)
     "redemptive_historical": [
-        ("Creation", TagCategory.HISTORICAL, "The original good creation of the heavens and earth by God."),
-        ("Fall", TagCategory.THEOLOGICAL, "The rebellion of humanity into sin and cosmic brokenness."),
-        ("Covenant", TagCategory.THEOLOGICAL, "God's binding oaths and promises with Adam, Noah, Abraham, Moses, David, and Christ."),
-        ("Exodus", TagCategory.HISTORICAL, "God delivering His people out of bondage through signs, blood, and the Red Sea."),
-        ("Temple", TagCategory.TYPOLOGY, "The dwelling place of God with man, culminating in Christ and the church."),
-        ("Kingship", TagCategory.THEOLOGICAL, "God's sovereignty exercised through the Davidic line, realized in Christ."),
-        ("Exile", TagCategory.HISTORICAL, "Covenant judgment, dispersion, and the longing for restoration."),
-        ("Restoration", TagCategory.PROPHECY, "The return from exile, spiritual renewal, and the new creation."),
-        ("Redemption", TagCategory.THEOLOGICAL, "Deliverance from sin and death purchased by the blood of Christ."),
-        ("New Creation", TagCategory.PROPHECY, "The final renewal of all things in the New Jerusalem."),
+        ("creation", TagCategory.HISTORICAL, "The original good creation of the heavens and earth by God."),
+        ("fall", TagCategory.THEOLOGICAL, "The rebellion of humanity into sin and cosmic brokenness."),
+        ("covenant", TagCategory.THEOLOGICAL, "God's binding oaths and promises with Adam, Noah, Abraham, Moses, David, and Christ."),
+        ("exodus", TagCategory.HISTORICAL, "God delivering His people out of bondage through signs, blood, and the Red Sea."),
+        ("temple", TagCategory.TYPOLOGY, "The dwelling place of God with man, culminating in Christ and the church."),
+        ("kingship", TagCategory.THEOLOGICAL, "God's sovereignty exercised through the Davidic line, realized in Christ."),
+        ("exile", TagCategory.HISTORICAL, "Covenant judgment, dispersion, and the longing for restoration."),
+        ("restoration", TagCategory.PROPHECY, "The return from exile, spiritual renewal, and the new creation."),
+        ("redemption", TagCategory.THEOLOGICAL, "Deliverance from sin and death purchased by the blood of Christ."),
+        ("new_creation", TagCategory.PROPHECY, "The final renewal of all things in the New Jerusalem."),
     ],
     "systematic_theology": [
-        ("Trinity", TagCategory.THEOLOGICAL, "One God eternally existing in three co-equal persons: Father, Son, and Holy Spirit."),
-        ("Christology", TagCategory.THEOLOGICAL, "The person and dual divine-human nature of Jesus Christ."),
-        ("Pneumatology", TagCategory.THEOLOGICAL, "The person, work, gifts, and fruit of the Holy Spirit."),
-        ("Holy Spirit", TagCategory.THEOLOGICAL, "The third person of the Trinity indwelling, empowering, and sanctifying believers."),
-        ("Justification", TagCategory.THEOLOGICAL, "God's forensic declaration of righteousness by grace alone through faith alone."),
-        ("Sanctification", TagCategory.THEOLOGICAL, "The progressive transformation of the believer into the likeness of Christ."),
-        ("Sovereign Grace", TagCategory.THEOLOGICAL, "God's unconditional love and unmerited favor in election and salvation."),
-        ("Resurrection", TagCategory.THEOLOGICAL, "The bodily rising of Jesus Christ from the dead and future resurrection of the saints."),
-        ("Atonement", TagCategory.THEOLOGICAL, "Christ's penal substitutionary sacrifice satisfying divine justice."),
+        ("trinity", TagCategory.THEOLOGICAL, "One God eternally existing in three co-equal persons: Father, Son, and Holy Spirit."),
+        ("christology", TagCategory.THEOLOGICAL, "The person and dual divine-human nature of Jesus Christ."),
+        ("pneumatology", TagCategory.THEOLOGICAL, "The person, work, gifts, and fruit of the Holy Spirit."),
+        ("holy_spirit", TagCategory.THEOLOGICAL, "The third person of the Trinity indwelling, empowering, and sanctifying believers."),
+        ("justification", TagCategory.THEOLOGICAL, "God's forensic declaration of righteousness by grace alone through faith alone."),
+        ("sanctification", TagCategory.THEOLOGICAL, "The progressive transformation of the believer into the likeness of Christ."),
+        ("sovereign_grace", TagCategory.THEOLOGICAL, "God's unconditional love and unmerited favor in election and salvation."),
+        ("resurrection", TagCategory.THEOLOGICAL, "The bodily rising of Jesus Christ from the dead and future resurrection of the saints."),
+        ("atonement", TagCategory.THEOLOGICAL, "Christ's penal substitutionary sacrifice satisfying divine justice."),
     ],
     "practical_christian_living": [
-        ("Prayer", TagCategory.THEMATIC, "Communion with God, petitions, thanksgiving, and intercession."),
-        ("Wisdom", TagCategory.THEMATIC, "Skill in godly living according to God's created order and fear of the Lord."),
-        ("Suffering", TagCategory.THEMATIC, "Trials, affliction, endurance, and God's sovereign comfort in hardship."),
-        ("Joy", TagCategory.THEMATIC, "Deep gladness rooted in God's character and salvation regardless of circumstances."),
-        ("Faith", TagCategory.THEMATIC, "Trust, reliance, and assurance in God's character and revealed promises."),
-        ("Love", TagCategory.THEMATIC, "Self-sacrificial devotion modeled after God's love in Christ."),
+        ("prayer", TagCategory.THEMATIC, "Communion with God, petitions, thanksgiving, and intercession."),
+        ("wisdom", TagCategory.THEMATIC, "Skill in godly living according to God's created order and fear of the Lord."),
+        ("suffering", TagCategory.THEMATIC, "Trials, affliction, endurance, and God's sovereign comfort in hardship."),
+        ("joy", TagCategory.THEMATIC, "Deep gladness rooted in God's character and salvation regardless of circumstances."),
+        ("faith", TagCategory.THEMATIC, "Trust, reliance, and assurance in God's character and revealed promises."),
+        ("love", TagCategory.THEMATIC, "Self-sacrificial devotion modeled after God's love in Christ."),
     ],
 }
 
@@ -337,16 +338,15 @@ class TaggingService:
         category: str = TagCategory.THEMATIC,
         description: Optional[str] = None,
     ) -> TagRecord:
-        """Register a new semantic tag definition or update its metadata."""
-        clean_name = name.strip()
-        if not clean_name:
-            raise ValueError("Tag name cannot be empty.")
+        """Register a new semantic tag definition or update its metadata in canonical snake_case."""
+        clean_name = normalize_tag_name(name)
         clean_cat = category.strip().lower()
         return self.db.add_tag(clean_name, category=clean_cat, description=description)
 
     def get_tag(self, name: str) -> Optional[TagRecord]:
-        """Retrieve tag record by name (case-insensitive)."""
-        return self.db.get_tag(name)
+        """Retrieve tag record by name (case-insensitive, snake_case normalized)."""
+        clean_name = normalize_tag_name(name)
+        return self.db.get_tag(clean_name)
 
     def get_or_create_tag(
         self,
@@ -354,15 +354,18 @@ class TaggingService:
         category: str = TagCategory.THEMATIC,
         description: Optional[str] = None,
     ) -> TagRecord:
-        """Retrieve tag by name or create it if absent."""
-        clean_name = name.strip()
-        if not clean_name:
-            raise ValueError("Tag name cannot be empty.")
+        """Retrieve tag by name or create it if absent in canonical snake_case."""
+        clean_name = normalize_tag_name(name)
         return self.db.get_or_create_tag(clean_name, category=category, description=description)
 
     def delete_tag(self, name: str) -> bool:
         """Delete a tag definition and all its passage associations."""
-        return self.db.delete_tag(name)
+        clean_name = normalize_tag_name(name)
+        return self.db.delete_tag(clean_name)
+
+    def prune_unlinked_tags(self, preserve_tags: Sequence[str] = ("favorites",)) -> int:
+        """Prune unused tags that have zero verse associations (preserves favorites)."""
+        return self.db.prune_unlinked_tags(preserve_tags=preserve_tags)
 
     def list_tags(
         self,
@@ -427,7 +430,8 @@ class TaggingService:
 
     def get_tag_stats(self, tag_name: str) -> Optional[Dict[str, Any]]:
         """Retrieve aggregated metrics for a specific tag name."""
-        stats_list = self.db.get_tag_stats(tag_name=tag_name)
+        clean_tag = normalize_tag_name(tag_name)
+        stats_list = self.db.get_tag_stats(tag_name=clean_tag)
         if not stats_list:
             return None
         return stats_list[0]
@@ -453,7 +457,8 @@ class TaggingService:
           - Cross-chapter span: "Genesis 1:1 - Genesis 2:3"
 
         If the reference is a multi-verse passage, automatically links/registers
-        the passage in the `spans` table.
+        the passage in the `spans` table. Automatically normalizes all tag names
+        to canonical snake_case.
 
         Args:
             reference: Citation string or canonical Reference object.
@@ -469,19 +474,21 @@ class TaggingService:
         """
         ref = parse_reference(reference) if isinstance(reference, str) else reference
 
-        tag_names: List[str] = []
+        raw_tag_names: List[str] = []
         if isinstance(tags, str):
             # Split comma-separated string if provided
             parts = [t.strip() for t in tags.split(",") if t.strip()]
-            tag_names.extend(parts)
+            raw_tag_names.extend(parts)
         else:
             for t in tags:
-                clean = t.strip()
+                clean = str(t).strip()
                 if clean:
-                    tag_names.append(clean)
+                    raw_tag_names.append(clean)
 
-        if not tag_names:
+        if not raw_tag_names:
             raise ValueError("At least one tag name must be provided.")
+
+        tag_names = [normalize_tag_name(t) for t in raw_tag_names]
 
         results: List[VerseTagRecord] = []
         for tag_name in tag_names:
@@ -507,7 +514,8 @@ class TaggingService:
 
         Returns the number of removed association rows.
         """
-        return self.db.untag_reference(reference, tag_name)
+        clean_tag = normalize_tag_name(tag_name)
+        return self.db.untag_reference(reference, clean_tag)
 
     def get_tags_for_passage(
         self,
@@ -548,7 +556,8 @@ class TaggingService:
         Returns:
             List of TaggedPassage records.
         """
-        records = self.db.get_references_for_tag(tag_name, starred_only=starred_only)
+        clean_tag = normalize_tag_name(tag_name)
+        records = self.db.get_references_for_tag(clean_tag, starred_only=starred_only)
         if offset > 0:
             records = records[offset:]
         if limit is not None:
@@ -670,7 +679,7 @@ class TaggingService:
         vt_params: List[Any] = []
         if tag_name:
             vt_query += " AND t.name = ? COLLATE NOCASE"
-            vt_params.append(tag_name.strip())
+            vt_params.append(normalize_tag_name(tag_name))
         if category:
             vt_query += " AND t.category = ? COLLATE NOCASE"
             vt_params.append(category.strip().lower())
@@ -839,7 +848,7 @@ class TaggingService:
         """
         tag_params: List[Any] = []
         if tags:
-            clean_tags = [t.strip() for t in tags if t.strip()]
+            clean_tags = [normalize_tag_name(t) for t in tags if str(t).strip()]
             if clean_tags:
                 placeholders = ",".join("?" for _ in clean_tags)
                 tag_query += f" AND t.name IN ({placeholders}) COLLATE NOCASE"

@@ -469,6 +469,10 @@ class BibleShell(cmd.Cmd):
                     self.stdout.write(f"  Starred:  {s['starred_count']}\n")
                     self.stdout.write(f"  Books:    {s['distinct_books']}\n\n")
 
+        elif action in ("prune", "clean"):
+            deleted = svc.prune_unlinked_tags(preserve_tags=("favorites",))
+            self.stdout.write(f"Successfully pruned {deleted} unlinked tag(s) with 0 passage associations.\n")
+
         elif action == "seed":
             count = svc.seed_canonical_taxonomies()
             self.stdout.write(f"Successfully seeded {count} canonical theological and redemptive-historical tags.\n")
@@ -2867,7 +2871,7 @@ System & Web:
         """Auto-complete tag subcommands and tag names."""
         subcommands = [
             "add", "list", "show", "for", "remove", "delete", "stats",
-            "density", "ribbon", "co-occurrence", "relevance", "seed", "prompt",
+            "density", "ribbon", "co-occurrence", "relevance", "seed", "prune", "clean", "prompt",
         ]
         parts = line.split()
         if len(parts) <= 1 or (len(parts) == 2 and not line.endswith(" ")):

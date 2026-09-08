@@ -2947,9 +2947,44 @@ This is an append-only log of work performed by autonomous agents during their e
   - `python3 tools/linter.py`: **100% CLEAN** — 87 files inspected with 0 errors.
   - Verified live CLI outputs: `./bible translations`, `./bible get "Psalm 23:1-3" --version=KJV`, `./bible compare "Romans 8:28"`, and `./bible search "peace of God" --version=KJV`.
 - **Handoff Notes for Next Agent**:
-  - Phase 1 is now 100% complete!
-  - Both World English Bible (WEB) and King James Version (KJV) are fully bundled offline in SQLite (`data/bible.db`) and raw corpus cache (`data/raw/`).
-  - Next task on roadmap: Phase 3 Task 3.5 (Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration) or Task 3.6 (Universal Tagging Unification: Deprecate starred Column from database schema and APIs in favor of #starred tag).
+---
+
+## [Run 073] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Autonomous Cycle)
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine
+- **Task Addressed**: Task 3.5 — Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis) (ADR-079).
+- **Actions Taken**:
+  - **Strict Snake_Case Normalization Invariants (`core/db.py`, `core/tags.py`, `core/tag_prompts.py`)**:
+    - Implemented `normalize_tag_name(name: str) -> str` in `core/db.py` and re-exported in `core/tags.py` and `core/__init__.py`.
+    - Normalizes raw inputs by stripping `#`, converting non-alphanumerics to `_`, collapsing underscores, lowercasing, and rejecting empty values.
+    - Wired normalization into `Database.add_tag`, `get_tag`, `get_or_create_tag`, `delete_tag`, `prune_unlinked_tags`, and all `TaggingService` query and aggregation pipelines.
+    - Updated `CANONICAL_TAXONOMY` presets to canonical `snake_case` (e.g. `covenant`, `holy_spirit`, `sovereign_grace`, `justification`).
+    - Updated `core/tag_prompts.py` LLM prompt generation and JSON schemas to mandate strict `snake_case` tag creation.
+  - **Clean-Slate Taxonomy Migration & Pruning (`Database.migrate_clean_slate_tags`, `Database.prune_unlinked_tags`)**:
+    - Added `Database.prune_unlinked_tags(preserve_tags=("favorites",))` to cleanly remove tags having zero scripture associations while safeguarding user favorites.
+    - Added `Database.migrate_clean_slate_tags()` executed during `Database.init_schema()` to automatically prune legacy unlinked preset tags and normalize existing tags to `snake_case`.
+    - Pruned 25 unlinked, pre-assumed tags from `data/bible.db`, preserving the pristine `favorites` tag with 829 passage associations.
+    - Updated `core/bootstrap.py` to eliminate pre-seeding empty tags during database bootstrap, ensuring clean-slate exegesis.
+    - Updated `is_database_healthy` to expect `tag_count >= 1` (`favorites` baseline) instead of legacy `tag_count >= 20`.
+  - **CLI & Interactive REPL Ergonomics (`cli/main.py`, `cli/shell.py`)**:
+    - Added `prune` (with alias `clean`) subcommand to `./bible tag` (`./bible tag prune [--dry-run] [--json]`).
+    - Added `/tag prune` and `/tag clean` commands to interactive study REPL (`BibleShell`) with autocompletion.
+  - **Hermetic Unit Test Suite Updates (`tests/test_tags.py`, `tests/test_tag_prompts.py`, `tests/test_bootstrap.py`, `tests/test_cli.py`, `tests/test_core.py`)**:
+    - Updated test suites across 5 modules to assert canonical `snake_case` tag formats.
+    - Added dedicated tests for `normalize_tag_name` and `prune_unlinked_tags` in `tests/test_tags.py`.
+    - Verified **917 tests passing 100% across 41 modules in 7.8s**.
+  - **Governance & State Synchronization**:
+    - Registered **ADR-079** in `DECISIONS.md`.
+    - Marked **Task 3.5** complete in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **917 tests across 41 modules passed 100% in 7.872s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (79 ADRs registered, 73 sequential runs, 76 roadmap tasks tracked, 68 completed across 9 phases, 0 dependencies, 0 linter errors across 87 files).
+  - `python3 tools/linter.py`: **100% CLEAN** — 87 files inspected with 0 errors.
+  - Verified live CLI outputs: `./bible tag list`, `./bible tag prune --dry-run`, `./bible tag show favorites --limit 2`.
+- **Handoff Notes for Next Agent**:
+  - Task 3.5 is complete and the tag taxonomy is clean-slate and strictly `snake_case`.
+  - Next task on roadmap: Phase 3 Task 3.6 (Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag) or Task 3.7 (Client-Controlled Semantic Tagging Project Skill).
+
 
 
 

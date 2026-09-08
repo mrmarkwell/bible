@@ -161,6 +161,7 @@ from core.tags import (
     TaggedPassage,
     TaggingService,
     VerseRelevance,
+    normalize_tag_name,
 )
 from core.tag_prompts import (
     GeneratedTag,
@@ -362,6 +363,7 @@ __all__ = [
     "TaggedPassage",
     "TaggingService",
     "CANONICAL_TAXONOMY",
+    "normalize_tag_name",
     "BookTopicDensity",
     "ChapterTopicDensity",
     "TagCoOccurrence",

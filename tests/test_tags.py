@@ -108,14 +108,14 @@ class TestTaggingServiceBasics(unittest.TestCase):
 
     def test_add_and_get_tag(self) -> None:
         t = self.svc.add_tag("Grace", category=TagCategory.THEOLOGICAL, description="Unmerited favor")
-        self.assertEqual(t.name, "Grace")
+        self.assertEqual(t.name, "grace")
         self.assertEqual(t.category, "theological")
         self.assertEqual(t.description, "Unmerited favor")
 
         fetched = self.svc.get_tag("grace")  # case-insensitive
         self.assertIsNotNone(fetched)
         assert fetched is not None
-        self.assertEqual(fetched.name, "Grace")
+        self.assertEqual(fetched.name, "grace")
 
     def test_add_tag_validation(self) -> None:
         with self.assertRaises(ValueError):
@@ -152,7 +152,7 @@ class TestTaggingServiceBasics(unittest.TestCase):
 
         matches = self.svc.search_tags("Trinity")
         self.assertEqual(len(matches), 1)
-        self.assertEqual(matches[0].name, "Holy Spirit")
+        self.assertEqual(matches[0].name, "holy_spirit")
 
     def test_seed_canonical_taxonomies(self) -> None:
         count = self.svc.seed_canonical_taxonomies()
@@ -177,6 +177,25 @@ class TestTaggingServiceBasics(unittest.TestCase):
         finally:
             new_db.close()
 
+    def test_normalize_tag_name_and_pruning(self) -> None:
+        from core.tags import normalize_tag_name
+        self.assertEqual(normalize_tag_name("Holy Spirit"), "holy_spirit")
+        self.assertEqual(normalize_tag_name("#starred"), "starred")
+        self.assertEqual(normalize_tag_name("sovereign-grace"), "sovereign_grace")
+        self.assertEqual(normalize_tag_name("Faith & Works"), "faith_works")
+        with self.assertRaises(ValueError):
+            normalize_tag_name("   ")
+
+        # Test prune unlinked tags
+        self.svc.add_tag("unlinked_one")
+        self.svc.add_tag("favorites")  # protected by default
+        self.svc.tag_passage("John 3:16", "linked_tag")
+        pruned_count = self.svc.prune_unlinked_tags()
+        self.assertGreaterEqual(pruned_count, 1)
+        self.assertIsNone(self.svc.get_tag("unlinked_one"))
+        self.assertIsNotNone(self.svc.get_tag("favorites"))
+        self.assertIsNotNone(self.svc.get_tag("linked_tag"))
+
 
 class TestPassageTaggingAndSpans(unittest.TestCase):
     """Test passage tagging across verses, arbitrary spans, and chapters."""
@@ -192,7 +211,7 @@ class TestPassageTaggingAndSpans(unittest.TestCase):
         recs = self.svc.tag_passage("John 3:16", "Love", category="thematic", notes="Golden verse", starred=True)
         self.assertEqual(len(recs), 1)
         r = recs[0]
-        self.assertEqual(r.tag_name, "Love")
+        self.assertEqual(r.tag_name, "love")
         self.assertEqual(r.human_ref, "John 3:16")
         self.assertTrue(r.starred)
         self.assertEqual(r.notes, "Golden verse")
@@ -235,7 +254,7 @@ class TestPassageTaggingAndSpans(unittest.TestCase):
 
         remaining = self.svc.get_tags_for_passage("Romans 8:1-4", exact_only=True)
         self.assertEqual(len(remaining), 1)
-        self.assertEqual(remaining[0].tag_name, "Sanctification")
+        self.assertEqual(remaining[0].tag_name, "sanctification")
 
         # Untag non-existent
         self.assertEqual(self.svc.untag_passage("Romans 8:1-4", "NonExistent"), 0)
@@ -244,9 +263,9 @@ class TestPassageTaggingAndSpans(unittest.TestCase):
         recs = self.svc.tag_passage("John 3:16", "Salvation, Grace, Eternal Life")
         self.assertEqual(len(recs), 3)
         tag_names = [r.tag_name for r in recs]
-        self.assertIn("Salvation", tag_names)
-        self.assertIn("Grace", tag_names)
-        self.assertIn("Eternal Life", tag_names)
+        self.assertIn("salvation", tag_names)
+        self.assertIn("grace", tag_names)
+        self.assertIn("eternal_life", tag_names)
 
 
 class TestTagQueriesAndHydration(unittest.TestCase):
@@ -267,36 +286,36 @@ class TestTagQueriesAndHydration(unittest.TestCase):
         self.db.close()
 
     def test_overlapping_queries(self) -> None:
-        # Querying Romans 8:1 should match all 3: Freedom (exact), No Condemnation (span), Christian Life (chapter)
+        # Querying Romans 8:1 should match all 3: freedom (exact), no_condemnation (span), christian_life (chapter)
         tags_v1 = self.svc.get_tags_for_passage("Romans 8:1")
         names_v1 = [t.tag_name for t in tags_v1]
-        self.assertIn("Freedom", names_v1)
-        self.assertIn("No Condemnation", names_v1)
-        self.assertIn("Christian Life", names_v1)
+        self.assertIn("freedom", names_v1)
+        self.assertIn("no_condemnation", names_v1)
+        self.assertIn("christian_life", names_v1)
 
-        # Querying Romans 8:3 should match No Condemnation (span) and Christian Life (chapter), but NOT Freedom
+        # Querying Romans 8:3 should match no_condemnation (span) and christian_life (chapter), but NOT freedom
         tags_v3 = self.svc.get_tags_for_passage("Romans 8:3")
         names_v3 = [t.tag_name for t in tags_v3]
-        self.assertNotIn("Freedom", names_v3)
-        self.assertIn("No Condemnation", names_v3)
-        self.assertIn("Christian Life", names_v3)
+        self.assertNotIn("freedom", names_v3)
+        self.assertIn("no_condemnation", names_v3)
+        self.assertIn("christian_life", names_v3)
 
-        # Querying Romans 8:5 should match Christian Life (chapter), but NOT Freedom or No Condemnation
+        # Querying Romans 8:5 should match christian_life (chapter), but NOT freedom or no_condemnation
         tags_v5 = self.svc.get_tags_for_passage("Romans 8:5")
         names_v5 = [t.tag_name for t in tags_v5]
-        self.assertEqual(names_v5, ["Christian Life"])
+        self.assertEqual(names_v5, ["christian_life"])
 
     def test_exact_queries(self) -> None:
         # Exact on Romans 8:1
         exact_v1 = self.svc.get_tags_for_passage("Romans 8:1", exact_only=True)
-        self.assertEqual([t.tag_name for t in exact_v1], ["Freedom"])
+        self.assertEqual([t.tag_name for t in exact_v1], ["freedom"])
 
         # Exact on Romans 8:1-4
         exact_span = self.svc.get_tags_for_passage("Romans 8:1-4", exact_only=True)
-        self.assertEqual([t.tag_name for t in exact_span], ["No Condemnation"])
+        self.assertEqual([t.tag_name for t in exact_span], ["no_condemnation"])
 
     def test_get_passages_for_tag_hydrated(self) -> None:
-        passages = self.svc.get_passages_for_tag("No Condemnation", translation_id="WEB")
+        passages = self.svc.get_passages_for_tag("no_condemnation", translation_id="WEB")
         self.assertEqual(len(passages), 1)
         p = passages[0]
         self.assertEqual(p.human_ref, "Romans 8:1-4")
@@ -310,7 +329,7 @@ class TestTagQueriesAndHydration(unittest.TestCase):
         self.assertEqual(len(p_dict["verses"]), 4)
 
     def test_tag_stats(self) -> None:
-        stats = self.svc.get_tag_stats("No Condemnation")
+        stats = self.svc.get_tag_stats("no_condemnation")
         self.assertIsNotNone(stats)
         assert stats is not None
         self.assertEqual(stats["passage_count"], 1)
@@ -404,7 +423,7 @@ class TestCliTagCommands(unittest.TestCase):
             code = main(["--db", self.db_path, "tag", "show", "Atonement"])
             self.assertEqual(code, 0)
         show_output = stdout_show.getvalue()
-        self.assertIn("Tag: Atonement", show_output)
+        self.assertIn("Tag: atonement", show_output)
         self.assertIn("Romans 8:1-3", show_output)
         self.assertIn("There is therefore now no condemnation", show_output)
 
@@ -424,7 +443,7 @@ class TestCliTagCommands(unittest.TestCase):
             code = main(["--db", self.db_path, "tag", "for", "Romans 8:2"])
             self.assertEqual(code, 0)
         out = stdout.getvalue()
-        self.assertIn("Sanctification [Romans 8:1-4]", out)
+        self.assertIn("sanctification [Romans 8:1-4]", out)
 
     def test_cli_tag_remove(self) -> None:
         with patch("sys.stdout", io.StringIO()):
@@ -433,7 +452,7 @@ class TestCliTagCommands(unittest.TestCase):
         with patch("sys.stdout", stdout):
             code = main(["--db", self.db_path, "tag", "remove", "Romans 8:1-4", "Temporary"])
             self.assertEqual(code, 0)
-        self.assertIn("Removed tag 'Temporary' from Romans 8:1-4", stdout.getvalue())
+        self.assertIn("Removed tag 'Temporary' from Romans 8:1-4.", stdout.getvalue())
 
     def test_cli_get_with_tags_flag(self) -> None:
         with patch("sys.stdout", io.StringIO()):
@@ -442,7 +461,7 @@ class TestCliTagCommands(unittest.TestCase):
         with patch("sys.stdout", stdout):
             code = main(["--db", self.db_path, "get", "John 3:16", "--tags"])
             self.assertEqual(code, 0)
-        self.assertIn("Tags: [Gospel]", stdout.getvalue())
+        self.assertIn("Tags: [gospel]", stdout.getvalue())
 
 
 class TestShellTagCommands(unittest.TestCase):
@@ -463,7 +482,7 @@ class TestShellTagCommands(unittest.TestCase):
         out_for = io.StringIO()
         self.shell.stdout = out_for
         self.shell.onecmd('/tag for "John 3:16"')
-        self.assertIn("Salvation [John 3:16]", out_for.getvalue())
+        self.assertIn("salvation [John 3:16]", out_for.getvalue())
 
     def test_shell_tag_completion(self) -> None:
         # Subcommand completion
@@ -472,8 +491,8 @@ class TestShellTagCommands(unittest.TestCase):
 
         # Tag name completion
         self.shell.onecmd('/tag add "John 3:16" "Resurrection"')
-        tag_matches = self.shell.complete_tag("Res", "tag show Res", 9, 12)
-        self.assertEqual(tag_matches, ["Resurrection"])
+        tag_matches = self.shell.complete_tag("res", "tag show res", 9, 12)
+        self.assertEqual(tag_matches, ["resurrection"])
 
 
 class TestTagAggregationAnalytics(unittest.TestCase):
@@ -501,15 +520,15 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         self.assertEqual(john.passage_count, 2)
         self.assertEqual(john.starred_count, 1)
         self.assertEqual(john.distinct_tags, 3)
-        self.assertEqual(john.tag_counts["Gospel"], 2)
-        self.assertEqual(john.tag_counts["Grace"], 1)
+        self.assertEqual(john.tag_counts["gospel"], 2)
+        self.assertEqual(john.tag_counts["grace"], 1)
 
         # Romans (book_id 45)
         romans = next(d for d in densities if d.book_name == "Romans")
         self.assertEqual(romans.passage_count, 2)
         self.assertEqual(romans.starred_count, 1)
         self.assertEqual(romans.distinct_tags, 3)
-        self.assertEqual(romans.tag_counts["Sanctification"], 2)
+        self.assertEqual(romans.tag_counts["sanctification"], 2)
 
         # Filter by specific tag
         grace_density = self.svc.get_topic_density_per_book(tag_name="Grace", min_passages=1)
@@ -528,7 +547,7 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         table_output = format_topic_density_table(densities, styling=False)
         self.assertIn("John", table_output)
         self.assertIn("Romans", table_output)
-        self.assertIn("Gospel (2)", table_output)
+        self.assertIn("gospel (2)", table_output)
 
     def test_tag_co_occurrence_matrix(self) -> None:
         res = self.svc.get_tag_co_occurrences(min_co_occurrences=1)
@@ -537,29 +556,29 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         # Sanctification and Grace co-occur on Romans 8:1-4
         pairs = res.pair_metrics
         pair_names = {(p.tag_a, p.tag_b) for p in pairs} | {(p.tag_b, p.tag_a) for p in pairs}
-        self.assertIn(("Grace", "Sanctification"), pair_names)
-        self.assertIn(("Gospel", "Grace"), pair_names)
-        self.assertIn(("Flesh", "Sanctification"), pair_names)
+        self.assertIn(("grace", "sanctification"), pair_names)
+        self.assertIn(("gospel", "grace"), pair_names)
+        self.assertIn(("flesh", "sanctification"), pair_names)
 
         # Check Jaccard similarity between Grace and Sanctification
         # Grace = 2 passages (Rom 8:1-4, John 3:16)
         # Sanctification = 2 passages (Rom 8:1-4, Rom 8:5)
         # Intersection = 1 passage (Rom 8:1-4)
         # Union = 3 passages -> Jaccard = 1/3 = 0.3333
-        p_sg = next(p for p in pairs if (p.tag_a == "Grace" and p.tag_b == "Sanctification") or (p.tag_a == "Sanctification" and p.tag_b == "Grace"))
+        p_sg = next(p for p in pairs if (p.tag_a == "grace" and p.tag_b == "sanctification") or (p.tag_a == "sanctification" and p.tag_b == "grace"))
         self.assertEqual(p_sg.shared_passages, 1)
         self.assertAlmostEqual(p_sg.jaccard_similarity, 1.0 / 3.0, places=3)
         self.assertAlmostEqual(p_sg.dice_coefficient, 2.0 * 1.0 / (2 + 2), places=3)
 
         # Matrix dict access
-        self.assertEqual(res.matrix["Grace"]["Sanctification"], 1)
-        self.assertEqual(res.matrix["Sanctification"]["Grace"], 1)
-        self.assertEqual(res.matrix["Grace"]["Grace"], 2)
+        self.assertEqual(res.matrix["grace"]["sanctification"], 1)
+        self.assertEqual(res.matrix["sanctification"]["grace"], 1)
+        self.assertEqual(res.matrix["grace"]["grace"], 2)
 
         # Formatting table
         output = format_tag_co_occurrence_table(pairs, styling=False)
-        self.assertIn("Grace", output)
-        self.assertIn("Sanctification", output)
+        self.assertIn("grace", output)
+        self.assertIn("sanctification", output)
         self.assertIn("Jaccard Index", output)
 
     def test_verse_relevance_scoring(self) -> None:
@@ -571,7 +590,7 @@ class TestTagAggregationAnalytics(unittest.TestCase):
         top = rankings[0]
         self.assertEqual(top.human_ref, "Romans 8:1-4")
         self.assertTrue(top.starred)
-        self.assertEqual(top.matched_tags, ["Grace", "Sanctification"])
+        self.assertEqual(top.matched_tags, ["grace", "sanctification"])
         self.assertEqual(top.match_ratio, 1.0)
         self.assertTrue(top.score > 0.8)
         self.assertIn("There is therefore now no condemnation", top.text)
@@ -626,7 +645,7 @@ class TestTagAggregationAnalytics(unittest.TestCase):
             self.assertEqual(code, 0)
         data = json.loads(stdout.getvalue())
         self.assertIn("pairs", data)
-        self.assertTrue(any(p["tag_a"] in ("Gospel", "Love") for p in data["pairs"]))
+        self.assertTrue(any(p["tag_a"] in ("gospel", "love") for p in data["pairs"]))
 
         # Relevance CLI
         stdout_rel = io.StringIO()
@@ -696,8 +715,8 @@ class TestRedemptiveRibbon(unittest.TestCase):
         self.assertIn("Rev:", plain_out)
 
         # Styled mode
-        styled_out = format_redemptive_ribbon_ascii(densities, styling=True, tag_name="Sovereign Grace")
-        self.assertIn("#Sovereign Grace", styled_out)
+        styled_out = format_redemptive_ribbon_ascii(densities, styling=True, tag_name="sovereign_grace")
+        self.assertIn("#sovereign_grace", styled_out)
         self.assertIn("\033[", styled_out)
 
     def test_cli_ribbon_subcommand(self) -> None:
@@ -732,7 +751,7 @@ class TestRedemptiveRibbon(unittest.TestCase):
 
             # /ribbon auto-completion
             rib_matches = shell.complete_ribbon("sov", "ribbon sov", 7, 10)
-            self.assertTrue(any("Sovereign Grace" in m for m in rib_matches))
+            self.assertTrue(any("sovereign_grace" in m for m in rib_matches))
 
     def test_get_topic_density_per_chapter(self) -> None:
         chapters = self.svc.get_topic_density_per_chapter(book="Genesis")

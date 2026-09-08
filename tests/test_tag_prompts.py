@@ -110,19 +110,19 @@ class TestTagPromptsDomain(unittest.TestCase):
 
     def test_format_taxonomy_for_prompt(self):
         tax = format_taxonomy_for_prompt()
-        self.assertIn("Creation", tax)
-        self.assertIn("Justification", tax)
+        self.assertIn("creation", tax)
+        self.assertIn("justification", tax)
         self.assertIn("Redemptive-Historical Storyline Motifs", tax)
 
         # Filter categories
         tax_theol = format_taxonomy_for_prompt(categories=["theological"])
-        self.assertIn("Justification", tax_theol)
-        self.assertNotIn("Creation (`historical`)", tax_theol)
+        self.assertIn("justification", tax_theol)
+        self.assertNotIn("creation (`historical`)", tax_theol)
 
         # Custom tags
-        custom = [("Shepherd", "thematic", "God as shepherd of His sheep")]
+        custom = [("shepherd", "thematic", "God as shepherd of His sheep")]
         tax_custom = format_taxonomy_for_prompt(custom_tags=custom)
-        self.assertIn("Shepherd", tax_custom)
+        self.assertIn("shepherd", tax_custom)
         self.assertIn("God as shepherd of His sheep", tax_custom)
 
     def test_generate_tagging_prompt(self):
@@ -176,11 +176,11 @@ class TestTagResponseParser(unittest.TestCase):
 
     def test_normalize_tag_name(self):
         # Canonical match
-        self.assertEqual(normalize_tag_name("justification"), "Justification")
-        self.assertEqual(normalize_tag_name("holy spirit"), "Holy Spirit")
-        self.assertEqual(normalize_tag_name("sovereign grace"), "Sovereign Grace")
-        # Novel tag Title Case
-        self.assertEqual(normalize_tag_name("messianic hope"), "Messianic Hope")
+        self.assertEqual(normalize_tag_name("justification"), "justification")
+        self.assertEqual(normalize_tag_name("holy spirit"), "holy_spirit")
+        self.assertEqual(normalize_tag_name("sovereign grace"), "sovereign_grace")
+        # Novel tag snake_case
+        self.assertEqual(normalize_tag_name("messianic hope"), "messianic_hope")
 
     def test_normalize_category(self):
         self.assertEqual(normalize_category("THEOLOGICAL"), TagCategory.THEOLOGICAL)
@@ -217,10 +217,10 @@ class TestTagResponseParser(unittest.TestCase):
         self.assertTrue(res.is_success)
         self.assertEqual(res.reference, "Romans 8:1-3")
         self.assertEqual(len(res.tags), 2)
-        self.assertEqual(res.tags[0].name, "Justification")
+        self.assertEqual(res.tags[0].name, "justification")
         self.assertTrue(res.tags[0].starred)
         self.assertEqual(res.tags[0].sub_span, "Romans 8:1")
-        self.assertEqual(res.tags[1].name, "Holy Spirit")
+        self.assertEqual(res.tags[1].name, "holy_spirit")
         self.assertFalse(res.tags[1].starred)
 
     def test_parse_tagging_response_array_format(self):
@@ -379,8 +379,8 @@ class TestTagGeneratorTool(unittest.TestCase):
         tags = svc.get_tags_for_passage("Romans 8:1")
         self.assertEqual(len(tags), 2)
         tag_names = {t.tag_name for t in tags}
-        self.assertIn("Justification", tag_names)
-        self.assertIn("Holy Spirit", tag_names)
+        self.assertIn("justification", tag_names)
+        self.assertIn("holy_spirit", tag_names)
 
     def test_call_gemini_api_mock(self):
         mock_response_data = {
@@ -439,7 +439,7 @@ class TestTagGeneratorTool(unittest.TestCase):
         svc = TaggingService(self.db)
         tags = svc.get_tags_for_passage("John 3:16")
         self.assertEqual(len(tags), 1)
-        self.assertEqual(tags[0].tag_name, "Love")
+        self.assertEqual(tags[0].tag_name, "love")
 
     def test_cmd_generate_missing_api_key(self):
         parser = build_tool_parser()

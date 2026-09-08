@@ -2616,6 +2616,50 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies introduced (Python stdlib only, no pip/npm).
   - All 66 KJV books permanently cached locally in `data/raw/kjv/` for hermetic reproducibility.
 
+---
+
+## ADR-079: Dynamic Bottom-Up Semantic Tagging, Snake_Case Normalization Invariants, and Clean-Slate Taxonomy Migration
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Task 3.5 on the roadmap required migrating the semantic tagging engine from legacy, hard-coded title-case taxonomy presets (which pre-seeded 25 unlinked tags like `"Grace"`, `"Holy Spirit"`, `"Sanctification"` into `data/bible.db`) to a dynamic, bottom-up model.
+  - Pre-seeding unlinked, empty tags artificially inflated the tag catalog and broke user expectations regarding clean-slate exegesis and curated tags.
+  - Furthermore, tag naming lacked strict normalization invariants, allowing inconsistent casings and punctuation variations (`"Holy Spirit"`, `"holy_spirit"`, `"#starred"`, `"Faith & Works"`).
+  - A clean-slate architecture was needed where:
+    1. Only tags with active scripture associations are preserved (along with designated system favorites).
+    2. Tags are strictly normalized to canonical lowercase `snake_case` identifiers.
+    3. New tags emerge bottom-up during text exegesis and AI tag suggestion, rather than being forced from a rigid static top-down list.
+- **Decision**:
+  1. **Strict Snake_Case Normalization Invariants (`core/db.py`, `core/tags.py`, `core/tag_prompts.py`)**:
+     - Implemented `normalize_tag_name(name: str) -> str`:
+       - Strips leading `#` characters and trims surrounding whitespace.
+       - Replaces all non-alphanumeric characters with underscores (`_`).
+       - Collapses consecutive underscores into single underscores and trims leading/trailing underscores.
+       - Lowercases the result.
+       - Validates that the normalized tag is non-empty, raising `ValueError` otherwise.
+     - Enforced `normalize_tag_name` across all database and service operations: `add_tag`, `get_tag`, `get_or_create_tag`, `delete_tag`, `tag_passage`, `untag_passage`, `get_passages_for_tag`, `get_tag_stats`, `get_topic_density_per_book`, `get_tag_co_occurrences`, and `score_verse_relevance`.
+     - Standardized taxonomy presets in `CANONICAL_TAXONOMY` to strict `snake_case` (e.g. `creation`, `covenant`, `holy_spirit`, `justification`, `sovereign_grace`).
+  2. **Clean-Slate Taxonomy Migration & Pruning (`Database.migrate_clean_slate_tags`, `Database.prune_unlinked_tags`)**:
+     - Added `Database.prune_unlinked_tags(preserve_tags=("favorites",))` which deletes any tag lacking passage associations in `verse_tags`, safeguarding user-curated favorites.
+     - Added `Database.migrate_clean_slate_tags()` executed during `Database.init_schema()`:
+       - Prunes legacy pre-assumed unlinked tags.
+       - Migrates any existing mixed-case or hyphenated tags to canonical `snake_case`, safely consolidating tag associations where normalized names collide.
+     - Updated `core/bootstrap.py` to stop pre-seeding empty tags during database bootstrap, ensuring new or re-initialized databases start with a pristine clean-slate state.
+     - Updated `is_database_healthy` to expect `tag_count >= 1` (the bundled `favorites` baseline) rather than legacy `tag_count >= 20`.
+  3. **CLI & Interactive Shell Ergonomics (`cli/main.py`, `cli/shell.py`)**:
+     - Added `prune` (with alias `clean`) subcommand to `./bible tag`:
+       - `./bible tag prune` removes unused tags from the database while preserving `favorites`.
+       - Supports `--dry-run` and `--json` outputs.
+     - Added `/tag prune` and `/tag clean` commands to the interactive study REPL (`BibleShell`) with tab-completion.
+  4. **Hermetic Test Suite & Verification**:
+     - Updated all unit test assertions across `tests/test_tags.py`, `tests/test_tag_prompts.py`, `tests/test_core.py`, `tests/test_cli.py`, and `tests/test_bootstrap.py` to assert canonical `snake_case` tag formats.
+     - Added unit tests for `normalize_tag_name` edge cases and `prune_unlinked_tags` safeguarding in `tests/test_tags.py`.
+     - Verified 100% test pass rate across **917 tests in 41 test modules**.
+- **Consequences**:
+  - Tags are now consistently formatted, deterministic, and clean across the entire stack.
+  - Zero unlinked tag clutter in fresh installs or migrated databases.
+  - Full adherence to ADR-003 (Python 3 stdlib only, zero pip/npm dependencies).
+
 
 
 

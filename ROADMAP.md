@@ -63,7 +63,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.2**: Implement verse-to-verse cross-referencing and relationship edges (thematic, prophecy-fulfillment, quotation). *(Run 023 / ADR-024)*
 - [x] **Task 3.3**: Create batch LLM tagging tool/prompt generator to classify and tag scripture into predefined and dynamic semantic taxonomies (`tools/tag_generator.py` / `core/tag_prompts.py`). *(Run 024 / ADR-025)*
 - [x] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring. *(Run 026 / ADR-027)*
-- [ ] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis).
+- [x] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis). *(Run 073 / ADR-079)*
 - [ ] **Task 3.6**: Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag.
 - [ ] **Task 3.7**: Client-Controlled Semantic Tagging Project Skill (`skills/semantic-tagging`) operating strictly on ESV text with TGC exegetical guidelines.
 - [ ] **Task 3.8**: Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`.
