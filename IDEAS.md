@@ -573,6 +573,23 @@ Add the following tables and indices to `core/db.py`:
 - **Proposed Roadmap Phase**: Phase 0 (Task 0.18; ADR-053).
 - **Status**: [DONE] (Rank A+; Implemented in Run 050 / Senior PM Cleanup Sprint).
 
+---
+
+### [VETTED] Streamlined Semantic Prompt CLI & Dry-Run Exegetical Subcommand (`./bible prompt`)
+- **Summary**: Implement a dedicated CLI subcommand (`./bible prompt <ref> [--type pericope|typology|discourse] [--copy] [--output <file>]`) and interactive shell command (`/prompt <ref>`) that allows developers and Bible students to generate, preview, export, or clipboard-copy fully assembled, stratified exegetical prompts for any canonical passage directly from the terminal without executing live API calls.
+- **Rationale**: While `core/semantic_prompts.py` provides the programmatic engine to build multi-layer prompts with macro-book horizons, users and developers currently have no direct CLI mechanism to inspect generated prompts for specific biblical passages (e.g. `Romans 8:28-39`, `Exodus 12:1-14`) or copy them into external LLM interfaces (Claude, Gemini, ChatGPT) for ad-hoc study or offline manual review. Exposing prompt generation as a fast, zero-dependency CLI tool empowers manual verification and interactive study.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (builds prompts 100% offline from local scripture text and embedded 66-book horizons).
+  - Zero third-party dependencies? Yes (Python 3 standard library only per ADR-003).
+  - High velocity? Yes (generates complete prompt text in <1ms).
+- **Proposed Roadmap Phase**: Phase 7 (Task 7.3.1).
+- **Suggested Tasks**:
+  - [ ] Add `prompt` subcommand to `cli/` argument parser with `--type`, `--raw-json`, and `--output` options.
+  - [ ] Add `/prompt` command to interactive shell in `cli/shell.py`.
+  - [ ] Add hermetic unit tests in `tests/test_cli.py` verifying CLI prompt output formatting.
+- **Status**: [VETTED] (Rank A+; Promoted in Run 051).
+
+
 
 
 
