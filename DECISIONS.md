@@ -1735,3 +1735,35 @@ This document is an append-only log of significant design and architectural deci
   - SQLite database integrity guarantees extended to foreign keys and 6-layer Phase 7 semantic architecture.
   - Machine-readable JSON output enables automated health telemetry.
   - Preserves 100% Zero-Dependency compliance (Python stdlib only per ADR-003).
+
+---
+
+## ADR-054: Stratified Exegetical Prompt Architecture, 66-Book Canonical Horizons & Multi-Layer Theological DTOs
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler) requires converting raw Biblical text across 1,189 chapters and ~3,000 pericopes into structured, relational knowledge across 6 distinct semantic layers (pericopes, discourse relations, verse theology, typological arcs, semantic propositions, embeddings).
+  - Exegetical and theological reasoning with Large Language Models frequently degrades when given raw verses in isolation. An isolated verse lacks the author's macro-argument, historical setting, literary genre, and Christological trajectory, leading to atomized, moralistic readings or inaccurate theological classification.
+  - Furthermore, LLM responses across thousands of pericopes must be reliably parsed into typed Python domain objects and converted into relational database records (`BBCCCVVV` coordinate format) while gracefully tolerating minor variations in model JSON output (e.g. markdown code fences, case variations, alternate enum naming).
+- **Decision**:
+  1. **Canonical Horizon Catalog for All 66 Books (`BOOK_HORIZONS`)**:
+     - Embedded an authoritative, zero-dependency catalog of `BookHorizon` metadata covering all 66 Protestant canonical books (Genesis through Revelation) in `core/semantic_prompts.py`.
+     - Each `BookHorizon` defines: canonical name, testament, author, approximate date, historical/literary setting, central theological theme, Christological trajectory, primary redemptive epoch, and recurring motifs.
+     - Provided lookup (`get_book_horizon`) and textual formatting (`format_book_horizon`) to inject macro-canonical framing into LLM prompt contexts.
+  2. **Stratified Analytical Prompt Architecture**:
+     - Structured prompt generation into modular methods within `SemanticPromptGenerator`:
+       - `build_pericope_prompt`: Injects macro-book horizon, pericope scripture text, redemptive epoch, thematic ribbons, theological loci, and TGC foundation guidelines to produce literary structure, discourse relations, verse theology, typological arcs, and semantic propositions.
+       - `build_typology_prompt`: Deep-dive prompt tracing OT types, NT antitypes, theological correspondence, and textual warrants.
+       - `build_discourse_prompt`: Focused rhetorical prompt identifying propositions, discourse relations (ground, inference, purpose, contrast, condition), and communicative acts.
+  3. **Multi-Layer Domain DTOs & SQLite Bridging**:
+     - Defined typed Python dataclasses: `PericopeAnalysisInput`, `DiscourseRelationData`, `VerseTheologyData`, `TypologicalArcData`, `SemanticPropositionData`, and `PericopeAnalysisResult`.
+     - Implemented `to_db_records()` on `PericopeAnalysisResult` to seamlessly resolve relative verse citations (`v. 28`, `8:28`, `Romans 8:28`) to canonical integer coordinate format (`BBCCCVVV`).
+     - Upgraded database batch insert methods in `core/db.py` to accept both typed dataclass records and raw tuples interchangeably.
+  4. **Robust Zero-Dependency JSON Extraction & Normalization**:
+     - Implemented `parse_pericope_analysis_json()` to handle LLM markdown fences (````json ... ````), sanitize stray trailing commas, and normalize string values into canonical domain enums (`RedemptiveEpoch`, `TheologicalLocus`, `ThematicRibbon`).
+- **Consequences**:
+  - Exegetical prompts now possess deep, authoritative canonical context across all 66 books, preventing anachronistic and moralistic misreadings.
+  - Multi-layer DTOs cleanly separate raw model extraction from SQLite relational persistence.
+  - Zero external dependencies preserved (ADR-003).
+  - All 668 unit tests passing hermetically in <4.0s.
+

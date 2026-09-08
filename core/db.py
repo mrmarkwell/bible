@@ -2411,6 +2411,21 @@ class Database:
         now = _utc_now_iso()
         rows: List[Tuple[Any, ...]] = []
         for item in items:
+            if isinstance(item, PericopeRecord):
+                rows.append((
+                    item.book_id,
+                    item.start_canonical_id,
+                    item.end_canonical_id,
+                    item.human_ref,
+                    item.title.strip(),
+                    item.redemptive_summary.strip() if item.redemptive_summary else None,
+                    item.genre.strip() if item.genre else None,
+                    item.literary_structure.strip() if item.literary_structure else None,
+                    item.central_proposition.strip() if item.central_proposition else None,
+                    item.created_at or now,
+                ))
+                continue
+
             ref_input = item[0]
             title = item[1]
             summary = item[2] if len(item) > 2 else None
@@ -2621,6 +2636,20 @@ class Database:
         now = _utc_now_iso()
         rows = []
         for item in items:
+            if isinstance(item, DiscourseRelationRecord):
+                rows.append((
+                    item.source_canonical_id,
+                    item.source_human_ref,
+                    item.target_canonical_id,
+                    item.target_human_ref,
+                    item.relation_type.strip().lower(),
+                    item.marker_text.strip() if item.marker_text else None,
+                    item.greek_marker.strip() if item.greek_marker else None,
+                    item.notes.strip() if item.notes else None,
+                    item.created_at or now,
+                ))
+                continue
+
             s_ref_input = item[0]
             rel_type = item[1]
             t_ref_input = item[2] if len(item) > 2 else None
@@ -2820,6 +2849,20 @@ class Database:
         now = _utc_now_iso()
         rows = []
         for item in items:
+            if isinstance(item, VerseTheologyRecord):
+                rows.append((
+                    item.start_canonical_id,
+                    item.end_canonical_id,
+                    item.human_ref,
+                    item.storyline_epoch.strip(),
+                    item.thematic_ribbon.strip() if item.thematic_ribbon else None,
+                    item.theological_locus.strip(),
+                    item.primary_doctrine.strip(),
+                    item.confidence,
+                    item.created_at or now,
+                ))
+                continue
+
             ref_input = item[0]
             epoch = item[1]
             locus = item[2]
@@ -3092,6 +3135,21 @@ class Database:
         now = _utc_now_iso()
         rows = []
         for item in items:
+            if isinstance(item, TypologicalArcRecord):
+                rows.append((
+                    item.type_start_id,
+                    item.type_end_id,
+                    item.type_human_ref,
+                    item.antitype_start_id,
+                    item.antitype_end_id,
+                    item.antitype_human_ref,
+                    item.theological_correspondence.strip(),
+                    item.warrant.strip() if item.warrant else None,
+                    item.confidence,
+                    item.created_at or now,
+                ))
+                continue
+
             t_input = item[0]
             at_input = item[1]
             corr = item[2]
@@ -3256,6 +3314,20 @@ class Database:
         now = _utc_now_iso()
         rows = []
         for item in items:
+            if isinstance(item, SemanticPropositionRecord):
+                rows.append((
+                    item.canonical_verse_id,
+                    item.human_ref,
+                    item.speech_act.strip().lower(),
+                    item.agent.strip(),
+                    item.action.strip(),
+                    item.patient.strip() if item.patient else None,
+                    item.tone.strip().lower() if item.tone else None,
+                    item.clause_text.strip() if item.clause_text else None,
+                    item.created_at or now,
+                ))
+                continue
+
             ref_input = item[0]
             speech_act = item[1]
             agent = item[2]

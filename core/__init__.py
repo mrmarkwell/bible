@@ -237,6 +237,26 @@ from core.vector import (
     unpack_float32_vector,
     vector_norm,
 )
+from core.semantic_prompts import (
+    BOOK_HORIZONS,
+    BookHorizon,
+    DISCOURSE_RELATION_TYPES,
+    DiscourseRelationData,
+    LITERARY_GENRES,
+    PericopeAnalysisInput,
+    PericopeAnalysisResult,
+    SPEECH_ACT_TYPES,
+    SemanticPromptGenerator,
+    SemanticPropositionData,
+    TypologicalArcData,
+    VerseTheologyData,
+    generate_pericope_prompt,
+    get_book_horizon,
+    get_semantic_prompt_generator,
+    parse_pericope_analysis_json,
+    parse_pericope_response,
+)
+
 
 __all__ = [
     # Reference
@@ -455,4 +475,22 @@ __all__ = [
     "quantize_float_to_int8",
     "unpack_float32_vector",
     "vector_norm",
+    # Stratified Exegetical Prompt Architecture & TGC Hermeneutical System
+    "BOOK_HORIZONS",
+    "BookHorizon",
+    "DISCOURSE_RELATION_TYPES",
+    "DiscourseRelationData",
+    "LITERARY_GENRES",
+    "PericopeAnalysisInput",
+    "PericopeAnalysisResult",
+    "SPEECH_ACT_TYPES",
+    "SemanticPromptGenerator",
+    "SemanticPropositionData",
+    "TypologicalArcData",
+    "VerseTheologyData",
+    "generate_pericope_prompt",
+    "get_book_horizon",
+    "get_semantic_prompt_generator",
+    "parse_pericope_analysis_json",
+    "parse_pericope_response",
 ]
