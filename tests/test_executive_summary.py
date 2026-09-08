@@ -105,6 +105,39 @@ class TestExecutiveSummary(unittest.TestCase):
             self.assertEqual(entries[1].run_number, 40)
             self.assertEqual(entries[1].archetype, "milestone")
 
+    def test_parse_agent_log_nested_actions_and_bugfix(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "AGENT_LOG.md"
+            log_path.write_text(
+                "# Autonomous Agent Worklog\n\n"
+                "## [Run 056] — 2026-09-08\n"
+                "- **Agent**: Ralph Loop Agent (Mandatory Priority: GitHub Issue Triage & Resolution)\n"
+                "- **Context / Trigger**: Mandatory Priority GitHub Bug Report #1: *\"SVG never renders on the web UI\"* submitted by @mrmarkwell.\n"
+                "- **Actions Taken**:\n"
+                "  - **Global Visibility Utility in `web/static/style.css`**:\n"
+                "    - Added universal `.hidden { display: none !important; }` rule.\n"
+                "  - **Vector SVG DOM Sanitization in `web/static/app.js`**:\n"
+                "    - Added regex XML prolog stripping.\n\n"
+                "## [Run 057] — 2026-09-08\n"
+                "- **Agent**: Ralph Loop Agent (Autonomous Roadmap Lifecycle)\n"
+                "- **Task Addressed**: Phase 8, **Task 8.1**: *Implement Scripture RAG retrieval engine in `core/rag.py`.*\n"
+                "- **Actions Taken**:\n"
+                "  - **Query Analysis & Feature Extraction (`extract_query_features`)**:\n"
+                "    - Scans queries for canonical citations.\n",
+                encoding="utf-8",
+            )
+            entries = parse_agent_log(log_path)
+            self.assertEqual(len(entries), 2)
+            self.assertEqual(entries[0].run_number, 56)
+            self.assertEqual(entries[0].archetype, "bugfix")
+            self.assertEqual(entries[0].phase, "Bug Triage & Resolution")
+            self.assertTrue(any("Global Visibility Utility" in a and "Added universal" in a for a in entries[0].actions))
+
+            self.assertEqual(entries[1].run_number, 57)
+            self.assertEqual(entries[1].phase, "Phase 8")
+            self.assertIn("Task 8.1", entries[1].task)
+            self.assertTrue(any("Query Analysis" in a and "Scans queries" in a for a in entries[1].actions))
+
     def test_json_export(self):
         report = generate_summary(window=3, run_doctor=False)
         json_data = report.to_json()

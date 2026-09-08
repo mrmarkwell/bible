@@ -2135,3 +2135,31 @@ This document is an append-only log of significant design and architectural deci
   - System Doctor (`./bible doctor`) runtime **reduced from 6.39s to 4.02s** (a 37% speedup).
   - 100% Zero-Dependency compliance maintained (Python stdlib standard library only, zero pip/npm packages).
 
+---
+
+## ADR-065: Hierarchical Agent Log Action Parser & Bugfix Archetype Telemetry
+- **Date**: 2026-09-08
+- **Status**: Accepted
+- **Context**:
+  - During Senior Product Manager system health auditing, the retrospective reporting and trajectory telemetry tool (`tools/executive_summary.py` / `./bible summary`) exhibited analytical blind spots:
+    1. **Truncated Action Summaries**: Recent detailed roadmap runs (such as Run #057, #058, #059, and #060) authored structured multi-tier action bullet blocks where bold headings (e.g. `  - **Biblical Character Persona Catalog (`core/persona.py`)**:`) were followed by indented sub-bullets (`    - Authored comprehensive definitions for 19 foundational figures...`). The parser only captured the empty heading, printing `**Heading**:` without its explanatory context.
+    2. **Unrecognized Archetypes**: Bug triage cycles (such as Run #056 addressing GitHub Issue #1) and runs with `Task Addressed` headers defaulted to generic `[Feature Sprint]` or `Autonomous Loop Iteration`, obscuring dedicated maintenance and bug-resolution efforts.
+    3. **Phase/Task Redundancy**: In markdown rendering, tasks prefixed with their phase produced double-wrapped formatting (e.g. `- **Phase & Task**: Phase 8 — ***Task 8.1**: ...*`).
+- **Decision**:
+  1. **Hierarchical Bullet Extraction (`parse_agent_log` in `tools/executive_summary.py`)**:
+     - Upgraded the bullet parser to detect bold headings followed by indented sub-bullets, synthesizing complete, informative action highlights (`**Heading**: first sub-bullet description`).
+     - Preserves flat bullets and fallback unstructured lists cleanly.
+  2. **First-Class Bugfix Archetype & Clean Phase Resolution**:
+     - Added `bugfix` sprint archetype (`🛠️ [Bug Triage & Resolution Sprint]`) triggered by bug triage and issue resolution markers.
+     - Added intelligent phase extraction falling back gracefully to `Bug Triage & Resolution` or `Task Addressed` phase indicators.
+     - Stripped redundant phase prefixes from task descriptions.
+  3. **Task Markdown Formatting Guard**:
+     - Hardened task rendering in `format_markdown_report` to avoid malformed nested asterisks.
+  4. **Hermetic Unit Test Suite**:
+     - Added `test_parse_agent_log_nested_actions_and_bugfix` in `tests/test_executive_summary.py` asserting exact extraction of nested bullets, bugfix archetypes, and task formatting.
+- **Consequences**:
+  - Executive briefings and trajectory reports (`./bible summary`) now present rich, accurate, human-readable action summaries across all past iterations.
+  - Bug fixes and maintenance sprints are clearly distinguished from standard feature roadmap runs.
+  - Maintains 100% zero-dependency architecture (Python stdlib only per ADR-003) with 790 unit tests passing in <2.5s.
+
+

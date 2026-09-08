@@ -143,18 +143,30 @@ def parse_agent_log(agent_log_path: Path) -> List[RunEntry]:
         if phase_m:
             phase = phase_m.group(1).strip()
         else:
-            sprint_m = re.search(r"-\s*\*\*(?:Sprint Mode|Role|Category)\*\*:\s*([^\n]+)", section)
-            if sprint_m:
-                phase = sprint_m.group(1).strip()
-            elif run_num % 10 == 0:
-                phase = "Senior PM Double Milestone & Meta-Improvement Sprint"
-            elif run_num % 5 == 0:
-                phase = "Senior Product Manager Meta-Improvement Sprint"
+            ta_m = re.search(r"-\s*\*\*(?:Task Addressed|Task|Goal)\*\*:\s*([^,\n]+)", section)
+            if ta_m and "Phase" in ta_m.group(1):
+                phase = ta_m.group(1).strip()
             else:
-                phase = "Autonomous Loop Iteration"
+                sprint_m = re.search(r"-\s*\*\*(?:Sprint Mode|Role|Category)\*\*:\s*([^\n]+)", section)
+                if sprint_m:
+                    phase = sprint_m.group(1).strip()
+                elif run_num % 10 == 0:
+                    phase = "Senior PM Double Milestone & Meta-Improvement Sprint"
+                elif run_num % 5 == 0:
+                    phase = "Senior Product Manager Meta-Improvement Sprint"
+                else:
+                    ctx_m = re.search(r"-\s*\*\*(?:Context / Trigger|Context)\*\*:\s*([^\n]+)", section)
+                    if ctx_m:
+                        raw_ctx = ctx_m.group(1).strip()
+                        if "Bug Report" in raw_ctx or "Issue" in raw_ctx:
+                            phase = "Bug Triage & Resolution"
+                        else:
+                            phase = raw_ctx
+                    else:
+                        phase = "Autonomous Loop Iteration"
 
         # Extract task or goal
-        task_m = re.search(r"-\s*\*\*(?:Task|Goal|Mission)\*\*:\s*([^\n]+)", section)
+        task_m = re.search(r"-\s*\*\*(?:Task Addressed|Task|Goal|Mission)\*\*:\s*([^\n]+)", section)
         if task_m:
             task = task_m.group(1).strip()
         else:
@@ -164,7 +176,15 @@ def parse_agent_log(agent_log_path: Path) -> List[RunEntry]:
             elif run_num % 5 == 0:
                 task = "System Health Audit & Meta-Architecture Optimization"
             else:
-                task = header_tail
+                ctx_m = re.search(r"-\s*\*\*(?:Context / Trigger|Context)\*\*:\s*([^\n]+)", section)
+                if ctx_m:
+                    task = ctx_m.group(1).strip()
+                else:
+                    task = header_tail
+
+        # Clean redundant phase prefix from task if present
+        if phase and task.startswith(f"{phase}, "):
+            task = task[len(f"{phase}, "):].strip()
 
         # Determine sprint archetype
         if run_num % 10 == 0 or "Double Milestone" in header_tail or "Double Milestone" in section[:300]:
@@ -179,6 +199,8 @@ def parse_agent_log(agent_log_path: Path) -> List[RunEntry]:
             or "Senior Product Manager" in section[:300]
         ):
             archetype = "meta_sprint"
+        elif "Bug Report" in section[:400] or "Issue Triage" in section[:400] or "GitHub Issue" in section[:400]:
+            archetype = "bugfix"
         elif "Governance" in header_tail or "Governance" in phase or "License" in task:
             archetype = "governance"
         else:
@@ -193,12 +215,33 @@ def parse_agent_log(agent_log_path: Path) -> List[RunEntry]:
         )
         if act_block_m:
             block = act_block_m.group(1)
-            for line in block.splitlines():
-                # Prefer top-level bold headings
-                if re.match(r"^  -\s+\*\*", line):
-                    actions.append(re.sub(r"^  -\s+", "", line).strip())
-                elif re.match(r"^  -\s+", line) and not any(re.match(r"^  -\s+\*\*", l) for l in block.splitlines()):
-                    actions.append(re.sub(r"^  -\s+", "", line).strip())
+            lines = block.splitlines()
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                # Match top-level bold heading: '  - **Title**:' or '  - **Title (`file`)**:'
+                m_bold = re.match(r"^\s{2,4}-\s+\*\*([^*]+)\*\*:\s*$", line)
+                if m_bold:
+                    heading = m_bold.group(1).strip()
+                    sub_bullets: List[str] = []
+                    j = i + 1
+                    while j < len(lines) and re.match(r"^\s{4,8}-\s+", lines[j]):
+                        sub_text = re.sub(r"^\s{4,8}-\s+", "", lines[j]).strip()
+                        sub_bullets.append(sub_text)
+                        j += 1
+                    if sub_bullets:
+                        actions.append(f"**{heading}**: {sub_bullets[0]}")
+                    else:
+                        actions.append(f"**{heading}**")
+                    i = j
+                    continue
+                # Direct bullet with content on same line: '  - **Title**: details' or '  - details'
+                m_direct = re.match(r"^\s{2,4}-\s+(.*)$", line)
+                if m_direct:
+                    content_line = m_direct.group(1).strip()
+                    if content_line:
+                        actions.append(content_line)
+                i += 1
 
             if not actions:
                 for line in block.splitlines():
@@ -371,18 +414,24 @@ def format_markdown_report(report: ExecutiveReport) -> str:
             prefix = "👑 [Double Milestone & Senior PM Sprint]"
         elif r.archetype == "meta_sprint":
             prefix = "🧹 [Senior PM Meta-Sprint]"
+        elif r.archetype == "bugfix":
+            prefix = "🛠️ [Bug Triage & Resolution Sprint]"
         elif r.archetype == "governance":
             prefix = "⚖️ [Governance & Legal Sprint]"
         else:
             prefix = "🚀 [Feature Sprint]"
 
         lines.append(f"### {prefix} Run #{r.run_number:03d} — {r.date_str or 'Autonomous Cycle'}")
-        if r.phase and r.task:
-            lines.append(f"- **Phase & Task**: {r.phase} — *{r.task}*")
+        task_display = r.task
+        if task_display and not (task_display.startswith("*") or "**" in task_display):
+            task_display = f"*{task_display}*"
+
+        if r.phase and task_display:
+            lines.append(f"- **Phase & Task**: {r.phase} — {task_display}")
         elif r.phase:
             lines.append(f"- **Phase**: {r.phase}")
-        elif r.task:
-            lines.append(f"- **Task**: *{r.task}*")
+        elif task_display:
+            lines.append(f"- **Task**: {task_display}")
 
         if r.actions:
             lines.append("- **Key Highlights**:")

@@ -35,6 +35,8 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.19**: Implement Deep Semantic Diagnostic Integration, Omnichannel Audit Ergonomics & Doctor Coverage Gates (`tools/doctor.py`, `cli/shell.py`, `tools/audit_semantic.py`, ADR-058). *(Run 055 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.20**: Implement Autonomous GitHub Issue Triage & Bug Resolution Engine (`tools/github_issues.py`, `./bible issues`, REPL `/issues`, `ralph.sh` priority pre-check, and ADR-059).
 - [x] **Task 0.21**: Implement Adaptive Test Scheduling (LPT Heuristic) & Test Suite Latency Halving in `tools/test_runner.py` with atomic historical timing cache (`.test_timing_cache.json`), test isolation optimization (<2.5s total test suite), and ADR-064. *(Run 060 / Senior PM Double Milestone)*
+- [x] **Task 0.22**: Implement Hierarchical Action Bullet Parsing & Bugfix Archetype Telemetry in `tools/executive_summary.py` (ADR-065). *(Run 061 / Senior PM Cleanup Sprint)*
+
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.
