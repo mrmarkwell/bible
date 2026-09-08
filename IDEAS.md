@@ -589,6 +589,24 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add hermetic unit tests in `tests/test_cli.py` verifying CLI prompt output formatting.
 - **Status**: [VETTED] (Rank A+; Promoted in Run 051).
 
+---
+
+### [VETTED] Sovereign Dual-Horizon Scripture Graph & Typological Matrix Visualizer
+- **Summary**: Implement a zero-dependency interactive graph and matrix viewer (`./bible graph` and `/graph` in REPL shell) generating self-contained SVG and terminal ASCII visualizations of the newly compiled 6-layer permanent semantic database (`data/bible.db`). Visualizes redemptive-historical arcs linking Old Testament types directly to New Testament antitypical fulfillments, rhetorical discourse flow networks across pericopes, and dual-horizon theological loci distributions.
+- **Rationale**: With Phase 7 now complete and 100.00% of the canon's theological and typological metadata permanently compiled into SQLite, users and developers need visual, pedagogical tools to explore how Old Testament shadows connect with Christological fulfillments across all 66 books without relying on external web browsers or npm packages.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (queries local `data/bible.db` directly).
+  - Zero third-party dependencies? Yes (pure Python standard library SVG generator and ANSI terminal layout).
+  - High performance? Yes (sub-second rendering for complex multi-book subgraphs).
+- **Proposed Roadmap Phase**: Phase 8 (Task 8.7).
+- **Suggested Tasks**:
+  - [ ] Add `core/graph_visualizer.py` supporting SVG and terminal ASCII network graph generation.
+  - [ ] Expose `./bible graph [ref]` subcommand in `cli/main.py`.
+  - [ ] Expose `/graph [ref]` in REPL interactive shell `cli/shell.py`.
+  - [ ] Add hermetic unit tests in `tests/test_graph_visualizer.py`.
+- **Status**: [VETTED] (Rank A+; Promoted in Run 054).
+
+
 
 
 
