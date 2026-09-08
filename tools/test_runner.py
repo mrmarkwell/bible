@@ -12,7 +12,7 @@ Zero-dependency test orchestrator (Python 3 standard library only per ADR-003):
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 import json
 import os
@@ -214,6 +214,10 @@ def run_single_test_module(
             # Print immediately to standard error for real-time CI diagnostic visibility
             sys.stderr.write(f"\n[TEST FAILURE] {mod_name} (code {proc.returncode}):\n{err_msg}\n")
             sys.stderr.flush()
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                escaped = err_msg.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                sys.stderr.write(f"::error file={rel_path},title=Test Failure: {mod_name}::{escaped}\n")
+                sys.stderr.flush()
 
         return TestModuleResult(
             module_path=rel_path,
@@ -345,7 +349,7 @@ def run_tests_parallel(
     failed_count = 0
     aborted = False
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_path = {
             executor.submit(
                 run_single_test_module,
@@ -584,6 +588,24 @@ def run_tests(
         emit(f" {verdict} — {summary.failed_modules}/{summary.total_modules} modules failed ({summary.total_tests} tests run)")
 
     emit(styler.bold("======================================================================"))
+
+    # Write GitHub Actions Step Summary if running in CI workflow
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        try:
+            with open(summary_path, "a", encoding="utf-8") as f:
+                f.write(f"### 🧪 Hermetic Unit Test Suite Results\n\n")
+                status_badge = "✅ Passed" if summary.success else "❌ Failed"
+                f.write(f"- **Status**: {status_badge}\n")
+                f.write(f"- **Total Tests**: {summary.total_tests}\n")
+                f.write(f"- **Modules**: {summary.passed_modules}/{summary.total_modules} passed\n")
+                f.write(f"- **Duration**: {summary.total_duration_sec:.2f}s\n\n")
+                if failed_results:
+                    f.write("#### ❌ Failed Test Modules\n\n")
+                    for r in failed_results:
+                        f.write(f"- **{r.module_name}** (`{r.module_path}`):\n```\n{r.error_message}\n```\n\n")
+        except Exception:
+            pass
 
     exit_code = 0 if summary.success else 1
     return exit_code, summary

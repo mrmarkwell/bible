@@ -2709,7 +2709,7 @@ class BibleShell(cmd.Cmd):
         """Inspect GitHub Actions CI status, matrix jobs, and watch workflow runs.
 
         Usage:
-          /ci [--limit=N] [--branch=main] [-d]
+          /ci [check] [--limit=N] [--branch=main] [-d]
           /ci --details [--run-id=N]
           /ci --watch [--run-id=N] [--interval=N]
         """
@@ -2728,7 +2728,7 @@ class BibleShell(cmd.Cmd):
 
     def complete_ci(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /ci command."""
-        commands = ["--details", "--watch", "--json", "--limit", "--branch", "--run-id", "-d", "-w", "-n"]
+        commands = ["check", "--check", "--details", "--watch", "--json", "--limit", "--branch", "--run-id", "-d", "-w", "-n"]
         return [c for c in commands if c.startswith(text.lower())]
 
     # --------------------------------------------------------------------------

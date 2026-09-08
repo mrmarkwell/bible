@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import urllib.error
 
 from tools.ci import (
+    check_ci_status,
     format_jobs,
     format_runs,
     get_auth_token,
@@ -274,7 +275,108 @@ class TestCITool(unittest.TestCase):
             code = watch_run("mrmarkwell", "bible", 444, interval=0.01, max_wait_seconds=0.03)
             self.assertEqual(code, 1)
 
+    @patch("tools.ci.get_runs")
+    def test_check_ci_status_success(self, mock_get_runs):
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {
+                    "id": 999,
+                    "head_sha": "abc1234",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "head_branch": "main",
+                    "head_commit": {"message": "feat: great feature"},
+                }
+            ]
+        }
+        healthy, message, latest = check_ci_status("mrmarkwell", "bible")
+        self.assertTrue(healthy)
+        self.assertIn("HEALTHY", message)
+        self.assertEqual(latest["id"], 999)
+
+    @patch("tools.ci.get_runs")
+    def test_check_ci_status_failure(self, mock_get_runs):
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {
+                    "id": 888,
+                    "head_sha": "def5678",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "head_branch": "main",
+                    "head_commit": {"message": "fix: broken test"},
+                }
+            ]
+        }
+        healthy, message, latest = check_ci_status("mrmarkwell", "bible")
+        self.assertFalse(healthy)
+        self.assertIn("FAILING", message)
+        self.assertEqual(latest["id"], 888)
+
+    @patch("tools.ci.get_runs")
+    def test_check_ci_status_offline_fallback(self, mock_get_runs):
+        mock_get_runs.return_value = None
+        healthy, message, latest = check_ci_status("mrmarkwell", "bible")
+        self.assertTrue(healthy)
+        self.assertIn("offline", message)
+        self.assertIsNone(latest)
+
+    @patch("tools.ci.get_runs")
+    def test_main_check_success_and_failure(self, mock_get_runs):
+        # Success scenario
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {"id": 1, "head_sha": "aaa", "status": "completed", "conclusion": "success", "display_title": "ci pass"}
+            ]
+        }
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            code = main(["check"])
+            self.assertEqual(code, 0)
+            self.assertIn("HEALTHY", mock_out.getvalue())
+
+        # Failure scenario
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {"id": 2, "head_sha": "bbb", "status": "completed", "conclusion": "failure", "display_title": "ci fail"}
+            ]
+        }
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_err:
+            code = main(["--check"])
+            self.assertEqual(code, 1)
+            self.assertIn("FAILING", mock_err.getvalue())
+
+    @patch("tools.ci.get_runs")
+    def test_main_check_prompt_and_summary(self, mock_get_runs):
+        # Failing CI emits prompt with instructions
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {"id": 3, "head_sha": "ccc", "status": "completed", "conclusion": "failure", "display_title": "bug"}
+            ]
+        }
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            code = main(["check", "--prompt"])
+            self.assertEqual(code, 0)
+            self.assertIn("FAILING", mock_out.getvalue())
+            self.assertIn("top priority per AGENTS.md", mock_out.getvalue())
+
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            code = main(["check", "--summary"])
+            self.assertEqual(code, 0)
+            self.assertIn("FAILING", mock_out.getvalue())
+
+        # Passing CI emits nothing and returns 1 (no prompt needed)
+        mock_get_runs.return_value = {
+            "workflow_runs": [
+                {"id": 4, "head_sha": "ddd", "status": "completed", "conclusion": "success", "display_title": "pass"}
+            ]
+        }
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_out:
+            code = main(["check", "--prompt"])
+            self.assertEqual(code, 1)
+            self.assertEqual(mock_out.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

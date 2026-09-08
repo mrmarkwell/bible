@@ -56,19 +56,23 @@ Follow the **Boot → Cadence Check → Execute → Log → Push → Terminate**
 ```mermaid
 flowchart TD
     A[1. Boot & Orient] --> B[2. Check Blockers]
-    B --> C{3. GitHub Issue / Bug Report Detected?}
-    C -- Yes: Bug Priority --> D1[4a. Triage & Address Bug Report]
-    D1 --> E1[5a. Fix + Regression Test OR Close Reason OR Diagnostic Comment]
-    C -- No: Cadence Check --> D2{4b. Cadence Check: 5th Iteration or --cleanup?}
-    D2 -- No: Standard Cycle --> D3[5b. Select Task from Roadmap]
-    D2 -- Yes: Senior PM Sprint --> D4[5c. Senior PM Meta-System Audit]
-    E1 --> I[6. Verify 100% Tests & Zero Dependencies]
-    D3 --> E2[6a. Implement Feature & Test]
-    D4 --> E3[6b. Conceive & Execute Rank A+ Meta-Improvement]
+    B --> C0{3. GitHub Actions CI/CD Broken?}
+    C0 -- Yes: Broken CI/CD --> D0[4a. Fix Broken CI/CD Pipeline Top Priority]
+    D0 --> E0[5a. Fix Concurrency/Tests/Matrix & Push to Green]
+    C0 -- No: CI Healthy --> C{4. GitHub Issue / Bug Report Detected?}
+    C -- Yes: Bug Priority --> D1[5b. Triage & Address Bug Report]
+    D1 --> E1[6a. Fix + Regression Test OR Close Reason OR Diagnostic Comment]
+    C -- No: Cadence Check --> D2{5c. Cadence Check: 5th Iteration or --cleanup?}
+    D2 -- No: Standard Cycle --> D3[6b. Select Task from Roadmap]
+    D2 -- Yes: Senior PM Sprint --> D4[6c. Senior PM Meta-System Audit]
+    E0 --> I[7. Verify 100% Tests & Zero Dependencies]
+    E1 --> I
+    D3 --> E2[7a. Implement Feature & Test]
+    D4 --> E3[7b. Conceive & Execute Rank A+ Meta-Improvement]
     E2 --> I
     E3 --> I
-    I --> J[7. Log Decisions & Work in AGENT_LOG / DECISIONS]
-    J --> K[8. Commit, Push Immediately & Self-Terminate]
+    I --> J[8. Log Decisions & Work in AGENT_LOG / DECISIONS]
+    J --> K[9. Commit, Push Immediately & Self-Terminate]
 ```
 
 ---
@@ -142,21 +146,31 @@ When the iteration is a standard cycle:
    - If `BLOCKED.md` exists and contains an unanswered blocker: **DO NOT PROCEED**. Terminate or address only items that unblock the state.
    - If `BLOCKED.md` contains a human resolution: Ingest the resolution, apply any necessary setup, **delete or clear `BLOCKED.md`**, and proceed.
 
-#### 2. Priority Check: Open GitHub Issue / Bug Report Triage
+#### 2. Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY)
+Before addressing bug reports or selecting a roadmap task, check the status of GitHub Actions continuous integration using `python3 tools/ci.py check` (or `./bible ci check`):
+- **If GitHub Actions CI is broken/failing**: You **MUST** fix the broken CI/CD pipeline on GitHub as the **TOP PRIORITY** before resolving issues or starting roadmap tasks:
+  1. Interrogate the failure matrix (`python3 tools/ci.py --details` or `./bible ci --run <id>`).
+  2. Identify the failing steps, jobs, and Python versions (e.g. Python 3.10, 3.11, 3.12, 3.13).
+  3. Fix the root cause in code, concurrency models, test runner, or workflow definitions.
+  4. Verify 100% hermetic unit tests pass across all environments (`./bible test`).
+  5. Commit with message `fix(ci): <explanation>`, immediately push (`git push origin main`), and verify that GitHub Actions returns to green (`python3 tools/ci.py --watch`).
+  6. Document the triage, root cause, and remediation in `AGENT_LOG.md` and `DECISIONS.md`.
+- **Only once GitHub Actions CI/CD is verified green/healthy (or offline fallback), proceed to Priority 1 Check.**
+
+#### 3. Priority 1 Check: Open GitHub Issue / Bug Report Triage
 Before selecting a roadmap task, check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`):
 - If an open GitHub issue (bug report) exists, **address it in this iteration before proceeding to roadmap tasks**:
   1. **Fix & Close (Bug Resolved)**: Reproduce the bug, write hermetic regression unit test(s) in `tests/test_*.py`, fix the code, verify 100% test pass rate (`./bible test`), include `Fixes #<number>` in your git commit message (GitHub automatically closes the issue upon push to `origin/main`), and close the issue via `python3 tools/github_issues.py close <number> --comment "Resolved in commit with regression test."`.
   2. **Close as Irrelevant / Duplicate / Not Planned**: If the bug report is invalid, duplicate, out-of-scope, or already resolved, close it with a clear, polite explanation via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<explanation>"`.
-  3. **Comment with Stated Diagnostic Reason**: If the issue cannot be resolved in this iteration (e.g. requires reproduction details from author, external credentials, or human clarification), post an explanatory comment via `python3 tools/github_issues.py comment <number> "<diagnostic reason and current status>"`.
 - Record your triage action, reasoning, and resolution in `AGENT_LOG.md`.
 
-#### 3. Task Selection
+#### 4. Task Selection
 1. Open `ROADMAP.md`.
 2. Locate the highest-priority task marked `[TODO]` under the active phase whose prerequisites are satisfied.
 3. Update its status in `ROADMAP.md` to `[IN PROGRESS]` (include your agent identifier / timestamp).
 4. **Scope Control**: Work on **ONE** coherent unit of work only. Do not attempt to complete multiple large milestones in a single turn. Small, atomic iterations prevent context degradation.
 
-#### 4. Execution & Verification
+#### 5. Execution & Verification
 1. **Test-Driven / Verification-Driven**:
    - Before writing or refactoring production code, ensure tests exist or write unit tests.
    - Run the relevant test suite and verify 100% pass status.
@@ -165,7 +179,7 @@ Before selecting a roadmap task, check for open GitHub issues using `python3 too
    - **MANDATORY**: Push every commit immediately (`git push origin main`). Never leave unpushed commits on your branch.
    - Never commit broken code, failing tests, or unformatted files.
 
-#### 4. Handling Ambiguity & Architectural Decisions
+#### 6. Handling Ambiguity & Architectural Decisions
 - If you face an ambiguous design choice (e.g., library choice, schema optimization, CLI syntax):
   - **Do NOT stop to ask the human user interactive questions** (unless strictly blocked as defined below).
   - Carefully weigh trade-offs.

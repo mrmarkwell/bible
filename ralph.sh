@@ -196,9 +196,14 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         CYCLE_PROMPT="$DEFAULT_PROMPT"
         SPRINT_BANNER="Standard Cycle (Roadmap Task Execution)"
 
+        # Priority 0: Check for broken GitHub Actions CI/CD (TOP PRIORITY)
+        CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+        if [ -n "$CI_PROMPT" ]; then
+            CYCLE_PROMPT="$CI_PROMPT"
+            CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
+            SPRINT_BANNER="CI/CD FIX TOP PRIORITY ($CI_SUMMARY)"
         # Priority 1: Check for open GitHub issues / bug reports
-        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
-        if [ -n "$GITHUB_PROMPT" ]; then
+        elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
             CYCLE_PROMPT="$GITHUB_PROMPT"
             ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
             SPRINT_BANNER="BUG REPORT PRIORITY ($ISSUE_SUMMARY)"
@@ -309,8 +314,12 @@ if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
     if [ "$#" -eq 0 ]; then
-        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
-        if [ -n "$GITHUB_PROMPT" ]; then
+        CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+        if [ -n "$CI_PROMPT" ]; then
+            CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
+            echo " [!] GitHub Actions CI/CD failure detected: Prioritizing CI/CD repair ($CI_SUMMARY)."
+            PROMPT="$CI_PROMPT"
+        elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
             ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
             echo " [!] Open GitHub issue detected: Prioritizing bug report resolution ($ISSUE_SUMMARY)."
             PROMPT="$GITHUB_PROMPT"
@@ -342,8 +351,14 @@ fi
 # If no arguments provided, launch interactively
 if [ "$#" -eq 0 ]; then
     NEXT_RUN=$(get_next_run_number)
-    GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
-    if [ -n "$GITHUB_PROMPT" ]; then
+    CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+    if [ -n "$CI_PROMPT" ]; then
+        CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
+        echo "======================================================================"
+        echo " Launching Ralph Loop (Priority: Broken CI/CD Repair: $CI_SUMMARY)"
+        echo "======================================================================"
+        exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CI_PROMPT"
+    elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
         ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
         echo "======================================================================"
         echo " Launching Ralph Loop (Priority: GitHub Bug Report: $ISSUE_SUMMARY)"

@@ -5267,6 +5267,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Polling interval in seconds for --watch (default: 6.0)",
     )
     parser_ci.add_argument(
+        "action",
+        nargs="?",
+        default="status",
+        choices=["status", "check", "watch"],
+        help="CI action: 'status' (view runs), 'check' (pre-flight health check), 'watch' (poll until completion)",
+    )
+    parser_ci.add_argument(
+        "--check",
+        "-c",
+        action="store_true",
+        help="Pre-flight health check: exit with code 1 if latest CI run failed",
+    )
+    parser_ci.add_argument(
         "--json",
         action="store_true",
         help="Output machine-readable JSON telemetry",
@@ -5275,6 +5288,11 @@ def build_parser() -> argparse.ArgumentParser:
     def cmd_ci(args: argparse.Namespace) -> int:
         from tools import ci
         ci_args = []
+        action = getattr(args, "action", "status") or "status"
+        if action and action != "status":
+            ci_args.append(action)
+        if getattr(args, "check", False):
+            ci_args.append("--check")
         if getattr(args, "repo", None):
             ci_args.extend(["--repo", args.repo])
         if getattr(args, "token", None):

@@ -29,14 +29,20 @@ In this mode:
 In this mode:
 1. **Self-Directed Boot**: Read [MANIFESTO.md](file:///usr/local/google/home/markwell/personal_dev/bible/MANIFESTO.md), [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md), and [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md).
 2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed.
-3. **Priority Check: Open GitHub Issue / Bug Report Triage**:
+3. **Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY)**:
+   - Check the health of GitHub Actions CI on `origin/main` using `python3 tools/ci.py check` (or `./bible ci check`).
+   - If CI/CD is failing or broken on GitHub Actions, **HALT ALL OTHER TASKS AND FIX CI/CD FIRST**.
+   - Do not pick up new roadmap tasks or triage normal GitHub issues while CI is red.
+   - Investigate failure logs (`./bible ci status --details` or `gh run view --log-failed`), reproduce locally, fix root cause, verify hermetic test pass (`./bible test`), commit, and push immediately (`git push origin main`).
+   - Monitor CI until it passes (`./bible ci --watch`).
+4. **Priority Check: Open GitHub Issue / Bug Report Triage**:
    - Check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`).
    - If an open GitHub issue exists, **prioritize addressing it in this iteration before roadmap tasks**:
      - *Path A (Fix & Close)*: Write regression test, fix bug, verify 100% tests pass (`./bible test`), commit with `Fixes #<number>`, and close via `python3 tools/github_issues.py close <number> --comment "..."` (or let GitHub native commit parsing close on push).
      - *Path B (Close with Reason)*: Close invalid/duplicate/unplanned issue via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<reason>"`.
      - *Path C (Diagnostic Comment)*: If blocked or awaiting information, post status comment via `python3 tools/github_issues.py comment <number> "<status and reason>"`.
    - Document triage and resolution in `AGENT_LOG.md`.
-4. **Cadence Check (10th Iteration = Senior PM Meta-Sprint + Executive Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
+5. **Cadence Check (10th Iteration = Senior PM Meta-Sprint + Executive Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
    - **If Run Number is a multiple of 10, loop iteration % 10 == 0, or invoked via `--summary`**:
      - Step into the **Senior Product Manager & Meta-Architect** role (since 10 is divisible by 5): answer the two core diagnostic questions (*"What is the weakest aspect?"*, *"What is preventing this from being more incredible?"*), formulate and **execute** a Rank A+ meta-improvement with 100% passing tests and zero dependencies.
      - Next, run `python3 tools/executive_summary.py` (or `./bible summary`) to curate the accomplishments across the last 10 iterations from `AGENT_LOG.md`.
@@ -52,9 +58,9 @@ In this mode:
    - **If Standard Cycle**:
      - Claim the highest-priority `[TODO]` item from [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md) and mark it `[IN PROGRESS]`.
      - Implement feature & hermetic unit tests (`tests/test_*.py`).
-5. **Implement & Test**: Work strictly within [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity) (Python 3 stdlib only, zero pip/npm packages). Verify 100% test pass (`python3 -m unittest discover tests`).
-6. **No Questions Asked**: Resolve ambiguities autonomously, recording decisions in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
-7. **Handoff & Push**: Mark completed items in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
-8. **Emit Executive Briefing**: Conclude with a user-facing summary reporting blocker status (`BLOCKED.md`), accomplishments, current trajectory, letter-graded improvement ideas, and hygiene.
-9. **MANDATORY POST-BRIEFING A+ PROMOTION STEP**: Review the ideas in Section 4 of the emitted briefing. If ANY idea is self-evaluated as rank **A+**, you MUST NOT stop; you MUST immediately call tools to append the formalized feature request to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md), commit (`git commit -m "docs: promote Rank A+ idea <name> to IDEAS.md"`), and immediately run `git push origin main`. Never terminate without executing this step.
-10. **Self-Termination**: Cleanly exit only after Step 9 completes.
+6. **Implement & Test**: Work strictly within [ADR-003](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md#adr-003-zero-dependency-architecture-for-zero-maintenance--dependabot-immunity) (Python 3 stdlib only, zero pip/npm packages). Verify 100% test pass (`python3 -m unittest discover tests`).
+7. **No Questions Asked**: Resolve ambiguities autonomously, recording decisions in [DECISIONS.md](file:///usr/local/google/home/markwell/personal_dev/bible/DECISIONS.md).
+8. **Handoff & Push**: Mark completed items in [ROADMAP.md](file:///usr/local/google/home/markwell/personal_dev/bible/ROADMAP.md), append to [AGENT_LOG.md](file:///usr/local/google/home/markwell/personal_dev/bible/AGENT_LOG.md), commit with conventional message, and **immediately run `git push origin main`**.
+9. **Emit Executive Briefing**: Conclude with a user-facing summary reporting blocker status (`BLOCKED.md`), accomplishments, current trajectory, letter-graded improvement ideas, and hygiene.
+10. **MANDATORY POST-BRIEFING A+ PROMOTION STEP**: Review the ideas in Section 4 of the emitted briefing. If ANY idea is self-evaluated as rank **A+**, you MUST NOT stop; you MUST immediately call tools to append the formalized feature request to [IDEAS.md](file:///usr/local/google/home/markwell/personal_dev/bible/IDEAS.md), commit (`git commit -m "docs: promote Rank A+ idea <name> to IDEAS.md"`), and immediately run `git push origin main`. Never terminate without executing this step.
+11. **Self-Termination**: Cleanly exit only after Step 10 completes.

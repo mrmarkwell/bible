@@ -2745,3 +2745,38 @@ This is an append-only log of work performed by autonomous agents during their e
 
 
 
+
+---
+
+## [Run 068] — 2026-09-08
+- **Agent**: Ralph Loop Agent (Bug Priority & Self-Improvement Cycle)
+- **Context / Directive**: User directed: "CI/CD is broken. Add that to your precheck list before starting a ralph iteration. Even before resolving issues, you should fix broken CI/CD on github as top priority. Update yourself to do that going forward."
+- **Phase**: Phase 0 — Repository Architecture & Autonomous Harness
+- **Task Addressed**: Phase 0, **Task 0.25**: *Implement Autonomous GitHub Actions CI/CD Pre-Check Sentry, Fork-Safe ThreadPool Test Concurrency, and Self-Healing CI Priority Protocol (ADR-072).*
+- **Actions Taken**:
+  - **Root Cause Diagnosis of CI/CD Failure**:
+    - Investigated GitHub Actions workflow failure on Python 3.10 and Python 3.11 runners in parallel test runner step.
+    - Diagnosed that tools/test_runner.py used ProcessPoolExecutor to invoke subprocess.run(), which causes fork-in-fork / signal / lock deadlocks in glibc on Python 3.10 and 3.11.
+  - **Fork-Safe Test Runner Concurrency (tools/test_runner.py)**:
+    - Replaced ProcessPoolExecutor with ThreadPoolExecutor from concurrent.futures.
+    - Since each test module executes in its own isolated child process via subprocess.run([sys.executable, '-m', 'unittest', ...]), worker threads non-blockingly await child process I/O without GIL contention, eliminating forking hazards.
+    - Added GitHub Actions workflow annotations (::error file=...::) and  Markdown summary table generation.
+  - **CI Workflow Hardening (.github/workflows/ci.yml)**:
+    - Added sequential diagnostic fallback step in GitHub Actions workflow to print verbose unittest tracebacks if parallel execution encounters any failure.
+  - **Autonomous CI/CD Pre-Check Sentry (tools/ci.py, cli/main.py, cli/shell.py)**:
+    - Implemented check_ci_status() in tools/ci.py querying GitHub Actions API for the latest completed workflow run on the active branch.
+    - Added check command, --check / -c flag, --prompt flag, and --summary flag.
+    - Added ./bible ci check to CLI parser and /ci check to interactive BibleStudyShell.
+  - **Elevation to Top Priority 0 in Autonomous Harness (ralph.sh, AGENTS.md, GEMINI.md)**:
+    - Integrated CI/CD pre-check sentry into ralph.sh across all three modes (--loop, --print, and interactive).
+    - Updated AGENTS.md flowchart and added Priority 0 Check: GitHub Actions CI/CD Health before issue triage and roadmap tasks.
+    - Updated GEMINI.md autonomous mode directives with Priority 0 CI/CD Health Pre-Check.
+  - **Hermetic Unit Test Suite (tests/test_ci.py)**:
+    - Authored 5 new hermetic tests in tests/test_ci.py (test_check_ci_status_success, test_check_ci_status_failure, test_check_ci_status_offline_fallback, test_main_check_success_and_failure, test_main_check_prompt_and_summary).
+    - All 21 tests pass in 0.10s.
+- **Verification**:
+  - ./bible test: **876 tests across 39 modules passed 100% in 3.234s** (270.9 tests/sec).
+  - ./bible doctor: **100% EXCELLENT** — all 9 health checks passed (72 ADRs registered, 68 sequential runs, 64 roadmap tasks tracked, 100% roadmap completion, 0 dependencies, 0 linter errors across 83 files).
+- **Handoff Notes for Next Agent**:
+  - Remote CI/CD pre-check sentry is in place and elevated to Priority 0.
+  - Next agent will automatically execute CI/CD pre-check before any other task.

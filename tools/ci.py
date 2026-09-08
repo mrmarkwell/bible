@@ -260,12 +260,57 @@ def watch_run(
     return 1
 
 
+def check_ci_status(
+    owner: str = "mrmarkwell",
+    repo: str = "bible",
+    branch: Optional[str] = "main",
+    token: Optional[str] = None,
+) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Inspect the latest completed CI run on the target branch.
+
+    Returns:
+        Tuple of (healthy: bool, message: str, latest_run: Optional[Dict[str, Any]]).
+        healthy is False if the latest completed run failed.
+        healthy is True if the latest completed run succeeded or if offline/unreachable.
+    """
+    data = get_runs(owner, repo, limit=5, branch=branch, token=token)
+    if not data or "workflow_runs" not in data:
+        return True, "Could not reach GitHub Actions API (offline or rate limited). Proceeding with local verification.", None
+
+    runs = data.get("workflow_runs", [])
+    if not runs:
+        return True, f"No GitHub Actions workflow runs found for {owner}/{repo} (branch: {branch or 'all'}).", None
+
+    # Find the most recent completed run
+    completed_run = next((r for r in runs if r.get("status") == "completed"), runs[0])
+
+    run_id = completed_run.get("id")
+    conclusion = completed_run.get("conclusion")
+    status = completed_run.get("status")
+    sha = (completed_run.get("head_sha") or "unknown")[:7]
+    msg = (
+        completed_run.get("head_commit", {}).get("message", "N/A").splitlines()[0]
+        if completed_run.get("head_commit")
+        else completed_run.get("display_title", "N/A")
+    )
+    branch_name = completed_run.get("head_branch") or branch or "main"
+
+    if conclusion == "failure":
+        return False, f"GitHub Actions CI is FAILING on {branch_name} (Run #{run_id} [{conclusion}], commit {sha}: \"{msg}\")", completed_run
+    elif conclusion == "success":
+        return True, f"GitHub Actions CI is HEALTHY on {branch_name} (Run #{run_id} [{conclusion}], commit {sha}: \"{msg}\")", completed_run
+    else:
+        return True, f"GitHub Actions CI is {status} on {branch_name} (Run #{run_id} [{conclusion or status}], commit {sha}: \"{msg}\")", completed_run
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI entrypoint for sovereign CI status and monitoring tool."""
     parser = argparse.ArgumentParser(
         prog="tools/ci.py",
         description="Bible Engine Sovereign Zero-Dependency GitHub Actions CI Status & Monitoring Engine.",
     )
+    parser.add_argument("action", nargs="?", default="status", choices=["status", "check", "watch"], help="Action to execute ('status', 'check', 'watch')")
+    parser.add_argument("--check", "-c", action="store_true", help="Pre-flight health check: exit with code 1 if latest CI run failed")
     parser.add_argument("--repo", "-r", help="Target repository in 'owner/repo' format (auto-detected from git)")
     parser.add_argument("--token", "-t", help="GitHub Personal Access Token (defaults to GITHUB_TOKEN or GH_TOKEN)")
     parser.add_argument("--branch", "-b", help="Filter workflow runs by branch (e.g. main)")
@@ -274,6 +319,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--run-id", type=int, help="Specific workflow run ID to inspect or watch")
     parser.add_argument("--watch", "-w", action="store_true", help="Continuously monitor latest or specified run until complete")
     parser.add_argument("--interval", type=float, default=6.0, help="Polling interval in seconds for --watch (default: 6.0)")
+    parser.add_argument("--prompt", action="store_true", help="Emit instructions prompt for autonomous agent loop if CI is failing")
+    parser.add_argument("--summary", action="store_true", help="Emit one-line summary if CI is failing")
     parser.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     args = parser.parse_args(argv)
@@ -281,8 +328,45 @@ def main(argv: Optional[List[str]] = None) -> int:
     owner, repo = get_repo_info(args.repo)
     token = get_auth_token(args.token)
 
+    # Pre-flight check mode (either --check flag, 'check' positional action, or --prompt/--summary)
+    if args.check or args.action == "check" or args.prompt or args.summary:
+        healthy, message, latest = check_ci_status(owner, repo, branch=args.branch or "main", token=token)
+        if args.prompt:
+            if not healthy:
+                print(
+                    f"GitHub Actions CI/CD is currently FAILING on origin/main ({message}). "
+                    f"As top priority per AGENTS.md, diagnose and fix the broken CI/CD pipeline on GitHub "
+                    f"before addressing GitHub issues or roadmap tasks. Verify hermetic tests pass across "
+                    f"all Python matrix versions and push to origin/main immediately."
+                )
+                return 0
+            return 1
+
+        if args.summary:
+            if not healthy:
+                print(message)
+                return 0
+            return 1
+
+        if args.json:
+            payload = {
+                "healthy": healthy,
+                "message": message,
+                "owner": owner,
+                "repo": repo,
+                "latest_run": latest,
+            }
+            print(json.dumps(payload, indent=2))
+        else:
+            icon = "✅" if healthy else "❌"
+            if healthy:
+                print(f"{icon} {message}")
+            else:
+                print(f"{icon} {message}", file=sys.stderr)
+        return 0 if healthy else 1
+
     # Watch mode for specific run ID
-    if args.watch and args.run_id:
+    if (args.watch or args.action == "watch") and args.run_id:
         return watch_run(
             owner,
             repo,
