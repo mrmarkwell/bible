@@ -13,6 +13,7 @@ from tools.ci import (
     check_ci_status,
     format_jobs,
     format_runs,
+    get_annotations,
     get_auth_token,
     get_jobs,
     get_repo_info,
@@ -145,6 +146,45 @@ class TestCITool(unittest.TestCase):
     def test_format_jobs_empty(self):
         out = format_jobs(123, {"jobs": []})
         self.assertIn("No jobs reported", out)
+
+    @patch("tools.ci.make_ci_request")
+    def test_get_annotations(self, mock_request):
+        mock_request.return_value = (200, [{"path": "tests/test_vector.py", "annotation_level": "failure", "title": "Test Failure", "message": "AssertionError: 52ms > 50ms"}], {})
+        res = get_annotations("mrmarkwell", "bible", 12345)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0]["path"], "tests/test_vector.py")
+        self.assertEqual(res[0]["annotation_level"], "failure")
+
+    @patch("tools.ci.get_annotations")
+    def test_format_jobs_with_failure_annotations(self, mock_annotations):
+        mock_annotations.return_value = [
+            {
+                "path": "tests/test_vector.py",
+                "annotation_level": "failure",
+                "title": "Test Failure: test_vector",
+                "message": "AssertionError: 52ms not less than 50ms",
+            }
+        ]
+        jobs_data = {
+            "jobs": [
+                {
+                    "id": 999888,
+                    "name": "Verify & Audit (Python 3.10)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "steps": [
+                        {"name": "Set up Python", "conclusion": "success"},
+                        {"name": "Run System Doctor", "conclusion": "failure"},
+                    ],
+                }
+            ]
+        }
+        out = format_jobs(12345, jobs_data, owner="mrmarkwell", repo="bible")
+        self.assertIn("Verify & Audit (Python 3.10): completed (failure)", out)
+        self.assertIn("[✗] Run System Doctor", out)
+        self.assertIn("Failure Diagnostics & Workflow Annotations:", out)
+        self.assertIn("tests/test_vector.py (Test Failure: test_vector)", out)
+        self.assertIn("AssertionError: 52ms not less than 50ms", out)
 
     @patch("tools.ci.get_runs")
     def test_main_runs_display(self, mock_get_runs):
@@ -378,5 +418,3 @@ class TestCITool(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

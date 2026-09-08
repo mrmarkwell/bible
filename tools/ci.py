@@ -144,6 +144,20 @@ def get_jobs(
     return data
 
 
+def get_annotations(
+    owner: str = "mrmarkwell",
+    repo: str = "bible",
+    job_id: int | str = 0,
+    token: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Retrieve check-run annotations for a specific job from GitHub Actions REST API."""
+    url = f"https://api.github.com/repos/{owner}/{repo}/check-runs/{job_id}/annotations"
+    status, data, _ = make_ci_request(url, token=token)
+    if status == 200 and isinstance(data, list):
+        return data
+    return []
+
+
 def format_runs(
     runs: List[Dict[str, Any]],
     owner: str,
@@ -179,7 +193,13 @@ def format_runs(
     return "\n".join(lines)
 
 
-def format_jobs(run_id: int | str, jobs_data: Dict[str, Any]) -> str:
+def format_jobs(
+    run_id: int | str,
+    jobs_data: Dict[str, Any],
+    owner: str = "mrmarkwell",
+    repo: str = "bible",
+    token: Optional[str] = None,
+) -> str:
     """Format job matrix and step details into human-readable terminal text."""
     lines = [
         "-" * 72,
@@ -202,6 +222,19 @@ def format_jobs(run_id: int | str, jobs_data: Dict[str, Any]) -> str:
             s_icon = "✓" if s_conc == "success" else ("✗" if s_conc == "failure" else "○")
             s_name = s.get("name", "step")
             lines.append(f"     [{s_icon}] {s_name}")
+
+        if conclusion == "failure" and j.get("id"):
+            annotations = get_annotations(owner, repo, j.get("id"), token=token)
+            failures = [a for a in annotations if a.get("annotation_level") in ("failure", "warning")]
+            if failures:
+                lines.append("     Failure Diagnostics & Workflow Annotations:")
+                for a in failures:
+                    path = a.get("path") or "general"
+                    title = a.get("title") or a.get("annotation_level", "error")
+                    msg = a.get("message", "").strip()
+                    lines.append(f"       • [{a.get('annotation_level')}] {path} ({title}):")
+                    for m_line in msg.splitlines():
+                        lines.append(f"           {m_line}")
     lines.append("")
     return "\n".join(lines)
 
@@ -244,7 +277,7 @@ def watch_run(
                 print(f"\n{icon} Run #{run_id} completed in {elapsed:.1f}s: {conclusion.upper()}")
                 jobs_data = get_jobs(owner, repo, run_id, token=token)
                 if jobs_data:
-                    print(format_jobs(run_id, jobs_data))
+                    print(format_jobs(run_id, jobs_data, owner=owner, repo=repo, token=token))
             return 0 if conclusion == "success" else 1
 
         if not json_output:
@@ -419,7 +452,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         target_id = args.run_id or runs[0].get("id")
         jobs_data = get_jobs(owner, repo, target_id, token=token)
         if jobs_data:
-            print(format_jobs(target_id, jobs_data))
+            print(format_jobs(target_id, jobs_data, owner=owner, repo=repo, token=token))
 
     return 0
 
