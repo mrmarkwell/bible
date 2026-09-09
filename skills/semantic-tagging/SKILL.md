@@ -18,6 +18,72 @@ Use this skill when classifying, tagging, or annotating Scripture passages with 
   - `ESV_API_KEY`: Stored locally in `.env` (`ESV_API_KEY=...`) and `config/esv_api_key.txt` (POSIX 0600, excluded from git). Used by agents to fetch clean modern English Standard Version text for context, passage extraction, or embedding reference.
 - **Local Execution**: Autonomous agents generate semantic tags directly in-session using the local taxonomic definitions and prompt structures in [core/tag_prompts.py](file:///usr/local/google/home/markwell/personal_dev/bible/core/tag_prompts.py) and [core/semantic_prompts.py](file:///usr/local/google/home/markwell/personal_dev/bible/core/semantic_prompts.py).
 
+---
+
+## Hermeneutic Invariant: Pericope-First Exegesis
+
+Biblical chapter and verse divisions are artificial post-biblical additions (versification was introduced in 1551 by Robert Estienne). The authorial, literary unit of thought is the **pericope** (typically 5–30 verses: e.g. Romans 8:1–11, Genesis 22:1–19).
+
+**Strict Rule**: **Never perform exegesis or assign semantic tags to a single verse in total isolation.**
+- An agent reading only Romans 8:28 ("all things work together for good") or John 11:35 ("Jesus wept") in isolation falls prey to moralistic flattening, shallow aphorisms, and proof-texting.
+- All tagging must be performed **pericope-first**:
+  1. Analyze the pericope as an organic literary and theological whole (central proposition, discourse connectives, redemptive-historical summary).
+  2. Derive verse-level tags, theological loci, speech acts, and propositional triples as structural sub-elements within that pericope's discourse argument.
+
+---
+
+## Hermetic Context Sandwich: 3-Tier Stratified Context Architecture
+
+To prevent **context rot** (accumulating thousands of tokens over long sessions) while preventing **out-of-context myopia** (isolated single verses), every pericope exegesis unit must be evaluated with a hermetic, stratified 3-tier context sandwich (~1,500–2,500 tokens total):
+
+```
++-----------------------------------------------------------------------+
+| TIER 1: MACRO CONTEXT (Book Horizon ~200 tokens)                      |
+| Author, date, historical setting, overarching theological argument,   |
+| and Christological trajectory (from core/semantic_prompts.py)         |
++-----------------------------------------------------------------------+
+| TIER 2: MESO CONTEXT (Discourse Surroundings ~150 tokens)             |
+| Preceding pericope heading + central proposition                      |
+| Following pericope heading + central proposition                      |
++-----------------------------------------------------------------------+
+| TIER 3: MICRO FOCUS (Active Pericope ~500–1,500 tokens)               |
+| Full ESV/WEB scripture text of the active pericope with verse numbers |
++-----------------------------------------------------------------------+
+| CONTROLLED VOCABULARY & THEOLOGICAL CRITIC RULES (~800 tokens)        |
+| TGC hermeneutical constraints + JSON schema + taxonomy rules          |
++-----------------------------------------------------------------------+
+```
+
+1. **Tier 1 (Macro - Book Horizon)**: Injects the pre-compiled [`BookHorizon`](file:///usr/local/google/home/markwell/personal_dev/bible/core/semantic_prompts.py#L88-L120) for the book (e.g. Paul's argument of justification by faith in Romans).
+2. **Tier 2 (Meso - Discourse Flow)**: Injects the central propositions of the preceding and following pericopes so the agent understands the trajectory of the author's argument.
+3. **Tier 3 (Micro - Active Passage)**: Injects the exact verse text of the pericope with verse markers.
+
+**Stateless Worker Isolation**: After the pericope JSON is generated, validated via `ExegeticalCritic`, and written to SQLite, the context memory is discarded. No exegesis tokens leak from one pericope into the next.
+
+---
+
+## Bounded Sprint Cadence for Autonomous Ralph Loop Iterations
+
+To prevent timeouts, context degradation, or ambiguous task completion during autonomous execution cycles:
+
+1. **Sprint Budget**:
+   - A single Ralph loop iteration must claim a **bounded sprint**: exactly **one canonical book** (e.g. Galatians, Philippians), or a fixed budget of **15–25 pericopes** for massive books (e.g. Genesis, Psalms, Isaiah).
+2. **Ledger-Driven State Machine**:
+   - State is tracked in SQLite via [`SemanticCheckpointLedger`](file:///usr/local/google/home/markwell/personal_dev/bible/core/semantic_compiler.py#L80-L150) (`status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED')`).
+   - Run compilation command:
+     `python3 tools/build_semantic_db.py --book <BookName> --strict-critic`
+3. **Deterministic Acceptance Criteria**:
+   - 100% of the units assigned to the sprint must reach `status = COMPLETED` in SQLite.
+   - Zero audit violations from [`ExegeticalCritic`](file:///usr/local/google/home/markwell/personal_dev/bible/core/semantic_audit.py#L8-L23).
+   - Zero test regressions (`python3 tools/test_runner.py`).
+4. **Handoff & Exit**:
+   - Mark the book's subtask `[x]` in `ROADMAP.md`.
+   - Record progress metrics in `AGENT_LOG.md`.
+   - Commit with message `feat(semantic): tag <BookName> (<N> pericopes, <V> verses)`.
+   - Push immediately (`git push origin main`) and terminate.
+
+---
+
 ## Theological Foundation: Dual-Horizon & Christ-Centered Hermeneutics
 
 All tagging must adhere to [THEOLOGY.md](file:///usr/local/google/home/markwell/personal_dev/bible/THEOLOGY.md) (The Gospel Coalition Foundation Documents):

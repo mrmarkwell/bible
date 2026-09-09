@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 0, 1, 2, 3, 4 & 7 (Expanded Feature Roadmap Ingested)
-- **Overall Progress**: 67 Completed / 76 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 71 Completed / 84 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -66,8 +66,15 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.4**: Aggregation queries: topic density per book, tag co-occurrence matrix, verse relevance scoring. *(Run 026 / ADR-027)*
 - [x] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis). *(Run 073 / ADR-079)*
 - [x] **Task 3.6**: Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag. *(Run 074 / ADR-080)*
-- [ ] **Task 3.7**: Client-Controlled Semantic Tagging Project Skill (`skills/semantic-tagging`) operating strictly on ESV text with TGC exegetical guidelines.
+- [x] **Task 3.7**: Formalize Client-Controlled Semantic Tagging Architecture & Project Skill (`skills/semantic-tagging`) with 3-Tier Stratified Context Sandwich and Bounded Sprint Cadence (ADR-082).
 - [ ] **Task 3.8**: Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`.
+- [ ] **Task 3.9**: Whole-Bible Bounded Semantic Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.10**: Whole-Bible Bounded Semantic Campaign: Corpus 2 - The Four Gospels & Acts (Matthew, Mark, Luke, John, Acts; ~375 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.11**: Whole-Bible Bounded Semantic Campaign: Corpus 3 - Pentateuch & Covenant Foundations (Genesis, Exodus, Leviticus, Numbers, Deuteronomy; ~250 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.12**: Whole-Bible Bounded Semantic Campaign: Corpus 4 - Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; ~80 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.13**: Whole-Bible Bounded Semantic Campaign: Corpus 5 - Wisdom Literature & Poetry (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; ~240 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.14**: Whole-Bible Bounded Semantic Campaign: Corpus 6 - Major & Minor Prophets (Isaiah to Malachi; ~215 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [ ] **Task 3.15**: Whole-Bible Bounded Semantic Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; ~150 pericopes) via SQLite Checkpoint Ledger (ADR-082).
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*

@@ -2727,10 +2727,36 @@ This document is an append-only log of significant design and architectural deci
   - Developers and autonomous agents gain instant observability over test suite bottlenecks.
   - Zero external dependencies introduced; 100% Python standard library per ADR-003.
 
+---
 
-
-
-
-
-
-
+## ADR-082: Bounded Whole-Bible Semantic Tagging Architecture, Checkpoint Ledger Cadence & 3-Tier Stratified Context Sandwich
+- **Date**: 2026-09-09
+- **Status**: Accepted
+- **Context**:
+  - The Bible Engine aims to provide deep, whole-Bible semantic tagging across all 66 Protestant canonical books, 1,189 chapters, ~1,304 pericopes, and 31,102 verses.
+  - In an autonomous execution environment (the Ralph loop), two major systemic risks emerge:
+    1. **Unbounded Task Scope & Iteration Ambiguity**: A monolithic "tag the whole Bible" directive leaves autonomous agents with no defined budget per turn, leading to session timeouts, context exhaustion, or declaring premature victory after tagging a handful of verses.
+    2. **Context Rot vs. Out-of-Context Myopia**: Sequentially analyzing dozens of pericopes in a single session causes LLM context bloat, prompt drift, and hallucination. Conversely, evaluating a single verse in total isolation (e.g., Romans 8:28 or John 11:35) divorces the verse from its surrounding narrative/discourse argument and redemptive-historical horizon, generating shallow proof-texting and moralism that violates TGC hermeneutical standards ([THEOLOGY.md](file:///usr/local/google/home/markwell/personal_dev/bible/THEOLOGY.md)).
+- **Decision**:
+  1. **Canonical Pericope as the Invariant Unit of Exegesis**:
+     - Establishes that the literary pericope (5–30 verses), not the arbitrary 1551 verse numbering, is the atomic unit of semantic analysis.
+     - Mandates pericope-first exegesis: the pericope's central proposition, literary genre, and discourse structure are analyzed first; verse-level theology, speech acts, and propositional triples are derived as structured components within that pericope. Single verses are never tagged in isolation.
+  2. **3-Tier Stratified Context Sandwich**:
+     - Evaluates every pericope with a hermetic, bounded context sandwich (~1,500–2,500 tokens):
+       - **Tier 1 (Macro - Book Horizon)**: Injects pre-compiled authorial setting, genre, theological argument, and Christological trajectory from `core/semantic_prompts.py` (`BookHorizon`).
+       - **Tier 2 (Meso - Discourse Surrounds)**: Injects the central propositions of the preceding and following pericopes to preserve argument flow across transitions.
+       - **Tier 3 (Micro - Active Pericope)**: Injects the full scripture text of the active pericope (ESV/WEB) with verse markers.
+     - After each pericope is analyzed, validated, and committed to SQLite, context is discarded to guarantee zero context leakage between units.
+  3. **Bounded Sprint Cadence for the Autonomous Ralph Loop**:
+     - Each Ralph loop iteration claims a bounded sprint budget: exactly **one canonical book** (or 15–25 pericopes for long books like Genesis, Psalms, or Isaiah).
+     - Execution runs via `./bible build-semantic --book <BookName> --strict-critic` leveraging the existing `SemanticCheckpointLedger` in SQLite (`status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED')`).
+     - Turn exit condition: 100% of sprint units reach `COMPLETED` in SQLite with zero `ExegeticalCritic` audit violations and 100% test pass.
+  4. **Hierarchical Canonical Corpus Decomposition on Roadmap**:
+     - Decomposes the whole-Bible backlog into 7 sequential canonical corpora in `ROADMAP.md` (Epistles & Gospels, Pentateuch, Epistles, Wisdom & Poetry, Prophets, Historical Books).
+  5. **Hermetic Validation via ExegeticalCritic**:
+     - Every output passes through `core/semantic_audit.py` for canonical coordinate boundary checks (`BBCCCVVV`), anti-moralism filtering, and Christological grounding.
+- **Consequences**:
+  - Eliminates context rot: every pericope receives fresh, pristine LLM attention.
+  - Eliminates out-of-context proof-texting by anchoring exegesis in authorial intent and discourse flow.
+  - Provides deterministic, testable completion criteria for autonomous agents.
+  - Zero external dependencies; 100% Python 3 standard library per ADR-003.

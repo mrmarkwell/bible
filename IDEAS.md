@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Bounded Whole-Bible Semantic Tagging Architecture, Checkpoint Ledger Cadence & 3-Tier Stratified Context Sandwich (Rank A+)
+- **Summary**: Establish an invariant pericope-first semantic tagging architecture, a hermetic 3-tier stratified context sandwich (Macro Book Horizon + Meso Discourse Surrounds + Micro Active Pericope), and bounded Ralph loop sprint sizing (1 canonical book or 15–25 pericopes per iteration) with state tracking in the SQLite checkpoint ledger, structured canonical corpus milestones in `ROADMAP.md`, and strict `ExegeticalCritic` quality validation.
+- **Rationale**: Solves the two core challenges of autonomous whole-Bible semantic tagging: (1) eliminating iteration scope ambiguity and session timeouts by bounding sprint budgets and acceptance criteria via SQLite checkpoint states, and (2) eliminating LLM context rot while preventing out-of-context proof-texting or moralism by guaranteeing every pericope receives full authorial and discourse horizon in a fresh, isolated context window.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure local SQLite checkpoint ledger, bundled WEB baseline and local prompt templates).
+  - Zero third-party dependencies? Yes (Python standard library only per ADR-003).
+  - High performance? Yes (stateless worker isolation, instantaneous ledger updates).
+- **Proposed Roadmap Phase**: Phase 3 (Tasks 3.7 & 3.9–3.15 / ADR-082).
+- **Status**: Formulated and scheduled via ADR-082 and Tasks 3.7, 3.9–3.15.
+
 ### [VETTED] Sovereign Test Suite Latency Decoupling, Semantic Audit Cache Ledger & Straggler Telemetry Engine (Rank A+)
 - **Summary**: Implement persistent path-keyed audit cache ledgers (`.semantic_audit_cache.json`) for instant database integrity verification, optimize cold-start bootstrap checks (<0.01s), add straggler telemetry and latency leaderboards to `tools/test_runner.py` (`--slowest`, `--warn-latency`), wire into CLI (`./bible test`) and REPL (`/test`), and prune static analysis warnings across core modules.
 - **Rationale**: Eliminates uncached whole-database disk scans on 168MB databases, slashing `test_bootstrap` runtime by 18x (5.4s -> 0.28s) and `test_doctor` by 3x (7.9s -> 2.7s), reducing overall `tools/doctor.py` pre-push latency from 11.7s to 9.4s, and providing developers and autonomous agents with proactive latency bottleneck observability.
