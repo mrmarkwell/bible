@@ -1095,6 +1095,15 @@ def cmd_crossref(args: argparse.Namespace) -> int:
                 trans_id = getattr(args, "version", "ESV") or "ESV"
                 as_json = getattr(args, "json", False)
                 min_wt = getattr(args, "min_weight", 0.0)
+                limit_val = None if getattr(args, "all", False) else getattr(args, "limit", 15)
+
+                raw_all = svc.get_cross_references(
+                    reference=ref,
+                    relationship_type=rel_type,
+                    bidirectional=True,
+                    min_weight=min_wt,
+                )
+                total_count = len(raw_all)
 
                 hydrated = svc.get_hydrated_cross_references(
                     reference=ref,
@@ -1102,6 +1111,7 @@ def cmd_crossref(args: argparse.Namespace) -> int:
                     relationship_type=rel_type,
                     bidirectional=True,
                     min_weight=min_wt,
+                    limit=limit_val,
                 )
 
                 if as_json:
@@ -1111,7 +1121,11 @@ def cmd_crossref(args: argparse.Namespace) -> int:
                         type_str = f" of type '{rel_type}'" if rel_type else ""
                         print(f"No cross-references found for {ref.format()}{type_str}.")
                     else:
-                        print(f"Cross-References for {ref.format()} ({len(hydrated)} connected passage{'s' if len(hydrated) != 1 else ''}):\n")
+                        if total_count > len(hydrated):
+                            header_msg = f"Cross-References for {ref.format()} (showing top {len(hydrated)} of {total_count} connected passages — use --limit or --all to view more):\n"
+                        else:
+                            header_msg = f"Cross-References for {ref.format()} ({len(hydrated)} connected passage{'s' if len(hydrated) != 1 else ''}):\n"
+                        print(header_msg)
                         print(format_cross_references(hydrated, styling=color_enabled))
                 return 0
 
@@ -1266,6 +1280,27 @@ def cmd_crossref(args: argparse.Namespace) -> int:
             elif action == "seed":
                 count = svc.seed_canonical_cross_references()
                 print(f"Successfully seeded {count} canonical cross-reference edge(s).")
+                return 0
+
+            elif action in ("ingest", "build", "import"):
+                from tools.ingest_crossrefs import ingest_cross_references
+                raw_f = Path(args.raw_file).resolve() if getattr(args, "raw_file", None) else None
+                min_v = getattr(args, "min_votes", 0)
+                batch_sz = getattr(args, "batch_size", 50000)
+                rebuild = getattr(args, "rebuild", False)
+                limit_val = getattr(args, "limit", None)
+                force_dl = getattr(args, "download", False)
+                count = ingest_cross_references(
+                    db_path=db_path,
+                    raw_file=raw_f,
+                    min_votes=min_v,
+                    batch_size=batch_sz,
+                    rebuild=rebuild,
+                    limit=limit_val,
+                    force_download=force_dl,
+                    verbose=True,
+                )
+                print(f"Successfully compiled {count:,} cross-reference edge(s).")
                 return 0
 
             else:
@@ -1764,6 +1799,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_xr_for.add_argument("--type", "-T", help="Filter by relationship type (thematic, prophecy_fulfillment, typology, quotation, allusion, parallel)")
     p_xr_for.add_argument("--version", "-t", default="ESV", help="Scripture translation for related verse texts (default: ESV with offline WEB fallback)")
     p_xr_for.add_argument("--min-weight", type=float, default=0.0, help="Minimum relationship weight threshold (default: 0.0)")
+    p_xr_for.add_argument("--limit", "-n", type=int, default=15, help="Maximum number of cross-references to display (default: 15)")
+    p_xr_for.add_argument("--all", "-a", action="store_true", help="Display all matching cross-references without truncation")
     p_xr_for.add_argument("--json", action="store_true", help="Output results in JSON format")
 
     # crossref link
@@ -1799,6 +1836,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     # crossref seed
     p_xr_seed = xref_subparsers.add_parser("seed", help="Seed curated canonical OT/NT cross-reference edges")
+
+    # crossref ingest
+    p_xr_ingest = xref_subparsers.add_parser(
+        "ingest",
+        aliases=["build", "import"],
+        help="Ingest Whole-Bible Treasury of Scripture Knowledge (TSK) cross-references",
+    )
+    p_xr_ingest.add_argument("--raw-file", type=str, help="Path to raw cross_references.txt file")
+    p_xr_ingest.add_argument("--min-votes", type=int, default=0, help="Minimum community vote threshold (default: 0)")
+    p_xr_ingest.add_argument("--batch-size", type=int, default=50000, help="Batch insert chunk size (default: 50,000)")
+    p_xr_ingest.add_argument("--rebuild", action="store_true", help="Clear existing cross-references before ingesting")
+    p_xr_ingest.add_argument("--limit", type=int, default=None, help="Limit total records ingested")
+    p_xr_ingest.add_argument("--download", action="store_true", help="Force re-download of dataset from OpenBible.info")
 
     parser_crossref.set_defaults(func=cmd_crossref)
 

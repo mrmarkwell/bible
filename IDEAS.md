@@ -874,7 +874,7 @@ Add the following tables and indices to `core/db.py`:
 
 ---
 
-### [VETTED] Comprehensive Scripture Cross-Reference Knowledge Graph Ingestion (TSK) (Rank A+)
+### [COMPLETED] Comprehensive Scripture Cross-Reference Knowledge Graph Ingestion (TSK) (Rank A+)
 - **Summary**: Ingest an authoritative, public-domain cross-reference dataset (such as the **Treasury of Scripture Knowledge - TSK**, containing ~340,000 canonical cross-references) into `cross_references` table in `data/bible.db`, expanding the graph from 67 hand-curated rows to comprehensive whole-Bible coverage.
 - **Rationale**: Currently, `cross_references` contains only 67 rows, making the Web UI's Typological Arc Network and CLI `--refs` look empty for 90% of the Bible. Ingesting TSK equips every chapter with rich canonical intertextual links.
 - **Constraints & Alignment**:
@@ -883,10 +883,10 @@ Add the following tables and indices to `core/db.py`:
   - Fast query latency? Yes (indexed by `start_canonical_id` and `end_canonical_id`).
 - **Proposed Roadmap Phase**: Phase 3 (Task 3.8).
 - **Suggested Tasks**:
-  - [ ] Source clean public-domain TSK cross-reference dataset into `data/raw/cross_references/`.
-  - [ ] Build zero-dependency ingestion script `tools/ingest_crossrefs.py`.
-  - [ ] Add unit tests in `tests/test_crossref.py`.
-- **Status**: [VETTED] (Rank A+; Feature Request added).
+  - [x] Source clean public-domain TSK cross-reference dataset into `data/raw/cross_references/`.
+  - [x] Build zero-dependency ingestion script `tools/ingest_crossrefs.py`.
+  - [x] Add unit tests in `tests/test_ingest_crossrefs.py` and extend `tests/test_crossref.py`.
+- **Status**: [COMPLETED] (Run 076 / ADR-084).
 
 ---
 

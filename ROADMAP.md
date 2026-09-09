@@ -67,7 +67,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.5**: Dynamic Bottom-Up Semantic Tagging & Clean-Slate Taxonomy Migration (reset tags to valid favorites baseline, support emergent `snake_case` tags created during exegesis). *(Run 073 / ADR-079)*
 - [x] **Task 3.6**: Universal Tagging Unification: Deprecate `starred` Column from database schema and APIs in favor of `#starred` tag. *(Run 074 / ADR-080)*
 - [x] **Task 3.7**: Formalize Client-Controlled Semantic Tagging Architecture & Project Skill (`skills/semantic-tagging`) with 3-Tier Stratified Context Sandwich and Bounded Sprint Cadence (ADR-082).
-- [ ] **Task 3.8**: Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`.
+- [x] **Task 3.8**: Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`. *(Run 076 / ADR-084)*
 - [ ] **Task 3.9**: Whole-Bible Bounded Semantic Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via SQLite Checkpoint Ledger (ADR-082).
 - [ ] **Task 3.10**: Whole-Bible Bounded Semantic Campaign: Corpus 2 - The Four Gospels & Acts (Matthew, Mark, Luke, John, Acts; ~375 pericopes) via SQLite Checkpoint Ledger (ADR-082).
 - [ ] **Task 3.11**: Whole-Bible Bounded Semantic Campaign: Corpus 3 - Pentateuch & Covenant Foundations (Genesis, Exodus, Leviticus, Numbers, Deuteronomy; ~250 pericopes) via SQLite Checkpoint Ledger (ADR-082).

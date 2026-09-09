@@ -3059,6 +3059,55 @@ This is an append-only log of work performed by autonomous agents during their e
   - Senior PM Meta-Sprint complete. Test suite and pre-push doctor performance are decoupled and profiled.
   - Next task on roadmap: Phase 3 Task 3.7 (Client-Controlled Semantic Tagging Project Skill `skills/semantic-tagging` operating strictly on ESV text with TGC exegetical guidelines) or Task 3.8 (TSK Cross-Reference Knowledge Graph Ingestion).
 
+---
+
+## [Run 076] — 2026-09-09
+- **Agent**: Ralph Loop Standard Cycle Agent
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine (Task 3.8 / ADR-084)
+- **Task**: Task 3.8 — Ingest Whole-Bible Cross-Reference Knowledge Graph (~340,000 canonical edges from Treasury of Scripture Knowledge - TSK) into `cross_references`.
+- **Actions Taken**:
+  - **Raw TSK Dataset Caching & Provenance (`data/raw/cross_references/`)**:
+    - Sourced, downloaded, and cached the authoritative, public-domain Treasury of Scripture Knowledge cross-reference dataset (harmonized with OpenBible community voting) into `data/raw/cross_references/cross_references.txt` (344,756 raw rows).
+    - Documented dataset provenance, historical Bagster/Torrey roots, CC-BY community licensing, coordinate specifications, and integer ID mapping in `data/raw/cross_references/README.md`.
+  - **Zero-Dependency OSIS Coordinate Parser & Partitioning (`tools/ingest_crossrefs.py`)**:
+    - Implemented `parse_osis_source` and `parse_osis_target` mapping OSIS reference tokens across all 66 books to canonical integer IDs (`BBCCCVVV`).
+    - Handled single-verse targets, same-chapter verse ranges, and cross-chapter spans.
+    - Partitioned 18 rare inter-book target spans into valid intra-book edges (e.g. `2 Chronicles 36:22` and `Ezra 1:1-3`), guaranteeing that 100% of the cross-reference edges in SQLite strictly obey intra-book coordinate ordering invariants.
+  - **Bounded Confidence Weighting & Community Filtering**:
+    - Filtered out 1,243 negative-vote downvoted entries (`min_votes >= 0`) while compiling 343,513 high-quality edges.
+    - Normalized positive community votes into bounded confidence weights in `[0.60, 1.00]`.
+    - Preserved provenance and vote counts permanently in `notes` (`TSK (votes: N)`).
+  - **High-Theology Seed Edge Preservation & Deduplication**:
+    - Optimized `seed_canonical_cross_references` in `core/crossref.py` to check existing high-theology keys in SQL without arbitrary row limits.
+    - Preserved all 67 hand-curated seed edges (`prophecy_fulfillment`, `typology`, `quotation`, `allusion`) at weight 1.0.
+  - **Paged Hydration & CLI Ergonomics (`core/crossref.py`, `cli/main.py`, `web/server.py`)**:
+    - Added `limit: Optional[int] = None` to `CrossReferenceService.get_hydrated_cross_references()`, avoiding expensive sequential text hydration across large link sets.
+    - Added `--limit` (default 15) and `--all` flags to `./bible crossref for <ref>`, displaying total match counts and hydrating top matches in <0.05s.
+    - Added `source_text`, `target_text`, `related_text`, and `votes` properties to `HydratedCrossReference` to prevent attribute errors and maintain complete web API parity (`/api/crossref`).
+    - Added CLI subcommand `./bible crossref ingest` (and `tools/ingest_crossrefs.py`) with `--min-votes`, `--batch-size`, `--rebuild`, and `--limit`.
+  - **Cold-Start Bootstrap Integration (`core/bootstrap.py`)**:
+    - Integrated TSK compilation into full database bootstrap (`DEFAULT_RAW_CROSSREFS_FILE`), compiling 343,598 edges in ~4.5 seconds.
+    - Preserved fast test bootstrap mode (`quick=True`) for hermetic CI tests (<0.5s).
+  - **Hermetic Testing & Static Analysis**:
+    - Added comprehensive unit tests in `tests/test_ingest_crossrefs.py` covering coordinate parsing, cross-book partitioning, vote normalization, synthetic streaming, database ingestion, and CLI pagination.
+    - Expanded test suite to **925 tests across 42 modules passing 100% in 29.1s**.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-084** in `DECISIONS.md`.
+    - Marked **Task 3.8** complete in `ROADMAP.md`.
+    - Updated TSK feature request status from `[VETTED]` to `[COMPLETED]` in `IDEAS.md`.
+- **Verification**:
+  - `./bible test`: **925 tests across 42 modules passed 100% in 29.144s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (84 ADRs registered, 76 sequential runs, 93 roadmap tasks tracked, 71 completed across 9 phases, 0 dependencies, 0 linter errors across 89 files).
+  - `python3 tools/linter.py`: **100% CLEAN** — 89 files inspected with 0 errors.
+  - Verified live CLI outputs:
+    - `./bible crossref stats`: 343,598 total edges, 91,463 distinct passages (29,364 sources, 62,099 targets), OT->OT: 186,790, NT->NT: 83,873, OT->NT: 43,011, NT->OT: 29,924.
+    - `./bible crossref for "John 3:16"`: shows top 15 of 128 connected passages with instant hydration.
+    - `./bible crossref path "Genesis 12:1-3" "Galatians 3:16"`: 1-hop direct canonical link.
+- **Handoff Notes for Next Agent**:
+  - Task 3.8 is 100% complete, verified, and unblocked. Whole-Bible cross-referencing is now permanently active in `data/bible.db`.
+  - Next task on roadmap: Phase 3 Task 3.9 (Whole-Bible Bounded Semantic Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews via SQLite Checkpoint Ledger) or Phase 7 Task 7.7 (Semantic Passport Generator & Batch Vector Ingestion Engine per ADR-083).
+
+
 
 
 

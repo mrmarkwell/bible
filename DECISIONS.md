@@ -2814,4 +2814,47 @@ This document is an append-only log of significant design and architectural deci
   - Maintains strict ADR-003 Zero-Dependency compliance: pure Python standard library math and SQLite BLOB storage.
   - Pre-computed offline compilation enables instantaneous, zero-latency corpus exploration with zero ongoing API costs for static texts.
 
+---
+
+## ADR-084: Whole-Bible Treasury of Scripture Knowledge (TSK) Cross-Reference Knowledge Graph Ingestion, OSIS Coordinate Mapping, Confidence Weighting, and Paged Hydration Architecture
+- **Date**: 2026-09-09
+- **Status**: Accepted
+- **Context**:
+  - Task 3.8 on the roadmap requested ingesting the whole-Bible scripture cross-reference knowledge graph (~340,000 canonical edges from the public-domain Treasury of Scripture Knowledge - TSK and OpenBible.info) into the SQLite `cross_references` table in `data/bible.db`.
+  - Prior to this task, `cross_references` contained only 67 hand-curated canonical seed edges. While those 67 links provided foundational Christological and typological connections (e.g., Genesis 3:15 -> Galatians 4:4-5), over 98% of the canonical text lacked relational intertextual links in `./bible crossref`, the Web UI typological network, and Scripture RAG retrieval.
+  - Ingesting, compiling, and indexing 344,756 raw cross-reference edges introduced several architectural challenges:
+    1. **OSIS Coordinate Mapping**: The raw dataset represents passage coordinates in OSIS notation (e.g., `Gen.1.1`, `John.1.1-John.1.3`, `1Cor.10.33-1Cor.11.1`). These had to be reliably mapped to canonical integer IDs (`BBCCCVVV`) across all 66 books without external libraries.
+    2. **Inter-Book Target Spans**: 18 rare edges in the community dataset spanned across book boundaries (e.g., `2Chr.36.22-Ezra.1.3`). Allowing inter-book coordinate spans would break canonical coordinate ordering invariants (`BBCCCVVV`).
+    3. **Community Vote Weighting & Provenance**: Community votes range from negative (user-flagged invalid or extraneous links) to hundreds (high-consensus connections). A principled mapping was needed to filter out noise while mapping consensus to bounded weights `[0.60, 1.0]`.
+    4. **Hydration Latency & Terminal Ergonomics**: When a central passage like John 3:16 connects to 128 passages, hydrating verse texts across network translation endpoints (e.g. ESV API) sequentially caused severe latency. Paged hydration and sensible default limits (`--limit 15`) were required.
+- **Decision**:
+  1. **Raw Dataset Caching & Hermetic Offline Reproducibility (`data/raw/cross_references/`)**:
+     - Sourced and cached the clean public-domain dataset in `data/raw/cross_references/cross_references.txt` (344,756 raw TSV rows).
+     - Documented dataset provenance, Bagster/Torrey historical origin, and CC-BY community licensing in `data/raw/cross_references/README.md`.
+  2. **Zero-Dependency OSIS Coordinate Parser & Inter-Book Partitioning (`tools/ingest_crossrefs.py`)**:
+     - Built `tools/ingest_crossrefs.py` in pure Python standard library (`urllib.request`, `zipfile`, `sqlite3`).
+     - Mapped OSIS book abbreviations across all 66 canonical books to `core.reference.ALL_BOOKS`.
+     - Handled single-verse targets (`Book.C.V`), intra-chapter verse ranges (`Book.C.V1-Book.C.V2`), and cross-chapter spans (`Book.C1.V1-Book.C2.V2`).
+     - Partitioned the 18 inter-book spans into valid intra-book edges (e.g. `2 Chronicles 36:22` and `Ezra 1:1-3`), guaranteeing that every cross-reference in SQLite strictly obeys intra-book coordinate invariants.
+  3. **Bounded Community Confidence Weighting & Filtering**:
+     - Filtered downvoted negative entries (`min_votes >= 0`), eliminating 1,243 noisy or erroneous connections while retaining 343,513 high-quality connections.
+     - Normalized positive community votes into bounded confidence weights in `[0.60, 1.0]` using `0.60 + min(0.40, (votes / 50.0) * 0.40)`.
+     - Preserved provenance and vote tallies permanently in the `notes` column (e.g. `TSK (votes: 981)`).
+  4. **High-Theology Canonical Seed Preservation & Deduplication**:
+     - Preserved all 67 hand-curated canonical cross-reference seed edges with their rich theological classifications (`prophecy_fulfillment`, `typology`, `quotation`, `allusion`) at weight `1.0`.
+     - Ensured that batch TSK ingestion uses `INSERT` alongside existing canonical seeds without overwriting richer metadata.
+  5. **Paged Hydration & Defensive CLI/Server Ergonomics (`core/crossref.py`, `cli/main.py`, `web/server.py`)**:
+     - Added `limit: Optional[int] = None` to `CrossReferenceService.get_hydrated_cross_references()`, only hydrating the requested top N edges.
+     - Updated CLI command `./bible crossref for <ref>` to default to `--limit 15` with an `--all` flag, displaying the total connected passage count while hydrating top matches in <0.05s.
+     - Added `source_text`, `target_text`, `related_text`, and `votes` properties to `HydratedCrossReference`, ensuring seamless web API compatibility (`/api/crossref`).
+     - Added CLI subcommand `./bible crossref ingest` (and `tools/ingest_crossrefs.py`) with `--min-votes`, `--batch-size`, `--rebuild`, and `--limit` options.
+  6. **Unified Sovereign Bootstrap Integration (`core/bootstrap.py`)**:
+     - Integrated TSK compilation into full database bootstrap (`DEFAULT_RAW_CROSSREFS_FILE`), compiling the 343,598 edges in ~4.5 seconds.
+     - Maintained fast sample bootstrap mode (`quick=True`) for hermetic CI tests (<0.5s).
+- **Consequences**:
+  - Expands the Scripture cross-reference graph from 67 rows to **343,598 canonical edges**, providing complete whole-Bible intertextual coverage across every chapter.
+  - Zero external dependencies introduced (Python stdlib only, no pip/npm packages).
+  - All 42 hermetic test suites passing 100% (925 tests in 29.1s) and system health verified at 100% EXCELLENT.
+
+
 

@@ -644,6 +644,32 @@ class HydratedCrossReference:
         return self.target_verses if self.direction == "outgoing" else self.source_verses
 
     @property
+    def source_text(self) -> str:
+        """Hydrated text of source verses."""
+        return " ".join(v.text for v in self.source_verses)
+
+    @property
+    def target_text(self) -> str:
+        """Hydrated text of target verses."""
+        return " ".join(v.text for v in self.target_verses)
+
+    @property
+    def related_text(self) -> str:
+        """Hydrated text of related verses."""
+        return " ".join(v.text for v in self.related_verses)
+
+    @property
+    def votes(self) -> int:
+        """Extract community vote count from notes if present, or approximate from weight."""
+        if self.notes and "votes:" in self.notes:
+            try:
+                part = self.notes.split("votes:")[1].strip(" )")
+                return int(part)
+            except Exception:
+                pass
+        return int(round(self.weight * 50))
+
+    @property
     def relationship_label(self) -> str:
         """Human-friendly label."""
         return RelationshipType.get_label(self.relationship_type)
@@ -783,11 +809,21 @@ class CrossReferenceService:
 
     def seed_canonical_cross_references(self) -> int:
         """Seed curated canonical OT/NT cross-references into the database."""
-        existing_edges = self.list_all_cross_references(limit=5000)
+        cur = self.db.conn.cursor()
+        cur.execute(
+            """
+            SELECT source_human_ref, target_human_ref, relationship_type
+            FROM cross_references
+            WHERE relationship_type IN ('prophecy_fulfillment', 'typology', 'quotation', 'allusion')
+               OR notes IS NULL
+               OR notes NOT LIKE 'TSK%'
+            """
+        )
         existing_keys = {
-            (e.source_human_ref, e.target_human_ref, e.relationship_type)
-            for e in existing_edges
+            (r["source_human_ref"], r["target_human_ref"], r["relationship_type"])
+            for r in cur.fetchall()
         }
+        cur.close()
 
         to_insert: List[Tuple[Union[Reference, str], Union[Reference, str], str, float, Optional[str]]] = []
         for src, tgt, rel, weight, notes in CANONICAL_CROSS_REFERENCES:
@@ -825,6 +861,7 @@ class CrossReferenceService:
         relationship_type: Optional[str] = None,
         bidirectional: bool = True,
         min_weight: float = 0.0,
+        limit: Optional[int] = None,
     ) -> List[HydratedCrossReference]:
         """Retrieve cross-references for a citation hydrated with verse texts."""
         ref = parse_reference(reference) if isinstance(reference, str) else reference
@@ -834,6 +871,9 @@ class CrossReferenceService:
             bidirectional=bidirectional,
             min_weight=min_weight,
         )
+
+        if limit is not None and limit > 0:
+            raw_records = raw_records[:limit]
 
         q_start = ref.canonical_start_id
         q_end = ref.canonical_end_id

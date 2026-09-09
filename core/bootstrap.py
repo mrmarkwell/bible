@@ -25,6 +25,7 @@ from core.reference import Book, BOOKS
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_RAW_WEB_DIR = REPO_ROOT / "data" / "raw" / "web"
 DEFAULT_RAW_KJV_DIR = REPO_ROOT / "data" / "raw" / "kjv"
+DEFAULT_RAW_CROSSREFS_FILE = REPO_ROOT / "data" / "raw" / "cross_references" / "cross_references.txt"
 DEFAULT_FAVORITES_CSV = REPO_ROOT / "favorite_bible_verses.csv"
 
 
@@ -416,6 +417,21 @@ def bootstrap_database(
     _notify("Seeding canonical Old/New Testament typological cross-references...", 0.82)
     xr_service = CrossReferenceService(db)
     seeded_xrefs = xr_service.seed_canonical_cross_references()
+
+    # 5b. Compile Whole-Bible TSK Cross-References (Phase 3 Task 3.8 / ADR-084)
+    if not quick and books is None:
+        raw_xrefs = DEFAULT_RAW_CROSSREFS_FILE
+        if raw_xrefs.exists():
+            _notify("Compiling Whole-Bible Treasury of Scripture Knowledge (TSK) cross-references...", 0.85)
+            from tools.ingest_crossrefs import ingest_cross_references
+            ingest_cross_references(
+                db_path=db_path,
+                raw_file=raw_xrefs,
+                min_votes=0,
+                rebuild=False,
+                reseed_canonical=False,
+                verbose=False,
+            )
 
     # 6. Seed Canonical Pericopes
     _notify("Seeding canonical pericope headings and redemptive summaries...", 0.88)
