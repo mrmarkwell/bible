@@ -44,8 +44,8 @@ Ideas can be added directly by the repository owner or generated during interact
   - Offline-first? Yes (pre-computed once offline into SQLite `pericope_embeddings`; runtime corpus similarity operates 100% offline).
   - Zero third-party dependencies? Yes (Python standard library only per ADR-003, pure Python `struct` int8 quantization per ADR-051).
   - Copyright compliant? Yes (uses bundled public domain WEB or user-provided ESV API).
-- **Proposed Roadmap Phase**: Phase 7 & 8 (Tasks 7.7, 7.8, 8.7, 8.8 / ADR-083).
-- **Status**: Formulated and scheduled via ADR-083 and Tasks 7.7, 7.8, 8.7, 8.8.
+- **Proposed Roadmap Phase**: Phase 7 & 8 (Tasks 7.7–7.15, 8.7–8.8 / ADR-083).
+- **Status**: Formulated and scheduled via ADR-083 and Tasks 7.7–7.15, 8.7–8.8.
 
 ### [VETTED] Bounded Whole-Bible Semantic Tagging Architecture, Checkpoint Ledger Cadence & 3-Tier Stratified Context Sandwich (Rank A+)
 - **Summary**: Establish an invariant pericope-first semantic tagging architecture, a hermetic 3-tier stratified context sandwich (Macro Book Horizon + Meso Discourse Surrounds + Micro Active Pericope), and bounded Ralph loop sprint sizing (1 canonical book or 15–25 pericopes per iteration) with state tracking in the SQLite checkpoint ledger, structured canonical corpus milestones in `ROADMAP.md`, and strict `ExegeticalCritic` quality validation.

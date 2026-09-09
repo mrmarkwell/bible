@@ -2803,9 +2803,15 @@ This document is an append-only log of significant design and architectural deci
      - Sovereign Local Fallback: When offline or in air-gapped environments without `GEMINI_API_KEY`, the RAG engine cleanly degrades to the offline BM25 + Semantic Tag / Typology Graph engine with zero user disruption. Optional local localhost bridge (e.g. Ollama `bge-small-en-v1.5` or `nomic-embed-text`) supported via stdlib `urllib.request`.
   5. **Theological Facet Pre-Filtering**:
      - Leverages SQLite indexes on `pericopes` and `verse_theology` to allow instant pre-filtering or post-filtering by Testament (`OT`/`NT`), Genre (`Wisdom`, `Gospel`, `Epistle`), Epoch (`Exodus`, `Exile`, `Incarnation`), or Theological Locus (`SOTERIOLOGY`, `CHRISTOLOGY`).
+  6. **Bounded Canonical Corpus Sprints for Ralph Loop Ingestion**:
+     - Decomposes whole-Bible vector compilation into 7 bounded canonical corpora in `ROADMAP.md` (Tasks 7.8–7.14), mirroring the Phase 3 semantic exegesis campaigns.
+     - Each autonomous Ralph loop iteration claims a bounded sprint: exactly one canonical corpus via `./bible build-vectors --corpus N` (or one book via `--book <Name>`).
+     - Progress is tracked in the SQLite checkpoint ledger (`pericope_embeddings`), ensuring incremental, resumable execution with zero session timeouts.
 - **Consequences**:
   - Eliminates out-of-context verse proof-texting by anchoring semantic retrieval in complete literary pericopes.
   - Bridges the vocabulary gap between modern natural language questions and ancient biblical texts.
+  - Decomposes whole-Bible vector database generation into manageable, bite-sized sprints for autonomous agents.
   - Maintains strict ADR-003 Zero-Dependency compliance: pure Python standard library math and SQLite BLOB storage.
   - Pre-computed offline compilation enables instantaneous, zero-latency corpus exploration with zero ongoing API costs for static texts.
+
 
