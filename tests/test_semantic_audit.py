@@ -5,7 +5,7 @@ Zero-dependency test suite per ADR-003, ADR-006, ADR-042, ADR-050, ADR-052, ADR-
 - Validates span verification and sequential coordinate expansion stepping across chapter/book limits.
 - Tests character entity resolution, alias matching, and context-sensitive disambiguation.
 - Tests Exegetical Critic rules across pericopes, discourse relations, theology, typology, and propositions.
-- Tests TGC Foundation Document anti-moralism and Christological depth checks.
+- Tests TGC Foundation Document gospel uniqueness and Christological depth checks.
 - Tests 100% whole-Bible coverage auditor, gap detection, overlap analysis, and summary generation.
 - Tests SQLite database audit in hermetic in-memory databases.
 """

@@ -201,7 +201,7 @@ class TestPersonaPromptGeneration(unittest.TestCase):
         self.assertIn("Apostolic Era", prompt)
         self.assertIn("Denying with curses that he ever knew Jesus", prompt)
         self.assertIn("You are the Christ, the Son of the living God", prompt)
-        self.assertIn("Biblical Humility & Anti-Moralism", prompt)
+        self.assertIn("Biblical Humility & Canonical Realism", prompt)
 
     def test_system_prompt_with_grounded_passages(self):
         paul = get_persona_definition("paul")

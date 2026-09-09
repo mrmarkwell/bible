@@ -10,7 +10,7 @@ Verifies:
 - Pericope analysis prompt generation with 6-layer metadata and JSON contract.
 - Scripture RAG system prompt generation.
 - Canonical biblical character persona prompt generation (humility, historical horizon, Christ-centered longing).
-- Automated anti-moralistic auditing and theological compliance verification.
+- Gospel uniqueness and theological compliance verification.
 """
 
 import unittest

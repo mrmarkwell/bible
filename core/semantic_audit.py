@@ -8,7 +8,7 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-042, ADR-050, ADR-052, 
 2. Semantic Schema & Exegetical Critic Engine:
    - Deep structural and qualitative audit of pericopes, discourse relations, verse theology,
      typological arcs, and semantic propositions.
-   - Hermeneutical review: anti-moralism checks against TGC Foundation Documents,
+   - Hermeneutical review: gospel uniqueness checks (grace vs. legalism and relativism) against TGC Foundation Documents,
      Christological fulfillment depth, and valid theological loci/epochs.
 3. Character Entity Deduplication & Normalization:
    - Authoritative registry of canonical Biblical characters with aliases, testament scope, and roles.

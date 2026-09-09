@@ -2754,7 +2754,7 @@ This document is an append-only log of significant design and architectural deci
   4. **Hierarchical Canonical Corpus Decomposition on Roadmap**:
      - Decomposes the whole-Bible backlog into 7 sequential canonical corpora in `ROADMAP.md` (Epistles & Gospels, Pentateuch, Epistles, Wisdom & Poetry, Prophets, Historical Books).
   5. **Hermetic Validation via ExegeticalCritic**:
-     - Every output passes through `core/semantic_audit.py` for canonical coordinate boundary checks (`BBCCCVVV`), anti-moralism filtering, and Christological grounding.
+     - Every output passes through `core/semantic_audit.py` for canonical coordinate boundary checks (`BBCCCVVV`), gospel uniqueness verification (grace vs. legalism and relativism), and Christological grounding.
 - **Consequences**:
   - Eliminates context rot: every pericope receives fresh, pristine LLM attention.
   - Eliminates out-of-context proof-texting by anchoring exegesis in authorial intent and discourse flow.

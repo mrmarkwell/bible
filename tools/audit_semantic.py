@@ -4,7 +4,7 @@
 Zero-dependency CLI utility (Python 3 standard library only per ADR-003):
 - Audits canonical coordinate boundaries across all stored pericopes, theology, typology, and propositions.
 - Measures whole-Bible pericope coverage across all 66 books (31,103 verses, 1,189 chapters).
-- Critiques exegesis against TGC Foundation Documents (anti-moralism, Christological depth).
+- Critiques exegesis against TGC Foundation Documents (gospel uniqueness, Christological depth).
 - Deduplicates and normalizes biblical character entities.
 - Emits human-readable terminal dashboards or machine-readable JSON telemetry.
 """
