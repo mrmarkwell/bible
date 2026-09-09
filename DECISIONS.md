@@ -2856,5 +2856,48 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies introduced (Python stdlib only, no pip/npm packages).
   - All 42 hermetic test suites passing 100% (925 tests in 29.1s) and system health verified at 100% EXCELLENT.
 
+---
+
+## ADR-085: Canonical Corpora Partitioning Architecture, Multi-Book Checkpoint Ledger Protocol, and Whole-Bible Semantic Campaign Execution (Corpus 1: Foundational Pauline Epistles & Hebrews)
+- **Date**: 2026-09-09
+- **Status**: Accepted
+- **Context**:
+  - Task 3.9 on the roadmap (and subsequent Tasks 3.10–3.15, as well as Phase 7 vector campaigns Tasks 7.8–7.14) requires bounding whole-Bible semantic exegesis and vector database generation into manageable, cohesive theological units that execute within single autonomous Ralph loop iterations.
+  - The Bible contains 66 books, 1,189 chapters, and ~1,400 pericopes. Attempting to compile the entire Bible in a single unbounded session creates severe operational hazards: context window degradation, unbounded runtime latency, API rate limit exhaustion, and lack of incremental verification checkpoints.
+  - Prior to this task, the semantic compiler (`tools/build_semantic_db.py`) supported only book-level filtering (`--book <name>`) or whole-Bible compilation (`--all`). There was no structured architectural representation of canonical groupings, nor could the SQLite checkpoint ledger query, reset, or summarize across arbitrary multi-book groupings.
+- **Decision**:
+  1. **Canonical Corpora Architecture & Authoritative 66-Book Catalog (`core/corpora.py`)**:
+     - Formalized `CanonicalCorpus` dataclass and partitioned all 66 Protestant canonical books into 7 sequential, cohesive theological corpora with zero overlap and zero gaps:
+       - **Corpus 1: Foundational Pauline Epistles & Hebrews** (Romans [45], 1 Cor [46], 2 Cor [47], Gal [48], Eph [49], Phil [50], Col [51], Heb [58]; 8 books, 78 chapters, ~110 pericopes).
+       - **Corpus 2: The Four Gospels & Acts** (Matthew [40], Mark [41], Luke [42], John [43], Acts [44]; 5 books, 117 chapters, ~375 pericopes).
+       - **Corpus 3: Pentateuch & Covenant Foundations** (Genesis [1], Exodus [2], Leviticus [3], Numbers [4], Deuteronomy [5]; 5 books, 187 chapters, ~250 pericopes).
+       - **Corpus 4: Pastoral & General Epistles** (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 13 books, 43 chapters, ~80 pericopes).
+       - **Corpus 5: Wisdom Literature & Poetry** (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; 5 books, 243 chapters, ~240 pericopes).
+       - **Corpus 6: Major & Minor Prophets** (Isaiah through Malachi; 17 books, 250 chapters, ~215 pericopes).
+       - **Corpus 7: Historical Books & Apocalyptic Consummation** (Joshua through Esther, Revelation; 13 books, 271 chapters, ~150 pericopes).
+     - Provided lookup utilities `get_corpus(id_or_name)`, `get_corpus_for_book(book)`, and `list_corpora()`.
+  2. **Multi-Book SQLite Checkpoint Ledger Operations (`core/semantic_compiler.py`)**:
+     - Upgraded `SemanticCheckpointLedger.get_summary()`, `reset_status()`, and `clear_ledger()` to natively support both single book IDs (`int`) and multi-book sequences (`Sequence[int]`).
+     - Added `get_corpus_units(corpus)` to aggregate pericopes and chapters for all books in a corpus in canonical order.
+     - Added `compile_corpus(corpus)` to orchestrate bounded corpus-level execution.
+     - Wired semantic tag ingestion: during compilation, extracted `thematic_ribbon`, `theological_locus`, and book motifs are normalized to `snake_case` and persisted into `tags` and `verse_tags` via `TaggingService`.
+     - Optimized verse retrieval: `fetch_passage_text()` queries SQLite directly via `get_verses_by_reference()` first, avoiding network overhead.
+  3. **Batch Semantic Compiler `--corpus` Integration (`tools/build_semantic_db.py`)**:
+     - Added `--corpus <id|name>` CLI flag to compile a bounded canonical corpus with full checkpoint ledger resumption.
+     - Changed default compilation translation to `WEB` for fast, offline-first execution without external network bottlenecks.
+  4. **Omnichannel CLI & Interactive REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Added `./bible corpora [--corpus <id>] [--json]` subcommand to display the 7 canonical corpora, book scopes, chapter totals, and live semantic ledger completion percentages.
+     - Added `--corpus` parameter to `./bible build-semantic`.
+     - Added `/corpora` and `/corpus` REPL commands and `/build-semantic corpus <id>` in `BibleShell`.
+  5. **Corpus 1 Execution & Hermetic Test Suite**:
+     - Executed Corpus 1 compilation: compiled all 115 units (37 pericopes + 78 chapters) across Romans, 1-2 Corinthians, Galatians, Ephesians, Philippians, Colossians, and Hebrews with 100% completion in 0.41s.
+     - Created `tests/test_corpora.py` with 9 unit tests verifying 1-to-1 module-test symmetry.
+     - Added corpus test cases to `tests/test_build_semantic_db.py` and `tests/test_semantic_compiler.py`.
+     - Verified 100% pass across all 43 test modules (939 tests) in ~30s.
+- **Consequences**:
+  - Establishes an extensible, bounded framework for executing the remaining Whole-Bible Semantic Campaigns (Corpora 2 through 7) and Vector Campaigns (Tasks 7.8–7.14) in discrete, reliable Ralph loop cycles.
+  - Guarantees 100% Zero-Dependency compliance (Python 3 standard library only per ADR-003).
+
+
 
 

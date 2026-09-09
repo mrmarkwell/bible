@@ -2598,13 +2598,43 @@ class BibleShell(cmd.Cmd):
         """Auto-complete for /vec alias."""
         return self.complete_vector(text, line, begidx, endidx)
 
+    def do_corpora(self, arg: str) -> None:
+        """Inspect the 7 canonical theological corpora and semantic campaign progress.
+
+        Usage:
+          /corpora              List all 7 canonical corpora with completion status
+          /corpora [id]         Inspect a specific corpus (1-7, e.g. /corpora 1)
+        """
+        from cli.main import cmd_corpora
+        import argparse
+
+        corpus_arg = arg.strip() if arg.strip() else None
+        ns = argparse.Namespace(db=str(self.db_path), corpus=corpus_arg, json=False)
+        cmd_corpora(ns)
+
+    def do_corpus(self, arg: str) -> None:
+        """Alias for /corpora."""
+        self.do_corpora(arg)
+
+    def complete_corpora(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /corpora."""
+        options = ["1", "2", "3", "4", "5", "6", "7", "pauline", "gospels", "pentateuch", "wisdom", "prophets"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    def complete_corpus(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /corpus."""
+        return self.complete_corpora(text, line, begidx, endidx)
+
     def do_build_semantic(self, arg: str) -> None:
         """Resumable batch semantic compiler & whole-Bible database builder.
 
         Usage:
           /build-semantic status              Inspect compilation ledger status
+          /build-semantic status [corpus]     Inspect status for a corpus (e.g. status 1)
           /build-semantic dry-run [book]      Preview compilation units
+          /build-semantic dry-run -c [id]     Preview corpus compilation units (e.g. dry-run -c 1)
           /build-semantic run [book]          Execute compilation
+          /build-semantic corpus [id]         Compile a specific canonical corpus (1-7)
           /build-semantic reset-failed        Reset failed units back to PENDING
         """
         parts = arg.strip().split()
@@ -2614,17 +2644,23 @@ class BibleShell(cmd.Cmd):
         db_path = self.db_path
 
         if action == "status":
-            run_semantic_build(db_path=db_path, status_only=True)
+            c_filter = parts[1] if len(parts) > 1 and parts[1].isdigit() else None
+            b_filter = parts[1] if len(parts) > 1 and not parts[1].isdigit() else None
+            run_semantic_build(db_path=db_path, book_filter=b_filter, corpus_filter=c_filter, status_only=True)
         elif action == "dry-run":
-            b_filter = parts[1] if len(parts) > 1 else None
-            run_semantic_build(db_path=db_path, book_filter=b_filter, dry_run=True)
+            c_filter = parts[2] if len(parts) > 2 and parts[1] in ("-c", "--corpus") else (parts[1] if len(parts) > 1 and parts[1].isdigit() else None)
+            b_filter = parts[1] if len(parts) > 1 and not parts[1].isdigit() and parts[1] not in ("-c", "--corpus") else None
+            run_semantic_build(db_path=db_path, book_filter=b_filter, corpus_filter=c_filter, dry_run=True)
+        elif action == "corpus":
+            c_filter = parts[1] if len(parts) > 1 else "1"
+            run_semantic_build(db_path=db_path, corpus_filter=c_filter)
         elif action == "reset-failed":
             run_semantic_build(db_path=db_path, reset_failed=True)
         elif action in ("run", "start", "compile"):
             b_filter = parts[1] if len(parts) > 1 else None
             run_semantic_build(db_path=db_path, book_filter=b_filter)
         else:
-            self.stdout.write(f"Unknown action '{action}'. Available: status, dry-run, run, reset-failed\n")
+            self.stdout.write(f"Unknown action '{action}'. Available: status, dry-run, corpus, run, reset-failed\n")
 
     def do_compile_semantic(self, arg: str) -> None:
         """Alias for /build-semantic."""
@@ -2632,7 +2668,7 @@ class BibleShell(cmd.Cmd):
 
     def complete_build_semantic(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /build-semantic."""
-        options = ["status", "dry-run", "run", "reset-failed"]
+        options = ["status", "dry-run", "corpus", "run", "reset-failed"]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_compile_semantic(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:

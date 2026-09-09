@@ -3107,6 +3107,57 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 3.8 is 100% complete, verified, and unblocked. Whole-Bible cross-referencing is now permanently active in `data/bible.db`.
   - Next task on roadmap: Phase 3 Task 3.9 (Whole-Bible Bounded Semantic Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews via SQLite Checkpoint Ledger) or Phase 7 Task 7.7 (Semantic Passport Generator & Batch Vector Ingestion Engine per ADR-083).
 
+---
+
+## [Run 077] — 2026-09-09
+- **Agent**: Ralph Loop Standard Cycle Agent
+- **Phase**: Phase 3 — Semantic Tagging & Knowledge Database Engine (Task 3.9 / ADR-085)
+- **Task**: Task 3.9 — Whole-Bible Bounded Semantic Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, 1-2 Corinthians, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via SQLite Checkpoint Ledger and Canonical Corpora Architecture (`core/corpora.py`, `./bible corpora`, `./bible build-semantic --corpus 1`).
+- **Actions Taken**:
+  - **Canonical Corpora Architecture & Authoritative 66-Book Catalog (`core/corpora.py`)**:
+    - Created `CanonicalCorpus` dataclass and partitioned all 66 Protestant canonical books into 7 sequential, cohesive theological corpora with zero overlap and zero gaps:
+      - **Corpus 1: Foundational Pauline Epistles & Hebrews** (Romans [45], 1 Cor [46], 2 Cor [47], Gal [48], Eph [49], Phil [50], Col [51], Heb [58]; 8 books, 78 chapters, ~110 pericopes).
+      - **Corpus 2: The Four Gospels & Acts** (Matthew [40], Mark [41], Luke [42], John [43], Acts [44]; 5 books, 117 chapters, ~375 pericopes).
+      - **Corpus 3: Pentateuch & Covenant Foundations** (Genesis [1], Exodus [2], Leviticus [3], Numbers [4], Deuteronomy [5]; 5 books, 187 chapters, ~250 pericopes).
+      - **Corpus 4: Pastoral & General Epistles** (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 13 books, 43 chapters, ~80 pericopes).
+      - **Corpus 5: Wisdom Literature & Poetry** (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; 5 books, 243 chapters, ~240 pericopes).
+      - **Corpus 6: Major & Minor Prophets** (Isaiah through Malachi; 17 books, 250 chapters, ~215 pericopes).
+      - **Corpus 7: Historical Books & Apocalyptic Consummation** (Joshua through Esther, Revelation; 13 books, 271 chapters, ~150 pericopes).
+    - Created lookup utilities `get_corpus(id_or_name)`, `get_corpus_for_book(book)`, and `list_corpora()`.
+  - **Multi-Book SQLite Checkpoint Ledger Operations (`core/semantic_compiler.py`)**:
+    - Upgraded `SemanticCheckpointLedger.get_summary()`, `reset_status()`, and `clear_ledger()` to natively support both single book IDs (`int`) and multi-book sequences (`Sequence[int]`).
+    - Added `get_corpus_units(corpus)` to aggregate pericopes and chapters for all books in a corpus in canonical order.
+    - Added `compile_corpus(corpus)` to orchestrate bounded corpus-level execution.
+    - Wired semantic tag ingestion: during compilation, extracted `thematic_ribbon`, `theological_locus`, and book motifs are normalized to `snake_case` and persisted into `tags` and `verse_tags` via `TaggingService`.
+    - Optimized verse retrieval: `fetch_passage_text()` queries SQLite directly via `get_verses_by_reference()` first, avoiding slow network calls.
+  - **Batch Semantic Compiler `--corpus` Integration (`tools/build_semantic_db.py`)**:
+    - Added `--corpus <id|name>` CLI flag to compile a bounded canonical corpus with full checkpoint ledger resumption.
+    - Changed default compilation translation to `WEB` for fast, offline-first execution without external network bottlenecks.
+  - **Omnichannel CLI & Interactive REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+    - Added `./bible corpora [--corpus <id>] [--json]` subcommand to display the 7 canonical corpora, book scopes, chapter totals, and live semantic ledger completion percentages.
+    - Added `--corpus` parameter to `./bible build-semantic`.
+    - Added `/corpora` and `/corpus` REPL commands and `/build-semantic corpus <id>` in `BibleShell`.
+  - **Corpus 1 Execution & Hermetic Test Suite**:
+    - Executed Corpus 1 compilation: compiled all 115 units (37 pericopes + 78 chapters) across Romans, 1-2 Corinthians, Galatians, Ephesians, Philippians, Colossians, and Hebrews with 100% completion in 0.41s.
+    - Created `tests/test_corpora.py` with 9 unit tests verifying 1-to-1 module-test symmetry.
+    - Added corpus test cases to `tests/test_build_semantic_db.py` and `tests/test_semantic_compiler.py`.
+    - Verified 100% pass across all 43 test modules (939 tests) in ~30s.
+  - **Governance & State Machine Sync**:
+    - Recorded **ADR-085** in `DECISIONS.md`.
+    - Marked **Task 3.9** complete in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **939 tests across 43 modules passed 100% in 30.653s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 9 checks passed (85 ADRs registered, 77 sequential runs, 93 roadmap tasks tracked, 72 completed across 9 phases, 0 dependencies, 0 linter errors across 91 files).
+  - `python3 tools/linter.py`: **100% CLEAN** — 91 files inspected with 0 errors.
+  - Verified live CLI outputs:
+    - `./bible corpora`: displays all 7 canonical corpora with descriptions and 100% completion status.
+    - `./bible corpora --corpus 1 --json`: outputs structured metadata and ledger counts.
+    - `./bible build-semantic --corpus 1 --status`: displays Corpus 1 ledger status (115 completed units, 0 pending, 0 failed).
+- **Handoff Notes for Next Agent**:
+  - Task 3.9 is 100% complete, verified, and unblocked. The Canonical Corpora architecture (`core/corpora.py`) is now established and fully operational.
+  - Next task on roadmap: Phase 3 Task 3.10 (Whole-Bible Bounded Semantic Campaign: Corpus 2 - The Four Gospels & Acts via SQLite Checkpoint Ledger) or Phase 7 Task 7.7 (Semantic Passport Generator & Batch Vector Ingestion Engine per ADR-083).
+
+
 
 
 

@@ -1621,6 +1621,70 @@ def generate_offline_synthetic_analysis(
         else:
             epoch = RedemptiveEpoch.PATRIARCHAL_COVENANT.value
 
+    # Context-sensitive canonical thematic ribbon mapping
+    ribbon = ThematicRibbon.COVENANT_GRACE.value
+    if b_id == 1:
+        if ref_obj.start_chapter in (1, 2):
+            ribbon = ThematicRibbon.TEMPLE_PRESENCE.value
+        elif ref_obj.start_chapter == 3:
+            ribbon = ThematicRibbon.SEED_OFFSPRING.value
+    elif b_id == 2:
+        ribbon = ThematicRibbon.EXODUS_DELIVERANCE.value if ref_obj.start_chapter <= 18 else ThematicRibbon.TEMPLE_PRESENCE.value
+    elif b_id == 3:
+        ribbon = ThematicRibbon.SACRIFICE_ATONEMENT.value
+    elif b_id == 4:
+        ribbon = ThematicRibbon.EXILE_PILGRIMAGE.value
+    elif b_id == 5:
+        ribbon = ThematicRibbon.COVENANT_GRACE.value
+    elif 9 <= b_id <= 12:
+        ribbon = ThematicRibbon.KINGSHIP_REIGN.value
+    elif 23 <= b_id <= 39:
+        ribbon = ThematicRibbon.PROPHETIC_WORD.value
+    elif 40 <= b_id <= 43:
+        ribbon = ThematicRibbon.KINGSHIP_REIGN.value if b_id == 40 else (ThematicRibbon.SACRIFICE_ATONEMENT.value if b_id == 41 else ThematicRibbon.TEMPLE_PRESENCE.value)
+    elif b_id == 44:
+        ribbon = ThematicRibbon.TEMPLE_PRESENCE.value
+    elif b_id == 45:
+        # Romans
+        if ref_obj.start_chapter <= 4:
+            ribbon = ThematicRibbon.COVENANT_GRACE.value
+        elif ref_obj.start_chapter <= 8:
+            ribbon = ThematicRibbon.BRIDE_UNION.value
+        elif ref_obj.start_chapter <= 11:
+            ribbon = ThematicRibbon.SEED_OFFSPRING.value
+        else:
+            ribbon = ThematicRibbon.TEMPLE_PRESENCE.value
+    elif b_id == 46:
+        # 1 Corinthians
+        ribbon = ThematicRibbon.PROPHETIC_WORD.value if ref_obj.start_chapter <= 4 else (ThematicRibbon.TEMPLE_PRESENCE.value if ref_obj.start_chapter <= 14 else ThematicRibbon.SABBATH_REST.value)
+    elif b_id == 47:
+        # 2 Corinthians
+        ribbon = ThematicRibbon.COVENANT_GRACE.value
+    elif b_id == 48:
+        # Galatians
+        ribbon = ThematicRibbon.COVENANT_GRACE.value if ref_obj.start_chapter <= 4 else ThematicRibbon.EXODUS_DELIVERANCE.value
+    elif b_id == 49:
+        # Ephesians
+        ribbon = ThematicRibbon.BRIDE_UNION.value if ref_obj.start_chapter <= 3 else ThematicRibbon.TEMPLE_PRESENCE.value
+    elif b_id == 50:
+        # Philippians
+        ribbon = ThematicRibbon.KINGSHIP_REIGN.value
+    elif b_id == 51:
+        # Colossians
+        ribbon = ThematicRibbon.KINGSHIP_REIGN.value if ref_obj.start_chapter <= 2 else ThematicRibbon.BRIDE_UNION.value
+    elif b_id == 58:
+        # Hebrews
+        if ref_obj.start_chapter <= 4:
+            ribbon = ThematicRibbon.SABBATH_REST.value
+        elif ref_obj.start_chapter <= 10:
+            ribbon = ThematicRibbon.PRIESTHOOD_MEDIATION.value
+        elif ref_obj.start_chapter == 11:
+            ribbon = ThematicRibbon.EXILE_PILGRIMAGE.value
+        else:
+            ribbon = ThematicRibbon.CITY_OF_GOD.value
+    elif b_id == 66:
+        ribbon = ThematicRibbon.CITY_OF_GOD.value
+
     # Verse theology spanning the passage
     theology = [
         VerseTheologyData(
@@ -1628,7 +1692,7 @@ def generate_offline_synthetic_analysis(
             storyline_epoch=epoch,
             theological_locus=locus,
             primary_doctrine=primary_doctrine,
-            thematic_ribbon=ThematicRibbon.COVENANT_GRACE.value,
+            thematic_ribbon=ribbon,
             confidence=1.0,
         )
     ]

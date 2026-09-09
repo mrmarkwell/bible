@@ -277,6 +277,32 @@ class TestBuildSemanticDb(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("[Dry Run]", out.getvalue())
 
+    def test_main_dry_run_corpus_1(self):
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = main(["--db", str(DEFAULT_DB_PATH), "--dry-run", "--corpus", "1"])
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("[Dry Run]", val)
+        self.assertIn("Foundational Pauline Epistles & Hebrews", val)
+
+    def test_invalid_corpus_filter(self):
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = main(["--db", str(self.db_path), "--corpus", "99"])
+        self.assertEqual(code, 1)
+        self.assertIn("Unknown canonical corpus", out.getvalue())
+
+    def test_corpus_status_json(self):
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = main(["--db", str(self.db_path), "--corpus", "1", "--status", "--json"])
+        self.assertEqual(code, 0)
+        data = json.loads(out.getvalue())
+        self.assertIn("corpus", data)
+        self.assertEqual(data["corpus"]["corpus_id"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+

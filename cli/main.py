@@ -754,6 +754,92 @@ def cmd_translations(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_corpora(args: argparse.Namespace) -> int:
+    """Handle 'corpora' subcommand: inspect 7 canonical theological corpora and semantic campaign progress."""
+    from core.corpora import get_corpus, list_corpora
+    from core.semantic_compiler import SemanticCheckpointLedger
+
+    db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+    json_output = getattr(args, "json", False)
+    target_id = getattr(args, "corpus", None)
+
+    ledger: Optional[SemanticCheckpointLedger] = None
+    if db_path.exists():
+        try:
+            db = Database(db_path, auto_init=False)
+            ledger = SemanticCheckpointLedger(db)
+        except Exception:
+            ledger = None
+
+    if target_id is not None:
+        c = get_corpus(target_id)
+        if not c:
+            if json_output:
+                print(json.dumps({"error": f"Unknown canonical corpus: {target_id}"}))
+            else:
+                sys.stderr.write(f"Error: Unknown canonical corpus '{target_id}'. Valid IDs: 1 to 7.\n")
+            return 1
+        corpora_to_show = [c]
+    else:
+        corpora_to_show = list_corpora()
+
+    corpora_data: List[Dict[str, Any]] = []
+    for c in corpora_to_show:
+        d = c.to_dict()
+        if ledger:
+            summary = ledger.get_summary(book_id=list(c.book_ids))
+            total = sum(summary.values())
+            completed = summary.get("COMPLETED", 0)
+            pct = (completed / total * 100.0) if total > 0 else 0.0
+            d["ledger"] = {
+                "total_tracked": total,
+                "completed": completed,
+                "pending": summary.get("PENDING", 0),
+                "in_progress": summary.get("IN_PROGRESS", 0),
+                "failed": summary.get("FAILED", 0),
+                "skipped": summary.get("SKIPPED", 0),
+                "completion_pct": round(pct, 1),
+            }
+        else:
+            d["ledger"] = None
+        corpora_data.append(d)
+
+    if json_output:
+        if target_id is not None:
+            print(json.dumps(corpora_data[0], indent=2))
+        else:
+            print(json.dumps({"corpora": corpora_data}, indent=2))
+        return 0
+
+    print("=" * 78)
+    print(" Bible Engine — 7 Canonical Theological Corpora Architecture (ADR-085)")
+    print("=" * 78)
+    for data in corpora_data:
+        cid = data["corpus_id"]
+        title = data["title"]
+        desc = data["description"]
+        bnames = ", ".join(data["book_names"])
+        total_ch = data["total_chapters"]
+        est_p = data["estimated_pericopes"]
+        ledger_info = data.get("ledger")
+
+        progress_str = ""
+        if ledger_info and ledger_info["total_tracked"] > 0:
+            pct = ledger_info["completion_pct"]
+            comp = ledger_info["completed"]
+            tot = ledger_info["total_tracked"]
+            progress_str = f" [Progress: {pct:.1f}% ({comp}/{tot} units)]"
+        elif ledger_info:
+            progress_str = " [Ledger: uninitialized]"
+
+        print(f"\n \033[1mCorpus {cid}: {title}\033[0m{progress_str}")
+        print(f"   Scope:        {bnames} ({data['total_books']} books, {total_ch} chapters, ~{est_p} pericopes)")
+        print(f"   Theology:     {desc}")
+    print("=" * 78)
+    print("Tip: Run './bible build-semantic --corpus <id>' to compile a bounded semantic campaign.\n")
+    return 0
+
+
 def cmd_tag(args: argparse.Namespace) -> int:
     """Handle 'tag' subcommand: semantic tagging, passage annotation, and taxonomy."""
     tag_action = getattr(args, "tag_action", None)
@@ -1642,6 +1728,28 @@ def build_parser() -> argparse.ArgumentParser:
         description="Inspect registered Bible translations, language, copyright status, and verse statistics.",
     )
     parser_translations.set_defaults(func=cmd_translations)
+
+    # Subcommand: corpora (alias: corpus)
+    parser_corpora = subparsers.add_parser(
+        "corpora",
+        aliases=["corpus"],
+        help="Inspect 7 canonical theological corpora and semantic campaign progress",
+        description="Inspect the 7 canonical corpora partitioning all 66 Protestant biblical books and their real-time semantic compilation ledger status.",
+    )
+    parser_corpora.add_argument(
+        "--corpus",
+        "-c",
+        dest="corpus",
+        type=str,
+        default=None,
+        help="Target canonical corpus identifier (1-7, or name e.g. '1', 'pauline')",
+    )
+    parser_corpora.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON structure",
+    )
+    parser_corpora.set_defaults(func=cmd_corpora)
 
     # Subcommand: tag (aliases: tags)
     parser_tag = subparsers.add_parser(
@@ -4652,6 +4760,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter compilation to a specific canonical book (e.g. 'Romans', 'Genesis')",
     )
     parser_build_semantic.add_argument(
+        "--corpus",
+        type=str,
+        default=None,
+        help="Filter compilation to a canonical corpus (1-7, e.g. '1' for Pauline Epistles & Hebrews)",
+    )
+    parser_build_semantic.add_argument(
         "--no-resume",
         action="store_false",
         dest="resume",
@@ -4720,6 +4834,7 @@ def build_parser() -> argparse.ArgumentParser:
         return run_semantic_build(
             db_path=db_path,
             book_filter=getattr(args, "book", None),
+            corpus_filter=getattr(args, "corpus", None),
             compile_all=getattr(args, "compile_all", False),
             resume=getattr(args, "resume", True),
             reset_failed=getattr(args, "reset_failed", False),
@@ -5548,6 +5663,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
 
     registered_commands = {
         "get", "compare", "search", "find", "translations", "versions",
+        "corpora", "corpus",
         "tag", "tags", "crossref", "xref", "refs",
         "doctor", "summary", "shell", "interactive", "repl", "console",
         "serve", "server", "http", "web",

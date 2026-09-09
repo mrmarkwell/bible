@@ -379,6 +379,54 @@ class TestSemanticDatabaseCompiler(unittest.TestCase):
         self.assertEqual(ob_theos[0].theological_locus, "eschatology")
 
 
+    def test_get_corpus_units_and_compile_corpus_mock(self) -> None:
+        """Test gathering corpus units for Corpus 1 and compiling them."""
+        from core.corpora import get_corpus
+        corpus_1 = get_corpus(1)
+        self.assertIsNotNone(corpus_1)
+
+        units = self.compiler.get_corpus_units(corpus_1)
+        self.assertGreater(len(units), 0)
+        # All units should belong to books in Corpus 1
+        for u in units:
+            self.assertIn(u.book.number, corpus_1.book_ids)
+
+        # Compile a small subset hermetically
+        subset = units[:2]
+        progress = self.compiler.compile_units(subset, resume=False)
+        self.assertEqual(progress.completed_units, 2)
+        self.assertEqual(progress.failed_units, 0)
+
+    def test_ledger_multi_book_operations(self) -> None:
+        """Test SemanticCheckpointLedger operations across a sequence of book IDs."""
+        ref1 = parse_reference("Romans 1:1-7")
+        ref2 = parse_reference("1 Corinthians 1:1-3")
+        u1 = CompilationUnit(unit_id="u_rom", reference=ref1, book=ref1.book, passage_text="Text 1")
+        u2 = CompilationUnit(unit_id="u_1cor", reference=ref2, book=ref2.book, passage_text="Text 2")
+
+        self.compiler.ledger.record_unit(u1)
+        self.compiler.ledger.record_unit(u2)
+
+        # Mark u1 as FAILED and u2 as COMPLETED
+        self.compiler.ledger.mark_failed("u_rom", "Error 1")
+        self.compiler.ledger.mark_completed("u_1cor")
+
+        # Multi-book summary
+        summary = self.compiler.ledger.get_summary(book_id=[45, 46])
+        self.assertEqual(summary.get("FAILED"), 1)
+        self.assertEqual(summary.get("COMPLETED"), 1)
+
+        # Reset failed for [45, 46]
+        reset_cnt = self.compiler.ledger.reset_status(CompilationUnitStatus.FAILED, book_id=[45, 46])
+        self.assertEqual(reset_cnt, 1)
+        summary_after = self.compiler.ledger.get_summary(book_id=[45, 46])
+        self.assertEqual(summary_after.get("PENDING"), 1)
+        self.assertEqual(summary_after.get("FAILED"), 0)
+
+        # Clear ledger for [45, 46]
+        cleared = self.compiler.ledger.clear_ledger(book_id=[45, 46])
+        self.assertEqual(cleared, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
-

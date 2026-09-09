@@ -50,6 +50,8 @@ from core.semantic_prompts import (
     get_semantic_prompt_generator,
     parse_pericope_analysis_json,
 )
+from core.corpora import CanonicalCorpus, get_corpus
+from core.tags import TaggingService, normalize_tag_name
 from core.vector import (
     DEFAULT_VECTOR_DIM,
     normalize_vector,
@@ -338,7 +340,7 @@ class SemanticCheckpointLedger:
     def reset_status(
         self,
         status_to_reset: Optional[CompilationUnitStatus] = None,
-        book_id: Optional[int] = None,
+        book_id: Optional[Union[int, Sequence[int]]] = None,
     ) -> int:
         """Reset failed or in-progress units back to PENDING for re-compilation."""
         now = _utc_now_iso()
@@ -347,21 +349,35 @@ class SemanticCheckpointLedger:
         if status_to_reset:
             query += " AND status = ?"
             params.append(status_to_reset.value)
-        if book_id:
-            query += " AND book_id = ?"
-            params.append(book_id)
+        if book_id is not None:
+            if isinstance(book_id, int):
+                query += " AND book_id = ?"
+                params.append(book_id)
+            elif isinstance(book_id, (list, tuple, set)):
+                b_list = list(book_id)
+                if b_list:
+                    placeholders = ",".join("?" for _ in b_list)
+                    query += f" AND book_id IN ({placeholders})"
+                    params.extend(b_list)
 
         with self.db.conn:
             cur = self.db.conn.execute(query, params)
             return cur.rowcount
 
-    def get_summary(self, book_id: Optional[int] = None) -> Dict[str, int]:
+    def get_summary(self, book_id: Optional[Union[int, Sequence[int]]] = None) -> Dict[str, int]:
         """Aggregate ledger counts by status."""
         query = "SELECT status, count(*) as cnt FROM semantic_checkpoint_ledger"
         params: List[Any] = []
-        if book_id:
-            query += " WHERE book_id = ?"
-            params.append(book_id)
+        if book_id is not None:
+            if isinstance(book_id, int):
+                query += " WHERE book_id = ?"
+                params.append(book_id)
+            elif isinstance(book_id, (list, tuple, set)):
+                b_list = list(book_id)
+                if b_list:
+                    placeholders = ",".join("?" for _ in b_list)
+                    query += f" WHERE book_id IN ({placeholders})"
+                    params.extend(b_list)
         query += " GROUP BY status"
 
         cur = self.db.conn.cursor()
@@ -374,14 +390,25 @@ class SemanticCheckpointLedger:
             res[r["status"]] = r["cnt"]
         return res
 
-    def clear_ledger(self, book_id: Optional[int] = None) -> int:
+    def clear_ledger(self, book_id: Optional[Union[int, Sequence[int]]] = None) -> int:
         """Clear checkpoint records from the ledger."""
         with self.db.conn:
-            if book_id:
-                cur = self.db.conn.execute(
-                    "DELETE FROM semantic_checkpoint_ledger WHERE book_id = ?",
-                    (book_id,),
-                )
+            if book_id is not None:
+                if isinstance(book_id, int):
+                    cur = self.db.conn.execute(
+                        "DELETE FROM semantic_checkpoint_ledger WHERE book_id = ?",
+                        (book_id,),
+                    )
+                elif isinstance(book_id, (list, tuple, set)):
+                    b_list = list(book_id)
+                    if b_list:
+                        placeholders = ",".join("?" for _ in b_list)
+                        cur = self.db.conn.execute(
+                            f"DELETE FROM semantic_checkpoint_ledger WHERE book_id IN ({placeholders})",
+                            tuple(b_list),
+                        )
+                    else:
+                        return 0
             else:
                 cur = self.db.conn.execute("DELETE FROM semantic_checkpoint_ledger")
             return cur.rowcount
@@ -449,6 +476,7 @@ class SemanticDatabaseCompiler:
         self.ledger = SemanticCheckpointLedger(self.db)
         self.critic = ExegeticalCritic()
         self.prompt_gen = get_semantic_prompt_generator()
+        self.tag_service = TaggingService(self.db)
 
     # --- Passage Text Retrieval ---
 
@@ -459,10 +487,16 @@ class SemanticDatabaseCompiler:
     ) -> str:
         """Retrieve contiguous verse text for a passage from SQLite."""
         tid = translation_id or self.translation_id
-        verses, _, _ = self.db.get_verses_with_fallback(ref, translation_id=tid)
+        # First attempt fast direct retrieval from SQLite
+        verses = self.db.get_verses_by_reference(ref, translation_id=tid)
         if not verses:
-            # Try WEB fallback
-            verses, _, _ = self.db.get_verses_with_fallback(ref, translation_id="WEB")
+            try:
+                verses, _, _ = self.db.get_verses_with_fallback(ref, translation_id=tid)
+            except Exception:
+                verses = []
+        if not verses:
+            # Try WEB fallback from SQLite
+            verses = self.db.get_verses_by_reference(ref, translation_id="WEB")
         if not verses:
             raise ValueError(f"No verses found in database for reference: {ref.format()}")
 
@@ -547,6 +581,23 @@ class SemanticDatabaseCompiler:
                     summary=f"{b.name} {ch_num} in the epoch of {horizon.storyline_epoch}",
                 )
             )
+
+        return units
+
+    def get_corpus_units(
+        self,
+        corpus_filter: Union[CanonicalCorpus, int, str],
+    ) -> List[CompilationUnit]:
+        """Generate compilation units for an entire canonical corpus (both canonical pericopes and chapters)."""
+        corpus = corpus_filter if isinstance(corpus_filter, CanonicalCorpus) else get_corpus(corpus_filter)
+        if not corpus:
+            raise ValueError(f"Invalid canonical corpus: {corpus_filter}")
+
+        units: List[CompilationUnit] = []
+        for b in corpus.books:
+            units.extend(self.get_canonical_pericope_units(book_filter=b))
+        for b in corpus.books:
+            units.extend(self.get_chapter_units(book_filter=b))
 
         return units
 
@@ -688,6 +739,10 @@ class SemanticDatabaseCompiler:
             if prop_recs:
                 self.db.insert_semantic_propositions_batch(prop_recs)
 
+            # 3.5. Apply Semantic Tags to tags / verse_tags tables
+            if self.tag_service is not None:
+                self._apply_semantic_tags(unit, result, theo_recs)
+
             # 4. Compute & Save Vector Embeddings (Layer 6)
             if self.generate_embeddings:
                 self._compile_embeddings_for_unit(unit, result, pericope_id)
@@ -700,6 +755,61 @@ class SemanticDatabaseCompiler:
             err_msg = str(err)
             self.ledger.mark_failed(unit_id, err_msg)
             return False, err_msg, None
+
+    def _apply_semantic_tags(
+        self,
+        unit: CompilationUnit,
+        result: PericopeAnalysisResult,
+        theo_recs: List[Any],
+    ) -> None:
+        """Apply normalized semantic tags from theology records and book motifs to SQLite."""
+        if not self.tag_service:
+            return
+
+        ref = unit.reference
+        # 1. Gather tags from verse theology (thematic ribbon & theological locus)
+        tags_to_apply: List[Tuple[str, str]] = []
+
+        for theo in theo_recs:
+            if hasattr(theo, "thematic_ribbon") and theo.thematic_ribbon:
+                tags_to_apply.append((theo.thematic_ribbon, "theological"))
+            if hasattr(theo, "theological_locus") and theo.theological_locus:
+                tags_to_apply.append((theo.theological_locus, "theological"))
+
+        # 2. Extract motifs from BookHorizon
+        try:
+            horizon = get_book_horizon(unit.book.number)
+            for motif in horizon.key_motifs:
+                tags_to_apply.append((motif, "thematic"))
+        except Exception:
+            pass
+
+        # 3. Canonical pericope primary theme starring
+        is_canonical_pericope = unit.unit_id.startswith("pericope_")
+        primary_ribbon = theo_recs[0].thematic_ribbon if theo_recs and hasattr(theo_recs[0], "thematic_ribbon") and theo_recs[0].thematic_ribbon else None
+
+        seen_tags = set()
+        for raw_tag, category in tags_to_apply:
+            try:
+                norm_tag = normalize_tag_name(raw_tag)
+            except Exception:
+                continue
+            if not norm_tag or norm_tag in seen_tags:
+                continue
+            seen_tags.add(norm_tag)
+
+            is_starred = is_canonical_pericope and (norm_tag == primary_ribbon)
+            try:
+                self.tag_service.tag_passage(
+                    reference=ref,
+                    tags=norm_tag,
+                    category=category,
+                    confidence=1.0,
+                    source="semantic-compiler",
+                    starred=is_starred,
+                )
+            except Exception:
+                pass
 
     def _compile_embeddings_for_unit(
         self,
@@ -833,6 +943,26 @@ class SemanticDatabaseCompiler:
         else:
             units = self.get_chapter_units(book_filter=b_obj)
 
+        return self.compile_units(
+            units=units,
+            resume=resume,
+            callback=callback,
+            mock_results=mock_results,
+        )
+
+    def compile_corpus(
+        self,
+        corpus: Union[CanonicalCorpus, int, str],
+        resume: bool = True,
+        callback: Optional[Callable[[CompilationUnit, bool, Optional[str], CompilationProgress], None]] = None,
+        mock_results: Optional[Dict[str, Any]] = None,
+    ) -> CompilationProgress:
+        """Compile an entire canonical corpus (1-7)."""
+        corpus_obj = corpus if isinstance(corpus, CanonicalCorpus) else get_corpus(corpus)
+        if not corpus_obj:
+            raise ValueError(f"Unknown canonical corpus: {corpus}")
+
+        units = self.get_corpus_units(corpus_obj)
         return self.compile_units(
             units=units,
             resume=resume,

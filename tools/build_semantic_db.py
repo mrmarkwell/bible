@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.corpora import CanonicalCorpus, get_corpus
 from core.db import Database, DEFAULT_DB_PATH
 from core.reference import Book, get_book
 from core.semantic_compiler import (
@@ -33,6 +34,7 @@ from core.semantic_compiler import (
 def run_semantic_build(
     db_path: Path,
     book_filter: Optional[str] = None,
+    corpus_filter: Optional[str] = None,
     compile_all: bool = False,
     resume: bool = True,
     reset_failed: bool = False,
@@ -65,37 +67,60 @@ def run_semantic_build(
             if json_output:
                 print(json.dumps({"error": f"Unknown book: {book_filter}"}))
             else:
-                print(f"[31m[!] Error: Unknown book '{book_filter}'[0m")
+                print(f" \033[31m[!] Error: Unknown book '{book_filter}'\033[0m")
             return 1
 
-    book_id = book_obj.number if book_obj else None
+    # Resolve corpus filter if provided
+    corpus_obj: Optional[CanonicalCorpus] = None
+    if corpus_filter:
+        corpus_obj = get_corpus(corpus_filter)
+        if not corpus_obj:
+            if json_output:
+                print(json.dumps({"error": f"Unknown canonical corpus: {corpus_filter}"}))
+            else:
+                print(f" \033[31m[!] Error: Unknown canonical corpus '{corpus_filter}'\033[0m")
+            return 1
+
+    target_book_ids = list(corpus_obj.book_ids) if corpus_obj else ([book_obj.number] if book_obj else None)
 
     # Handle ledger maintenance operations
+    book_label = book_obj.name if book_obj else "all"
     if clear_ledger:
-        cleared = ledger.clear_ledger(book_id=book_id)
+        cleared = ledger.clear_ledger(book_id=target_book_ids)
+        scope_name = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (book_obj.name if book_obj else "all")
         if json_output:
-            print(json.dumps({"cleared_units": cleared, "book": book_obj.name if book_obj else "all"}))
+            payload: Dict[str, Any] = {"cleared_units": cleared, "book": book_label, "scope": scope_name}
+            if corpus_obj:
+                payload["corpus"] = corpus_obj.to_dict()
+            print(json.dumps(payload))
         else:
-            print(f"Cleared {cleared} checkpoint records from ledger for {book_obj.name if book_obj else 'all books'}.")
+            print(f"Cleared {cleared} checkpoint records from ledger for {scope_name}.")
         return 0
 
     if reset_failed:
-        reset_cnt = ledger.reset_status(CompilationUnitStatus.FAILED, book_id=book_id)
+        reset_cnt = ledger.reset_status(CompilationUnitStatus.FAILED, book_id=target_book_ids)
+        scope_name = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (book_obj.name if book_obj else "all")
         if json_output:
-            print(json.dumps({"reset_failed_units": reset_cnt, "book": book_obj.name if book_obj else "all"}))
+            payload = {"reset_failed_units": reset_cnt, "book": book_label, "scope": scope_name}
+            if corpus_obj:
+                payload["corpus"] = corpus_obj.to_dict()
+            print(json.dumps(payload))
         else:
-            print(f"Reset {reset_cnt} failed units back to PENDING for {book_obj.name if book_obj else 'all books'}.")
+            print(f"Reset {reset_cnt} failed units back to PENDING for {scope_name}.")
         return 0
 
     # Status-only telemetry inspection
     if status_only:
-        summary = ledger.get_summary(book_id=book_id)
+        summary = ledger.get_summary(book_id=target_book_ids)
+        scope_name = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (f"Book: {book_obj.name}" if book_obj else "Scope: Whole Bible (66 Books)")
         if json_output:
-            print(json.dumps({"ledger_status": summary, "book": book_obj.name if book_obj else "all"}, indent=2))
+            payload = {"ledger_status": summary, "book": book_label, "scope": scope_name}
+            if corpus_obj:
+                payload["corpus"] = corpus_obj.to_dict()
+            print(json.dumps(payload, indent=2))
         else:
-            scope = f"Book: {book_obj.name}" if book_obj else "Scope: Whole Bible (66 Books)"
             print("=" * 70)
-            print(f" Bible Engine — Semantic Compilation Ledger Status ({scope})")
+            print(f" Bible Engine — Semantic Compilation Ledger Status ({scope_name})")
             print("=" * 70)
             total = sum(summary.values())
             print(f" Total Tracked Units:  {total}")
@@ -126,6 +151,8 @@ def run_semantic_build(
         units.extend(compiler.get_canonical_pericope_units())
         for b_num in range(1, 67):
             units.extend(compiler.get_chapter_units(b_num))
+    elif corpus_obj:
+        units = compiler.get_corpus_units(corpus_obj)
     elif book_obj:
         units = compiler.get_canonical_pericope_units(book_filter=book_obj)
         if not units:
@@ -141,16 +168,17 @@ def run_semantic_build(
             print("No compilation units found for specified scope.")
         return 0
 
+    scope_str = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (book_obj.name if book_obj else "all_pericopes")
     if dry_run:
         if json_output:
             print(json.dumps({
                 "dry_run": True,
                 "total_units": len(units),
-                "scope": book_obj.name if book_obj else "all_pericopes",
+                "scope": scope_str,
                 "sample_units": [u.unit_id for u in units[:5]],
             }, indent=2))
         else:
-            print(f"[Dry Run] Prepared {len(units)} units for compilation across {book_obj.name if book_obj else 'all pericopes'}.")
+            print(f"[Dry Run] Prepared {len(units)} units for compilation across {scope_str}.")
             for u in units[:10]:
                 print(f"  - {u.reference.format()} ({u.unit_id}): {u.title}")
             if len(units) > 10:
@@ -159,9 +187,9 @@ def run_semantic_build(
 
     # Real compilation run
     if not json_output:
-        scope_str = book_obj.name if book_obj else "All Canonical Pericopes"
+        banner_scope = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (book_obj.name if book_obj else "All Canonical Pericopes")
         print("=" * 78)
-        print(f" Bible Engine — Batch Semantic Compilation Engine ({scope_str})")
+        print(f" Bible Engine — Batch Semantic Compilation Engine ({banner_scope})")
         print(f" Target Database: {db_path} | Translation: {translation_id} | Units: {len(units)}")
         print("=" * 78)
 
@@ -236,6 +264,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Filter compilation to a specific canonical book (e.g. 'Romans', 'Genesis')",
     )
     parser.add_argument(
+        "--corpus",
+        type=str,
+        default=None,
+        help="Filter compilation to a specific canonical corpus (1-7 or name, e.g. '1', 'pauline_foundations_hebrews')",
+    )
+    parser.add_argument(
         "--no-resume",
         action="store_false",
         dest="resume",
@@ -267,8 +301,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "-v_id",
         dest="version",
         type=str,
-        default="ESV",
-        help="Target scripture translation for passage context (default: ESV)",
+        default="WEB",
+        help="Target scripture translation for passage context (default: WEB)",
     )
     parser.add_argument(
         "--rpm",
@@ -304,6 +338,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_semantic_build(
             db_path=args.db,
             book_filter=args.book,
+            corpus_filter=args.corpus,
             compile_all=getattr(args, "compile_all", False),
             resume=args.resume,
             reset_failed=args.reset_failed,
