@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Context-Enriched Pericope Vector Database & Hybrid RRF RAG Engine (Rank A+)
+- **Summary**: Construct an offline-first scripture vector database utilizing the 1,304 canonical pericopes as primary semantic retrieval units, enriched with a 3-tier "Semantic Passport" (Book Horizon, genre, theological loci, thematic ribbons, preceding discourse, central proposition, and full scripture text), embedded via Google Gemini `text-embedding-004` (with `task_type=RETRIEVAL_DOCUMENT`), quantized to `int8` BLOBs (~1MB total) in SQLite (`pericope_embeddings`), cross-linked to verse micro-anchors for Parent-Document RAG expansion, and fused with SQLite FTS5 BM25 lexical search and typological knowledge graphs via Reciprocal Rank Fusion (RRF).
+- **Rationale**: Solves exegetical myopia and proof-texting caused by isolated verse embedding, bridges the vocabulary gap between modern natural language questions and ancient biblical text, fits the entire pericope vector index in CPU cache (<2ms pure Python cosine scan), maintains zero pip/npm dependencies, and keeps corpus exploration 100% functional offline.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pre-computed once offline into SQLite `pericope_embeddings`; runtime corpus similarity operates 100% offline).
+  - Zero third-party dependencies? Yes (Python standard library only per ADR-003, pure Python `struct` int8 quantization per ADR-051).
+  - Copyright compliant? Yes (uses bundled public domain WEB or user-provided ESV API).
+- **Proposed Roadmap Phase**: Phase 7 & 8 (Tasks 7.7, 7.8, 8.7, 8.8 / ADR-083).
+- **Status**: Formulated and scheduled via ADR-083 and Tasks 7.7, 7.8, 8.7, 8.8.
+
 ### [VETTED] Bounded Whole-Bible Semantic Tagging Architecture, Checkpoint Ledger Cadence & 3-Tier Stratified Context Sandwich (Rank A+)
 - **Summary**: Establish an invariant pericope-first semantic tagging architecture, a hermetic 3-tier stratified context sandwich (Macro Book Horizon + Meso Discourse Surrounds + Micro Active Pericope), and bounded Ralph loop sprint sizing (1 canonical book or 15–25 pericopes per iteration) with state tracking in the SQLite checkpoint ledger, structured canonical corpus milestones in `ROADMAP.md`, and strict `ExegeticalCritic` quality validation.
 - **Rationale**: Solves the two core challenges of autonomous whole-Bible semantic tagging: (1) eliminating iteration scope ambiguity and session timeouts by bounding sprint budgets and acceptance criteria via SQLite checkpoint states, and (2) eliminating LLM context rot while preventing out-of-context proof-texting or moralism by guaranteeing every pericope receives full authorial and discourse horizon in a fresh, isolated context window.

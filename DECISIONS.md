@@ -2760,3 +2760,52 @@ This document is an append-only log of significant design and architectural deci
   - Eliminates out-of-context proof-texting by anchoring exegesis in authorial intent and discourse flow.
   - Provides deterministic, testable completion criteria for autonomous agents.
   - Zero external dependencies; 100% Python 3 standard library per ADR-003.
+
+---
+
+## ADR-083: Context-Enriched Pericope Vector Database, Semantic Passport Architecture, and Tri-Modal Hybrid RRF RAG Engine
+- **Date**: 2026-09-09
+- **Status**: Accepted
+- **Context**:
+  - In ADR-076, the architectural requirement was established to pre-compute an invariant dense vector database offline into SQLite for all verses and pericopes, eliminating runtime embedding latency and keeping the corpus 100% offline.
+  - However, two critical architectural challenges remained:
+    1. **Exegetical Myopia & Verse Chunking Flaws**: Embedding individual verses in isolation (e.g., John 11:35 *"Jesus wept"* or Genesis 15:6 *"And he believed the Lord..."*) divorces the verse from its surrounding narrative conflict, covenant setting, and theological conclusion. Verses are an artificial 1551 typological convention that frequently breaks sentences across boundaries (e.g. Ephesians 1:3–14).
+    2. **Modern Vocabulary Gap in Natural Language RAG**: Users ask questions using 21st-century conceptual vernacular (*"How do I deal with burnout, imposter syndrome, and anxiety?"* or *"Does Jesus understand human grief?"*). Biblical translations rarely use these exact modern terms. Embedding raw verse text alone fails to bridge this semantic distance.
+  - In ADR-082, the problem was solved for semantic tagging by establishing the **canonical pericope** (5–30 verses) as the invariant unit of exegesis and wrapping each unit in a **3-Tier Stratified Context Sandwich** (Book Horizon + Discourse Surrounds + Scripture Text).
+  - The vector database requires a matching architectural upgrade: structuring the embedded document with a dense "Semantic Passport", adopting a pericope-first parent-document retrieval model, selecting a standard embedder, and fusing dense vector similarity with lexical BM25 and typological knowledge graphs.
+- **Decision**:
+  1. **Pericope-First Primary Retrieval with Parent-Document Expansion**:
+     - The **1,304 canonical pericopes** are established as the primary semantic retrieval units of the Bible Engine.
+     - Embedding 1,304 pericopes in signed `int8` (768 dimensions) occupies only **~1.0 MB** of SQLite storage, fitting comfortably in CPU cache and allowing exhaustive whole-Bible cosine similarity scans in **<2ms** in pure Python standard library (`core/vector.py`).
+     - Verses (31,102 units, ~23.8 MB in `int8`) serve as fine-grained micro anchors for pinpoint citation and parallel verse discovery, cross-linked to their parent pericope.
+     - **Parent-Document RAG Retrieval**: When a query matches a pericope (or a specific verse), the RAG engine retrieves and injects the **complete pericope** into the LLM synthesis context window, ensuring the model never hallucinates isolated proof texts.
+  2. **The "Semantic Passport" Document Formulation for Embeddings**:
+     - Rather than embedding raw English text in isolation, every pericope is formatted into a structured "Semantic Passport" document before passing to the embedder:
+       - `[DOCUMENT TITLE]`: Book Chapter:Verse range + Pericope heading.
+       - `[CANONICAL HORIZON]`: Author, genre, historical epoch, and redemptive-historical trajectory (from `core/semantic_prompts.py`).
+       - `[THEOLOGICAL LOCI & RIBBONS]`: Systematic theological categories and redemptive themes (from `core/theology.py`).
+       - `[CENTRAL PROPOSITION]`: The exegetical main idea and Christological purpose.
+       - `[PRECEDING DISCOURSE]`: The narrative or argumentative transition from the prior pericope.
+       - `[SCRIPTURE TEXT]`: The full passage text (ESV/WEB) with bracketed verse markers.
+     - This metadata acts as a high-density semantic beacon, enabling conceptual queries (*"Does God care when we mourn?"*) to match narrative texts with high cosine similarity.
+  3. **Tri-Modal Hybrid Search with Reciprocal Rank Fusion (RRF)**:
+     - Combines three complementary retrieval channels in `core/rag.py`:
+       1. *Dense Vector Similarity*: Captures conceptual, emotional, and thematic queries via `core/vector.py`.
+       2. *Lexical BM25 Full-Text Search*: Captures exact proper names, numbers, and rare transliterations via SQLite FTS5 (`verses_fts`).
+       3. *Typological Knowledge Graph Traversal*: Expands Old Testament shadows to New Testament fulfillments via `typological_arcs` and `cross_references`.
+     - Results are fused via Reciprocal Rank Fusion: $RRF(d) = \sum_{m} \frac{w_m}{k + \text{rank}_m(d)}$ with $k=60$.
+  4. **Embedder Standard: Google Gemini `text-embedding-004`**:
+     - Primary Embedder: `text-embedding-004` (768 dimensions), utilizing native endpoints already implemented in `core/llm.py` (`embed_content`, `batch_embed_contents`).
+     - Asymmetric Task Types:
+       - Offline Corpus Compilation: `task_type="RETRIEVAL_DOCUMENT"` with title headers.
+       - Runtime User Inquiries: `task_type="RETRIEVAL_QUERY"`.
+     - Quantization: Float32 vectors are normalized and quantized to signed `int8` packed bytes and 768-bit sign hashes per ADR-051.
+     - Sovereign Local Fallback: When offline or in air-gapped environments without `GEMINI_API_KEY`, the RAG engine cleanly degrades to the offline BM25 + Semantic Tag / Typology Graph engine with zero user disruption. Optional local localhost bridge (e.g. Ollama `bge-small-en-v1.5` or `nomic-embed-text`) supported via stdlib `urllib.request`.
+  5. **Theological Facet Pre-Filtering**:
+     - Leverages SQLite indexes on `pericopes` and `verse_theology` to allow instant pre-filtering or post-filtering by Testament (`OT`/`NT`), Genre (`Wisdom`, `Gospel`, `Epistle`), Epoch (`Exodus`, `Exile`, `Incarnation`), or Theological Locus (`SOTERIOLOGY`, `CHRISTOLOGY`).
+- **Consequences**:
+  - Eliminates out-of-context verse proof-texting by anchoring semantic retrieval in complete literary pericopes.
+  - Bridges the vocabulary gap between modern natural language questions and ancient biblical texts.
+  - Maintains strict ADR-003 Zero-Dependency compliance: pure Python standard library math and SQLite BLOB storage.
+  - Pre-computed offline compilation enables instantaneous, zero-latency corpus exploration with zero ongoing API costs for static texts.
+
