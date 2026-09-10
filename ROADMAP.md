@@ -77,7 +77,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 3.12**: Whole-Bible Bounded Semantic Campaign: Corpus 4 - Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; ~80 pericopes) via SQLite Checkpoint Ledger and Hermetic Exegesis. *(Run 081 / ADR-089)*
 - [x] **Task 3.13**: Whole-Bible Bounded Semantic Campaign: Corpus 5 - Wisdom Literature & Poetry (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; ~240 pericopes) via SQLite Checkpoint Ledger. *(Run 082 / ADR-090)*
 - [x] **Task 3.14**: Whole-Bible Bounded Semantic Campaign: Corpus 6 - Major & Minor Prophets (Isaiah to Malachi; ~215 pericopes) via SQLite Checkpoint Ledger (ADR-082). *(Run 084 / ADR-092)*
-- [ ] **Task 3.15**: Whole-Bible Bounded Semantic Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; ~150 pericopes) via SQLite Checkpoint Ledger (ADR-082).
+- [x] **Task 3.15**: Whole-Bible Bounded Semantic Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; ~150 pericopes) via SQLite Checkpoint Ledger (ADR-082). *(Run 086 / ADR-094 — Phase 3 100% Complete)*
 
 ### Phase 4: Web UI & Visualizations (Vanilla Web, No npm)
 - [x] **Task 4.1**: Build built-in HTTP server (`./bible serve [--port=8080]`) serving REST API and embedded static web assets via Python's `http.server`. *(Run 027 / ADR-028)*

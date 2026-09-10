@@ -1569,7 +1569,14 @@ def generate_offline_synthetic_analysis(
     if b_id <= 5:
         locus = TheologicalLocus.THEOLOGY_PROPER.value
     elif 6 <= b_id <= 17:
-        locus = TheologicalLocus.THEOLOGY_PROPER.value
+        if b_id == 8:
+            locus = TheologicalLocus.SOTERIOLOGY.value
+        elif b_id in (9, 10):
+            locus = TheologicalLocus.CHRISTOLOGY.value
+        elif b_id in (15, 16):
+            locus = TheologicalLocus.ECCLESIOLOGY.value
+        else:
+            locus = TheologicalLocus.THEOLOGY_PROPER.value
     elif 18 <= b_id <= 22:
         locus = TheologicalLocus.THEOLOGY_PROPER.value
     elif 23 <= b_id <= 39:
@@ -1636,8 +1643,22 @@ def generate_offline_synthetic_analysis(
         ribbon = ThematicRibbon.EXILE_PILGRIMAGE.value
     elif b_id == 5:
         ribbon = ThematicRibbon.COVENANT_GRACE.value
-    elif 9 <= b_id <= 12:
+    elif b_id == 6:
+        ribbon = ThematicRibbon.SABBATH_REST.value if ref_obj.start_chapter <= 12 else ThematicRibbon.COVENANT_GRACE.value
+    elif b_id == 7:
         ribbon = ThematicRibbon.KINGSHIP_REIGN.value
+    elif b_id == 8:
+        ribbon = ThematicRibbon.BRIDE_UNION.value
+    elif 9 <= b_id <= 10:
+        ribbon = ThematicRibbon.KINGSHIP_REIGN.value
+    elif 11 <= b_id <= 12:
+        ribbon = ThematicRibbon.TEMPLE_PRESENCE.value if (b_id == 11 and ref_obj.start_chapter <= 10) else ThematicRibbon.KINGSHIP_REIGN.value
+    elif 13 <= b_id <= 14:
+        ribbon = ThematicRibbon.TEMPLE_PRESENCE.value if (b_id == 14 and ref_obj.start_chapter <= 9) else ThematicRibbon.COVENANT_GRACE.value
+    elif 15 <= b_id <= 16:
+        ribbon = ThematicRibbon.CITY_OF_GOD.value if b_id == 16 else ThematicRibbon.TEMPLE_PRESENCE.value
+    elif b_id == 17:
+        ribbon = ThematicRibbon.SEED_OFFSPRING.value
     elif 23 <= b_id <= 39:
         ribbon = ThematicRibbon.PROPHETIC_WORD.value
     elif 40 <= b_id <= 43:
@@ -1683,7 +1704,14 @@ def generate_offline_synthetic_analysis(
         else:
             ribbon = ThematicRibbon.CITY_OF_GOD.value
     elif b_id == 66:
-        ribbon = ThematicRibbon.CITY_OF_GOD.value
+        if ref_obj.start_chapter <= 3:
+            ribbon = ThematicRibbon.PROPHETIC_WORD.value
+        elif ref_obj.start_chapter <= 5:
+            ribbon = ThematicRibbon.SACRIFICE_ATONEMENT.value
+        elif ref_obj.start_chapter in (19, 20):
+            ribbon = ThematicRibbon.KINGSHIP_REIGN.value
+        else:
+            ribbon = ThematicRibbon.CITY_OF_GOD.value
 
     # Verse theology spanning the passage
     theology = [
@@ -1697,7 +1725,7 @@ def generate_offline_synthetic_analysis(
         )
     ]
 
-    # Typological arcs: integrate known canonical correspondences if in OT
+    # Typological arcs: integrate known canonical correspondences if in OT (types originate in OT)
     typology: List[TypologicalArcData] = []
     if b_id <= 39:
         # Match from CANONICAL_CROSS_REFERENCES
@@ -1705,16 +1733,16 @@ def generate_offline_synthetic_analysis(
             from core.crossref import CANONICAL_CROSS_REFERENCES, RelationshipType
             for c_src, c_tgt, c_rel, c_wt, c_notes in CANONICAL_CROSS_REFERENCES:
                 if c_rel == RelationshipType.TYPOLOGY:
-                    c_ref = parse_reference(c_src)
-                    if c_ref.book.number == b_id and (
-                        c_ref.contains(ref_obj) or ref_obj.contains(c_ref) or ref_obj.overlaps(c_ref)
+                    c_src_ref = parse_reference(c_src)
+                    if c_src_ref.book.number == b_id and (
+                        c_src_ref.contains(ref_obj) or ref_obj.contains(c_src_ref) or ref_obj.overlaps(c_src_ref)
                     ):
                         typology.append(
                             TypologicalArcData(
                                 type_ref=c_src,
-                                type_name=f"{c_ref.book.name} Shadow Pattern",
+                                type_name=f"{c_src_ref.book.name} Shadow Pattern",
                                 antitype_ref=c_tgt,
-                                antitype_name=f"Fulfillment in Christ",
+                                antitype_name="Fulfillment in Christ",
                                 theological_correspondence=c_notes,
                                 warrant="canonical_thematic_pattern",
                                 confidence=c_wt,

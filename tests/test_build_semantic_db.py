@@ -286,6 +286,15 @@ class TestBuildSemanticDb(unittest.TestCase):
         self.assertIn("[Dry Run]", val)
         self.assertIn("Foundational Pauline Epistles & Hebrews", val)
 
+    def test_main_dry_run_corpus_2(self):
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = main(["--db", str(DEFAULT_DB_PATH), "--dry-run", "--corpus", "2"])
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("[Dry Run]", val)
+        self.assertIn("The Four Gospels & Acts", val)
+
     def test_main_dry_run_corpus_3(self):
         out = io.StringIO()
         with patch("sys.stdout", out):
@@ -321,6 +330,15 @@ class TestBuildSemanticDb(unittest.TestCase):
         val = out.getvalue()
         self.assertIn("[Dry Run]", val)
         self.assertIn("Major & Minor Prophets", val)
+
+    def test_main_dry_run_corpus_7(self):
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = main(["--db", str(DEFAULT_DB_PATH), "--dry-run", "--corpus", "7"])
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("[Dry Run]", val)
+        self.assertIn("Historical Books & Apocalyptic Consummation", val)
 
     def test_invalid_corpus_filter(self):
         out = io.StringIO()

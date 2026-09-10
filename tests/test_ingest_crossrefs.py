@@ -170,8 +170,8 @@ class TestTSKIngestion(unittest.TestCase):
 
             # Check summary statistics
             stats = svc.get_summary_statistics()
-            # 67 canonical seeds + 4 TSK = 71 edges
-            self.assertEqual(stats.total_edges, 71)
+            # 72 canonical seeds + 4 TSK = 76 edges
+            self.assertEqual(stats.total_edges, 76)
             self.assertIn("thematic", stats.by_relationship_type)
 
         finally:

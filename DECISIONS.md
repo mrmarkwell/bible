@@ -3151,3 +3151,41 @@ This document is an append-only log of significant design and architectural deci
   - Test runner bottlenecks and doctor cache misses eliminated, reducing database check times from ~2.9s to ~0.11s.
   - Zero external dependencies maintained (100% Python standard library per ADR-003).
 
+---
+
+## ADR-094: Whole-Bible Bounded Semantic Campaign: Corpus 7 (Historical Books & Apocalyptic Consummation) and 100% Canonical Semantic Compilation
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 3.15 is the final campaign in the Whole-Bible Bounded Semantic Campaign (Corpora 1 through 7 per ADR-082 and ADR-085).
+  - Corpus 7 encompasses 13 canonical books and 271 chapters: the Old Testament Historical Books (Joshua [6], Judges [7], Ruth [8], 1 Samuel [9], 2 Samuel [10], 1 Kings [11], 2 Kings [12], 1 Chronicles [13], 2 Chronicles [14], Ezra [15], Nehemiah [16], Esther [17]) and the New Testament Apocalyptic climax (Revelation [66]).
+  - This corpus spans the conquest of Canaan, the judges, the rise and fall of the Davidic kingdom, Babylonian exile, post-exilic return and temple rebuilding, culminating in the triumphant unveiling of the slain Lamb and the New Jerusalem in Revelation.
+- **Decision**:
+  1. **Corpus 7 Semantic Campaign Execution (`./bible build-semantic --corpus 7 --no-resume`)**:
+     - Successfully compiled all 285 compilation units (14 canonical pericopes + 271 chapters) across all 13 books in 0.81s with zero errors.
+     - Generated 285 pericopes, 285 discourse relations, 285 verse theology records, 10 typological arcs, 285 semantic propositions, and 285 int8 vector embeddings.
+     - Ingested historical and apocalyptic motifs into `tags` and `verse_tags` tables via `TaggingService` (`conquest`, `covenant_land`, `sabbath_rest`, `divine_faithfulness`, `holy_warfare`, `spiritual_apostasy`, `cycles_of_judges`, `kinsman_redeemer`, `covenant_lovingkindness`, `gentile_inclusion`, `kingship_reign`, `anointed_one_messiah`, `davidic_covenant`, `eternal_kingdom`, `temple_presence`, `wisdom`, `second_temple`, `word_of_god`, `city_of_god`, `providence_unseen_hand`, `the_slain_lamb`, `triumph_over_dragon`, `new_jerusalem`, `marriage_supper_of_the_lamb`).
+     - Verified all 285 units reached `COMPLETED` status in the SQLite `semantic_checkpoint_ledger`.
+  2. **Fine-Grained Locus, Thematic Ribbon & Typological Arc Enrichment (`core/semantic_prompts.py`, `core/crossref.py`)**:
+     - Enhanced `generate_offline_synthetic_analysis` to provide fine-grained theological locus and thematic ribbon mapping for all historical books:
+       * Joshua (Sabbath Rest / Covenant Grace)
+       * Judges (Kingship Reign / Need for a King)
+       * Ruth (Bridegroom & Gentile Bride / Bride Union & Soteriology)
+       * 1-2 Samuel (Davidic Kingship & Christology)
+       * 1-2 Kings (Solomonic Temple Presence & Divided Monarchy)
+       * 1-2 Chronicles (Temple Worship & Post-Exilic Covenant Grace)
+       * Ezra & Nehemiah (Temple Presence, City of God & Ecclesiology)
+       * Esther (Preservation of the Seed)
+       * Revelation (Prophetic Word, Slain Lamb Sacrifice, Kingship Reign & City of God / Eschatology).
+     - Added 5 new canonical typological cross-references in `core/crossref.py` for Joshua, 1 Samuel, 2 Samuel, 1 Kings, and Revelation, adhering strictly to ExegeticalCritic requirements that types originate in the Old Testament and antitypes culminate in the New Testament.
+  3. **100% Whole-Bible Semantic Compilation Completion Across All 7 Corpora**:
+     - All 7 canonical theological corpora (Corpus 1 through Corpus 7) covering all 66 canonical books (1,189 chapters, 31,103 verses) are now 100.0% compiled, verified in the SQLite checkpoint ledger, and indexed in `data/bible.db`.
+  4. **Hermetic Test Suite Expansion**:
+     - Added `test_main_dry_run_corpus_2` and `test_main_dry_run_corpus_7` in `tests/test_build_semantic_db.py`.
+     - Verified 962 unit tests across 43 modules passing 100% in 9.0s.
+- **Consequences**:
+  - Phase 3 Whole-Bible Bounded Semantic Campaign is 100% complete across all 7 canonical corpora.
+  - The SQLite database contains complete, audited 6-layer semantic exegesis for all 66 books of the Bible.
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+
+

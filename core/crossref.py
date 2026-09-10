@@ -541,6 +541,51 @@ CANONICAL_CROSS_REFERENCES: List[Tuple[str, str, str, float, str]] = [
         "Boaz redeems the lost inheritance and takes the Gentile Ruth as his bride, foreshadowing Christ redeeming those under the law to receive adoption.",
     ),
 
+    # 26b. Joshua and the Land of Rest
+    (
+        "Joshua 1:5-9",
+        "Hebrews 4:8-9",
+        RelationshipType.TYPOLOGY,
+        0.9,
+        "Joshua leading Israel into the earthly land of rest prefigures Jesus leading believers into eternal Sabbath rest.",
+    ),
+
+    # 26c. David the Shepherd Champion
+    (
+        "1 Samuel 17:45-47",
+        "Colossians 2:15",
+        RelationshipType.TYPOLOGY,
+        0.9,
+        "David defeating Goliath as the humble champion for helpless Israel typifies Christ conquering principalities and powers for His people.",
+    ),
+
+    # 26d. The Davidic Dynasty and Temple Builder
+    (
+        "2 Samuel 7:12-16",
+        "Luke 1:32-33",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The Davidic covenant and the seed building the house of God typifies Christ the eternal King and Builder of the spiritual temple.",
+    ),
+
+    # 26e. The Shekinah Glory in the Temple
+    (
+        "1 Kings 8:10-11",
+        "John 1:14",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The glory of the Lord filling Solomon's temple foreshadows the Word made flesh dwelling and displaying divine glory among men.",
+    ),
+
+    # 26f. The Garden Sanctuary Restored in Consummation
+    (
+        "Genesis 2:8-9",
+        "Revelation 22:1-5",
+        RelationshipType.TYPOLOGY,
+        0.95,
+        "The Garden of Eden sanctuary with the tree of life prefigures the New Jerusalem in Revelation where access to the Tree of Life and the River of Life is restored.",
+    ),
+
     # 27. Jonah & The Resurrection on the Third Day
     (
         "Jonah 1:17",
