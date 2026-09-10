@@ -1064,3 +1064,40 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add REST endpoint `GET /api/typology?ref=<citation>`.
   - [ ] Add hermetic unit tests in `tests/test_cli.py` and `tests/test_server.py`.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Dynamic Per-Turn RAG for Character Dialogue & Canonical Whole-Bible Counselor with Mandatory Citation Grounding (Rank A+)
+- **Rank**: `A+` (Unambiguously a transformative improvement)
+- **Summary**: Supercharge the Biblical Persona Dialogue Studio (`core/persona.py`, `./bible chat`, `/api/chat/persona`) with dynamic, per-turn Tri-Modal Scripture RAG and introduce a sovereign "Whole Bible Counselor" canonical persona. Rather than relying solely on static character definitions and pre-seeded passages, each user query dynamically triggers an author- and era-scoped RAG retrieval query against `core/rag.py`. Relevant pericopes with continuous similarity strength scores ($S \in [0.0, 1.0]$) are injected into the turn's prompt. Furthermore, the system prompt and UI programmatically mandate and format verifiable Scripture citation badges (`[Book Chap:Verse]`) for every claim, linking directly into the Split-Screen Reader to guarantee zero ungrounded speculation or hallucination on high-stakes faith inquiries.
+- **Rationale**: Elevates character dialogue from static historical role-play to a dynamic, deeply exegetical study instrument. When asking Paul about grief, Moses about covenant mediation, or the Whole Bible Counselor about justification, the responses are dynamically anchored in the most relevant biblical revelation with explicit textual justifications that the user can immediately verify.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (retrieval uses local SQLite FTS5, vector similarity, and typological arcs in <15ms).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High theological fidelity? Yes (TGC confessional guardrails, canonical horizon constraint, mandatory citation linking).
+- **Proposed Roadmap Phase**: Phase 8 / Phase 4.
+- **Suggested Tasks**:
+  - [ ] Implement author-scoped dynamic RAG retrieval hook in `core/persona.py:CharacterDialogueSession.step()`.
+  - [ ] Add canonical "Whole Bible Counselor" (`whole-bible`) persona definition in `core/persona.py`.
+  - [ ] Enforce mandatory citation formatting (`[Book Chapter:Verse]`) in persona system prompts.
+  - [ ] Enhance Web UI character chat panel (`web/static/app.js`) to parse citation badges and link them to the Split-Screen Reader.
+  - [ ] Add hermetic unit tests in `tests/test_persona.py` and `tests/test_server.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
+
+---
+
+### [VETTED] Interactive Vector Bible Search & Semantic Concordance UI (Rank A+)
+- **Rank**: `A+` (Unambiguously a transformative improvement)
+- **Summary**: Implement a dedicated Semantic Concordance & Similarity Explorer panel in the Sacred-Modern Web UI (`web/static/index.html`, `web/static/app.js`) and CLI (`./bible similar <query>`). Enables readers to search Scripture conceptually using natural language queries, spiritual dilemmas, or emotional situations (e.g. *"feeling abandoned in deep darkness"*, *"God's sovereignty over suffering"*, *"assurance of salvation"*). Computes continuous cosine similarity against pre-computed pericope vector embeddings and verse micro-anchors in <15ms, rendering a ranked waterfall of matching passages with percentage match strength badges (e.g. `94.2% Match`), central theological propositions, doctrinal locus tags, and one-click split-screen reading.
+- **Rationale**: Transforms traditional word-based concordance lookups into an intelligent, concept-level discovery engine ("cross-references on steroids with a strength associated with each reference"). Bible readers can discover profound thematic parallels even when passages share zero common vocabulary.
+- **Constraints & Alignment**:
+  - Offline-first? Yes for passage-to-passage search; for natural language queries, embeds query and queries local SQLite int8 BLOBs in <15ms.
+  - Zero third-party dependencies? Yes (vanilla JavaScript DOM APIs, Python stdlib `struct`/`math` per ADR-003).
+  - High performance? Yes (<15ms whole-Bible vector scan).
+- **Proposed Roadmap Phase**: Phase 4 / Phase 7.
+- **Suggested Tasks**:
+  - [ ] Build dedicated "Semantic Search" tab in Web UI navigation sidebar.
+  - [ ] Expose REST endpoint `GET /api/similar?q=<natural-language-query>&threshold=<float>&limit=<int>`.
+  - [ ] Build high-contrast result cards with gold match strength meters, pericope propositions, and locus badges.
+  - [ ] Add hermetic unit tests in `tests/test_server.py` and `tests/test_vector.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
