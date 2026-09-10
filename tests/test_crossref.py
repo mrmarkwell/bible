@@ -430,5 +430,44 @@ class TestCrossReferenceShell(unittest.TestCase):
             self.assertIn("typology", rel_comps)
 
 
+class TestCrossReferenceBoundedSeek(unittest.TestCase):
+    """Verify bounded spatial indexing and cached max span derivation (ADR-088)."""
+
+    def test_get_cross_ref_max_spans_cache_and_update(self):
+        db = Database(":memory:")
+        # Initial empty DB defaults
+        spans = db._get_cross_ref_max_spans()
+        self.assertIsInstance(spans, tuple)
+        self.assertEqual(len(spans), 2)
+        self.assertGreater(spans[0], 0)
+        self.assertGreater(spans[1], 0)
+
+        # Adding an edge updates cache
+        rec = db.add_cross_reference(
+            "Genesis 1:1",
+            "Revelation 22:21",
+            relationship_type="thematic",
+            weight=1.0,
+        )
+        self.assertIsNotNone(rec.id)
+        new_spans = db._get_cross_ref_max_spans()
+        self.assertGreaterEqual(new_spans[0], spans[0])
+        self.assertGreaterEqual(new_spans[1], spans[1])
+
+        # Test bidirectional and unidirectional retrieval with bounded seek
+        xrefs_bi = db.get_cross_references("Genesis 1:1", bidirectional=True)
+        self.assertEqual(len(xrefs_bi), 1)
+        self.assertEqual(xrefs_bi[0].target_human_ref, "Revelation 22:21")
+
+        xrefs_target = db.get_cross_references("Revelation 22:21", bidirectional=True)
+        self.assertEqual(len(xrefs_target), 1)
+        self.assertEqual(xrefs_target[0].source_human_ref, "Genesis 1:1")
+
+        xrefs_target_uni = db.get_cross_references("Revelation 22:21", bidirectional=False)
+        self.assertEqual(len(xrefs_target_uni), 0)
+        db.close()
+
+
 if __name__ == '__main__':
     unittest.main()
+

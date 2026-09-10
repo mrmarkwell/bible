@@ -286,6 +286,7 @@ class SlideBatchExporter:
         offset: int = 0,
         shuffle: bool = False,
         seed: Optional[int] = None,
+        allow_network: bool = False,
     ) -> List[BatchPassageItem]:
         """Resolve a collection of passages from specified criteria.
 
@@ -303,6 +304,7 @@ class SlideBatchExporter:
             offset: Number of passages to skip.
             shuffle: Whether to randomize passage order.
             seed: Optional random seed for reproducible shuffling.
+            allow_network: Whether to allow remote network calls (default False for instant offline execution).
 
         Returns:
             List of hydrated BatchPassageItem records.
@@ -312,6 +314,7 @@ class SlideBatchExporter:
         tagging_svc = TaggingService(db)
 
         items: List[BatchPassageItem] = []
+        limit_target = (offset + limit) if (not shuffle and limit is not None) else None
 
         if favorites:
             items = self._resolve_favorites(
@@ -319,6 +322,8 @@ class SlideBatchExporter:
                 starred_only=starred_only,
                 csv_path=csv_path or DEFAULT_CSV_PATH,
                 translation_id=translation_id,
+                allow_network=allow_network,
+                limit_target=limit_target,
             )
         elif tag:
             items = self._resolve_tag(
@@ -326,6 +331,8 @@ class SlideBatchExporter:
                 tag_name=tag,
                 starred_only=starred_only,
                 translation_id=translation_id,
+                allow_network=allow_network,
+                limit_target=limit_target,
             )
         elif book:
             items = self._resolve_book(
@@ -333,27 +340,42 @@ class SlideBatchExporter:
                 pericope_svc=pericope_svc,
                 book_name=book,
                 translation_id=translation_id,
+                allow_network=allow_network,
             )
         elif plan:
             items = self._resolve_plan(
                 db,
                 plan_name=plan,
                 translation_id=translation_id,
+                allow_network=allow_network,
             )
         elif file_path:
             items = self._resolve_file(
                 db,
                 file_path=Path(file_path),
                 translation_id=translation_id,
+                allow_network=allow_network,
             )
         elif references:
             items = self._resolve_references(
                 db,
                 references=references,
                 translation_id=translation_id,
+                allow_network=allow_network,
             )
 
-        # Enrich pericope titles and tags if missing
+        # Apply shuffle if requested
+        if shuffle:
+            rng = random.Random(seed)
+            rng.shuffle(items)
+
+        # Apply offset and limit pushdown BEFORE metadata enrichment
+        if offset > 0:
+            items = items[offset:]
+        if limit is not None:
+            items = items[:limit]
+
+        # Enrich pericope titles and tags if missing ONLY on the final sliced items
         for item in items:
             if not item.pericope_title:
                 overlaps = pericope_svc.get_pericopes_for_passage(item.reference)
@@ -363,17 +385,6 @@ class SlideBatchExporter:
                 active_tags = tagging_svc.get_tags_for_passage(item.reference)
                 item.tags = [t.tag_name for t in active_tags if t.tag_name]
 
-        # Apply shuffle if requested
-        if shuffle:
-            rng = random.Random(seed)
-            rng.shuffle(items)
-
-        # Apply offset and limit
-        if offset > 0:
-            items = items[offset:]
-        if limit is not None:
-            items = items[:limit]
-
         return items
 
     def _resolve_favorites(
@@ -382,9 +393,13 @@ class SlideBatchExporter:
         starred_only: bool,
         csv_path: Path,
         translation_id: str,
+        allow_network: bool = False,
+        limit_target: Optional[int] = None,
     ) -> List[BatchPassageItem]:
         """Resolve passages from favorites tag in DB, or fallback to CSV."""
         db_records = db.get_references_for_tag("favorites", starred_only=starred_only)
+        if limit_target is not None:
+            db_records = db_records[:limit_target]
         items: List[BatchPassageItem] = []
 
         if db_records:
@@ -392,7 +407,9 @@ class SlideBatchExporter:
                 ref = parse_reference(r.human_ref)
                 if ref is None:
                     continue
-                verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+                verses, used_id, _ = db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, allow_network=allow_network
+                )
                 if not verses:
                     continue
                 text = " ".join(v.text.strip() for v in verses)
@@ -415,6 +432,8 @@ class SlideBatchExporter:
             with open(csv_path, mode="r", encoding="utf-8") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
+                    if limit_target is not None and len(items) >= limit_target:
+                        break
                     starred_val = str(row.get("starred", "")).strip().lower() in ("true", "1", "yes")
                     if starred_only and not starred_val:
                         continue
@@ -422,7 +441,9 @@ class SlideBatchExporter:
                         ref = Reference.from_csv_row(row)
                     except Exception:
                         continue
-                    verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+                    verses, used_id, _ = db.get_verses_with_fallback(
+                        ref, translation_id=translation_id, allow_network=allow_network
+                    )
                     if not verses:
                         continue
                     text = " ".join(v.text.strip() for v in verses)
@@ -446,15 +467,21 @@ class SlideBatchExporter:
         tag_name: str,
         starred_only: bool,
         translation_id: str,
+        allow_network: bool = False,
+        limit_target: Optional[int] = None,
     ) -> List[BatchPassageItem]:
         """Resolve passages matching a semantic tag."""
         records = db.get_references_for_tag(tag_name, starred_only=starred_only)
+        if limit_target is not None:
+            records = records[:limit_target]
         items: List[BatchPassageItem] = []
         for r in records:
             ref = parse_reference(r.human_ref)
             if ref is None:
                 continue
-            verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+            verses, used_id, _ = db.get_verses_with_fallback(
+                ref, translation_id=translation_id, allow_network=allow_network
+            )
             if not verses:
                 continue
             text = " ".join(v.text.strip() for v in verses)
@@ -478,6 +505,7 @@ class SlideBatchExporter:
         pericope_svc: PericopeService,
         book_name: str,
         translation_id: str,
+        allow_network: bool = False,
     ) -> List[BatchPassageItem]:
         """Resolve all pericopes or chapter segments for a book."""
         b = get_book(book_name)
@@ -492,7 +520,9 @@ class SlideBatchExporter:
                 ref = parse_reference(p.human_ref)
                 if ref is None:
                     continue
-                verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+                verses, used_id, _ = db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, allow_network=allow_network
+                )
                 if not verses:
                     continue
                 text = " ".join(v.text.strip() for v in verses)
@@ -511,7 +541,9 @@ class SlideBatchExporter:
             # Fallback to chapters if no pericopes registered
             for ch in range(1, b.total_chapters + 1):
                 ref = Reference(b, ch)
-                verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+                verses, used_id, _ = db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, allow_network=allow_network
+                )
                 if not verses:
                     continue
                 text = " ".join(v.text.strip() for v in verses)
@@ -533,6 +565,7 @@ class SlideBatchExporter:
         db: Database,
         plan_name: str,
         translation_id: str,
+        allow_network: bool = False,
     ) -> List[BatchPassageItem]:
         """Resolve passages defined in a curated reading plan."""
         plan_obj = get_plan(plan_name)
@@ -544,7 +577,9 @@ class SlideBatchExporter:
             ref = parse_reference(cit)
             if ref is None:
                 continue
-            verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+            verses, used_id, _ = db.get_verses_with_fallback(
+                ref, translation_id=translation_id, allow_network=allow_network
+            )
             if not verses:
                 continue
             text = " ".join(v.text.strip() for v in verses)
@@ -566,6 +601,7 @@ class SlideBatchExporter:
         db: Database,
         file_path: Path,
         translation_id: str,
+        allow_network: bool = False,
     ) -> List[BatchPassageItem]:
         """Resolve passages listed line-by-line in a text file."""
         if not file_path.exists():
@@ -580,7 +616,9 @@ class SlideBatchExporter:
                 ref = parse_reference(stripped)
                 if ref is None:
                     continue
-                verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+                verses, used_id, _ = db.get_verses_with_fallback(
+                    ref, translation_id=translation_id, allow_network=allow_network
+                )
                 if not verses:
                     continue
                 text = " ".join(v.text.strip() for v in verses)
@@ -601,6 +639,7 @@ class SlideBatchExporter:
         db: Database,
         references: Sequence[Union[str, Reference]],
         translation_id: str,
+        allow_network: bool = False,
     ) -> List[BatchPassageItem]:
         """Resolve an explicit list of scripture references."""
         items: List[BatchPassageItem] = []
@@ -608,7 +647,9 @@ class SlideBatchExporter:
             ref = parse_reference(item) if isinstance(item, str) else item
             if ref is None:
                 continue
-            verses, used_id, _ = db.get_verses_with_fallback(ref, translation_id=translation_id)
+            verses, used_id, _ = db.get_verses_with_fallback(
+                ref, translation_id=translation_id, allow_network=allow_network
+            )
             if not verses:
                 continue
             text = " ".join(v.text.strip() for v in verses)

@@ -287,6 +287,18 @@ class TestSlideBatchExporter(unittest.TestCase):
         self.assertTrue((target_dir / "manifest.json").exists())
         self.assertTrue((target_dir / "index.html").exists())
 
+    def test_resolve_passages_pushdown_limit_and_allow_network(self) -> None:
+        """Verify early limit pushdown and offline allow_network=False speed."""
+        items = self.exporter.resolve_passages(
+            favorites=True,
+            limit=5,
+            allow_network=False,
+        )
+        self.assertEqual(len(items), 5)
+        for item in items:
+            self.assertIsNotNone(item.citation)
+            self.assertTrue(len(item.text) > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

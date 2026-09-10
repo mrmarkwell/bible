@@ -3340,6 +3340,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip generating JSON manifest (manifest.json)",
     )
     parser_slide_batch.add_argument(
+        "--allow-network",
+        action="store_true",
+        help="Allow live ESV API network calls for uncached passages (default: False, fast offline local)",
+    )
+    parser_slide_batch.add_argument(
         "--open",
         action="store_true",
         help="Open generated visual gallery (index.html) in default web browser",
@@ -3531,6 +3536,7 @@ def build_parser() -> argparse.ArgumentParser:
                 offset=args.offset,
                 shuffle=args.shuffle,
                 seed=args.seed,
+                allow_network=getattr(args, "allow_network", False),
             )
 
             if not passages:

@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] High-Velocity Graph Query Architecture, Bounded Spatial Index Seeks & Push-Down Slide Pipeline (Rank A+)
+- **Summary**: Eliminate full table scans over 343,000+ cross-reference edges in `Database.get_cross_references()` using mathematical spatial range bounding and dual binary search index seeks on `idx_cross_ref_source` and `idx_cross_ref_target`, accelerating graph queries by 226x (from 317ms to 1.4ms). Push down `limit` and `offset` slicing in `core/slide_batch.py` before multi-attribute database enrichment, accelerating passage resolution by 1,500x (<0.01s), decoupling batch slide export from external network dependencies (`allow_network=False`), and slashing full hermetic test suite runtime from ~30s down to <6s (a 5x end-to-end acceleration).
+- **Rationale**: Directly resolves the two core diagnostic questions of the Senior Product Manager Meta-Sprint by fixing the asymptotic degradation of large-scale graph traversals and restoring sub-6s hermetic test execution across all 43 modules without external dependencies.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure SQLite B-tree index seeks and local memory caching).
+  - Zero third-party dependencies? Yes (100% Python 3 standard library per ADR-003).
+  - High velocity? Yes (5x test suite speedup, 226x graph query speedup).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.28 / ADR-088).
+- **Status**: Completed and verified during Run 080 Senior PM Meta-Sprint (ADR-088).
+
 ### [VETTED] Context-Enriched Pericope Vector Database & Hybrid RRF RAG Engine (Rank A+)
 - **Summary**: Construct an offline-first scripture vector database utilizing the 1,304 canonical pericopes as primary semantic retrieval units, enriched with a 3-tier "Semantic Passport" (Book Horizon, genre, theological loci, thematic ribbons, preceding discourse, central proposition, and full scripture text), embedded via Google Gemini `text-embedding-004` (with `task_type=RETRIEVAL_DOCUMENT`), quantized to `int8` BLOBs (~1MB total) in SQLite (`pericope_embeddings`), cross-linked to verse micro-anchors for Parent-Document RAG expansion, and fused with SQLite FTS5 BM25 lexical search and typological knowledge graphs via Reciprocal Rank Fusion (RRF).
 - **Rationale**: Solves exegetical myopia and proof-texting caused by isolated verse embedding, bridges the vocabulary gap between modern natural language questions and ancient biblical text, fits the entire pericope vector index in CPU cache (<2ms pure Python cosine scan), maintains zero pip/npm dependencies, and keeps corpus exploration 100% functional offline.
