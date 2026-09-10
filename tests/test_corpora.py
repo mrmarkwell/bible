@@ -127,6 +127,20 @@ class TestCanonicalCorpora(unittest.TestCase):
         # 5 + 3 + 6 + 4 + 3 + 1 + 5 + 5 + 3 + 5 + 1 + 1 + 1 = 43 chapters
         self.assertEqual(c4.total_chapters, 43)
 
+    def test_corpus_5_composition(self):
+        """Verify Corpus 5 includes Wisdom Literature & Poetry."""
+        c5 = CANONICAL_CORPORA[5]
+        self.assertEqual(c5.corpus_id, 5)
+        self.assertEqual(c5.name, "wisdom_poetry")
+        self.assertEqual(
+            c5.book_names,
+            ("Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon"),
+        )
+        self.assertEqual(c5.book_ids, (18, 19, 20, 21, 22))
+        self.assertEqual(len(c5.books), 5)
+        # 42 + 150 + 31 + 12 + 8 = 243 chapters
+        self.assertEqual(c5.total_chapters, 243)
+
     def test_get_corpus_by_id_and_string(self):
         """Verify get_corpus resolves by integer, numeric string, and textual name."""
         c1 = get_corpus(1)

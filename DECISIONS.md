@@ -3019,3 +3019,32 @@ This document is an append-only log of significant design and architectural deci
   - Corpus 4 is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
   - Progresses the Whole-Bible Semantic Database roadmap towards full canon coverage (Corpora 1, 2, 3, and 4 now fully compiled).
   - Zero external dependencies introduced (100% Python standard library per ADR-003).
+
+---
+
+## ADR-090: Whole-Bible Bounded Semantic Campaign: Corpus 5 (Wisdom Literature & Poetry) Execution, Canonical Hermeneutics & Checkpoint Ledger Verification
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Following the completion of Corpus 1 (Pauline Foundations & Hebrews, ADR-085), Corpus 2 (Gospels & Acts, ADR-086), Corpus 3 (Pentateuch & Covenant Foundations, ADR-087), and Corpus 4 (Pastoral & General Epistles, ADR-089), Task 3.13 directed the execution of Corpus 5: Wisdom Literature & Poetry (Job [18], Psalms [19], Proverbs [20], Ecclesiastes [21], Song of Solomon [22]; 5 books, 243 chapters, 10 canonical pericopes, 253 total compilation units) via the SQLite checkpoint ledger (ADR-082, ADR-085).
+  - Corpus 5 represents the affective, meditative, and existential core of Old Testament revelation, engaging the mystery of suffering, the anatomy of the soul in worship, covenantal skill in living, the vanity of life under the sun, and marital delight foreshadowing Christ:
+    * *Job*: Righteous suffering, cosmic dispute with the adversary, inadequacy of retribution dogma, the Arbiter/Mediator longing, and sovereign divine majesty out of the whirlwind.
+    * *Psalms*: The prayer book of the covenant people and the Messiah; laments turning to praise, the reign of the Davidic Messianic King (Psalm 2, 110), the Good Shepherd (Psalm 23), suffering and vindication (Psalm 22), delight in God's Torah (Psalm 1, 19, 119), and unceasing doxology (Psalms 146-150).
+    * *Proverbs*: The fear of the Lord as the beginning of knowledge, parental wisdom instruction, personified Wisdom calling at the crossroads, righteous diligence, speech integrity, and the noble woman (Proverbs 31).
+    * *Ecclesiastes*: The sober reality of *hevel* (vanity/vapor) under the sun, mortality, the limits of autonomous human philosophy, joy in God's daily gifts, and the conclusion of the whole matter: fear God and keep His commandments.
+    * *Song of Solomon*: Sacred celebration of covenant marital love, erotic beauty, mutual desire, and unquenchable devotion pointing typologically to Christ's love for His bride, the Church.
+- **Decision**:
+  1. **Corpus 5 Batch Compilation Execution**:
+     - Executed `./bible build-semantic --corpus 5 --no-resume` against `data/bible.db`.
+     - Successfully compiled all 253 compilation units (10 canonical pericopes + 243 chapters) across all 5 books in 0.94s with zero errors.
+     - Generated 253 pericopes, 253 discourse relations, 253 verse theology records, 2 typological arcs, 253 semantic propositions, and 253 int8 vector embeddings.
+     - Ingested Wisdom and Poetic motifs into `tags` and `verse_tags` tables via `TaggingService` (`righteous_suffering`, `living_redeemer`, `the_arbiter_mediator`, `sovereign_majesty`, `faith_under_trial`, `messianic_king`, `divine_refuge`, `praise_worship`, `lament_to_joy`, `torah_delight`, `wisdom_vs_folly`, `fear_of_the_lord`, `righteous_living`, `family_instruction`, `speech_integrity`, `vanity_under_the_sun`, `mortality_time`, `joy_in_simple_gifts`, `sovereignty_of_god`, `covenant_love`, `delight_desire`, `beauty`, `spousal_union`, `unquenchable_flame`).
+     - Verified all 253 units reached `COMPLETED` status in the SQLite `semantic_checkpoint_ledger`.
+  2. **Hermetic Test Suite Expansion**:
+     - Expanded `tests/test_corpora.py` with `test_corpus_5_composition`, asserting 5 canonical books, 243 total chapters, and exact catalog sequence `(18, 19, 20, 21, 22)`.
+     - Expanded `tests/test_build_semantic_db.py` with `test_main_dry_run_corpus_5`.
+     - Verified all 43 hermetic test modules pass 100% (948 tests in 5.88s).
+- **Consequences**:
+  - Corpus 5 is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
+  - Progresses the Whole-Bible Semantic Database roadmap towards full canon coverage (Corpora 1, 2, 3, 4, and 5 now fully compiled).
+  - Zero external dependencies introduced (100% Python standard library per ADR-003).
