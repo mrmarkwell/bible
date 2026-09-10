@@ -32,7 +32,7 @@ class TestBuildVectorDb(unittest.TestCase):
         self.db = Database(self.db_path)
         self.db.add_translation("WEB", "World English Bible")
 
-        # Seed sample pericope in Romans
+        # Seed sample pericope in Romans (Corpus 1)
         ref = parse_reference("Romans 1:16-17")
         self.pericope = self.db.insert_pericope(
             reference=ref,
@@ -48,6 +48,25 @@ class TestBuildVectorDb(unittest.TestCase):
                 chapter=1,
                 verse=16,
                 text="For I am not ashamed of the Good News of Christ.",
+            )
+        )
+
+        # Seed sample pericope in John (Corpus 2)
+        ref_john = parse_reference("John 1:1-5")
+        self.pericope_john = self.db.insert_pericope(
+            reference=ref_john,
+            title="The Word Became Flesh",
+            redemptive_summary="The eternal Word was in the beginning with God.",
+            genre="Gospel",
+            central_proposition="In the beginning was the Word, and the Word was God.",
+        )
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="WEB",
+                book_id=ref_john.book.number,
+                chapter=1,
+                verse=1,
+                text="In the beginning was the Word, and the Word was with God, and the Word was God.",
             )
         )
         self.ledger = VectorCheckpointLedger(self.db)
@@ -227,6 +246,31 @@ class TestBuildVectorDb(unittest.TestCase):
         self.assertIn("Vector Compilation Summary:", val)
         self.assertIn("Completed:         1", val)
 
+    def test_compilation_execution_corpus_2_filter(self):
+        # Test compiling with corpus_filter="2" (Gospels & Acts)
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="2",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
+        # Verify the John pericope was embedded
+        cur = self.db.conn.cursor()
+        emb_row = cur.execute(
+            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope_john.id,),
+        ).fetchone()
+        self.assertIsNotNone(emb_row)
+        self.assertEqual(emb_row[0], 768)
+        self.assertEqual(emb_row[1], 768)
+
 
 if __name__ == "__main__":
     unittest.main()
+

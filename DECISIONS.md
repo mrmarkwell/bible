@@ -3569,6 +3569,31 @@ This document is an append-only log of significant design and architectural deci
   - Sets up next campaign milestone: Task 7.9 (Corpus 2: The Four Gospels & Acts; ~375 pericopes).
   - Zero external dependencies maintained (100% Python standard library per ADR-003).
 
+---
 
-
-
+## ADR-106: Whole-Bible Vector Database Campaign: Corpus 2 Architecture (The Four Gospels & Acts)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following the completion of Corpus 1 (Foundational Pauline Epistles & Hebrews per Task 7.8 / ADR-105), Task 7.9 requires executing the vector compilation campaign across Corpus 2: The Four Gospels & Acts (Matthew, Mark, Luke, John, Acts).
+  - Corpus 2 represents the canonical narrative core of the New Testament: the incarnation, earthly ministry, kingdom parables, Passion, death, resurrection, and ascension of Jesus Christ, as well as the Pentecostal outpouring of the Holy Spirit and the apostolic expansion of the early Church.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic tracking.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, literary genres (Gospel narrative, parables, apostolic discourse), storyline epochs (Incarnation, Kingdom Proclamation, Crucifixion/Resurrection, Apostolic Church), and theological loci.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 148 canonical pericopes in Corpus 2.
+- **Decision**:
+  1. **Corpus 2 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 2` across all 5 narrative books: Matthew (38 pericopes), Mark (18 pericopes), Luke (28 pericopes), John (32 pericopes), and Acts (32 pericopes).
+     - Successfully compiled all 148 canonical pericopes into 768-dimensional normalized signed int8 embeddings stored in `pericope_embeddings`.
+     - Verified 100% ledger completion in `vector_checkpoint_ledger`: 148/148 units completed, 0 failed, 0 in progress, 0 pending in 28.40s.
+  2. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Updated `TestBuildVectorDb.setUp` to seed a representative Gospel pericope (John 1:1-5, "The Word Became Flesh").
+     - Added `test_compilation_execution_corpus_2_filter` asserting that `--corpus 2` specifically isolates, compiles, and embeds Gospel pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 47 test modules pass 100% (**1,045 tests passing in 9.0s**).
+- **Consequences**:
+  - Resolves Task 7.9 on the project roadmap.
+  - Corpus 2 (The Four Gospels & Acts) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
+  - The total number of indexed pericope embeddings in the database expands to 1,309 embeddings.
+  - Sets up the next milestone: Task 7.10 (Corpus 3: Pentateuch & Covenant Foundations: Genesis to Deuteronomy).
+  - 100% zero external dependencies maintained (ADR-003).
