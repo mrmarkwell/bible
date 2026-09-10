@@ -209,6 +209,62 @@
             </select>
           </div>
           <div class="form-group">
+            <label for="select-rag-testament">Filter by Testament</label>
+            <select id="select-rag-testament">
+              <option value="" selected>Entire Canon (OT &amp; NT)</option>
+              <option value="OT">Old Testament Only</option>
+              <option value="NT">New Testament Only</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-rag-genre">Filter by Genre</label>
+            <select id="select-rag-genre">
+              <option value="" selected>All Canonical Genres</option>
+              <option value="Gospel">Gospels &amp; Acts</option>
+              <option value="Epistle">Epistles</option>
+              <option value="Wisdom &amp; Poetry">Wisdom Literature &amp; Poetry</option>
+              <option value="Prophets">Prophets</option>
+              <option value="Law">Pentateuch &amp; Law</option>
+              <option value="History">Historical Narratives</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-rag-epoch">Storyline Epoch</label>
+            <select id="select-rag-epoch">
+              <option value="" selected>All Redemptive Epochs</option>
+              <option value="creation">Creation &amp; Edenic Order</option>
+              <option value="fall_and_promise">Fall &amp; Protoevangelium</option>
+              <option value="abrahamic_covenant">Patriarchal Promise</option>
+              <option value="exodus_and_sinaitic">Exodus &amp; Mosaic Covenant</option>
+              <option value="davidic_monarchy">Davidic Kingdom</option>
+              <option value="prophetic_exile">Exile &amp; Return</option>
+              <option value="incarnation_climax">Incarnation &amp; Atonement</option>
+              <option value="church_age">Apostolic Age &amp; Church</option>
+              <option value="consummation">Consummation &amp; New Creation</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-rag-locus">Theological Locus</label>
+            <select id="select-rag-locus">
+              <option value="" selected>All Systematic Loci</option>
+              <option value="theology_proper">Theology Proper (Nature of God)</option>
+              <option value="christology">Christology (Person &amp; Work of Christ)</option>
+              <option value="pneumatology">Pneumatology (Holy Spirit)</option>
+              <option value="soteriology">Soteriology (Salvation &amp; Grace)</option>
+              <option value="ecclesiology">Ecclesiology (The Church)</option>
+              <option value="eschatology">Eschatology (Last Things)</option>
+              <option value="anthropology">Anthropology (Humanity &amp; Sin)</option>
+              <option value="bibliology">Bibliology (Word of God)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="select-rag-fusion">Ranking Fusion Strategy</label>
+            <select id="select-rag-fusion">
+              <option value="rrf" selected>Reciprocal Rank Fusion (RRF, Default)</option>
+              <option value="composite">Composite Weighted Normalized Scoring</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; color: var(--text-secondary);">
               <input type="checkbox" id="check-rag-synthesize" checked>
               <span>Synthesize with Gemini LLM (TGC Guardrails)</span>

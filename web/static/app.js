@@ -114,6 +114,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputRagQuery = document.getElementById("input-rag-query");
   const btnRunRag = document.getElementById("btn-run-rag");
   const selectRagPassages = document.getElementById("select-rag-passages");
+  const selectRagTestament = document.getElementById("select-rag-testament");
+  const selectRagGenre = document.getElementById("select-rag-genre");
+  const selectRagEpoch = document.getElementById("select-rag-epoch");
+  const selectRagLocus = document.getElementById("select-rag-locus");
+  const selectRagFusion = document.getElementById("select-rag-fusion");
   const checkRagSynthesize = document.getElementById("check-rag-synthesize");
   const ragSidebarStatsContent = document.getElementById("rag-sidebar-stats-content");
   const ragStudyStage = document.getElementById("rag-study-stage");
@@ -2284,6 +2289,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const maxPassages = selectRagPassages ? parseInt(selectRagPassages.value, 10) || 5 : 5;
     const synthesize = checkRagSynthesize ? checkRagSynthesize.checked : true;
+    const testament = selectRagTestament ? selectRagTestament.value : "";
+    const genre = selectRagGenre ? selectRagGenre.value : "";
+    const epoch = selectRagEpoch ? selectRagEpoch.value : "";
+    const locus = selectRagLocus ? selectRagLocus.value : "";
+    const fusion = selectRagFusion ? selectRagFusion.value : "rrf";
 
     if (ragPassagesStream) {
       ragPassagesStream.innerHTML = '<div class="loading-state">Retrieving dual-horizon scripture context...</div>';
@@ -2296,14 +2306,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     try {
+      const payload = {
+        query: query,
+        max_passages: maxPassages,
+        synthesize: synthesize,
+      };
+      if (testament) payload.testament = testament;
+      if (genre) payload.genre = genre;
+      if (epoch) payload.epoch = epoch;
+      if (locus) payload.locus = locus;
+      if (fusion) payload.fusion = fusion;
+
       const res = await fetch("/api/rag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: query,
-          max_passages: maxPassages,
-          synthesize: synthesize,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -2346,16 +2363,40 @@ document.addEventListener("DOMContentLoaded", () => {
             const card = document.createElement("div");
             card.className = "rag-passage-card";
 
-            const epochBadges = (p.epochs || []).map((e) => `<span class="rag-pill-epoch">${escapeHtml(e)}</span>`).join("");
-            const ribbonBadges = (p.ribbons || []).map((r) => `<span class="rag-pill-ribbon">${escapeHtml(r)}</span>`).join("");
+            const refDisplay = p.human_ref || p.reference || "Scripture Passage";
+            const scoreVal = typeof p.score === "number" ? p.score : (p.relevance_score || 1.0);
+            const scoreFormatted = Number(scoreVal).toFixed(2);
+            const verseCount = p.verse_count || p.total_verses || (p.verses ? p.verses.length : 0);
+
+            const epochList = (p.storyline_epoch ? [p.storyline_epoch] : []).concat(p.epochs || []);
+            const ribbonList = (p.thematic_ribbons || []).concat(p.ribbons || []);
+            const lociList = p.theological_loci || [];
+            const reasonsList = p.retrieval_reasons || [];
+
+            const epochBadges = epochList.map((e) => `<span class="rag-pill-epoch">${escapeHtml(e)}</span>`).join("");
+            const ribbonBadges = ribbonList.map((r) => `<span class="rag-pill-ribbon">${escapeHtml(r)}</span>`).join("");
+            const lociBadges = lociList.map((l) => `<span class="rag-pill-locus">${escapeHtml(l)}</span>`).join("");
+            const reasonBadges = reasonsList.slice(0, 3).map((rs) => `<span class="rag-pill-reason">${escapeHtml(rs)}</span>`).join("");
+
+            let pericopeHtml = "";
+            if (p.pericope_title) {
+              pericopeHtml = `<div class="rag-passage-pericope-title">${escapeHtml(p.pericope_title)}</div>`;
+            }
+
+            let propHtml = "";
+            if (p.central_proposition) {
+              propHtml = `<div class="rag-passage-prop"><em>Proposition:</em> "${escapeHtml(p.central_proposition)}"</div>`;
+            }
 
             card.innerHTML = `
               <div class="rag-passage-header">
-                <span class="rag-passage-ref">${escapeHtml(p.reference)}</span>
-                <span class="rag-passage-meta">${p.total_verses}v · score: ${(p.relevance_score || 1.0).toFixed(2)}</span>
+                <span class="rag-passage-ref">${escapeHtml(refDisplay)}</span>
+                <span class="rag-passage-meta">${verseCount}v · score: ${scoreFormatted}</span>
               </div>
-              <div class="rag-passage-text">${escapeHtml(p.text)}</div>
-              ${(epochBadges || ribbonBadges) ? `<div class="rag-passage-badges">${epochBadges}${ribbonBadges}</div>` : ''}
+              ${pericopeHtml}
+              <div class="rag-passage-text">${escapeHtml(p.text || "")}</div>
+              ${propHtml}
+              ${(epochBadges || ribbonBadges || lociBadges || reasonBadges) ? `<div class="rag-passage-badges">${epochBadges}${ribbonBadges}${lociBadges}${reasonBadges}</div>` : ''}
             `;
 
             const refEl = card.querySelector(".rag-passage-ref");
@@ -2363,9 +2404,9 @@ document.addEventListener("DOMContentLoaded", () => {
               refEl.addEventListener("click", () => {
                 const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
                 if (passageTab) passageTab.click();
-                inputRef.value = p.reference;
-                fetchPassage(p.reference);
-                showToast(`Opened ${p.reference}`);
+                inputRef.value = refDisplay;
+                fetchPassage(refDisplay);
+                showToast(`Opened ${refDisplay}`);
               });
             }
 
@@ -2426,6 +2467,25 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Refresh RAG context when filters change and query is present
+  [
+    selectRagPassages,
+    selectRagTestament,
+    selectRagGenre,
+    selectRagEpoch,
+    selectRagLocus,
+    selectRagFusion,
+    checkRagSynthesize,
+  ].forEach((el) => {
+    if (el) {
+      el.addEventListener("change", () => {
+        if (inputRagQuery && inputRagQuery.value.trim()) {
+          executeRAGStudy();
+        }
+      });
+    }
+  });
 
   // Quick Chips for RAG Inquiries
   document.querySelectorAll("[data-rag]").forEach((chip) => {

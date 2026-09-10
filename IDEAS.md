@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
  
+### [COMPLETED] Omnichannel Theological Facet Navigation & Scripture RAG Feature Parity Architecture (Rank A+)
+- **Summary**: Establish full UI and interactive REPL feature parity for Scripture RAG and multi-modal discovery. While `core/rag.py` and `./bible ask` implemented tri-modal hybrid search (vector dense, FTS5 lexical, and typological arc graph), reciprocal rank fusion (RRF), and four-dimensional theological faceting (Testament: OT/NT; Genre: Gospel, Epistle, Torah, Wisdom, History, Prophecy, Apocalyptic; Storyline Epoch; Theological Locus), the Sacred-Modern Web UI and interactive REPL studio lacked facet filtering controls, pericope title display, central proposition rendering, and retrieval reason badges. By adding interactive facet controls to the Web UI sidebar with live auto-refresh, rendering pericope titles, central theological propositions, redemptive storyline epochs, theological loci, and RRF retrieval diagnostic badges, and adding REPL tab-completion flags (`--testament`, `--genre`, `--epoch`, `--locus`, `--fusion`), theological research is seamlessly democratized across all platforms.
+- **Rationale**: Directly confronts the Senior Product Manager diagnostic questions by eliminating the exegesis feature parity gap between the core Python RAG engine and client user interfaces. Users exploring Scripture RAG in their browser or interactive REPL can now surgically isolate specific theological loci (e.g. `christology`, `soteriology`), historical epochs (e.g. `exodus`, `incarnation`), or canonical genres (e.g. `epistle`, `gospel`) and observe grounded pericope propositions without opening terminal command flags.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure client-side HTML/CSS/JS with local SQLite interval queries and Python stdlib API).
+  - Zero third-party dependencies? Yes (vanilla JavaScript DOM APIs, vanilla CSS variables, Python standard library only per ADR-003).
+  - High theological fidelity? Yes (full TGC dual-horizon hermeneutic parity).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.34 / ADR-104).
+- **Status**: Completed and verified during Run 096 Senior PM Meta-Sprint (ADR-104).
+
 ### [COMPLETED] Automated GitHub Actions Step Summary Matrix & Omnichannel Step Summary Telemetry (Rank A+)
 - **Summary**: Equip the System Doctor engine (`tools/doctor.py`) with automated detection of `GITHUB_STEP_SUMMARY` and structured Markdown diagnostic table emission. When executed inside GitHub Actions CI/CD workflows, doctor outputs a comprehensive GitHub job summary report displaying overall health status badge, total passing/failing checks ratio, total execution duration, and an aligned Markdown table detailing each check name, individual execution latency, status icon (`✅ Pass` / `❌ Fail`), and sanitized diagnostic notes.
 - **Rationale**: Confronts the Senior Product Manager diagnostic questions by closing the observability gap between the test runner and the health doctor in CI/CD. While `tools/test_runner.py` emitted markdown test results to `$GITHUB_STEP_SUMMARY`, `tools/doctor.py` only output plain terminal text, forcing developers to comb through raw terminal logs to inspect doctor check results.

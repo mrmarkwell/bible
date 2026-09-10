@@ -595,6 +595,17 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         comp_alias = shell.complete_compile_vectors("dr", "/compile-vectors dr", 17, 19)
         self.assertIn("dry-run", comp_alias)
 
+    def test_shell_ask_completion_and_formatting(self):
+        """Verify /ask and /rag tab-completion of facet options and formatting."""
+        shell = BibleShell(stdout=io.StringIO())
+        comp_testament = shell.complete_ask("--test", "/ask covenant --test", 14, 20)
+        self.assertIn("--testament", comp_testament)
+        comp_genre = shell.complete_ask("--gen", "/ask covenant --gen", 14, 19)
+        self.assertIn("--genre", comp_genre)
+        comp_fusion = shell.complete_rag("--fus", "/rag covenant --fus", 14, 19)
+        self.assertIn("--fusion", comp_fusion)
+
 
 if __name__ == "__main__":
     unittest.main()
+

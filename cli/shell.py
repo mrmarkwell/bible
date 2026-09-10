@@ -2163,7 +2163,16 @@ class BibleShell(cmd.Cmd):
             )
             self.stdout.write(f"{gold}{bold}=== Retrieved Scripture Context ==={reset}\n")
             for idx, p in enumerate(context.passages, 1):
-                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}\n")
+                reasons_str = f" [{', '.join(p.retrieval_reasons)}]" if p.retrieval_reasons else ""
+                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}{reasons_str}){reset}\n")
+                if p.pericope_title:
+                    self.stdout.write(f"    {dim}Pericope: {p.pericope_title}{reset}\n")
+                if p.central_proposition:
+                    self.stdout.write(f"    {dim}Proposition: \"{p.central_proposition}\"{reset}\n")
+                if p.theological_loci:
+                    self.stdout.write(f"    {dim}Loci: {', '.join(p.theological_loci)}{reset}\n")
+                if p.thematic_ribbons:
+                    self.stdout.write(f"    {dim}Thematic Ribbons: {', '.join(p.thematic_ribbons)}{reset}\n")
                 self.stdout.write(f"    {p.text}\n\n")
             return
 
@@ -2190,14 +2199,28 @@ class BibleShell(cmd.Cmd):
         if show_context:
             self.stdout.write(f"{gold}{bold}--- Retrieved Scripture Context ---{reset}\n")
             for idx, p in enumerate(context.passages, 1):
-                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}){reset}\n")
+                reasons_str = f" [{', '.join(p.retrieval_reasons)}]" if p.retrieval_reasons else ""
+                self.stdout.write(f"{gold}[{idx}] {p.human_ref} ({p.translation}){reset} {dim}(Score: {p.score:.2f}{reasons_str}){reset}\n")
+                if p.pericope_title:
+                    self.stdout.write(f"    {dim}Pericope: {p.pericope_title}{reset}\n")
+                if p.central_proposition:
+                    self.stdout.write(f"    {dim}Proposition: \"{p.central_proposition}\"{reset}\n")
                 self.stdout.write(f"    {p.text}\n\n")
 
     do_rag = do_ask
 
     def complete_ask(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Autocompletion for /ask command."""
-        options = ["--context-only", "--show-context"]
+        options = [
+            "--context-only",
+            "--show-context",
+            "--no-vector",
+            "--testament",
+            "--genre",
+            "--epoch",
+            "--locus",
+            "--fusion",
+        ]
         return [o for o in options if o.startswith(text.lower())]
 
     complete_rag = complete_ask
