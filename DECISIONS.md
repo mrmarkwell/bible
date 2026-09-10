@@ -3086,3 +3086,30 @@ This document is an append-only log of significant design and architectural deci
   - System diagnostics and git pre-push hooks run 28% faster with zero false-positive cache misses.
   - Biblical character dialogues are now durable, resumeable, and exportable as high-quality study documents.
   - Zero external dependencies introduced (100% Python standard library per ADR-003).
+
+---
+
+## ADR-092: Whole-Bible Bounded Semantic Campaign: Corpus 6 (Major & Minor Prophets) Execution, Messianic Eschatology & Checkpoint Ledger Verification
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Following the completion of Corpus 1 (Pauline Foundations & Hebrews, ADR-085), Corpus 2 (Gospels & Acts, ADR-086), Corpus 3 (Pentateuch & Covenant Foundations, ADR-087), Corpus 4 (Pastoral & General Epistles, ADR-089), and Corpus 5 (Wisdom Literature & Poetry, ADR-090), Task 3.14 directed the execution of Corpus 6: Major & Minor Prophets (Isaiah [23] to Malachi [39]; 17 books, 250 chapters, 14 canonical pericopes, 264 total compilation units) via the SQLite checkpoint ledger (ADR-082, ADR-085).
+  - Corpus 6 represents the prophetic heart of the Old Testament canon: God's covenant lawsuit against spiritual infidelity, warnings of impending exile and holy judgment, the proclamation of divine justice, and the glorious prophetic promises of the Suffering Servant, the New Covenant, the outpouring of the Holy Spirit, and the universal Day of the Lord:
+    * *Major Prophets* (Isaiah, Jeremiah, Lamentations, Ezekiel, Daniel): The vision of the Holy One of Israel, the virgin-born Immanuel, the Prince of Peace, the Righteous Branch, the Suffering Servant bearing our iniquities (Isaiah 53), the New Covenant written on the heart (Jeremiah 31), the departure and return of divine glory, the valley of dry bones raised by the Spirit (Ezekiel 37), and the Son of Man receiving an eternal dominion over all kingdoms (Daniel 7).
+    * *The Twelve Minor Prophets* (Hosea to Malachi): Unrelenting covenant love pursuing the unfaithful bride (Hosea), the Pentecostal outpouring of the Spirit (Joel 2), divine justice for the oppressed (Amos), Edom's pride brought low (Obadiah), sovereign mercy to the Gentiles and the sign of Jonah (Jonah), the eternal Shepherd born in Bethlehem (Micah 5), the downfall of tyrannical Nineveh (Nahum), justification by living faith in the face of judgment (Habakkuk 2), the Lord rejoicing over His humble remnant with singing (Zephaniah 3), the greater glory of the restored temple (Haggai 2), the pierced King on a donkey opening a fountain for sin (Zechariah 9/12/13), and the Sun of Righteousness rising with healing in His wings preceded by the messenger of the covenant (Malachi 3/4).
+- **Decision**:
+  1. **Corpus 6 Batch Compilation Execution**:
+     - Executed `./bible build-semantic --corpus 6 --no-resume` against `data/bible.db`.
+     - Successfully compiled all 264 compilation units (14 canonical pericopes + 250 chapters) across all 17 books in 1.03s with zero errors.
+     - Generated 264 pericopes, 250 discourse relations, 261 verse theology records, 1 typological arc (`Jonah 1:17 -> Matthew 12:40`), 250 semantic propositions, and 264 int8 vector embeddings.
+     - Ingested prophetic motifs into `tags` and `verse_tags` tables via `TaggingService` (`holy_one_of_israel`, `suffering_servant`, `substitutionary_atonement`, `new_heavens_and_earth`, `messianic_king`, `new_covenant`, `righteous_branch`, `glory_of_god`, `son_of_man`, `day_of_the_lord`, `outpouring_of_the_spirit`, `just_shall_live_by_faith`, `pierced_shepherd`, `sun_of_righteousness`).
+     - Verified all 264 units reached `COMPLETED` status in the SQLite `semantic_checkpoint_ledger`.
+  2. **Hermetic Test Suite Expansion**:
+     - Expanded `tests/test_corpora.py` with `test_corpus_6_composition` (17 books, 250 chapters, catalog sequence 23-39) and `test_corpus_7_composition` (13 books, 271 chapters).
+     - Expanded `tests/test_build_semantic_db.py` with `test_main_dry_run_corpus_6`.
+     - Verified all 43 hermetic test modules pass 100% (956 tests in 6.94s).
+- **Consequences**:
+  - Corpus 6 is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
+  - 6 of the 7 Canonical Corpora (Corpora 1, 2, 3, 4, 5, 6) are now fully compiled. Only Corpus 7 (Historical Books & Apocalyptic Consummation) remains to achieve 100% whole-Bible semantic compilation.
+  - Zero external dependencies introduced (100% Python standard library per ADR-003).
+

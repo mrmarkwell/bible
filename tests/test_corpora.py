@@ -141,6 +141,66 @@ class TestCanonicalCorpora(unittest.TestCase):
         # 42 + 150 + 31 + 12 + 8 = 243 chapters
         self.assertEqual(c5.total_chapters, 243)
 
+    def test_corpus_6_composition(self):
+        """Verify Corpus 6 includes the Major & Minor Prophets."""
+        c6 = CANONICAL_CORPORA[6]
+        self.assertEqual(c6.corpus_id, 6)
+        self.assertEqual(c6.name, "prophets")
+        self.assertEqual(
+            c6.book_names,
+            (
+                "Isaiah",
+                "Jeremiah",
+                "Lamentations",
+                "Ezekiel",
+                "Daniel",
+                "Hosea",
+                "Joel",
+                "Amos",
+                "Obadiah",
+                "Jonah",
+                "Micah",
+                "Nahum",
+                "Habakkuk",
+                "Zephaniah",
+                "Haggai",
+                "Zechariah",
+                "Malachi",
+            ),
+        )
+        self.assertEqual(c6.book_ids, tuple(range(23, 40)))
+        self.assertEqual(len(c6.books), 17)
+        # 66 + 52 + 5 + 48 + 12 + 14 + 3 + 9 + 1 + 4 + 7 + 3 + 3 + 3 + 2 + 14 + 4 = 250 chapters
+        self.assertEqual(c6.total_chapters, 250)
+
+    def test_corpus_7_composition(self):
+        """Verify Corpus 7 includes Historical Books & Apocalyptic Consummation."""
+        c7 = CANONICAL_CORPORA[7]
+        self.assertEqual(c7.corpus_id, 7)
+        self.assertEqual(c7.name, "historical_apocalypse")
+        self.assertEqual(
+            c7.book_names,
+            (
+                "Joshua",
+                "Judges",
+                "Ruth",
+                "1 Samuel",
+                "2 Samuel",
+                "1 Kings",
+                "2 Kings",
+                "1 Chronicles",
+                "2 Chronicles",
+                "Ezra",
+                "Nehemiah",
+                "Esther",
+                "Revelation",
+            ),
+        )
+        self.assertEqual(c7.book_ids, (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 66))
+        self.assertEqual(len(c7.books), 13)
+        # 24 + 21 + 4 + 31 + 24 + 22 + 25 + 29 + 36 + 10 + 13 + 10 + 22 = 271 chapters
+        self.assertEqual(c7.total_chapters, 271)
+
     def test_get_corpus_by_id_and_string(self):
         """Verify get_corpus resolves by integer, numeric string, and textual name."""
         c1 = get_corpus(1)
