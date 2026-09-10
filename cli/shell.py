@@ -424,7 +424,10 @@ class BibleShell(cmd.Cmd):
                 self.stdout.write(f"Tags for {ref.format()}:\n")
                 for r in records:
                     star = " ★" if r.starred else ""
-                    self.stdout.write(f"  🏷  {r.tag_name} [{r.human_ref}]{star}\n")
+                    is_single = (r.start_canonical_id == r.end_canonical_id)
+                    span_icon = "●" if is_single else "§"
+                    span_type = "single verse" if is_single else "passage span"
+                    self.stdout.write(f"  🏷  {span_icon} {r.tag_name} [{r.human_ref}] ({span_type}){star}\n")
             self.stdout.write("\n")
 
         elif action == "remove":

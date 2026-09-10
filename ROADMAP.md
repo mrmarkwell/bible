@@ -85,7 +85,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.3**: Implement Canonical Redemptive Ribbon: dual-modal terminal ASCII/Unicode visualizer and Sacred-Modern Web UI Thematic Heatmap across all 66 books of the Bible for any chosen tag/topic. *(Run 030 / ADR-031)*
 - [x] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags. *(Run 031 / ADR-032)*
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
-- [ ] **Task 4.6**: Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs.
+- [x] **Task 4.6**: Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs. *(Run 087 / ADR-095)*
 - [ ] **Task 4.7**: Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity).
 - [ ] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer supporting both passage-to-passage similarity and natural language user question vector search with match scores and drill-down).
 

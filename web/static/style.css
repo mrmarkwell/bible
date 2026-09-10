@@ -654,6 +654,32 @@ input[type="text"]:focus, select:focus {
 .tag-badge[data-category="prophecy"] { border-left: 3px solid var(--cat-prophecy); }
 .tag-badge[data-category="typology"] { border-left: 3px solid var(--cat-typology); }
 
+/* Span-Type Accents & Indicators (Task 4.6) */
+.tag-span-icon {
+  font-size: 9px;
+  opacity: 0.85;
+}
+
+.tag-badge.badge-single-verse {
+  border-color: rgba(212, 175, 55, 0.45);
+  background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 175, 55, 0.08) 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.tag-badge.badge-single-verse .tag-span-icon {
+  color: var(--gold-primary);
+}
+
+.tag-badge.badge-passage-span {
+  border-style: dashed;
+  border-color: var(--border-subtle);
+  opacity: 0.92;
+}
+
+.tag-badge.badge-passage-span .tag-span-icon {
+  color: var(--accent-cyan, #56b6c2);
+}
+
 /* Canonical Book Grid (Ribbon) */
 .canon-summary-card {
   background-color: var(--bg-card);
@@ -1541,6 +1567,52 @@ kbd {
   cursor: pointer;
   vertical-align: middle;
   transition: all var(--transition-smooth);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pill-span-icon {
+  font-size: 7.5px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* Single-Verse tags: distinct illuminated gold border and solid accent */
+.verse-tag-pill.pill-single-verse {
+  color: var(--gold-bright);
+  border: 1px solid rgba(212, 175, 55, 0.55);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.05) 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.verse-tag-pill.pill-single-verse .pill-span-icon {
+  color: var(--gold-primary);
+  font-size: 8px;
+}
+
+.verse-tag-pill.pill-single-verse:hover {
+  border-color: var(--gold-primary);
+  background-color: rgba(212, 175, 55, 0.30);
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.4);
+}
+
+/* Multi-verse Passage / Pericope span tags: subtle dashed border, calmer tone */
+.verse-tag-pill.pill-passage-span {
+  color: var(--text-muted);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.verse-tag-pill.pill-passage-span .pill-span-icon {
+  color: var(--accent-cyan, #56b6c2);
+  font-size: 8.5px;
+}
+
+.verse-tag-pill.pill-passage-span:hover {
+  color: var(--text-secondary);
+  border-color: rgba(255, 255, 255, 0.4);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .verse-tag-pill:hover {

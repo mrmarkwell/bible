@@ -3183,9 +3183,42 @@ This document is an append-only log of significant design and architectural deci
   4. **Hermetic Test Suite Expansion**:
      - Added `test_main_dry_run_corpus_2` and `test_main_dry_run_corpus_7` in `tests/test_build_semantic_db.py`.
      - Verified 962 unit tests across 43 modules passing 100% in 9.0s.
+
+---
+
+## ADR-095: Visual Distinction for Single-Verse vs. Multi-Verse Passage/Pericope Tag Spans
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - The SQLite database engine stores semantic tags associated with scripture via `verse_tags`, where each tag record specifies a `start_canonical_id` and `end_canonical_id`.
+  - Tags exist across two fundamental granularities:
+    1. **Single-verse tags** (`start_canonical_id == end_canonical_id`): precise topical or exegesis anchors tied directly to a specific verse (e.g. John 3:16 -> `#gospel`, `#love`).
+    2. **Multi-verse passage/pericope span tags** (`start_canonical_id < end_canonical_id`): thematic or literary arcs spanning multiple verses, whole pericopes, or entire chapters (e.g. Romans 8:28-30 -> `#sovereign_grace`, Genesis 1:1-31 -> `#creation`).
+  - Previously, both the Web UI reader and terminal outputs rendered all matching tags identically with uniform styling. This created visual ambiguity for readers and scholars who could not distinguish whether a tag applied specifically to an individual verse or was inherited from a broader multi-verse passage/pericope context.
+  - Furthermore, REST API responses under `/api/passage` only exposed `v["tags"]` as flat strings of tag names, omitting the span classification and coordinate bounds for verse-level consumption.
+- **Decision**:
+  1. **REST API Enhancement (`web/server.py`)**:
+     - In `/api/passage`, enriched each verse item with a new `tag_details` list:
+       `[{"name": ..., "is_single_verse": bool, "span_type": "single_verse" | "passage_span", "human_ref": ..., "category": ..., "confidence": float, "starred": bool}]`.
+     - Preserved `v["tags"]` as a list of tag name strings for 100% backward compatibility with existing clients.
+     - In passage-level `data["tags"]`, enriched each deduplicated tag item with `is_single_verse`, `has_single_verse`, `span_type`, `human_ref`, and `span_refs`.
+  2. **Web UI Reader Visual Architecture (`web/static/app.js`, `web/static/style.css`)**:
+     - Single-verse tags are rendered with `.pill-single-verse` featuring an illuminated gold border, subtle linear gradient, distinct bullet glyph `●`, and informative tooltip `[Single Verse] #tag (Ref)`.
+     - Multi-verse passage/pericope span tags are rendered with `.pill-passage-span` featuring a muted dashed border, cyan section glyph `§`, and informative tooltip `[Passage Span] #tag (Ref)`.
+     - Passage header badges in `#passage-tags` visually display `.badge-single-verse` (gold accent) vs `.badge-passage-span` (dashed border with cyan accent) along with `[Single Verse]` / `[Passage Span]` tooltips.
+  3. **Terminal and CLI Outputs (`core/terminal.py`, `cli/main.py`, `cli/shell.py`)**:
+     - Enhanced `format_tags_badge` in `core/terminal.py` to inspect tag records or dictionaries for `is_single_verse` / `start_canonical_id` / `end_canonical_id`.
+     - Single-verse tags are rendered with `●` (bold gold bullet) and cyan text, while passage span tags are rendered with `§` (cyan section mark) and cyan text.
+     - In plain text fallback mode, rendered as `[● tag]` vs `[§ tag]`.
+     - Updated CLI (`./bible tag for <ref>`) and REPL (`/tag <ref>`) outputs to clearly label each tag with its glyph and span type: `🏷  ● tag [Ref] (single verse)` vs `🏷  § tag [Ref] (passage span)`.
+  4. **Hermetic Test Suite Verification**:
+     - Added unit tests in `tests/test_server.py` verifying `tag_details`, `is_single_verse`, and `span_type` in `/api/passage` JSON responses.
+     - Added unit tests in `tests/test_tags.py` verifying `format_tags_badge` single-verse vs passage span formatting across styled and plain text modes.
+     - Verified 100% test pass rate (962 tests passing in <10s) and clean doctor diagnostic.
 - **Consequences**:
-  - Phase 3 Whole-Bible Bounded Semantic Campaign is 100% complete across all 7 canonical corpora.
-  - The SQLite database contains complete, audited 6-layer semantic exegesis for all 66 books of the Bible.
-  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+  - Scholars and readers immediately grasp the scope of every semantic tag at a glance across both Web UI and CLI.
+  - Full backward compatibility maintained for existing API consumers and scripts.
+  - Zero external dependencies maintained per ADR-003.
+
 
 

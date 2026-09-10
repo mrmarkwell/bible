@@ -681,7 +681,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Update Breadcrumbs & Chapter Nav
       updateBreadcrumbsAndNav(data);
 
-      // Render Semantic Tags with Categories (deduplicated by normalized tag name)
+      // Render Semantic Tags with Categories & Span Types (deduplicated by normalized tag name)
       if (data.tags && data.tags.length > 0) {
         const seenTagNames = new Set();
         data.tags.forEach((tag) => {
@@ -691,9 +691,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const tagSpan = document.createElement("span");
           tagSpan.className = "tag-badge";
+          const isSingle = Boolean(tag.is_single_verse || tag.has_single_verse);
+          const spanType = tag.span_type || (isSingle ? "single_verse" : "passage_span");
+          tagSpan.dataset.spanType = spanType;
+          if (isSingle) tagSpan.classList.add("badge-single-verse");
+          else tagSpan.classList.add("badge-passage-span");
           if (tag.category) tagSpan.dataset.category = tag.category.toLowerCase();
-          tagSpan.textContent = `#${tag.name}`;
-          tagSpan.title = `${tag.category ? `[${tag.category}] ` : ""}${tag.notes || tag.description || ""}`;
+
+          const spanIcon = isSingle ? "●" : "§";
+          const spanLabel = isSingle ? "Single Verse" : "Passage Span";
+          tagSpan.innerHTML = `<span class="tag-span-icon" aria-hidden="true">${spanIcon}</span>#${escapeHtml(tag.name)}`;
+          const refsTooltip = tag.span_refs && tag.span_refs.length > 0 ? ` (${tag.span_refs.join(", ")})` : (tag.human_ref ? ` (${tag.human_ref})` : "");
+          tagSpan.title = `[${spanLabel}] ${tag.category ? `[${tag.category}] ` : ""}#${tag.name}${refsTooltip}${tag.notes ? ` — ${tag.notes}` : ""}`;
           tagSpan.addEventListener("click", () => {
             fetchPassagesForTag(tag.name);
           });
@@ -755,9 +764,20 @@ document.addEventListener("DOMContentLoaded", () => {
         row.dataset.verseNum = v.verse;
         row.id = `v${v.verse}`;
 
-        const tagPills = (v.tags && v.tags.length > 0)
-          ? Array.from(new Set(v.tags)).map((t) => `<span class="verse-tag-pill" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join("")
-          : "";
+        let tagPills = "";
+        if (v.tag_details && v.tag_details.length > 0) {
+          tagPills = v.tag_details.map((td) => {
+            const isSingle = Boolean(td.is_single_verse);
+            const spanClass = isSingle ? "pill-single-verse" : "pill-passage-span";
+            const icon = isSingle ? "●" : "§";
+            const tooltip = isSingle
+              ? `[Single Verse] #${td.name} (${td.human_ref})`
+              : `[Passage Span] #${td.name} (${td.human_ref})`;
+            return `<span class="verse-tag-pill ${spanClass}" data-tag="${escapeHtml(td.name)}" title="${escapeHtml(tooltip)}"><span class="pill-span-icon">${icon}</span>#${escapeHtml(td.name)}</span>`;
+          }).join("");
+        } else if (v.tags && v.tags.length > 0) {
+          tagPills = Array.from(new Set(v.tags)).map((t) => `<span class="verse-tag-pill" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join("");
+        }
 
         row.innerHTML = `
           <span class="verse-num">${v.verse}</span>

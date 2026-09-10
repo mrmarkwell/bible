@@ -13,6 +13,7 @@ from core.tags import (
     TagSummary,
     TaggedPassage,
     TaggingService,
+    VerseTagRecord,
 )
 from core.terminal import (
     format_tag_co_occurrence_table,
@@ -394,6 +395,32 @@ class TestTerminalTagFormatting(unittest.TestCase):
 
         self.assertEqual(format_tags_badge([]), "")
 
+        # Test single-verse vs passage-span distinction
+        single_verse_tag = VerseTagRecord(
+            id=1,
+            tag_id=10,
+            tag_name="Grace",
+            start_canonical_id=43003016,
+            end_canonical_id=43003016,
+            human_ref="John 3:16",
+        )
+        passage_span_tag = VerseTagRecord(
+            id=2,
+            tag_id=20,
+            tag_name="Sovereignty",
+            start_canonical_id=45008028,
+            end_canonical_id=45008030,
+            human_ref="Romans 8:28-30",
+        )
+        badge_spans_styled = format_tags_badge([single_verse_tag, passage_span_tag], styling=True)
+        self.assertIn("●", badge_spans_styled)
+        self.assertIn("§", badge_spans_styled)
+        self.assertIn("Grace", badge_spans_styled)
+        self.assertIn("Sovereignty", badge_spans_styled)
+
+        badge_spans_plain = format_tags_badge([single_verse_tag, passage_span_tag], styling=False)
+        self.assertEqual(badge_spans_plain, "Tags: [● Grace] [§ Sovereignty]")
+
     def test_format_tag_table(self) -> None:
         summaries = [
             TagSummary(
@@ -505,7 +532,7 @@ class TestCliTagCommands(unittest.TestCase):
         with patch("sys.stdout", stdout):
             code = main(["--db", self.db_path, "get", "John 3:16", "--tags"])
             self.assertEqual(code, 0)
-        self.assertIn("Tags: [gospel]", stdout.getvalue())
+        self.assertIn("Tags: [● gospel]", stdout.getvalue())
 
 
 class TestShellTagCommands(unittest.TestCase):

@@ -450,30 +450,60 @@ def wrap_prefixed_text(
 def format_tags_badge(
     tags: Sequence[Union[str, Any]],
     styling: bool = True,
+    show_span_type: bool = True,
 ) -> str:
-    """Format a sequence of tags as subtle inline badges/pills."""
+    """Format a sequence of tags as subtle inline badges/pills.
+
+    Supports visual distinction for single-verse (●) vs passage/pericope span (§) tags
+    when TagRecord/VerseTagRecord or dict objects with span metadata are provided.
+    """
     if not tags:
         return ""
-    tag_names: List[str] = []
+    tag_items: List[Tuple[str, Optional[bool]]] = []
     for t in tags:
         if isinstance(t, str):
-            tag_names.append(t)
-        elif hasattr(t, "tag_name"):
-            tag_names.append(t.tag_name)
-        elif hasattr(t, "name"):
-            tag_names.append(t.name)
+            tag_items.append((t, None))
+        elif isinstance(t, dict):
+            name = t.get("name") or t.get("tag_name") or str(t)
+            is_single = t.get("is_single_verse")
+            if is_single is None and "start_canonical_id" in t and "end_canonical_id" in t:
+                is_single = (t["start_canonical_id"] == t["end_canonical_id"])
+            tag_items.append((name, is_single))
+        elif hasattr(t, "tag_name") or hasattr(t, "name"):
+            name = getattr(t, "tag_name", None) or getattr(t, "name")
+            is_single = getattr(t, "is_single_verse", None)
+            if is_single is None and hasattr(t, "start_canonical_id") and hasattr(t, "end_canonical_id"):
+                is_single = (getattr(t, "start_canonical_id") == getattr(t, "end_canonical_id"))
+            tag_items.append((name, is_single))
         else:
-            tag_names.append(str(t))
+            tag_items.append((str(t), None))
 
-    if not tag_names:
+    if not tag_items:
         return ""
 
     if styling:
-        pills = [f"{DIM}[{RESET}{BOLD_CYAN}{name}{RESET}{DIM}]{RESET}" for name in tag_names]
+        pills: List[str] = []
+        for name, is_single in tag_items:
+            if show_span_type and is_single is True:
+                # Single-verse tag: bold gold bullet and cyan text
+                pill = f"{DIM}[{RESET}{BOLD_GOLD}● {RESET}{BOLD_CYAN}{name}{RESET}{DIM}]{RESET}"
+            elif show_span_type and is_single is False:
+                # Passage span tag: section sign and muted cyan text
+                pill = f"{DIM}[{RESET}{CYAN}§ {RESET}{CYAN}{name}{RESET}{DIM}]{RESET}"
+            else:
+                pill = f"{DIM}[{RESET}{BOLD_CYAN}{name}{RESET}{DIM}]{RESET}"
+            pills.append(pill)
         return f"{DIM}🏷  {RESET}" + " ".join(pills)
     else:
-        pills = [f"[{name}]" for name in tag_names]
-        return "Tags: " + " ".join(pills)
+        pills_plain: List[str] = []
+        for name, is_single in tag_items:
+            if show_span_type and is_single is True:
+                pills_plain.append(f"[● {name}]")
+            elif show_span_type and is_single is False:
+                pills_plain.append(f"[§ {name}]")
+            else:
+                pills_plain.append(f"[{name}]")
+        return "Tags: " + " ".join(pills_plain)
 
 
 def format_tag_table(

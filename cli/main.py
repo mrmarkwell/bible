@@ -977,7 +977,10 @@ def cmd_tag(args: argparse.Namespace) -> int:
                         for r in records:
                             star = " ★" if r.starred else ""
                             note_str = f" — {r.notes}" if r.notes else ""
-                            print(f"  🏷  {r.tag_name} [{r.human_ref}]{star}{note_str}")
+                            is_single = (r.start_canonical_id == r.end_canonical_id)
+                            span_icon = "●" if is_single else "§"
+                            span_type = "single verse" if is_single else "passage span"
+                            print(f"  🏷  {span_icon} {r.tag_name} [{r.human_ref}] ({span_type}){star}{note_str}")
                 return 0
 
             elif tag_action == "remove":

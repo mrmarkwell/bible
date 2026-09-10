@@ -3491,9 +3491,44 @@ This is an append-only log of work performed by autonomous agents during their e
   - `python3 tools/linter.py`: **100% CLEAN** — 91 files inspected with 0 errors.
   - `./bible corpora`: verified all 7 corpora are at 100.0% completion.
   - `./bible build-semantic --corpus 7 --status`: verified 285/285 units completed in ledger.
+
+---
+
+## [Run 087] — 2026-09-10
+- **Agent**: Autonomous Ralph Loop Agent
+- **Phase**: Phase 4 — Web UI & Visualizations
+- **Task**: **Task 4.6** — Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs.
+- **Actions Taken**:
+  - **REST API Enhancement (`web/server.py`)**:
+    - In `/api/passage`, enriched each verse item with a new `tag_details` list:
+      `[{"name": ..., "is_single_verse": bool, "span_type": "single_verse" | "passage_span", "human_ref": ..., "category": ..., "confidence": float, "starred": bool}]`.
+    - Preserved `v["tags"]` as a list of tag name strings for 100% backward compatibility with existing clients.
+    - In passage-level `data["tags"]`, enriched each deduplicated tag item with `is_single_verse`, `has_single_verse`, `span_type`, `human_ref`, and `span_refs`.
+  - **Web UI Reader Visual Distinction (`web/static/app.js`, `web/static/style.css`)**:
+    - Single-verse tags are rendered with `.pill-single-verse` featuring an illuminated gold border, subtle linear gradient, distinct bullet glyph `●`, and informative tooltip `[Single Verse] #tag (Ref)`.
+    - Multi-verse passage/pericope span tags are rendered with `.pill-passage-span` featuring a muted dashed border, cyan section glyph `§`, and informative tooltip `[Passage Span] #tag (Ref)`.
+    - Passage header badges in `#passage-tags` visually display `.badge-single-verse` (gold accent) vs `.badge-passage-span` (dashed border with cyan accent) along with `[Single Verse]` / `[Passage Span]` tooltips.
+  - **Terminal and CLI Outputs (`core/terminal.py`, `cli/main.py`, `cli/shell.py`)**:
+    - Enhanced `format_tags_badge` in `core/terminal.py` to inspect tag records or dictionaries for `is_single_verse` / `start_canonical_id` / `end_canonical_id`.
+    - Single-verse tags are rendered with `●` (bold gold bullet) and cyan text, while passage span tags are rendered with `§` (cyan section mark) and cyan text.
+    - In plain text fallback mode, rendered as `[● tag]` vs `[§ tag]`.
+    - Updated CLI (`./bible tag for <ref>`) and REPL (`/tag <ref>`) outputs to clearly label each tag with its glyph and span type: `🏷  ● tag [Ref] (single verse)` vs `🏷  § tag [Ref] (passage span)`.
+  - **Hermetic Unit Test Suite (`tests/test_server.py`, `tests/test_tags.py`)**:
+    - Added assertions in `test_api_passage_lookup` in `tests/test_server.py` verifying `tag_details`, `is_single_verse`, and `span_type` in `/api/passage` JSON responses.
+    - Added assertions in `test_format_tags_badge` in `tests/test_tags.py` verifying `format_tags_badge` single-verse vs passage span formatting across styled and plain text modes.
+    - Updated `test_cli_get_with_tags_flag` in `tests/test_tags.py` to verify the single-verse indicator glyph.
+    - Verified all 43 hermetic test modules pass 100% (962 tests in 9.4s).
+  - **Governance & State Machine Synchronization**:
+    - Formulated and recorded **ADR-095** in `DECISIONS.md`.
+    - Marked **Task 4.6** complete in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **962 tests across 43 modules passed 100% in 9.4s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 10 checks passed (95 ADRs registered, 87 sequential runs, 96 roadmap tasks tracked, 83 completed across 9 phases, 0 dependencies, 0 linter errors across 91 files).
+  - `python3 tools/linter.py`: **100% CLEAN** — 91 files inspected with 0 errors.
 - **Handoff Notes for Next Agent**:
-  - Phase 3 is 100% COMPLETE! All 7 Canonical Theological Corpora across all 66 books of the Bible are semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
-  - Next task on roadmap: Phase 7 Task 7.7: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083) with `--corpus`, `--book`, and `--resumable` checkpoint ledger support, `batchEmbedContents` integration, and signed `int8` quantization*, OR Phase 4 Task 4.6: *Visual Distinction for Single-Verse vs. Passage/Pericope Tag Spans in Web UI Reader & Terminal Outputs*.
+  - Task 4.6 is 100% complete!
+  - Next task on roadmap: Phase 4 Task 4.7: *Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity)*, OR Phase 7 Task 7.7: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*.
+
 
 
 

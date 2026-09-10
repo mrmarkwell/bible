@@ -316,13 +316,29 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             verse_items = []
             for v in verses:
                 cid = v.canonical_verse_id or 0
+                matching_records = [
+                    t for t in tags
+                    if t.start_canonical_id <= cid <= t.end_canonical_id
+                ]
                 matching_tags = list(
-                    dict.fromkeys(
-                        t.tag_name
-                        for t in tags
-                        if t.start_canonical_id <= cid <= t.end_canonical_id
-                    )
+                    dict.fromkeys(t.tag_name for t in matching_records)
                 )
+                tag_details = []
+                seen_detail_tags = set()
+                for t in matching_records:
+                    norm = t.tag_name.strip().lower()
+                    if norm not in seen_detail_tags:
+                        seen_detail_tags.add(norm)
+                        is_single = (t.start_canonical_id == t.end_canonical_id)
+                        tag_details.append({
+                            "name": t.tag_name,
+                            "is_single_verse": is_single,
+                            "span_type": "single_verse" if is_single else "passage_span",
+                            "human_ref": t.human_ref,
+                            "category": getattr(t, "category", None),
+                            "confidence": t.confidence,
+                            "starred": bool(t.starred),
+                        })
                 verse_items.append({
                     "canonical_verse_id": cid,
                     "book": v.book_name,
@@ -333,15 +349,19 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     "text": v.text,
                     "translation_id": v.translation_id,
                     "tags": matching_tags,
+                    "tag_details": tag_details,
                 })
 
             # Deduplicate passage-level tags so each unique tag appears exactly once.
             # A passage may overlap multiple verse_tag records for the same topic (e.g. multiple
-            # favorite verses within a chapter/pericope). Aggregate confidence and starred status.
+            # favorite verses within a chapter/pericope). Aggregate confidence, starred status,
+            # and span classification (is_single_verse, span_type, span_refs).
             seen_tags: Dict[str, Dict[str, Any]] = {}
             for t in tags:
                 tag_key = t.tag_name.strip().lower()
                 cat = getattr(t, "category", None)
+                is_single = (t.start_canonical_id == t.end_canonical_id)
+                span_t = "single_verse" if is_single else "passage_span"
                 if tag_key not in seen_tags:
                     seen_tags[tag_key] = {
                         "id": t.id,
@@ -351,6 +371,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                         "confidence": t.confidence,
                         "starred": bool(t.starred),
                         "source": t.source,
+                        "is_single_verse": is_single,
+                        "span_type": span_t,
+                        "human_ref": t.human_ref,
+                        "span_refs": [t.human_ref],
                     }
                 else:
                     existing = seen_tags[tag_key]
@@ -361,6 +385,11 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                         existing["id"] = t.id
                     if not existing.get("category") and cat:
                         existing["category"] = cat
+                    if t.human_ref not in existing["span_refs"]:
+                        existing["span_refs"].append(t.human_ref)
+                    # If this tag has a single-verse occurrence in the passage, preserve single-verse visibility
+                    if is_single:
+                        existing["has_single_verse"] = True
 
             tag_items = list(seen_tags.values())
 

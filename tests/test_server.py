@@ -431,6 +431,21 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(data["total_verses"], 1)
         self.assertEqual(len(data["verses"]), 1)
         self.assertIn("God so loved the world", data["verses"][0]["text"])
+        # Check tag_details on verse
+        verse = data["verses"][0]
+        self.assertIn("tag_details", verse)
+        if verse["tag_details"]:
+            td = verse["tag_details"][0]
+            self.assertIn("name", td)
+            self.assertIn("is_single_verse", td)
+            self.assertIn("span_type", td)
+            self.assertIn("human_ref", td)
+        # Check passage tags have span_type
+        if data.get("tags"):
+            pt = data["tags"][0]
+            self.assertIn("span_type", pt)
+            self.assertIn("is_single_verse", pt)
+            self.assertIn("span_refs", pt)
 
     def test_api_passage_multi_verse_range(self) -> None:
         status, data = self._get_json("/api/passage?ref=Romans+8:28-30")
