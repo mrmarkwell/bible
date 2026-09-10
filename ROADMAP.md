@@ -5,8 +5,8 @@ This document is the single source of truth for current project status, active t
 ---
 
 ## Current Status Overview
-- **Active Phase**: All Phases Complete (Phases 0 through 8 Complete)
-- **Overall Progress**: 101 Completed / 101 Total Tasks Tracked across 9 Phases (100.0%)
+- **Active Phase**: Phase 9: Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI
+- **Overall Progress**: 101 Completed / 105 Total Tasks Tracked across 10 Phases (96.2%)
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -140,6 +140,9 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 8.7**: Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083, ADR-101). When a user submits an inquiry, embed the question via `text-embedding-004` (or offline stdlib pseudo-embeddings), perform fast int8 cosine similarity against the pre-computed offline pericope vector database, and supply top matching complete parent pericopes as grounded context for RAG response synthesis in CLI (`./bible ask`), REPL (`/ask`), and Web UI (`/api/rag`). *(Run 093 / ADR-101)*
 - [x] **Task 8.8**: Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) in `core/rag.py` (ADR-083, ADR-102). Combine dense vector similarity, SQLite FTS5 BM25 lexical search, and typological knowledge graph traversals using weighted Reciprocal Rank Fusion ($RRF = \sum \frac{w_m}{k + \text{rank}_m}$) with theological facet pre-filtering (Testament, Genre, Epoch, Locus). *(Run 094 / ADR-102 — Phase 8 100% Complete)*
 
-
-
+### Phase 9: Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI
+- [ ] **Task 9.1**: Implement author-scoped dynamic per-turn RAG retrieval hook in `core/persona.py` (`CharacterDialogueSession.step()`) so characters dynamically pull their relevant canonical passages with similarity scores into dialogue context.
+- [ ] **Task 9.2**: Implement canonical "Whole Bible Counselor" (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses.
+- [ ] **Task 9.3**: Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.
+- [ ] **Task 9.4**: Implement Web UI "Ask the Bible" Theological Inquiry Studio, rendering synthesized RAG answers side-by-side with retrieved pericopes, typological links, and reciprocal rank fusion scores.
 
