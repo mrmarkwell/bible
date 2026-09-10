@@ -3265,3 +3265,39 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies: pure Python standard library and vanilla HTML/Canvas/SVG only.
   - Sub-second projection velocity and instant sub-10ms REST responses.
 
+---
+
+## ADR-097: Omnichannel Interactive 2D Scatter Map Terminal Studio & Executive Summary JSON Telemetry Architecture
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Following the implementation of the 2D Semantic Similarity Scatter Map in the Web UI and CLI in Run 088 (ADR-096), a capability gap existed in the interactive terminal REPL (`cli/shell.py`), where scholars studying scripture interactively could not view or filter the 2D scatter plot, inspect coordinate coverage, or trigger batch re-projections without dropping to the shell.
+  - Furthermore, `preprocess_cli_argv` lacked registration for `map` and its aliases (`scatter`, `scatter-map`), creating potential routing friction where direct command arguments might be ambiguous.
+  - In retrospective reporting, `tools/executive_summary.py` lacked `--json` output integration in the top-level `./bible summary` subcommand, preventing automated tooling, IDE extensions, or agentic frameworks from querying trajectory metrics programmatically.
+  - In addition, `parse_agent_log` in `tools/executive_summary.py` only extracted actions under specific headers, missing `Rank A+ Meta-Improvements Formulated & Executed`, causing Senior PM meta-sprint highlights to appear empty in summary reports.
+  - Finally, a comprehensive static analysis audit identified 62 unused import warnings across 6 files (`cli/main.py`, `cli/shell.py`, `core/persona.py`, `tools/project_embeddings.py`, `tests/test_core.py`, `tests/test_db.py`).
+- **Decision**:
+  1. **Interactive Shell 2D Scatter Map Studio (`cli/shell.py`)**:
+     - Added `/map` command with aliases `/scatter` and `/scatter_map` rendering the 2D ANSI/ASCII scatter plot directly in the REPL session.
+     - Supported testament filters (`/map OT`, `/map NT`), canonical book filters (`/map Romans`), status checks (`/map --status`), vector SVG export (`/map --svg path.svg`), and JSON export (`/map --json`).
+     - Added autocompletion for `/map`, `/scatter`, and `/scatter_map` matching testaments, books, and flags.
+     - Added `/vector project` (and alias `/vec project`) within the REPL to project embeddings into 2D via FastMap or PCA and automatically update SQLite.
+     - Updated shell `/help` command reference with `/map`.
+  2. **Direct CLI Preprocessing Expansion (`cli/main.py`)**:
+     - Registered `map`, `scatter`, and `scatter-map` in `registered_commands` within `preprocess_cli_argv`, ensuring commands like `./bible map NT` are never misrouted to `./bible get`.
+  3. **Executive Summary JSON Telemetry & Hierarchical Action Extraction (`tools/executive_summary.py`, `cli/main.py`)**:
+     - Added `--json` flag to `./bible summary`, enabling machine-readable output of completion percentages, velocity, remaining iterations, and recent run highlights.
+     - Updated `parse_agent_log` action extraction regex to match `Rank A+` headings (`Rank A+ Meta-Improvements Formulated & Executed`, etc.), ensuring meta-sprint actions are prominently featured in executive trajectory briefings.
+  4. **Strict Static Analysis Hygiene & Namespace Pruning**:
+     - Pruned all 62 unused imports across `cli/main.py`, `cli/shell.py`, `core/persona.py`, `tools/project_embeddings.py`, `tests/test_core.py`, and `tests/test_db.py`.
+     - Verified `python3 tools/linter.py` passes with **0 errors, 0 warnings, and 0 style notices** across all 95 files.
+  5. **Hermetic Test Suite Verification**:
+     - Added unit tests in `tests/test_shell.py` for `do_map`, `complete_map`, `/scatter`, `/vector project`, and direct CLI preprocessing.
+     - Added unit test in `tests/test_executive_summary.py` for meta-sprint action extraction.
+     - Verified all 45 test modules pass 100% (983 tests in ~9.1s).
+- **Consequences**:
+  - Interactive REPL achieves full 100% capability parity with the CLI for 2D semantic visualization.
+  - Trajectory metrics are queryable programmatically via `./bible summary --json`.
+  - Zero linter warnings across the entire repository.
+  - 100% compliance with zero external dependencies (ADR-003).
+

@@ -209,7 +209,7 @@ def parse_agent_log(agent_log_path: Path) -> List[RunEntry]:
         # Extract bullet actions with hierarchical awareness
         actions: List[str] = []
         act_block_m = re.search(
-            r"-\s*\*\*(?:Actions Taken|Accomplishments[^\*]*|Key Accomplishments|Actions)\*\*:\s*\n(.*?)(?=\n-\s*\*\*|\n##|\Z)",
+            r"-\s*\*\*(?:Actions Taken|Accomplishments[^\*]*|Key Accomplishments|Actions|Rank A\+[^\*]*)\*\*:\s*\n(.*?)(?=\n-\s*\*\*|\n##|\Z)",
             section,
             re.DOTALL,
         )

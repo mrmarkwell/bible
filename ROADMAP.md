@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 4, 7 & 8 (Phase 0, 1, 2, 3, 5, 6 Complete)
-- **Overall Progress**: 83 Completed / 95 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 84 Completed / 96 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -44,6 +44,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.28**: Implement High-Velocity Graph Query Architecture, Bounded Spatial Index Seeks & Push-Down Slide Pipeline (`core/db.py`, `core/slide_batch.py`, `cli/main.py`, 226x graph speedup, 1,500x slide resolution speedup, 5x test runner acceleration, ADR-088). *(Run 080 / Senior PM Double Milestone)*
 - [x] **Task 0.29**: Implement Authoritative Multi-Dimensional Audit Cache Fingerprinting (SQLite change counter, schema version, and WAL tracking) & Omnichannel Archival Character Dialogue Studio Transcripts Engine (`core/semantic_audit.py`, `core/persona.py`, `cli/main.py`, `cli/shell.py`, `tests/test_persona.py`, `tests/test_semantic_audit.py`, ADR-091). *(Run 083 / Senior PM Meta-Sprint)*
 - [x] **Task 0.30**: Implement Sovereign Interval Sweep-Line Tag Co-Occurrence Engine, WAL Checkpoint Fingerprint Stabilization, Push-Down Reference Slicing, and Real-Time HTTP Server-Sent Events (SSE) Streaming Studio (`core/tags.py`, `core/semantic_audit.py`, `core/slide_batch.py`, `web/server.py`, `core/rag.py`, `tools/build_semantic_db.py`, `tests/test_server.py`, 308x co-occurrence speedup, 11x bootstrap speedup, ADR-093). *(Run 085 / Senior PM Cleanup Sprint)*
+- [x] **Task 0.31**: Implement Omnichannel Interactive 2D Scatter Map Terminal REPL Studio (`/map`, `/scatter`, `/scatter_map`, `/vector project`), Direct Citation Preprocessing Routing, Executive Summary JSON Telemetry (`--json`), and Static Analysis Namespace Hygiene (ADR-097). *(Run 089 / Senior PM Meta-Sprint & Executive Milestone)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

@@ -158,6 +158,29 @@ class TestExecutiveSummary(unittest.TestCase):
         self.assertIn("velocity", parsed)
         self.assertIn("recent_runs", parsed)
 
+    def test_parse_agent_log_meta_sprint_rank_a_plus(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir) / "AGENT_LOG.md"
+            log_path.write_text(
+                "# Autonomous Agent Worklog\n\n"
+                "## [Run 085] — 2026-09-10\n"
+                "- **Agent**: Senior Product Manager & Meta-Architect\n"
+                "- **Phase**: Phase 0 — Senior Product Manager Meta-Improvement & System Health Sprint\n"
+                "- **Task**: System Health Audit\n"
+                "- **Rank A+ Meta-Improvements Formulated & Executed**:\n"
+                "  - **Sovereign Interval Sweep-Line Tag Co-Occurrence Engine (`core/tags.py`)**:\n"
+                "    - Replaced quadratic SQL self-join.\n"
+                "  - **Authoritative WAL Checkpoint Cache Stabilization**:\n"
+                "    - Added PRAGMA wal_checkpoint.\n",
+                encoding="utf-8",
+            )
+            entries = parse_agent_log(log_path)
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(entries[0].run_number, 85)
+            self.assertEqual(entries[0].archetype, "meta_sprint")
+            self.assertTrue(len(entries[0].actions) >= 2)
+            self.assertTrue(any("Interval Sweep-Line" in a for a in entries[0].actions))
+
 
 if __name__ == "__main__":
     unittest.main()

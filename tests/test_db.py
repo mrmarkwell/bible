@@ -11,28 +11,11 @@ import tempfile
 import unittest
 
 from core.db import (
-    CrossReferenceRecord,
     Database,
-    DiscourseRelationRecord,
-    PericopeEmbeddingRecord,
-    PericopeRecord,
-    SearchResult,
-    SemanticPropositionRecord,
-    SpanRecord,
-    TagRecord,
-    TranslationRecord,
-    TypologicalArcRecord,
-    VerseEmbeddingRecord,
     VerseRecord,
-    VerseTagRecord,
-    VerseTheologyRecord,
     sanitize_fts_query,
 )
 from core.reference import (
-    ALL_BOOKS,
-    BOOKS,
-    Book,
-    Reference,
     get_book,
     parse_reference,
     verse_canonical_id,

@@ -21,13 +21,10 @@ import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.db import DEFAULT_DB_PATH, Database, SearchResult, VerseRecord
-from core.reference import BOOKS, Reference, get_book, parse_reference
+from core.reference import Reference, get_book, parse_reference
 from core.terminal import (
-    THEMES,
     format_aligned_comparison_styled,
-    format_citation_header,
     format_scripture_passage,
-    get_terminal_width,
     should_use_color,
 )
 
@@ -2087,11 +2084,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip running live doctor diagnostics",
     )
+    parser_summary.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON telemetry",
+    )
     def cmd_summary(args: argparse.Namespace) -> int:
         from tools.executive_summary import generate_summary, format_markdown_report
         repo_root = Path(__file__).resolve().parent.parent
         report = generate_summary(window=args.window, repo_root=repo_root, run_doctor=not args.no_doctor)
-        print(format_markdown_report(report))
+        if getattr(args, "json", False):
+            print(report.to_json(indent=2))
+        else:
+            print(format_markdown_report(report))
         return 0
 
     parser_summary.set_defaults(func=cmd_summary)
@@ -4205,8 +4210,6 @@ def build_parser() -> argparse.ArgumentParser:
             GEMINI_API_BASE_URL,
             SUPPORTED_MODELS,
             GeminiClient,
-            GenerationConfig,
-            LLMAuthError,
             LLMError,
             build_passage_context,
             get_gemini_api_key,
@@ -4540,8 +4543,6 @@ def build_parser() -> argparse.ArgumentParser:
         from core.vector import (
             DEFAULT_VECTOR_DIM,
             VectorIndex,
-            get_pericope_vector_index,
-            get_verse_vector_index,
         )
         from core.llm import GeminiClient, get_gemini_api_key
 
@@ -5151,7 +5152,7 @@ def build_parser() -> argparse.ArgumentParser:
     def cmd_ask(args: argparse.Namespace) -> int:
         from core.db import Database, DEFAULT_DB_PATH
         from core.rag import ScriptureRAGEngine
-        from core.llm import GeminiClient, LLMAuthError, LLMError, get_gemini_api_key
+        from core.llm import GeminiClient, LLMError, get_gemini_api_key
 
         query_text = " ".join(getattr(args, "query", []) or []).strip()
         if not query_text:
@@ -5416,7 +5417,6 @@ def build_parser() -> argparse.ArgumentParser:
             CANONICAL_PERSONAS,
             BiblicalPersonaSession,
             DialogueSessionManager,
-            DialogueTranscript,
             create_persona_session,
             get_persona_definition,
             list_canonical_personas,
@@ -5989,6 +5989,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "gemini", "llm", "gemini-api",
         "bench", "benchmark", "perf",
         "vector", "vec", "embedding", "embeddings",
+        "map", "scatter", "scatter-map",
         "audit-semantic", "audit", "audit-critic",
         "build-semantic", "compile-semantic", "build-db",
         "issues", "bug", "bugs",

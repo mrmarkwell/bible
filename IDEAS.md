@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Omnichannel Interactive 2D Scatter Map Terminal REPL Studio & Executive Summary JSON Telemetry (Rank A+)
+- **Summary**: Establish 100% capability parity between CLI and the sovereign interactive study REPL (`cli/shell.py`) by implementing the `/map` (with aliases `/scatter` and `/scatter_map`) terminal scatter visualizer, integrating `/vector project` to directly compute and persist 2D pericope coordinates, expanding `preprocess_cli_argv` to recognize map commands without misrouting them to citation lookup, equipping the Executive Summary engine (`./bible summary`, `tools/executive_summary.py`) with machine-readable `--json` output, adding resilient hierarchical action extraction for Senior PM meta-sprints, and pruning all static analysis warnings across core, CLI, and test modules.
+- **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by eliminating feature parity gaps between the interactive REPL and the CLI, enabling programmatic JSON consumption of executive trajectory telemetry, ensuring multi-turn and script consumers have access to 2D scripture atlas visualization, and maintaining immaculate zero-warning static analysis cleanliness.
+- **Constraints & Alignment**:
+- Offline-first? Yes (pure Python standard library ASCII plotting and local projection storage).
+- Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+- High performance? Yes (instant sub-millisecond rendering and status queries).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.31 / ADR-097).
+- **Status**: Completed and verified during Run 089 Senior PM Meta-Sprint & Executive Milestone (ADR-097).
+
 ### [COMPLETED] Sovereign Interval Sweep-Line Tag Co-Occurrence Engine, WAL Checkpoint Fingerprint Stabilization & Native HTTP SSE Streaming (Rank A+)
 - **Summary**: Replace quadratic SQL self-joins in `TaggingService.get_tag_co_occurrences` with an $O(N \log N)$ book-stratified interval sweep-line algorithm (accelerating matrix generation by 308x from 6.94s to 0.022s). Stabilize SQLite audit cache fingerprinting by running `PRAGMA wal_checkpoint(TRUNCATE)` before fingerprint computation, eliminating passive checkpoint size jitter and reducing database integrity checks in `tools/doctor.py` and `core/bootstrap.py` from 2.88s to 0.112s. Push down reference slicing in `core/slide_batch.py` before verse retrieval, cutting batch resolution latency from 3.0s to 0.05s. Implement native HTTP Server-Sent Events (SSE) endpoints in `web/server.py` (`/api/chat/stream` and `/api/rag/stream`) with structured event framing (`event: token`, `event: done`, `event: offline`).
 - **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by eliminating multi-second bottlenecks in graph/relational analysis, stabilizing caching against WAL checkpoint drift, and delivering real-time token streaming to the Web UI.

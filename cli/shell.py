@@ -15,23 +15,15 @@ from pathlib import Path
 import re
 import shlex
 import sys
-from typing import List, Optional, Sequence
+from typing import List, Optional
 
-from core.db import Database, SearchResult
-from core.reference import ALL_BOOKS, Book, BOOKS, parse_reference, Reference
+from core.db import Database
+from core.reference import ALL_BOOKS, parse_reference, Reference
 from core.terminal import (
-    BOLD,
-    BOLD_GOLD,
-    CYAN,
-    DIM,
-    RESET,
     THEMES,
-    format_citation_header,
     format_aligned_comparison_styled,
     format_scripture_passage,
-    get_terminal_width,
     should_use_color,
-    strip_ansi,
 )
 
 
@@ -1186,7 +1178,7 @@ class BibleShell(cmd.Cmd):
             self._init_db()
 
         tokens = shlex.split(arg) if arg.strip() else []
-        from core.plans import format_plans_table, get_plan, list_plans
+        from core.plans import format_plans_table, list_plans
         from core.render import (
             ImageMagickNotFoundError,
             PaginationConfig,
@@ -2676,8 +2668,25 @@ class BibleShell(cmd.Cmd):
                 pct = int(round(m.score * 100))
                 bar = "█" * (pct // 10) + "░" * (10 - (pct // 10))
                 self.stdout.write(f" {m.rank:2d}. {m.human_ref:<18} [{bar}] {m.score:+.4f}\n")
+        elif sub == "project":
+            # Project pericope embeddings into 2D coordinates and display summary or scatter plot
+            from core.projection import project_embeddings
+            embeddings = self.db.get_all_pericope_embeddings()
+            if not embeddings:
+                self.stdout.write("No pericope embeddings stored in database. Run './bible build-semantic' first.\n")
+                return
+            method = "fastmap"
+            if len(parts) > 1 and parts[1].lower() in ("pca", "fastmap"):
+                method = parts[1].lower()
+            self.stdout.write(f"Projecting {len(embeddings):,} pericope embeddings to 2D via {method.upper()}...\n")
+            raw_vectors = [e.embedding for e in embeddings]
+            coords = project_embeddings(raw_vectors, method=method)
+            update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+            self.db.update_pericope_embedding_coordinates_batch(update_items)
+            self.stdout.write(f"✓ Successfully projected and stored 2D coordinates for {len(update_items):,} pericopes.\n")
+            self.do_map("")
         else:
-            self.stdout.write(f"Unknown vector action '{sub}'. Available: status, similar, search\n")
+            self.stdout.write(f"Unknown vector action '{sub}'. Available: status, similar, search, project\n")
 
     def do_vec(self, arg: str) -> None:
         """Alias for /vector."""
@@ -2685,12 +2694,170 @@ class BibleShell(cmd.Cmd):
 
     def complete_vector(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /vector actions."""
-        options = ["status", "similar", "search"]
+        options = ["status", "similar", "search", "project"]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_vec(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete for /vec alias."""
         return self.complete_vector(text, line, begidx, endidx)
+
+    def do_map(self, arg: str) -> None:
+        """Interactive 2D Semantic Similarity Scatter Map Visualizer (ASCII/ANSI plot & stats).
+
+        Usage:
+          /map                            Display 2D pericope scatter plot across the canon
+          /map [OT|NT]                    Filter scatter plot by testament (e.g. /map NT)
+          /map [book]                     Filter scatter plot by canonical book (e.g. /map Romans)
+          /map --svg <path>               Export standalone vector SVG scatter map to file
+          /map --json                     Output map points in machine-readable JSON format
+          /map --status                   Display 2D coordinate coverage status
+        """
+        import shlex
+        from core.reference import get_book
+        from core.projection import MapPoint, render_scatter_map_svg, project_embeddings
+
+        if self.db is None:
+            self._init_db()
+
+        tokens = shlex.split(arg) if arg.strip() else []
+        testament = None
+        book_id = None
+        book_name = None
+        genre = None
+        export_svg = None
+        export_json = None
+        output_json = False
+        status_only = False
+
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if tok in ("--status", "-s"):
+                status_only = True
+                i += 1
+            elif tok in ("--json", "-j"):
+                output_json = True
+                i += 1
+            elif tok in ("--svg", "-o") and i + 1 < len(tokens):
+                export_svg = tokens[i + 1]
+                i += 2
+            elif tok == "--export-json" and i + 1 < len(tokens):
+                export_json = tokens[i + 1]
+                i += 2
+            elif tok.upper() in ("OT", "NT", "ALL"):
+                testament = tok.upper() if tok.upper() != "ALL" else None
+                i += 1
+            elif tok.startswith("-"):
+                i += 1
+            else:
+                b = get_book(tok)
+                if b:
+                    book_id = b.number
+                    book_name = b.name
+                else:
+                    genre = tok
+                i += 1
+
+        points = self.db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+
+        if not points and self.db.count_pericope_embeddings() > 0 and not book_id and not genre and not testament:
+            embeddings = self.db.get_all_pericope_embeddings()
+            if embeddings:
+                raw_vectors = [e.embedding for e in embeddings]
+                coords = project_embeddings(raw_vectors)
+                update_items = [(embeddings[k].pericope_id, coords[k][0], coords[k][1]) for k in range(len(embeddings))]
+                self.db.update_pericope_embedding_coordinates_batch(update_items)
+                points = self.db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+
+        if status_only:
+            total_pericopes = self.db.count_pericopes() if hasattr(self.db, "count_pericopes") else len(points)
+            has_coords = len(points)
+            pct = (has_coords / total_pericopes * 100.0) if total_pericopes > 0 else 0.0
+            self.stdout.write(f"Pericope 2D Coordinate Coverage: {has_coords:,} / {total_pericopes:,} ({pct:.1f}%)\n")
+            return
+
+        if output_json:
+            import json
+            self.stdout.write(json.dumps({"count": len(points), "points": points}, indent=2) + "\n")
+            return
+
+        if export_svg:
+            pt_objs = [
+                MapPoint(
+                    entity_id=p["pericope_id"],
+                    human_ref=p["human_ref"],
+                    title=p["title"],
+                    book_id=p["book_id"],
+                    book_name=p["book_name"],
+                    testament=p["testament"],
+                    genre=p["genre"],
+                    x=p["x"],
+                    y=p["y"],
+                    tags=p.get("tags", []),
+                    redemptive_summary=p.get("redemptive_summary", ""),
+                )
+                for p in points
+            ]
+            svg_content = render_scatter_map_svg(pt_objs, title="Scripture Semantic Scatter Map")
+            svg_path = Path(export_svg).resolve()
+            svg_path.parent.mkdir(parents=True, exist_ok=True)
+            svg_path.write_text(svg_content, encoding="utf-8")
+            self.stdout.write(f"✓ Wrote standalone vector SVG map ({len(points)} pericopes) to: {svg_path}\n")
+
+        if export_json:
+            import json
+            json_path = Path(export_json).resolve()
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            json_path.write_text(json.dumps({"count": len(points), "points": points}, indent=2), encoding="utf-8")
+            self.stdout.write(f"✓ Wrote JSON map dataset ({len(points)} pericopes) to: {json_path}\n")
+
+        ot_count = sum(1 for p in points if p.get("testament") == "OT")
+        nt_count = sum(1 for p in points if p.get("testament") == "NT")
+
+        W, H = 64, 18
+        grid = [[" " for _ in range(W)] for _ in range(H)]
+        gold = "\033[1;33m" if self.use_color else ""
+        cyan = "\033[36m" if self.use_color else ""
+        dim = "\033[2m" if self.use_color else ""
+        reset = "\033[0m" if self.use_color else ""
+
+        for p in points:
+            gx = int((p["x"] / 1000.0) * (W - 1))
+            gy = int((p["y"] / 700.0) * (H - 1))
+            gx = max(0, min(W - 1, gx))
+            gy = max(0, min(H - 1, gy))
+            is_ot = p.get("testament") == "OT"
+            grid[gy][gx] = f"{gold}●{reset}" if is_ot else f"{cyan}●{reset}"
+
+        filter_desc = f" ({book_name or testament or genre})" if (book_name or testament or genre) else ""
+        self.stdout.write(f"\n{gold}======================================================================{reset}\n")
+        self.stdout.write(f"{gold} Canonical Scripture 2D Semantic Similarity Scatter Map{filter_desc} (ADR-096){reset}\n")
+        self.stdout.write(f"{gold}======================================================================{reset}\n")
+        self.stdout.write(f" Pericopes Plotted: {len(points):,}  │  {gold}● Old Testament: {ot_count}{reset}  │  {cyan}● New Testament: {nt_count}{reset}\n")
+        self.stdout.write(f"{dim}+{'-' * W}+{reset}\n")
+        for row in grid:
+            self.stdout.write(f"{dim}|{reset}" + "".join(row) + f"{dim}|{reset}\n")
+        self.stdout.write(f"{dim}+{'-' * W}+{reset}\n")
+        self.stdout.write(" Web UI Explorer:   Launch '/serve start' and navigate to 'Scatter Map' tab.\n")
+        self.stdout.write(" Export Vector SVG: Run '/map --svg scripture_map.svg'\n")
+        self.stdout.write(f"{gold}======================================================================{reset}\n\n")
+
+    def do_scatter(self, arg: str) -> None:
+        """Alias for /map."""
+        self.do_map(arg)
+
+    def do_scatter_map(self, arg: str) -> None:
+        """Alias for /map."""
+        self.do_map(arg)
+
+    def complete_map(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /map."""
+        options = ["OT", "NT", "ALL", "--svg", "--json", "--status"]
+        book_names = [b.name for b in ALL_BOOKS if b.name.lower().startswith(text.lower())]
+        return [o for o in options if o.startswith(text.upper()) or o.startswith(text)] + book_names
+
+    complete_scatter = complete_map
+    complete_scatter_map = complete_map
 
     def do_corpora(self, arg: str) -> None:
         """Inspect the 7 canonical theological corpora and semantic campaign progress.
@@ -2944,6 +3111,7 @@ Study & Search:
   /crossref <action> ...  Scripture cross-referencing and relationships (aliases: /xref, /refs)
   /arcs [options]         Render pure vector SVG Typological Arc Network & explore fulfillments (alias: /typology)
   /vector [action]        Semantic vector similarity engine & search (alias: /vec)
+  /map [options]          Interactive 2D Semantic Similarity Scatter Map (aliases: /scatter, /scatter_map)
   /build-semantic [act]   Resumable batch semantic compiler & whole-Bible builder (alias: /compile-semantic)
   /audit-semantic [opts]  Audit semantic database coordinates & 100% whole-Bible coverage (alias: /audit)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)

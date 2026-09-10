@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 import sys
 import time
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 # Ensure repository root is on sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent

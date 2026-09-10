@@ -478,6 +478,23 @@ class TestShell(unittest.TestCase):
             completions = sh.complete_keys("sta", "sta", 0, 3)
             self.assertIn("status", completions)
 
+    def test_shell_map_and_vector_project(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_map("--status")
+            val = out.getvalue()
+            self.assertIn("Pericope 2D Coordinate Coverage", val)
+
+            # Test autocompletion
+            comp_map = sh.complete_map("O", "O", 0, 1)
+            self.assertIn("OT", comp_map)
+            comp_vec = sh.complete_vector("pro", "pro", 0, 3)
+            self.assertIn("project", comp_vec)
+
+            # Test /scatter and /scatter_map aliases
+            sh.do_scatter("--status")
+            sh.do_scatter_map("--status")
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -507,6 +524,9 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["esv", "status"]), ["esv", "status"])
         self.assertEqual(preprocess_cli_argv(["gemini", "status"]), ["gemini", "status"])
         self.assertEqual(preprocess_cli_argv(["vector", "status"]), ["vector", "status"])
+        self.assertEqual(preprocess_cli_argv(["map"]), ["map"])
+        self.assertEqual(preprocess_cli_argv(["scatter"]), ["scatter"])
+        self.assertEqual(preprocess_cli_argv(["scatter-map"]), ["scatter-map"])
         self.assertEqual(preprocess_cli_argv(["issues"]), ["issues"])
         self.assertEqual(preprocess_cli_argv(["bug"]), ["bug"])
         self.assertEqual(preprocess_cli_argv(["ask", "temple"]), ["ask", "temple"])

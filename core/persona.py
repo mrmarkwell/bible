@@ -29,12 +29,11 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-046, ADR-049, and ADR-0
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import re
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
-from core.db import DEFAULT_DB_PATH, Database
+from core.db import Database
 from core.esv import (
     DEFAULT_TRANSLATION,
     FALLBACK_TRANSLATION,
