@@ -148,6 +148,30 @@ document.addEventListener("DOMContentLoaded", () => {
   const personaTheologicalDesc = document.getElementById("persona-theological-desc");
   const personaKeyPassagesList = document.getElementById("persona-key-passages-list");
 
+  // DOM Elements - Scatter Map Stage & Sidebar (Task 4.7)
+  const mapVisualizerStage = document.getElementById("map-visualizer-stage");
+  const mapCanvasViewport = document.getElementById("map-canvas-viewport");
+  const mapCanvas = document.getElementById("map-canvas");
+  const mapTooltip = document.getElementById("map-tooltip");
+  const mapInspectorCard = document.getElementById("map-inspector-card");
+  const mapCardRef = document.getElementById("map-card-ref");
+  const mapCardGenre = document.getElementById("map-card-genre");
+  const mapCardTitle = document.getElementById("map-card-title");
+  const mapCardSummary = document.getElementById("map-card-summary");
+  const mapCardTags = document.getElementById("map-card-tags");
+  const btnMapReadPassage = document.getElementById("btn-map-read-passage");
+  const selectMapGenre = document.getElementById("select-map-genre");
+  const selectMapBook = document.getElementById("select-map-book");
+  const selectMapColor = document.getElementById("select-map-color");
+  const inputMapSearch = document.getElementById("input-map-search");
+  const btnMapZoomIn = document.getElementById("btn-map-zoom-in");
+  const btnMapZoomOut = document.getElementById("btn-map-zoom-out");
+  const btnMapZoomReset = document.getElementById("btn-map-zoom-reset");
+  const btnMapDownloadSvg = document.getElementById("btn-map-download-svg");
+  const mapLegendOtCount = document.getElementById("map-legend-ot-count");
+  const mapLegendNtCount = document.getElementById("map-legend-nt-count");
+  const mapLegendMetrics = document.getElementById("map-legend-metrics");
+
   // State
   let arcNetworkData = null;
   let activeArcId = null;
@@ -158,6 +182,17 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeCharacterData = null;
   let personaChatHistory = [];
   let currentPassageData = null;
+
+  // Scatter Map State (Task 4.7)
+  let mapData = null;
+  let mapPoints = [];
+  let mapTransform = { x: 0, y: 0, k: 1.0 };
+  let selectedMapPoint = null;
+  let hoveredMapPoint = null;
+  let isMapDragging = false;
+  let mapDragStart = { x: 0, y: 0 };
+  let mapScopeFilter = "ALL";
+  let mapInitialFitDone = false;
   let activeTagCategory = "";
   let currentFontSize = parseInt(localStorage.getItem("bible_font_size"), 10) || 19;
   let isFlowMode = localStorage.getItem("bible_flow_mode") === "true";
@@ -276,6 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     crossref: document.getElementById("panel-crossref"),
     ribbon: document.getElementById("panel-ribbon"),
     arcs: document.getElementById("panel-arcs"),
+    map: document.getElementById("panel-map"),
     api: document.getElementById("panel-api"),
   };
 
@@ -294,13 +330,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Toggle Stage Views (Reader Stage vs Panoramic Arcs vs RAG Study vs Character Studio)
+    // Toggle Stage Views (Reader Stage vs Panoramic Arcs vs Scatter Map vs RAG Study vs Character Studio)
     const chapterNavBar = document.querySelector(".chapter-nav-bar");
     const stageHeader = document.querySelector(".stage-header");
     const scriptureViewport = document.querySelector(".scripture-viewport");
 
     // Hide all specialized stages first
     if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
+    if (mapVisualizerStage) mapVisualizerStage.classList.add("hidden");
     if (ragStudyStage) ragStudyStage.classList.add("hidden");
     if (personaStudioStage) personaStudioStage.classList.add("hidden");
 
@@ -315,6 +352,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       populateArcBookSelector();
       loadArcNetwork();
+    } else if (view === "map") {
+      if (chapterNavBar) chapterNavBar.classList.add("hidden");
+      if (stageHeader) stageHeader.classList.add("hidden");
+      if (passageTags) passageTags.classList.add("hidden");
+      if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+      if (scriptureViewport) scriptureViewport.classList.add("hidden");
+      if (crossrefSection) crossrefSection.classList.add("hidden");
+      if (mapVisualizerStage) mapVisualizerStage.classList.remove("hidden");
+
+      initScatterMap();
+      loadScatterMap();
     } else if (view === "rag") {
       if (chapterNavBar) chapterNavBar.classList.add("hidden");
       if (stageHeader) stageHeader.classList.add("hidden");
@@ -1394,6 +1442,492 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast(`Loaded ${arc.target_ref}`);
       }
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // 2D Semantic Similarity Scatter Map Visualizer (Task 4.7)
+  // -------------------------------------------------------------------------
+  let scatterMapInitialized = false;
+
+  const GENRE_PALETTE = {
+    "Law": "#4ECDC4",
+    "History": "#45B7D1",
+    "Wisdom": "#96CEB4",
+    "Prophecy": "#FFEEAD",
+    "Gospel": "#D4AF37",
+    "Epistle": "#FF6B6B",
+    "Apocalyptic": "#DDA0DD",
+    "Other": "#8892B0"
+  };
+
+  function getMapGenreColor(genre) {
+    if (!genre) return GENRE_PALETTE.Other;
+    for (const [k, col] of Object.entries(GENRE_PALETTE)) {
+      if (genre.toLowerCase().includes(k.toLowerCase())) return col;
+    }
+    return GENRE_PALETTE.Other;
+  }
+
+  function initScatterMap() {
+    if (scatterMapInitialized) return;
+    scatterMapInitialized = true;
+
+    window.addEventListener("resize", () => {
+      if (mapVisualizerStage && !mapVisualizerStage.classList.contains("hidden")) {
+        resizeScatterCanvas();
+      }
+    });
+
+    const scopeChips = document.querySelectorAll("#map-testament-chips .chip");
+    scopeChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        scopeChips.forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+        mapScopeFilter = chip.getAttribute("data-scope") || "ALL";
+        renderScatterCanvas();
+      });
+    });
+
+    if (selectMapGenre) {
+      selectMapGenre.addEventListener("change", () => renderScatterCanvas());
+    }
+
+    if (selectMapBook) {
+      selectMapBook.addEventListener("change", () => renderScatterCanvas());
+    }
+
+    if (inputMapSearch) {
+      inputMapSearch.addEventListener("input", () => renderScatterCanvas());
+    }
+
+    if (selectMapColor) {
+      selectMapColor.addEventListener("change", () => renderScatterCanvas());
+    }
+
+    if (btnMapZoomIn) {
+      btnMapZoomIn.addEventListener("click", () => {
+        zoomScatterMap(1.3);
+      });
+    }
+    if (btnMapZoomOut) {
+      btnMapZoomOut.addEventListener("click", () => {
+        zoomScatterMap(0.77);
+      });
+    }
+    if (btnMapZoomReset) {
+      btnMapZoomReset.addEventListener("click", () => {
+        resetScatterMap();
+      });
+    }
+
+    if (btnMapDownloadSvg) {
+      btnMapDownloadSvg.addEventListener("click", () => {
+        const colorMode = selectMapColor ? selectMapColor.value : "testament";
+        const link = document.createElement("a");
+        link.href = `/api/map/svg?color_mode=${encodeURIComponent(colorMode)}`;
+        link.download = "scripture_semantic_scatter_map.svg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast("Exporting vector SVG scatter map...");
+      });
+    }
+
+    if (btnMapReadPassage) {
+      btnMapReadPassage.addEventListener("click", () => {
+        if (!selectedMapPoint) return;
+        const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+        if (passageTab) passageTab.click();
+        inputRef.value = selectedMapPoint.human_ref;
+        fetchPassage(selectedMapPoint.human_ref);
+        showToast(`Loaded ${selectedMapPoint.human_ref}`);
+      });
+    }
+
+    if (mapCanvas) {
+      mapCanvas.addEventListener("mousedown", (e) => {
+        isMapDragging = true;
+        mapDragStart = { x: e.clientX - mapTransform.x, y: e.clientY - mapTransform.y };
+        if (mapCanvasViewport) mapCanvasViewport.style.cursor = "grabbing";
+      });
+
+      window.addEventListener("mouseup", () => {
+        if (isMapDragging) {
+          isMapDragging = false;
+          if (mapCanvasViewport) mapCanvasViewport.style.cursor = "grab";
+        }
+      });
+
+      mapCanvas.addEventListener("mousemove", (e) => {
+        if (isMapDragging) {
+          mapTransform.x = e.clientX - mapDragStart.x;
+          mapTransform.y = e.clientY - mapDragStart.y;
+          renderScatterCanvas();
+        } else {
+          handleMapPointerMove(e);
+        }
+      });
+
+      mapCanvas.addEventListener("click", (e) => {
+        const rect = mapCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const clickedPt = hitTestScatterPoint(mouseX, mouseY);
+        if (clickedPt) {
+          selectScatterPoint(clickedPt);
+        }
+      });
+
+      mapCanvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const rect = mapCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        const newK = Math.max(0.4, Math.min(15.0, mapTransform.k * factor));
+
+        mapTransform.x = mouseX - (mouseX - mapTransform.x) * (newK / mapTransform.k);
+        mapTransform.y = mouseY - (mouseY - mapTransform.y) * (newK / mapTransform.k);
+        mapTransform.k = newK;
+        renderScatterCanvas();
+      }, { passive: false });
+
+      mapCanvas.addEventListener("mouseleave", () => {
+        if (mapTooltip) mapTooltip.classList.add("hidden");
+        hoveredMapPoint = null;
+        renderScatterCanvas();
+      });
+    }
+  }
+
+  function zoomScatterMap(factor) {
+    if (!mapCanvas) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const newK = Math.max(0.4, Math.min(15.0, mapTransform.k * factor));
+    mapTransform.x = cx - (cx - mapTransform.x) * (newK / mapTransform.k);
+    mapTransform.y = cy - (cy - mapTransform.y) * (newK / mapTransform.k);
+    mapTransform.k = newK;
+    renderScatterCanvas();
+  }
+
+  function resetScatterMap() {
+    mapTransform = { x: 0, y: 0, k: 1.0 };
+    renderScatterCanvas();
+  }
+
+  async function loadScatterMap() {
+    if (mapData && mapPoints.length > 0) {
+      resizeScatterCanvas();
+      return;
+    }
+
+    try {
+      if (mapLegendMetrics) mapLegendMetrics.textContent = "Loading 1,304 pericopes...";
+      const resp = await fetch("/api/map");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      mapData = await resp.json();
+      mapPoints = mapData.points || [];
+
+      if (selectMapGenre && mapData.genres) {
+        selectMapGenre.innerHTML = '<option value="">All Literary Genres</option>';
+        mapData.genres.forEach((g) => {
+          const opt = document.createElement("option");
+          opt.value = g;
+          opt.textContent = g;
+          selectMapGenre.appendChild(opt);
+        });
+      }
+
+      if (selectMapBook && allBooks.length > 0) {
+        selectMapBook.innerHTML = '<option value="">All 66 Books</option>';
+        allBooks.forEach((b) => {
+          const opt = document.createElement("option");
+          opt.value = b.name;
+          opt.textContent = b.name;
+          selectMapBook.appendChild(opt);
+        });
+      }
+
+      if (mapLegendOtCount && mapData.testament_counts) {
+        mapLegendOtCount.textContent = mapData.testament_counts.OT || 0;
+      }
+      if (mapLegendNtCount && mapData.testament_counts) {
+        mapLegendNtCount.textContent = mapData.testament_counts.NT || 0;
+      }
+      if (mapLegendMetrics) {
+        mapLegendMetrics.textContent = `${mapPoints.length.toLocaleString()} pericopes · FastMap 2D projection`;
+      }
+
+      resizeScatterCanvas();
+    } catch (err) {
+      console.error("Failed to load scatter map:", err);
+      if (mapLegendMetrics) mapLegendMetrics.textContent = `Error loading map: ${err.message}`;
+    }
+  }
+
+  function resizeScatterCanvas() {
+    if (!mapCanvas || !mapCanvasViewport) return;
+    const rect = mapCanvasViewport.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = rect.width || 1000;
+    const h = 580;
+    mapCanvas.width = w * dpr;
+    mapCanvas.height = h * dpr;
+    mapCanvas.style.width = `${w}px`;
+    mapCanvas.style.height = `${h}px`;
+
+    if (!mapInitialFitDone && mapPoints.length > 0) {
+      mapTransform.k = 1.0;
+      mapTransform.x = (w - 1000) / 2;
+      mapTransform.y = (h - 700) / 2;
+      mapInitialFitDone = true;
+    }
+
+    renderScatterCanvas();
+  }
+
+  function isPointMatchingFilters(pt) {
+    if (mapScopeFilter !== "ALL" && pt.testament !== mapScopeFilter) {
+      return false;
+    }
+    if (selectMapGenre && selectMapGenre.value && pt.genre !== selectMapGenre.value) {
+      return false;
+    }
+    if (selectMapBook && selectMapBook.value && pt.book_name !== selectMapBook.value) {
+      return false;
+    }
+    if (inputMapSearch && inputMapSearch.value.trim()) {
+      const q = inputMapSearch.value.trim().toLowerCase();
+      const matchRef = pt.human_ref.toLowerCase().includes(q);
+      const matchTitle = (pt.title || "").toLowerCase().includes(q);
+      const matchTags = (pt.tags || []).some((t) => t.toLowerCase().includes(q));
+      if (!matchRef && !matchTitle && !matchTags) return false;
+    }
+    return true;
+  }
+
+  function hitTestScatterPoint(screenX, screenY, maxDist = 14) {
+    if (!mapPoints || mapPoints.length === 0 || !mapCanvas) return null;
+    const rect = mapCanvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    let closest = null;
+    let minDistSq = maxDist * maxDist;
+
+    for (const pt of mapPoints) {
+      if (!isPointMatchingFilters(pt)) continue;
+      const px = (pt.x / 1000) * w * mapTransform.k + mapTransform.x;
+      const py = (pt.y / 700) * h * mapTransform.k + mapTransform.y;
+      const dx = screenX - px;
+      const dy = screenY - py;
+      const dSq = dx * dx + dy * dy;
+      if (dSq < minDistSq) {
+        minDistSq = dSq;
+        closest = pt;
+      }
+    }
+    return closest;
+  }
+
+  function handleMapPointerMove(e) {
+    if (!mapCanvas || !mapTooltip) return;
+    const rect = mapCanvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const hit = hitTestScatterPoint(mouseX, mouseY);
+    if (hit !== hoveredMapPoint) {
+      hoveredMapPoint = hit;
+      renderScatterCanvas();
+    }
+
+    if (hit) {
+      if (mapCanvasViewport) mapCanvasViewport.style.cursor = "pointer";
+      mapTooltip.innerHTML = `
+        <div class="map-tooltip-ref">${escapeHtml(hit.human_ref)}</div>
+        <div class="map-tooltip-title">${escapeHtml(hit.title)}</div>
+        <div class="map-tooltip-genre">${escapeHtml(hit.genre)} · ${hit.testament === "OT" ? "Old Testament" : "New Testament"}</div>
+      `;
+      mapTooltip.classList.remove("hidden");
+      const ttX = Math.min(rect.width - 240, Math.max(10, mouseX + 16));
+      const ttY = Math.min(rect.height - 80, Math.max(10, mouseY - 40));
+      mapTooltip.style.left = `${ttX}px`;
+      mapTooltip.style.top = `${ttY}px`;
+
+      if (!selectedMapPoint) {
+        updateMapInspector(hit, false);
+      }
+    } else {
+      if (mapCanvasViewport) mapCanvasViewport.style.cursor = "grab";
+      mapTooltip.classList.add("hidden");
+      if (!selectedMapPoint) {
+        resetMapInspector();
+      }
+    }
+  }
+
+  function selectScatterPoint(pt) {
+    selectedMapPoint = pt;
+    updateMapInspector(pt, true);
+    renderScatterCanvas();
+  }
+
+  function updateMapInspector(pt, isSelected) {
+    if (!mapInspectorCard) return;
+    if (mapCardRef) mapCardRef.textContent = pt.human_ref;
+    if (mapCardGenre) mapCardGenre.textContent = pt.genre || "Scripture";
+    if (mapCardTitle) mapCardTitle.textContent = pt.title || pt.human_ref;
+    if (mapCardSummary) {
+      mapCardSummary.textContent = pt.redemptive_summary || "Pericope section in the canonical Scripture narrative.";
+    }
+    if (mapCardTags) {
+      mapCardTags.innerHTML = "";
+      (pt.tags || []).forEach((tag) => {
+        const span = document.createElement("span");
+        span.className = "chip";
+        span.textContent = `#${tag}`;
+        mapCardTags.appendChild(span);
+      });
+    }
+    if (btnMapReadPassage) {
+      btnMapReadPassage.style.display = isSelected ? "block" : "none";
+    }
+  }
+
+  function resetMapInspector() {
+    if (mapCardRef) mapCardRef.textContent = "Hover or click a dot";
+    if (mapCardGenre) mapCardGenre.textContent = "Genre";
+    if (mapCardTitle) mapCardTitle.textContent = "Canonical Semantic Landscape";
+    if (mapCardSummary) {
+      mapCardSummary.textContent = "1,304 biblical pericopes arranged by high-dimensional embedding proximity. Drag to pan, scroll to zoom, click any dot to explore.";
+    }
+    if (mapCardTags) mapCardTags.innerHTML = "";
+    if (btnMapReadPassage) btnMapReadPassage.style.display = "none";
+  }
+
+  function renderScatterCanvas() {
+    if (!mapCanvas) return;
+    const ctx = mapCanvas.getContext("2d");
+    const rect = mapCanvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    const dpr = window.devicePixelRatio || 1;
+
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    ctx.fillStyle = "#0B0D11";
+    ctx.fillRect(0, 0, w, h);
+
+    const gridStep = 80 * mapTransform.k;
+    if (gridStep > 20) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+      ctx.lineWidth = 1;
+      const startX = (mapTransform.x % gridStep + gridStep) % gridStep;
+      const startY = (mapTransform.y % gridStep + gridStep) % gridStep;
+      ctx.beginPath();
+      for (let gx = startX; gx < w; gx += gridStep) {
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+      }
+      for (let gy = startY; gy < h; gy += gridStep) {
+        ctx.moveTo(0, gy);
+        ctx.lineTo(w, gy);
+      }
+      ctx.stroke();
+    }
+
+    if (!mapPoints || mapPoints.length === 0) {
+      ctx.fillStyle = "#7A889B";
+      ctx.font = "14px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Loading canonical scatter map...", w / 2, h / 2);
+      ctx.restore();
+      return;
+    }
+
+    const colorMode = selectMapColor ? selectMapColor.value : "testament";
+
+    const activePt = selectedMapPoint || hoveredMapPoint;
+    if (activePt) {
+      const activePx = (activePt.x / 1000) * w * mapTransform.k + mapTransform.x;
+      const activePy = (activePt.y / 700) * h * mapTransform.k + mapTransform.y;
+
+      const neighbors = mapPoints
+        .filter((p) => p.entity_id !== activePt.entity_id && isPointMatchingFilters(p))
+        .map((p) => {
+          const dx = p.x - activePt.x;
+          const dy = p.y - activePt.y;
+          return { p, distSq: dx * dx + dy * dy };
+        })
+        .sort((a, b) => a.distSq - b.distSq)
+        .slice(0, 5);
+
+      ctx.lineWidth = 1.2;
+      neighbors.forEach(({ p }) => {
+        const npx = (p.x / 1000) * w * mapTransform.k + mapTransform.x;
+        const npy = (p.y / 700) * h * mapTransform.k + mapTransform.y;
+        ctx.strokeStyle = "rgba(212, 175, 55, 0.35)";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(activePx, activePy);
+        ctx.lineTo(npx, npy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
+
+    for (const pt of mapPoints) {
+      const px = (pt.x / 1000) * w * mapTransform.k + mapTransform.x;
+      const py = (pt.y / 700) * h * mapTransform.k + mapTransform.y;
+
+      if (px < -20 || px > w + 20 || py < -20 || py > h + 20) {
+        continue;
+      }
+
+      const isMatch = isPointMatchingFilters(pt);
+      const isSelected = selectedMapPoint && selectedMapPoint.entity_id === pt.entity_id;
+      const isHovered = hoveredMapPoint && hoveredMapPoint.entity_id === pt.entity_id;
+
+      let baseColor;
+      if (colorMode === "testament") {
+        baseColor = pt.testament === "OT" ? "#D4AF37" : "#4ECDC4";
+      } else {
+        baseColor = getMapGenreColor(pt.genre);
+      }
+
+      const radius = isSelected ? 8.0 : isHovered ? 6.5 : (isMatch ? 4.0 : 2.5);
+      const alpha = isSelected || isHovered ? 1.0 : isMatch ? 0.85 : 0.12;
+
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor;
+      ctx.globalAlpha = alpha;
+      ctx.fill();
+
+      if (isSelected || isHovered) {
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 2.0;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(px, py, radius + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 11px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(pt.human_ref, px, py - radius - 6);
+      }
+    }
+
+    ctx.globalAlpha = 1.0;
+    ctx.restore();
   }
 
   // -------------------------------------------------------------------------

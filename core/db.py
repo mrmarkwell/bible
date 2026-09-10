@@ -441,6 +441,8 @@ class VerseEmbeddingRecord:
     dimensions: int
     embedding: bytes
     created_at: Optional[str] = None
+    map_x: Optional[float] = None
+    map_y: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert verse embedding record to dictionary representation."""
@@ -451,6 +453,8 @@ class VerseEmbeddingRecord:
             "dimensions": self.dimensions,
             "embedding_bytes": len(self.embedding),
             "created_at": self.created_at,
+            "map_x": self.map_x,
+            "map_y": self.map_y,
         }
 
 
@@ -466,6 +470,8 @@ class PericopeEmbeddingRecord:
     dimensions: int
     embedding: bytes
     created_at: Optional[str] = None
+    map_x: Optional[float] = None
+    map_y: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert pericope embedding record to dictionary representation."""
@@ -478,6 +484,8 @@ class PericopeEmbeddingRecord:
             "dimensions": self.dimensions,
             "embedding_bytes": len(self.embedding),
             "created_at": self.created_at,
+            "map_x": self.map_x,
+            "map_y": self.map_y,
         }
 
 
@@ -839,7 +847,9 @@ CREATE TABLE IF NOT EXISTS verse_embeddings (
     model_id TEXT NOT NULL,
     dimensions INTEGER NOT NULL,
     embedding BLOB NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    map_x REAL,
+    map_y REAL
 );
 
 CREATE TABLE IF NOT EXISTS pericope_embeddings (
@@ -851,6 +861,8 @@ CREATE TABLE IF NOT EXISTS pericope_embeddings (
     dimensions INTEGER NOT NULL,
     embedding BLOB NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    map_x REAL,
+    map_y REAL,
     FOREIGN KEY (pericope_id) REFERENCES pericopes(id) ON DELETE CASCADE
 );
 
@@ -1003,6 +1015,21 @@ class Database:
             cur.execute("ALTER TABLE pericopes ADD COLUMN literary_structure TEXT")
         if "central_proposition" not in p_cols:
             cur.execute("ALTER TABLE pericopes ADD COLUMN central_proposition TEXT")
+
+        # Ensure 2D projection coordinates schema evolution (Task 4.7 / ADR-096)
+        cur.execute("PRAGMA table_info(pericope_embeddings)")
+        pe_cols = {row[1] for row in cur.fetchall()}
+        if pe_cols and "map_x" not in pe_cols:
+            cur.execute("ALTER TABLE pericope_embeddings ADD COLUMN map_x REAL")
+        if pe_cols and "map_y" not in pe_cols:
+            cur.execute("ALTER TABLE pericope_embeddings ADD COLUMN map_y REAL")
+
+        cur.execute("PRAGMA table_info(verse_embeddings)")
+        ve_cols = {row[1] for row in cur.fetchall()}
+        if ve_cols and "map_x" not in ve_cols:
+            cur.execute("ALTER TABLE verse_embeddings ADD COLUMN map_x REAL")
+        if ve_cols and "map_y" not in ve_cols:
+            cur.execute("ALTER TABLE verse_embeddings ADD COLUMN map_y REAL")
 
         self.conn.commit()
         cur.close()
@@ -4342,7 +4369,7 @@ class Database:
         cur = self.conn.cursor()
         cur.execute(
             """
-            SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+            SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at, map_x, map_y
             FROM pericope_embeddings
             WHERE pericope_id = ?
             """,
@@ -4361,6 +4388,8 @@ class Database:
             dimensions=row["dimensions"],
             embedding=row["embedding"],
             created_at=row["created_at"],
+            map_x=row["map_x"] if "map_x" in row.keys() else None,
+            map_y=row["map_y"] if "map_y" in row.keys() else None,
         )
 
     def get_all_pericope_embeddings(
@@ -4372,7 +4401,7 @@ class Database:
         if model_id:
             cur.execute(
                 """
-                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at, map_x, map_y
                 FROM pericope_embeddings
                 WHERE model_id = ?
                 ORDER BY pericope_id ASC
@@ -4382,7 +4411,7 @@ class Database:
         else:
             cur.execute(
                 """
-                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at
+                SELECT pericope_id, start_canonical_id, end_canonical_id, human_ref, model_id, dimensions, embedding, created_at, map_x, map_y
                 FROM pericope_embeddings
                 ORDER BY pericope_id ASC
                 """
@@ -4399,9 +4428,103 @@ class Database:
                 dimensions=r["dimensions"],
                 embedding=r["embedding"],
                 created_at=r["created_at"],
+                map_x=r["map_x"] if "map_x" in r.keys() else None,
+                map_y=r["map_y"] if "map_y" in r.keys() else None,
             )
             for r in rows
         ]
+
+    def update_pericope_embedding_coordinates(
+        self,
+        pericope_id: int,
+        map_x: float,
+        map_y: float,
+    ) -> bool:
+        """Update 2D projection coordinates for a pericope embedding."""
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE pericope_embeddings SET map_x = ?, map_y = ? WHERE pericope_id = ?",
+                (map_x, map_y, pericope_id),
+            )
+            return cur.rowcount > 0
+
+    def update_pericope_embedding_coordinates_batch(
+        self,
+        items: Sequence[Tuple[int, float, float]],
+    ) -> int:
+        """Batch update 2D projection coordinates [(pericope_id, map_x, map_y), ...]."""
+        with self.conn:
+            cur = self.conn.executemany(
+                "UPDATE pericope_embeddings SET map_x = ?, map_y = ? WHERE pericope_id = ?",
+                [(x, y, pid) for pid, x, y in items],
+            )
+            return cur.rowcount
+
+    def get_pericope_map_points(
+        self,
+        testament: Optional[str] = None,
+        book_id: Optional[int] = None,
+        genre: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve pre-computed 2D projection map points with pericope metadata and tags."""
+        clauses = ["pe.map_x IS NOT NULL", "pe.map_y IS NOT NULL"]
+        params: List[Any] = []
+
+        if testament:
+            t_upper = testament.strip().upper()
+            if t_upper in ("OT", "NT"):
+                clauses.append("b.testament = ?")
+                params.append(t_upper)
+
+        if book_id is not None:
+            clauses.append("b.id = ?")
+            params.append(book_id)
+
+        if genre:
+            clauses.append("LOWER(COALESCE(p.genre, 'Other')) LIKE ?")
+            params.append(f"%{genre.strip().lower()}%")
+
+        where_sql = " AND ".join(clauses)
+
+        query = f"""
+            SELECT
+                pe.pericope_id,
+                pe.human_ref,
+                pe.map_x,
+                pe.map_y,
+                COALESCE(p.title, pe.human_ref) as title,
+                COALESCE(p.genre, 'Other') as genre,
+                COALESCE(p.redemptive_summary, '') as redemptive_summary,
+                b.id as book_id,
+                b.name as book_name,
+                b.testament
+            FROM pericope_embeddings pe
+            JOIN pericopes p ON pe.pericope_id = p.id
+            JOIN books b ON p.book_id = b.id
+            WHERE {where_sql}
+            ORDER BY pe.pericope_id ASC
+        """
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+
+        results = []
+        for r in rows:
+            results.append({
+                "pericope_id": r["pericope_id"],
+                "human_ref": r["human_ref"],
+                "title": r["title"],
+                "book_id": r["book_id"],
+                "book_name": r["book_name"],
+                "testament": r["testament"],
+                "genre": r["genre"],
+                "x": round(float(r["map_x"]), 2),
+                "y": round(float(r["map_y"]), 2),
+                "tags": [],
+                "redemptive_summary": r["redemptive_summary"],
+            })
+        return results
 
     def count_pericope_embeddings(self) -> int:
         """Count total stored pericope embeddings."""

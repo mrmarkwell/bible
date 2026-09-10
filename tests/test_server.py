@@ -921,6 +921,41 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("renderChatHistory", js_text)
         self.assertIn("appendChatBubble", js_text)
 
+    def test_web_api_map_endpoints(self) -> None:
+        """Verify /api/map and /api/map/svg REST endpoints."""
+        # 1. JSON endpoint /api/map
+        status, data = self._get_json("/api/map")
+        self.assertEqual(status, 200)
+        self.assertIn("points", data)
+        self.assertIn("count", data)
+        self.assertIn("width", data)
+        self.assertIn("height", data)
+        self.assertIn("testament_counts", data)
+        self.assertIn("genres", data)
+        self.assertIsInstance(data["points"], list)
+
+        # 2. Alias JSON endpoint /api/embeddings/map
+        alias_status, alias_data = self._get_json("/api/embeddings/map")
+        self.assertEqual(alias_status, 200)
+        self.assertEqual(len(alias_data["points"]), len(data["points"]))
+
+        # 3. SVG endpoint /api/map/svg
+        svg_status, svg_headers, svg_body = self._get("/api/map/svg")
+        self.assertEqual(svg_status, 200)
+        self.assertIn("image/svg+xml", svg_headers.get("Content-Type", svg_headers.get("content-type", "")))
+        svg_text = svg_body.decode("utf-8")
+        self.assertIn("<svg", svg_text)
+        self.assertIn("</svg>", svg_text)
+
+        # 4. Web UI map stage elements
+        status_html, _, body_html = self._get("/")
+        self.assertEqual(status_html, 200)
+        html_str = body_html.decode("utf-8")
+        self.assertIn('data-view="map"', html_str)
+        self.assertIn('id="panel-map"', html_str)
+        self.assertIn('id="map-visualizer-stage"', html_str)
+        self.assertIn('id="map-canvas"', html_str)
+
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
     """Test CLI argument parsing and REPL shell integration for the web server."""

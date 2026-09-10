@@ -4526,6 +4526,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_vec_similar.add_argument("--min-score", type=float, default=0.0, help="Minimum cosine similarity threshold (default: 0.0)")
     p_vec_similar.add_argument("--json", action="store_true", help="Output results as JSON")
 
+    # vector project
+    p_vec_project = vector_subparsers.add_parser("project", help="Project embeddings to 2D coordinates for visual scatter map")
+    p_vec_project.add_argument("--method", choices=["fastmap", "pca"], default="fastmap", help="Projection algorithm (default: fastmap)")
+    p_vec_project.add_argument("--force", action="store_true", help="Force recalculation even if coordinates exist")
+    p_vec_project.add_argument("--no-save", dest="save", action="store_false", default=True, help="Do not save coordinates to SQLite database")
+    p_vec_project.add_argument("--status", action="store_true", help="Show current coordinate coverage status")
+    p_vec_project.add_argument("--export-svg", type=Path, help="Export standalone SVG scatter map to path")
+    p_vec_project.add_argument("--export-json", type=Path, help="Export JSON dataset of map points")
+    p_vec_project.add_argument("--json", action="store_true", help="Emit machine-readable JSON output")
+
     def cmd_vector(args: argparse.Namespace) -> int:
         from core.vector import (
             DEFAULT_VECTOR_DIM,
@@ -4692,11 +4702,161 @@ def build_parser() -> argparse.ArgumentParser:
                     print(f" {m.rank:2d}. {cyan}{m.human_ref:<18}{reset} [{bar}] {green}{m.score:+.4f}{reset}")
                 return 0
 
+            elif action == "project":
+                from tools.project_embeddings import run_projection
+                return run_projection(
+                    db_path=db_path,
+                    method=getattr(args, "method", "fastmap"),
+                    save=getattr(args, "save", True),
+                    force=getattr(args, "force", False),
+                    status_only=getattr(args, "status", False),
+                    export_svg=getattr(args, "export_svg", None),
+                    export_json=getattr(args, "export_json", None),
+                    json_output=output_json,
+                )
+
             else:
                 sys.stderr.write(f"Unknown vector action: '{action}'. See './bible vector --help'.\n")
                 return 1
 
     parser_vector.set_defaults(func=cmd_vector)
+
+    # Subcommand: map (aliases: scatter, scatter-map)
+    parser_map = subparsers.add_parser(
+        "map",
+        aliases=["scatter", "scatter-map"],
+        help="Interactive 2D Semantic Similarity Scatter Map Visualizer (terminal & SVG)",
+        description="Visualize biblical pericopes arranged by high-dimensional embedding proximity in 2D space.",
+    )
+    parser_map.add_argument("--testament", "-T", choices=["OT", "NT", "ALL", "ot", "nt", "all"], help="Filter by testament")
+    parser_map.add_argument("--book", "-b", help="Filter by canonical book name or abbreviation")
+    parser_map.add_argument("--genre", "-g", help="Filter by literary genre")
+    parser_map.add_argument("--status", action="store_true", help="Show 2D coordinate coverage status")
+    parser_map.add_argument("--svg", "-o", type=Path, help="Export standalone vector SVG to file")
+    parser_map.add_argument("--export-json", type=Path, help="Export JSON map points to file")
+    parser_map.add_argument("--reproject", action="store_true", help="Force recomputation of 2D projection")
+    parser_map.add_argument("--method", choices=["fastmap", "pca"], default="fastmap", help="Projection method (default: fastmap)")
+    parser_map.add_argument("--json", action="store_true", help="Output map points as JSON")
+
+    def cmd_map(args: argparse.Namespace) -> int:
+        from core.projection import MapPoint, render_scatter_map_svg, project_embeddings
+        from core.reference import get_book
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Error: Database not found at '{db_path}'. Run './bible init'.\n")
+            return 1
+
+        output_json = getattr(args, "json", False)
+        status_only = getattr(args, "status", False)
+        if status_only:
+            from tools.project_embeddings import run_projection
+            return run_projection(db_path=db_path, status_only=True, json_output=output_json)
+
+        color_enabled = (
+            hasattr(sys.stdout, "isatty")
+            and sys.stdout.isatty()
+            and "NO_COLOR" not in os.environ
+        )
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[36m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        with Database(db_path, auto_init=False) as db:
+            if getattr(args, "reproject", False):
+                embeddings = db.get_all_pericope_embeddings()
+                if embeddings:
+                    method = getattr(args, "method", "fastmap")
+                    raw_vectors = [e.embedding for e in embeddings]
+                    coords = project_embeddings(raw_vectors, method=method)
+                    update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+                    db.update_pericope_embedding_coordinates_batch(update_items)
+
+            testament = getattr(args, "testament", None)
+            book_param = getattr(args, "book", None)
+            book_id = None
+            if book_param:
+                b = get_book(book_param)
+                if b:
+                    book_id = b.number
+            genre = getattr(args, "genre", None)
+
+            points = db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+
+            if not points and db.count_pericope_embeddings() > 0 and not book_id and not genre and not testament:
+                embeddings = db.get_all_pericope_embeddings()
+                if embeddings:
+                    raw_vectors = [e.embedding for e in embeddings]
+                    coords = project_embeddings(raw_vectors)
+                    update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+                    db.update_pericope_embedding_coordinates_batch(update_items)
+                    points = db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+
+            if output_json:
+                print(json.dumps({
+                    "count": len(points),
+                    "points": points,
+                }, indent=2))
+                return 0
+
+            export_svg = getattr(args, "svg", None)
+            if export_svg:
+                pt_objs = [
+                    MapPoint(
+                        entity_id=p["pericope_id"],
+                        human_ref=p["human_ref"],
+                        title=p["title"],
+                        book_id=p["book_id"],
+                        book_name=p["book_name"],
+                        testament=p["testament"],
+                        genre=p["genre"],
+                        x=p["x"],
+                        y=p["y"],
+                        tags=p.get("tags", []),
+                        redemptive_summary=p.get("redemptive_summary", ""),
+                    )
+                    for p in points
+                ]
+                svg_content = render_scatter_map_svg(pt_objs, title="Scripture Semantic Scatter Map")
+                svg_path = Path(export_svg).resolve()
+                svg_path.parent.mkdir(parents=True, exist_ok=True)
+                svg_path.write_text(svg_content, encoding="utf-8")
+                print(f" [✓] Wrote standalone vector SVG map ({len(points)} pericopes) to: {svg_path}")
+
+            export_json = getattr(args, "export_json", None)
+            if export_json:
+                json_path = Path(export_json).resolve()
+                json_path.parent.mkdir(parents=True, exist_ok=True)
+                json_path.write_text(json.dumps({"count": len(points), "points": points}, indent=2), encoding="utf-8")
+                print(f" [✓] Wrote JSON map dataset ({len(points)} pericopes) to: {json_path}")
+
+            ot_count = sum(1 for p in points if p.get("testament") == "OT")
+            nt_count = sum(1 for p in points if p.get("testament") == "NT")
+
+            W, H = 64, 18
+            grid = [[" " for _ in range(W)] for _ in range(H)]
+            for p in points:
+                gx = int((p["x"] / 1000.0) * (W - 1))
+                gy = int((p["y"] / 700.0) * (H - 1))
+                gx = max(0, min(W - 1, gx))
+                gy = max(0, min(H - 1, gy))
+                is_ot = p.get("testament") == "OT"
+                grid[gy][gx] = f"{gold}●{reset}" if is_ot else f"{cyan}●{reset}"
+
+            print(f"{gold}======================================================================{reset}")
+            print(f"{gold} Canonical Scripture 2D Semantic Similarity Scatter Map (ADR-096){reset}")
+            print(f"{gold}======================================================================{reset}")
+            print(f" Pericopes Plotted: {len(points):,}  │  {gold}● Old Testament: {ot_count}{reset}  │  {cyan}● New Testament: {nt_count}{reset}")
+            print(f"{dim}+{'-' * W}+{reset}")
+            for row in grid:
+                print(f"{dim}|{reset}" + "".join(row) + f"{dim}|{reset}")
+            print(f"{dim}+{'-' * W}+{reset}")
+            print(f" Web UI Explorer:   Launch './bible serve' and navigate to 'Scatter Map' tab.")
+            print(f" Export Vector SVG: Run './bible map --svg scripture_map.svg'")
+            print(f"{gold}======================================================================{reset}")
+            return 0
+
+    parser_map.set_defaults(func=cmd_map)
 
     # Subcommand: audit-semantic (aliases: audit, audit-critic)
     parser_audit_semantic = subparsers.add_parser(

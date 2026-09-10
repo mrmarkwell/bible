@@ -3220,5 +3220,48 @@ This document is an append-only log of significant design and architectural deci
   - Full backward compatibility maintained for existing API consumers and scripts.
   - Zero external dependencies maintained per ADR-003.
 
+---
 
+## ADR-096: Interactive 2D Semantic Similarity Scatter Map Architecture & FastMap Embedding Projection Engine
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 4.7 requested an interactive 2D Semantic Similarity Scatter Map visualizer in the Web UI, where biblical pericopes and verses are arranged by embedding proximity in a 2D coordinate space.
+  - While high-dimensional (768-dim) dense vector embeddings accurately capture theological and semantic nuance, human readers and Bible students cannot intuitively navigate high-dimensional space without 2D dimensionality reduction.
+  - Crucially, per ADR-003, the solution must strictly require zero third-party dependencies (no numpy, scipy, scikit-learn, umap-learn, or d3.js).
+  - The projection algorithm must execute rapidly in pure Python standard library across all 1,304 pericopes of the canon without noticeable latency.
+- **Decision**:
+  1. **Dual Dimensionality Reduction Engine (`core/projection.py`)**:
+     - Implemented `FastMapProjector` based on the Faloutsos & Lin (1995) FastMap metric embedding algorithm. FastMap operates in linear O(k * N) time without matrix decomposition by greedily identifying distant pivot pairs using triangle inequality heuristics and projecting remaining objects using the Law of Cosines.
+     - Implemented `PCAProjector` utilizing pure Python power iteration with deflation on the covariance matrix to extract the top two principal orthogonal eigenvectors.
+     - Added `normalize_coordinates()` to scale arbitrary projection spaces into a bounded coordinate plane (`[margin, width - margin]`, `[margin, height - margin]`).
+     - Added `render_scatter_map_svg()` generating standalone Sacred-Modern vector SVG scatter plots with embedded CSS, tooltips, testament color coding (Gold for OT, Cyan for NT), and interactive styling.
+  2. **SQLite Database Schema Migration & Storage (`core/db.py`)**:
+     - Added `map_x REAL, map_y REAL` columns to `pericope_embeddings` and `verse_embeddings` tables with automatic idempotent migration during `Database._init_db()`.
+     - Extended `PericopeEmbeddingRecord` and `VerseEmbeddingRecord` dataclasses.
+     - Added `db.update_pericope_embedding_coordinates_batch()` and `db.get_pericope_map_points()` supporting testament, book, and genre filtering.
+  3. **Batch Projection CLI & Management (`tools/project_embeddings.py`, `cli/main.py`)**:
+     - Created `tools/project_embeddings.py` supporting `--method=fastmap|pca`, `--save`, `--force`, `--status`, `--export-svg`, `--export-json`, and `--json`.
+     - Added `bible vector project` subcommand integration.
+     - Added top-level `bible map` command (`aliases=["scatter", "scatter-map"]`) rendering an ASCII/ANSI 2D scatter plot directly in the terminal with Old/New Testament dots (`●`), summary statistics, and SVG/JSON export capabilities.
+     - Pre-projected all 1,304 pericopes of the canon in `data/bible.db` in **0.712 seconds** using FastMap.
+  4. **REST API Map Endpoints (`web/server.py`)**:
+     - Added `GET /api/map` and `GET /api/embeddings/map` returning points, width, height, testament counts, and genre catalog in <7ms.
+     - Added `GET /api/map/svg` and `GET /api/embeddings/map/svg` delivering standalone vector SVG with CORS headers.
+  5. **Interactive Web UI Visualizer Stage (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`)**:
+     - Added "Scatter Map" navigation tab (`data-view="map"`).
+     - Built responsive HTML5 Canvas stage (`#map-canvas`) supporting drag-to-pan, mouse-wheel zoom, zoom buttons (`+`, `-`, `⟲`), and high-DPI retina sharpness.
+     - Built sidebar filters for Testament (All, OT, NT), Genre (Torah, Prophets, Gospels, Epistles, etc.), Book, Search, and Color Schemes (Testament, Genre, Epoch).
+     - Added interactive inspector card (`#map-inspector-card`) displaying pericope title, reference, genre, tags, redemptive summary, and a direct "Read Passage" link that seamlessly jumps to the Reader view.
+     - Added connecting line visualization to the 3 nearest semantic neighbor pericopes on hover/selection.
+  6. **Hermetic Test Suite Verification**:
+     - Created `tests/test_projection.py` (11 tests verifying FastMap, PCA, normalization, SVG generation, edge cases).
+     - Created `tests/test_project_embeddings.py` (5 tests verifying CLI runner, status, batch saving).
+     - Added server integration tests in `tests/test_server.py` verifying `/api/map` and `/api/map/svg`.
+     - Added CLI integration tests in `tests/test_cli.py` verifying `./bible map` and `./bible vector project --status`.
+     - Verified 100% test pass rate across 980 tests in <45s.
+- **Consequences**:
+  - Delivers an intuitive, exploratory 2D visual atlas of the entire Christian biblical canon based on dense neural embeddings.
+  - Zero external dependencies: pure Python standard library and vanilla HTML/Canvas/SVG only.
+  - Sub-second projection velocity and instant sub-10ms REST responses.
 

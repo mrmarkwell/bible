@@ -32,6 +32,13 @@ from core.persona import (
     load_character_scripture_passages,
 )
 from core.rag import get_rag_engine
+from core.projection import (
+    DEFAULT_MAP_HEIGHT,
+    DEFAULT_MAP_WIDTH,
+    MapPoint,
+    project_embeddings,
+    render_scatter_map_svg,
+)
 from core.reference import (
     ALL_BOOKS,
     get_book,
@@ -233,6 +240,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_chat_stream(query, body_data=body_data)
         elif clean_path in ("/api/chat/persona", "/api/chat", "/api/persona/chat"):
             self.handle_chat_persona(query, body_data=body_data)
+        elif clean_path in ("/api/map/svg", "/api/embeddings/map/svg", "/api/scatter/svg"):
+            self.handle_map_svg(query)
+        elif clean_path in ("/api/map", "/api/embeddings/map", "/api/scatter"):
+            self.handle_map(query)
         else:
             self.send_json_error(f"Unknown API endpoint: '{path}'", status=404)
 
@@ -953,6 +964,96 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_svg(net.render_svg(standalone=True, interactive=True))
         except Exception as exc:
             self.send_json_error(f"Failed to render arc SVG: {exc}", status=500)
+
+    def handle_map(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/map or /api/embeddings/map — 2D semantic scatter map points and metadata."""
+        testament = query.get("testament", [None])[0]
+        book_param = query.get("book", [None])[0]
+        genre = query.get("genre", [None])[0]
+        reproject = query.get("reproject", ["false"])[0].lower() in ("true", "1", "yes")
+        method = query.get("method", ["fastmap"])[0].lower()
+
+        book_id = None
+        if book_param:
+            b = get_book(book_param)
+            if b:
+                book_id = b.number
+
+        if reproject:
+            embeddings = self.db.get_all_pericope_embeddings()
+            if embeddings:
+                raw_vectors = [e.embedding for e in embeddings]
+                coords = project_embeddings(raw_vectors, method=method)
+                update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+                self.db.update_pericope_embedding_coordinates_batch(update_items)
+
+        points = self.db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+
+        # Auto-project if empty and embeddings exist
+        if not points and self.db.count_pericope_embeddings() > 0 and not book_id and not genre and not testament:
+            embeddings = self.db.get_all_pericope_embeddings()
+            if embeddings:
+                raw_vectors = [e.embedding for e in embeddings]
+                coords = project_embeddings(raw_vectors, method=method)
+                update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+                self.db.update_pericope_embedding_coordinates_batch(update_items)
+                points = self.db.get_pericope_map_points()
+
+        ot_count = sum(1 for p in points if p.get("testament") == "OT")
+        nt_count = sum(1 for p in points if p.get("testament") == "NT")
+        genres = sorted(list({p.get("genre", "Other") for p in points}))
+
+        self.send_json({
+            "count": len(points),
+            "width": int(DEFAULT_MAP_WIDTH),
+            "height": int(DEFAULT_MAP_HEIGHT),
+            "testament_counts": {"OT": ot_count, "NT": nt_count},
+            "genres": genres,
+            "points": points,
+        })
+
+    def handle_map_svg(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/map/svg or /api/embeddings/map/svg — Standalone vector SVG scatter map."""
+        color_mode = query.get("color_mode", ["testament"])[0].lower()
+        title = query.get("title", ["Scripture Semantic Scatter Map"])[0]
+
+        testament = query.get("testament", [None])[0]
+        book_param = query.get("book", [None])[0]
+        genre = query.get("genre", [None])[0]
+
+        book_id = None
+        if book_param:
+            b = get_book(book_param)
+            if b:
+                book_id = b.number
+
+        raw_points = self.db.get_pericope_map_points(testament=testament, book_id=book_id, genre=genre)
+        points = [
+            MapPoint(
+                entity_id=p["pericope_id"],
+                human_ref=p["human_ref"],
+                title=p["title"],
+                book_id=p["book_id"],
+                book_name=p["book_name"],
+                testament=p["testament"],
+                genre=p["genre"],
+                x=p["x"],
+                y=p["y"],
+                tags=p.get("tags", []),
+                redemptive_summary=p.get("redemptive_summary", ""),
+            )
+            for p in raw_points
+        ]
+        svg_content = render_scatter_map_svg(points, title=title, color_mode=color_mode)
+        raw_bytes = svg_content.encode("utf-8")
+
+        self.send_response(200)
+        self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw_bytes)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(raw_bytes)
 
     def handle_slide(self, query: Dict[str, List[str]]) -> None:
         """GET /api/slide or /api/slide.svg — Render high-resolution visual scripture slide."""

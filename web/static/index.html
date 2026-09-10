@@ -101,6 +101,7 @@
           <button class="nav-tab" data-view="crossref" role="tab" aria-selected="false">Cross-Refs</button>
           <button class="nav-tab" data-view="ribbon" role="tab" aria-selected="false">Canon</button>
           <button class="nav-tab" data-view="arcs" role="tab" aria-selected="false">Arcs</button>
+          <button class="nav-tab" data-view="map" role="tab" aria-selected="false">Scatter Map</button>
           <button class="nav-tab" data-view="api" role="tab" aria-selected="false">API</button>
         </nav>
 
@@ -384,6 +385,59 @@
           </div>
         </div>
 
+        <!-- Tab: 2D Semantic Similarity Scatter Map -->
+        <div class="view-panel hidden" id="panel-map" role="tabpanel">
+          <div class="form-group">
+            <label for="map-filter-testament">Testament Scope</label>
+            <div class="quick-chips" id="map-testament-chips">
+              <span class="chip active" data-scope="ALL">All Canon</span>
+              <span class="chip" data-scope="OT">Old Testament</span>
+              <span class="chip" data-scope="NT">New Testament</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="select-map-genre">Filter by Genre</label>
+            <select id="select-map-genre">
+              <option value="">All Literary Genres</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="select-map-book">Filter by Canonical Book</label>
+            <select id="select-map-book">
+              <option value="">All 66 Books</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="input-map-search">Search / Highlight</label>
+            <input type="text" id="input-map-search" placeholder="Filter reference or title..." autocomplete="off" spellcheck="false">
+          </div>
+
+          <div class="form-group">
+            <label for="select-map-color">Coloring Scheme</label>
+            <select id="select-map-color">
+              <option value="testament" selected>By Testament (OT Gold / NT Cyan)</option>
+              <option value="genre">By Literary Genre</option>
+            </select>
+          </div>
+
+          <!-- Active Pericope Inspection Card in Sidebar -->
+          <div class="card map-detail-card" id="map-inspector-card">
+            <div class="map-card-header">
+              <span class="badge badge-gold" id="map-card-ref">Hover or click a dot</span>
+              <span class="badge badge-version" id="map-card-genre">Genre</span>
+            </div>
+            <h4 class="map-card-title" id="map-card-title">Canonical Semantic Landscape</h4>
+            <p class="map-card-summary" id="map-card-summary">1,304 biblical pericopes arranged by high-dimensional embedding proximity. Drag to pan, scroll to zoom, click any dot to explore.</p>
+            <div class="map-card-tags" id="map-card-tags"></div>
+            <button class="btn btn-sm btn-primary" id="btn-map-read-passage" style="display: none; margin-top: 10px; width: 100%;">
+              <span>Read in Explorer &rarr;</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Tab 7: REST API Documentation -->
         <div class="view-panel hidden" id="panel-api" role="tabpanel">
           <div class="api-doc-list">
@@ -544,6 +598,48 @@
             <div class="arc-card-notes" id="arc-card-notes">
               Hover over or click any curved arc in the panoramic canvas above to inspect theological connections, canonical distances, and redemptive notes.
             </div>
+          </div>
+        </section>
+
+        <!-- Interactive 2D Semantic Similarity Scatter Map Stage (active in 'map' view) -->
+        <section class="map-visualizer-stage hidden" id="map-visualizer-stage">
+          <div class="map-stage-header">
+            <div class="map-stage-titles">
+              <h2 class="map-stage-heading">Canonical Scripture Semantic Similarity Scatter Map</h2>
+              <p class="map-stage-subheading">Interactive 2D spatial projection of 768-dimensional pericope embeddings. Drag to pan, scroll to zoom, click any dot to explore.</p>
+            </div>
+            <div class="map-stage-actions">
+              <div class="map-zoom-controls">
+                <button class="icon-btn" id="btn-map-zoom-in" title="Zoom In ( + )">+</button>
+                <button class="icon-btn" id="btn-map-zoom-out" title="Zoom Out ( - )">−</button>
+                <button class="icon-btn" id="btn-map-zoom-reset" title="Reset View">⟲</button>
+              </div>
+              <button class="action-btn btn-gold" id="btn-map-download-svg" title="Export High-Resolution Vector SVG">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span>Export SVG</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Canvas Viewport -->
+          <div class="map-canvas-viewport" id="map-canvas-viewport">
+            <canvas id="map-canvas" width="1000" height="700"></canvas>
+            <div class="map-tooltip hidden" id="map-tooltip"></div>
+          </div>
+
+          <!-- Legend Bar -->
+          <div class="map-legend-bar" id="map-legend-bar">
+            <div class="map-legend-items" id="map-legend-items">
+              <span class="legend-dot" style="background: #D4AF37;"></span>
+              <span class="legend-label">Old Testament (<span id="map-legend-ot-count">0</span>)</span>
+              <span class="legend-dot" style="background: #4ECDC4; margin-left: 15px;"></span>
+              <span class="legend-label">New Testament (<span id="map-legend-nt-count">0</span>)</span>
+            </div>
+            <div class="map-legend-metrics" id="map-legend-metrics">1,304 pericopes · FastMap 2D projection</div>
           </div>
         </section>
 

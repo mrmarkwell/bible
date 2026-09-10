@@ -3529,18 +3529,49 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 4.6 is 100% complete!
   - Next task on roadmap: Phase 4 Task 4.7: *Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity)*, OR Phase 7 Task 7.7: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*.
 
+---
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+## [Run 088] — 2026-09-10
+- **Agent**: Autonomous Ralph Loop Agent
+- **Phase**: Phase 4 — Web UI & Visualizations
+- **Task**: **Task 4.7** — Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity via pure-standard-library FastMap and PCA projection engines).
+- **Actions Taken**:
+  - **Dimensionality Reduction Engine (`core/projection.py`)**:
+    - Implemented `FastMapProjector` based on Faloutsos & Lin (1995) linear-time metric embedding using distant pivot heuristics and Law of Cosines distance calculations.
+    - Implemented `PCAProjector` utilizing pure Python power iteration with covariance matrix deflation to find top 2 orthogonal eigenvectors.
+    - Implemented `normalize_coordinates()` to scale coordinates into bounded viewport rectangles.
+    - Implemented `MapPoint` dataclass with complete serialization and `render_scatter_map_svg()` delivering standalone Sacred-Modern vector SVG scatter plots.
+    - Re-exported all projection symbols in `core/__init__.py`.
+  - **Database Migration & Storage (`core/db.py`)**:
+    - Added `map_x REAL, map_y REAL` columns to `pericope_embeddings` and `verse_embeddings` tables with automatic idempotent migration in `Database._init_db()`.
+    - Extended `PericopeEmbeddingRecord` and `VerseEmbeddingRecord` with `map_x` and `map_y`.
+    - Implemented `update_pericope_embedding_coordinates_batch()` and `get_pericope_map_points()` with testament, book, and genre filtering.
+  - **Batch Projection CLI & Management (`tools/project_embeddings.py`, `cli/main.py`)**:
+    - Implemented `tools/project_embeddings.py` supporting `--method=fastmap|pca`, `--save`, `--force`, `--status`, `--export-svg`, `--export-json`, and `--json`.
+    - Added `project` action to `./bible vector project`.
+    - Added top-level `./bible map` command (`aliases=["scatter", "scatter-map"]`) rendering an ASCII/ANSI 2D scatter plot directly in terminal with OT/NT dots (`●`), summary statistics, and SVG/JSON export.
+    - Executed batch projection over `data/bible.db`: projected all 1,304 canonical pericopes in **0.712s** via FastMap and persisted coordinates to SQLite.
+  - **REST API Endpoints (`web/server.py`)**:
+    - Added `GET /api/map` and `GET /api/embeddings/map` returning JSON map points, counts, bounds, and genres in <7ms.
+    - Added `GET /api/map/svg` and `GET /api/embeddings/map/svg` delivering standalone vector SVG with CORS headers.
+  - **Interactive Web UI Stage & Styling (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`)**:
+    - Added "Scatter Map" navigation tab (`data-view="map"`).
+    - Added sidebar controls for testament, genre, book, search filter, color mode, and `#map-inspector-card`.
+    - Added panoramic HTML5 Canvas visualizer stage (`#map-canvas`) with pan/drag, mouse-wheel zoom, zoom buttons, retina sharpness, nearest-neighbor semantic lines, and click-to-read navigation.
+  - **Hermetic Unit Test Suite**:
+    - Authored `tests/test_projection.py` (11 unit tests).
+    - Authored `tests/test_project_embeddings.py` (5 unit tests).
+    - Added REST API map tests in `tests/test_server.py` (`test_web_api_map_endpoints`).
+    - Added CLI map and vector project tests in `tests/test_cli.py` (`test_cli_map_subcommand`, `test_cli_vector_project_subcommand`).
+    - Verified 980 unit tests across 45 modules passing 100% in <45s.
+  - **Governance & State Machine Synchronization**:
+    - Formulated and recorded **ADR-096** in `DECISIONS.md`.
+    - Marked **Task 4.7** complete in `ROADMAP.md`.
+- **Verification**:
+  - `./bible test`: **980 tests across 45 modules passed 100%**.
+  - `./bible doctor`: verified state machine integrity.
+  - `python3 tools/linter.py`: verified 0 errors.
+- **Handoff Notes for Next Agent**:
+  - Task 4.7 is 100% complete!
+  - Next tasks on roadmap: Phase 4 Task 4.8: *Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer)*, OR Phase 7 Task 7.7: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*.
 

@@ -1474,7 +1474,32 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("Notice: Translation 'ESV' not available; falling back to 'WEB'.", stderr.getvalue())
         self.assertIn("=== John 3:16 (WEB [fallback for ESV]) ===", stdout.getvalue())
 
+    def test_cli_map_subcommand(self):
+        """Verify ./bible map renders ASCII scatter plot and responds to flags."""
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["map", "--status"])
+        self.assertEqual(code, 0)
+        self.assertIn("Scripture Semantic 2D Scatter Map Status", stdout.getvalue())
+        self.assertIn("Projected 2D Coordinates", stdout.getvalue())
+
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["map"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Canonical Scripture 2D Semantic Similarity Scatter Map", out)
+        self.assertIn("Old Testament", out)
+
+    def test_cli_vector_project_subcommand(self):
+        """Verify ./bible vector project --status executes cleanly."""
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["vector", "project", "--status"])
+        self.assertEqual(code, 0)
+        self.assertIn("Scripture Semantic 2D Scatter Map Status", stdout.getvalue())
+        self.assertIn("Projected 2D Coordinates", stdout.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
-

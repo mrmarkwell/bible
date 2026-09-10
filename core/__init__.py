@@ -269,6 +269,19 @@ from core.vector import (
     unpack_float32_vector,
     vector_norm,
 )
+from core.projection import (
+    DEFAULT_MAP_HEIGHT,
+    DEFAULT_MAP_MARGIN,
+    DEFAULT_MAP_WIDTH,
+    FastMapProjector,
+    MapPoint,
+    PCAProjector,
+    cosine_distance,
+    dequantize_vector_bytes,
+    normalize_coordinates,
+    project_embeddings,
+    render_scatter_map_svg,
+)
 from core.semantic_prompts import (
     BOOK_HORIZONS,
     BookHorizon,
@@ -637,5 +650,17 @@ __all__ = [
     "get_persona_definition",
     "list_canonical_personas",
     "load_character_scripture_passages",
+    # 2D Projection & Semantic Scatter Map (Task 4.7)
+    "DEFAULT_MAP_HEIGHT",
+    "DEFAULT_MAP_MARGIN",
+    "DEFAULT_MAP_WIDTH",
+    "FastMapProjector",
+    "MapPoint",
+    "PCAProjector",
+    "cosine_distance",
+    "dequantize_vector_bytes",
+    "normalize_coordinates",
+    "project_embeddings",
+    "render_scatter_map_svg",
 ]
 
