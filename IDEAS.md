@@ -976,5 +976,21 @@ Add the following tables and indices to `core/db.py`:
   - [ ] Add unit tests in `tests/test_vector.py` and `tests/test_server.py`.
 - **Status**: [VETTED] (Rank A+; Feature Request added).
 
+---
 
-
+### [VETTED] Typological Shadow-Fulfillment Matrix Visualizer & Exegetical Linker (Rank A+)
+- **Rank**: `A+` (Unambiguously a good idea for improvement)
+- **Summary**: Implement dedicated typology exploration tools across CLI (`./bible typology [ref]`), interactive REPL shell (`/typology`), and Web UI (`/typology` and interactive arc overlay). Connects Old Testament historical shadows, sacrificial institutions, theocratic offices (Prophet, Priest, King), and covenantal events directly to their Christological fulfillments in the New Testament with full textual warrants and theological correspondence summaries.
+- **Rationale**: While `typological_arcs` and `CANONICAL_CROSS_REFERENCES` are now populated in `data/bible.db`, users lack an omnichannel visualizer to inspect shadow-fulfillment pairs side-by-side. Providing a high-contrast terminal card and web visualization makes Christian biblical typology intuitive and devotianally illuminating.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (queries local SQLite `typological_arcs` and `cross_references` tables in <5ms).
+  - Zero third-party dependencies? Yes (Python 3 stdlib and native browser SVG only per ADR-003).
+  - Theological alignment? Yes (grounded in TGC Foundation Documents and Christ-centered hermeneutics).
+- **Proposed Roadmap Phase**: Phase 4 / Phase 8.
+- **Suggested Tasks**:
+  - [ ] Implement `core/terminal.py:format_typological_matrix(...)` rendering side-by-side OT Type vs NT Antitype cards.
+  - [ ] Add CLI subcommand `./bible typology [ref] [--json]`.
+  - [ ] Add REPL slash command `/typology [ref]`.
+  - [ ] Add REST endpoint `GET /api/typology?ref=<citation>`.
+  - [ ] Add hermetic unit tests in `tests/test_cli.py` and `tests/test_server.py`.
+- **Status**: [VETTED] (Rank A+; Feature Request added).
