@@ -1014,6 +1014,19 @@ class TestPhase7SemanticArchitecture(unittest.TestCase):
         self.assertEqual(p_batch_count, 1)
         self.assertEqual(self.db.count_pericope_embeddings(), 2)
 
+        # Test sync_verse_embeddings_from_pericopes
+        # Insert a couple of verses matching p (Romans 8:1-11)
+        self.db.insert_verse(VerseRecord(translation_id="WEB", book_id=45, chapter=8, verse=1, text="There is therefore now no condemnation."))
+        self.db.insert_verse(VerseRecord(translation_id="WEB", book_id=45, chapter=8, verse=2, text="For the law of the Spirit of life in Christ Jesus."))
+        synced_count = self.db.sync_verse_embeddings_from_pericopes(translation_id="WEB")
+        self.assertEqual(synced_count, 2)
+        self.assertEqual(self.db.count_verse_embeddings(), 2)
+        v1_emb = self.db.get_verse_embedding("Romans 8:1")
+        self.assertIsNotNone(v1_emb)
+        assert v1_emb is not None
+        self.assertEqual(v1_emb.embedding, dummy_bytes)
+        self.assertEqual(v1_emb.human_ref, "Romans 8:1")
+
         # Clear pericope embeddings
         del_pe = self.db.clear_pericope_embeddings()
         self.assertEqual(del_pe, 2)

@@ -4397,6 +4397,50 @@ class Database:
             cur = self.conn.execute("DELETE FROM verse_embeddings")
             return cur.rowcount
 
+    def sync_verse_embeddings_from_pericopes(
+        self,
+        translation_id: str = "WEB",
+    ) -> int:
+        """Propagate pericope vector embeddings and 2D coordinates to parent-mapped verses (micro-anchors).
+
+        Maps all canonical verses in the given translation to their covering pericope embeddings.
+        Returns the number of verse embeddings populated/updated.
+        """
+        now = _utc_now_iso()
+        with self.conn:
+            cur = self.conn.execute(
+                """
+                INSERT INTO verse_embeddings (
+                    canonical_verse_id, human_ref, model_id, dimensions, embedding, map_x, map_y, created_at
+                )
+                SELECT
+                    v.canonical_verse_id,
+                    b.name || ' ' || v.chapter || ':' || v.verse as human_ref,
+                    pe.model_id,
+                    pe.dimensions,
+                    pe.embedding,
+                    pe.map_x,
+                    pe.map_y,
+                    ?
+                FROM verses v
+                JOIN books b ON v.book_id = b.id
+                JOIN pericopes p ON v.canonical_verse_id >= p.start_canonical_id AND v.canonical_verse_id <= p.end_canonical_id
+                JOIN pericope_embeddings pe ON pe.pericope_id = p.id
+                WHERE v.translation_id = ?
+                GROUP BY v.canonical_verse_id
+                ON CONFLICT(canonical_verse_id) DO UPDATE SET
+                    human_ref=excluded.human_ref,
+                    model_id=excluded.model_id,
+                    dimensions=excluded.dimensions,
+                    embedding=excluded.embedding,
+                    map_x=excluded.map_x,
+                    map_y=excluded.map_y,
+                    created_at=excluded.created_at
+                """,
+                (now, translation_id),
+            )
+            return cur.rowcount
+
     def save_pericope_embedding(
         self,
         pericope_id: int,

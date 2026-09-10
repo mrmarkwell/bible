@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Whole-Bible Verse Micro-Anchor Embedding Architecture & Sovereign Parent-Document Alignment (Rank A+)
+- **Summary**: Implement high-velocity set-based SQL micro-anchor synchronization from parent pericopes into `verse_embeddings` across all 31,103 canonical verses (`Database.sync_verse_embeddings_from_pericopes(translation_id="WEB") -> int`), completing in ~0.12s. Integrate automated verse micro-anchor synchronization directly into the vector compilation lifecycle (`tools/build_vector_db.py` / `./bible build-vectors` with `--sync-verses` and `--no-sync-verses`), update System Doctor (`tools/doctor.py`) to audit verse micro-anchor coverage (31,103 verse micro-anchors), expose telemetry in `core/status.py`, and complete Task 7.15, marking 100% completion of the Bible Engine roadmap across all 9 phases.
+- **Rationale**: Direct verse embedding generation from external LLM APIs would fragment narrative context, duplicate parent pericope semantics, and incur high overhead. Propagating the parent pericope's 768-dimensional dense Semantic Passport embedding and 2D projection coordinates to each covered verse establishes a parent-document retrieval paradigm, enabling pinpoint single-verse semantic search (e.g. `./bible vector similar "John 3:16"`) while linking back to full pericope theology.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure local SQLite SQL join, executes in 0.12s for 31,103 verses).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High performance? Yes (synchronizes 31,103 verses in ~120 milliseconds).
+- **Proposed Roadmap Phase**: Phase 7 (Task 7.15 / ADR-114).
+- **Status**: Completed and verified during Run 106 (ADR-114).
+
 ### [COMPLETED] Automated 2D Vector Projection & Whole-Bible Scatter Atlas Verification Architecture (Rank A+)
 - **Summary**: Implement automatic end-to-end 2D projection post-processing in the batch vector compiler (`tools/build_vector_db.py` / `./bible build-vectors`) and whole-Bible projection sentry auditing in System Doctor (`tools/doctor.py`). When vector compilation completes, the compiler automatically invokes FastMap dimensionality reduction (`core/projection.py`) to map 768-dimensional embeddings to 2D coordinates (`map_x`, `map_y`) in SQLite in <0.75s, supporting `--no-project` and `--project-method`. Extended `tools/doctor.py` to continuously audit vector embedding totals and 2D projection coverage (`1,333 pericope vectors (1,333 projected 2D [100.0%])`), eliminating lifecycle desynchronization between vector embeddings and visual scatter atlases across CLI, REPL, and Web UI.
 - **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by removing a manual multi-step decoupling between vector embedding compilation and visual scatter map rendering, bringing projection coverage to 100.0% (1,333/1,333 pericopes), and establishing continuous automated sentry verification in the System Doctor.

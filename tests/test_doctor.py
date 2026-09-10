@@ -83,6 +83,7 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertIn("tables verified", res.details)
         self.assertIn("semantically audited", res.details)
         self.assertIn("pericope vectors", res.details)
+        self.assertIn("verse micro-anchors", res.details)
         self.assertRegex(res.details, r"\d+\.\d+%")
 
     def test_check_unit_tests_clean(self):

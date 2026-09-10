@@ -60,6 +60,7 @@ class PlatformStatus:
 
     # Vector Database & Quantization
     total_vector_embeddings: int = 0
+    total_verse_vector_embeddings: int = 0
     vector_dim: int = 768
     vector_quantization: str = "signed int8 ([-127, 127])"
     vector_corpora_total: int = 7
@@ -119,6 +120,7 @@ class PlatformStatus:
             },
             "vector_database": {
                 "total_embeddings": self.total_vector_embeddings,
+                "total_verse_embeddings": self.total_verse_vector_embeddings,
                 "dimension": self.vector_dim,
                 "quantization": self.vector_quantization,
                 "corpora_total": self.vector_corpora_total,
@@ -351,6 +353,12 @@ def get_platform_status(
                 except Exception:
                     pass
 
+                try:
+                    c.execute("SELECT COUNT(*) FROM verse_embeddings")
+                    status.total_verse_vector_embeddings = c.fetchone()[0]
+                except Exception:
+                    pass
+
                 # Vector Corpora Completed
                 try:
                     from core.corpora import CANONICAL_CORPORA
@@ -491,8 +499,11 @@ def format_terminal_dashboard(
 
     # Line 3
     pericopes_stat = f"{status.total_pericopes:,} pericopes"
-    vec_camp = f"Corpora: {status.vector_corpora_completed}/{status.vector_corpora_total} active ({status.vector_completion_pct:.1f}%)"
-    lines.append(f"   • Exegesis:      {pericopes_stat:<22} • Vector Camp:  {vec_camp}")
+    if status.total_verse_vector_embeddings > 0:
+        vec_camp = f"{status.total_verse_vector_embeddings:,} micro-anchors (100%)"
+    else:
+        vec_camp = f"Corpora: {status.vector_corpora_completed}/{status.vector_corpora_total} active ({status.vector_completion_pct:.1f}%)"
+    lines.append(f"   • Exegesis:      {pericopes_stat:<22} • Verse Vectors: {vec_camp}")
 
     # Line 4
     xrefs_stat = f"{status.total_cross_references:,} TSK edges"

@@ -5207,6 +5207,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="fastmap",
         help="Dimensionality reduction algorithm for auto-projecting (default: fastmap)",
     )
+    parser_build_vectors.add_argument(
+        "--sync-verses",
+        action="store_true",
+        help="Synchronize verse micro-anchor embeddings from parent pericopes without compiling pericopes",
+    )
+    parser_build_vectors.add_argument(
+        "--no-sync-verses",
+        action="store_false",
+        dest="auto_sync_verses",
+        default=True,
+        help="Do not automatically propagate pericope embeddings to verse micro-anchors upon completion",
+    )
 
     def cmd_build_vectors(args: argparse.Namespace) -> int:
         from tools.build_vector_db import run_vector_build
@@ -5228,6 +5240,8 @@ def build_parser() -> argparse.ArgumentParser:
             verbose=getattr(args, "verbose", False),
             auto_project=getattr(args, "auto_project", True),
             project_method=getattr(args, "project_method", "fastmap"),
+            auto_sync_verses=getattr(args, "auto_sync_verses", True),
+            sync_verses=getattr(args, "sync_verses", False),
         )
 
     parser_build_vectors.set_defaults(func=cmd_build_vectors)

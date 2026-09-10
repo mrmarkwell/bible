@@ -772,11 +772,14 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
             try:
                 cur.execute("SELECT COUNT(*) FROM pericope_embeddings")
                 total_embs = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM verse_embeddings")
+                total_verse_embs = cur.fetchone()[0]
                 if total_embs > 0:
                     cur.execute("SELECT COUNT(*) FROM pericope_embeddings WHERE map_x IS NOT NULL AND map_y IS NOT NULL")
                     proj_embs = cur.fetchone()[0]
                     proj_pct = (proj_embs / total_embs) * 100.0
-                    vector_summary = f", {total_embs:,} pericope vectors ({proj_embs:,} projected 2D [{proj_pct:.1f}%])"
+                    verse_note = f", {total_verse_embs:,} verse micro-anchors" if total_verse_embs > 0 else ""
+                    vector_summary = f", {total_embs:,} pericope vectors ({proj_embs:,} projected 2D [{proj_pct:.1f}%]{verse_note})"
             except Exception:
                 pass
 

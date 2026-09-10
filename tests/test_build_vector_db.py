@@ -506,7 +506,49 @@ class TestBuildVectorDb(unittest.TestCase):
         self.assertIsNone(row[0])
         self.assertIsNone(row[1])
 
+    def test_verse_micro_anchors_auto_sync(self):
+        # Compiling pericopes with default auto_sync_verses=True propagates to verse_embeddings
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                book_filter="Romans",
+                resume=False,
+                auto_sync_verses=True,
+            )
+        self.assertEqual(code, 0)
+        cur = self.db.conn.cursor()
+        v_emb = cur.execute(
+            "SELECT canonical_verse_id, human_ref, dimensions, LENGTH(embedding) FROM verse_embeddings WHERE canonical_verse_id = 45001016"
+        ).fetchone()
+        self.assertIsNotNone(v_emb)
+        self.assertEqual(v_emb[0], 45001016)
+        self.assertEqual(v_emb[1], "Romans 1:16")
+        self.assertEqual(v_emb[2], 768)
+        self.assertEqual(v_emb[3], 768)
+
+    def test_sync_verses_standalone_flag(self):
+        # First ensure a pericope embedding exists without verse embeddings
+        self.db.clear_verse_embeddings()
+        self.assertEqual(self.db.count_verse_embeddings(), 0)
+
+        # Seed pericope embedding directly
+        dummy = b"\x01" * 768
+        self.db.save_pericope_embedding(self.pericope.id, "Romans 1:16-17", "text-embedding-004", 768, dummy)
+
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                sync_verses=True,
+            )
+        self.assertEqual(code, 0)
+        self.assertGreater(self.db.count_verse_embeddings(), 0)
+        v = self.db.get_verse_embedding("Romans 1:16")
+        self.assertIsNotNone(v)
+        assert v is not None
+        self.assertEqual(v.embedding, dummy)
+
 
 if __name__ == "__main__":
     unittest.main()
-

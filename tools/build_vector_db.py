@@ -488,6 +488,8 @@ def run_vector_build(
     verbose: bool = False,
     auto_project: bool = True,
     project_method: str = "fastmap",
+    auto_sync_verses: bool = True,
+    sync_verses: bool = False,
 ) -> int:
     """Execute batch vector compilation or ledger inspection."""
     if not db_path.exists():
@@ -556,7 +558,6 @@ def run_vector_build(
         scope_name = f"Corpus {corpus_obj.corpus_id}: {corpus_obj.title}" if corpus_obj else (f"Book: {book_obj.name}" if book_obj else "Scope: Whole Bible (1,304 Pericopes)")
         total = sum(summary.values())
 
-        # Also count stored pericope embeddings
         cur = db.conn.cursor()
         if target_book_ids:
             ph = ",".join("?" for _ in target_book_ids)
@@ -571,12 +572,15 @@ def run_vector_build(
         else:
             stored_cnt = cur.execute("SELECT COUNT(*) FROM pericope_embeddings").fetchone()[0]
 
+        verse_emb_cnt = cur.execute("SELECT COUNT(*) FROM verse_embeddings").fetchone()[0]
+
         if json_output:
             payload = {
                 "ledger_status": summary,
                 "book": book_label,
                 "scope": scope_name,
                 "stored_embeddings": stored_cnt,
+                "stored_verse_embeddings": verse_emb_cnt,
             }
             if corpus_obj:
                 payload["corpus"] = corpus_obj.to_dict()
@@ -591,10 +595,19 @@ def run_vector_build(
             print(f"  * In Progress:        {summary.get('IN_PROGRESS', 0)}")
             print(f"  * Failed:             {summary.get('FAILED', 0)}")
             print(f" Stored In SQLite:      {stored_cnt:,} pericope embeddings")
+            print(f" Verse Micro-Anchors:   {verse_emb_cnt:,} verse embeddings")
             if total > 0:
                 pct = (summary.get('COMPLETED', 0) / total) * 100.0
                 print(f" Overall Completion:   {pct:.1f}%")
             print("=" * 72)
+        return 0
+
+    if sync_verses:
+        synced = db.sync_verse_embeddings_from_pericopes(translation_id=translation_id)
+        if json_output:
+            print(json.dumps({"status": "SUCCESS", "synced_verse_embeddings": synced, "translation": translation_id}))
+        else:
+            print(f"Successfully synchronized {synced:,} verse micro-anchor embeddings from parent pericopes ({translation_id}).")
         return 0
 
     # Initialize compiler
@@ -668,6 +681,16 @@ def run_vector_build(
         except Exception as proj_exc:
             if verbose and not json_output:
                 print(f"  * 2D Projection:     Warning: {proj_exc}")
+
+    # Auto-sync verse micro-anchor embeddings from parent pericopes
+    if auto_sync_verses and progress.completed_units > 0 and progress.failed_units == 0:
+        try:
+            synced_v = db.sync_verse_embeddings_from_pericopes(translation_id=translation_id)
+            if not json_output:
+                print(f"  * Verse Micro-Anchors: {synced_v:,} verses synchronized from parent pericopes ({translation_id})")
+        except Exception as sync_exc:
+            if verbose and not json_output:
+                print(f"  * Verse Micro-Anchors: Warning: {sync_exc}")
 
     if json_output:
         print(json.dumps({
@@ -788,6 +811,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="fastmap",
         help="Dimensionality reduction algorithm for auto-projecting (default: fastmap)",
     )
+    parser.add_argument(
+        "--sync-verses",
+        action="store_true",
+        help="Synchronize verse micro-anchor embeddings from parent pericopes without compiling pericopes",
+    )
+    parser.add_argument(
+        "--no-sync-verses",
+        action="store_false",
+        dest="auto_sync_verses",
+        default=True,
+        help="Do not automatically propagate pericope embeddings to verse micro-anchors upon completion",
+    )
 
     args = parser.parse_args(argv)
     db_path = Path(args.db).resolve()
@@ -809,6 +844,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         verbose=args.verbose,
         auto_project=args.auto_project,
         project_method=args.project_method,
+        auto_sync_verses=args.auto_sync_verses,
+        sync_verses=args.sync_verses,
     )
 
 
