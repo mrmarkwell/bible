@@ -125,6 +125,25 @@ class TestBuildVectorDb(unittest.TestCase):
                 text="Yahweh is my shepherd: I shall lack nothing.",
             )
         )
+
+        # Seed sample pericope in Isaiah (Corpus 6)
+        ref_isaiah = parse_reference("Isaiah 53:1-6")
+        self.pericope_isaiah = self.db.insert_pericope(
+            reference=ref_isaiah,
+            title="The Suffering Servant Pierced for Our Transgressions",
+            redemptive_summary="The Servant of Yahweh bears our iniquities and by His wounds we are healed.",
+            genre="Major Prophets",
+            central_proposition="He was pierced for our transgressions; He was crushed for our iniquities.",
+        )
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="WEB",
+                book_id=ref_isaiah.book.number,
+                chapter=53,
+                verse=5,
+                text="But he was pierced for our transgressions. He was crushed for our iniquities. The punishment that brought our peace was on him; and by his wounds we are healed.",
+            )
+        )
         self.ledger = VectorCheckpointLedger(self.db)
 
     def tearDown(self):
@@ -393,6 +412,30 @@ class TestBuildVectorDb(unittest.TestCase):
         emb_row = cur.execute(
             "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
             (self.pericope_psalm.id,),
+        ).fetchone()
+        self.assertIsNotNone(emb_row)
+        self.assertEqual(emb_row[0], 768)
+        self.assertEqual(emb_row[1], 768)
+
+    def test_compilation_execution_corpus_6_filter(self):
+        # Test compiling with corpus_filter="6" (Major & Minor Prophets)
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="6",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
+        # Verify the Isaiah pericope was embedded
+        cur = self.db.conn.cursor()
+        emb_row = cur.execute(
+            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope_isaiah.id,),
         ).fetchone()
         self.assertIsNotNone(emb_row)
         self.assertEqual(emb_row[0], 768)

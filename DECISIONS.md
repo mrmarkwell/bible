@@ -3727,3 +3727,35 @@ This document is an append-only log of significant design and architectural deci
   - Sets up the next milestone: Task 7.13 (Corpus 6: Major & Minor Prophets: Isaiah to Malachi; ~215 pericopes).
   - 100% zero external dependencies maintained (ADR-003).
 
+---
+
+## ADR-111: Whole-Bible Vector Database Campaign: Corpus 6 Architecture (Major & Minor Prophets)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following Corpus 1 (Pauline Foundations & Hebrews per Task 7.8 / ADR-105), Corpus 2 (The Four Gospels & Acts per Task 7.9 / ADR-106), Corpus 3 (Pentateuch & Covenant Foundations per Task 7.10 / ADR-107), Corpus 4 (Pastoral & General Epistles per Task 7.11 / ADR-109), and Corpus 5 (Wisdom Literature & Poetry per Task 7.12 / ADR-110), Task 7.13 requires executing the vector compilation campaign across Corpus 6: Major & Minor Prophets (Isaiah to Malachi; 264 pericopes).
+  - Corpus 6 encompasses the prophetic witness across the canonical covenantal storyline: the divine lawsuit against covenant unfaithfulness and idolatry, the solemn proclamation of judgment and exile, the holy character of Yahweh (the Holy One of Israel), the glorious promises of the Suffering Servant and the New Covenant, the outpouring of the Holy Spirit, the restoration of Zion, the Messianic Branch and Ruler from Bethlehem, and the cosmic Day of the Lord.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic state tracking and crash resilience.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, prophetic genres (Covenant Lawsuit, Prophetic Judgment, Messianic Oracle, Apocalyptic Vision, Lament, Restoration Oracle), and theological loci.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 264 canonical pericopes in Corpus 6.
+    5. Dynamic reflection of vector campaign completion in the Platform Status Dashboard (`core/status.py`), expanding vector campaign progress to 6/7 active corpora (85.7%).
+- **Decision**:
+  1. **Corpus 6 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 6` across all 17 prophetic books of Corpus 6: Isaiah (74 pericopes), Jeremiah (53 pericopes), Lamentations (5 pericopes), Ezekiel (50 pericopes), Daniel (13 pericopes), Hosea (14 pericopes), Joel (3 pericopes), Amos (9 pericopes), Obadiah (1 pericope), Jonah (4 pericopes), Micah (8 pericopes), Nahum (3 pericopes), Habakkuk (4 pericopes), Zephaniah (3 pericopes), Haggai (2 pericopes), Zechariah (14 pericopes), and Malachi (4 pericopes; total 264 pericopes).
+     - Successfully synthesized multi-tiered Semantic Passports, generated normalized 768-dimensional int8 signed vector embeddings, and registered all 264 canonical pericopes into SQLite `vector_checkpoint_ledger` and `pericope_embeddings`.
+     - Verified 100% ledger completion: 264/264 units completed, 0 failed, 0 in progress, 0 pending in 41.29s (expanding total tracked and verified units in whole-Bible ledger to 1,048/1,048 and total pericope vector embeddings in SQLite to 1,328).
+  2. **Platform Status Telemetry Dynamic Reflection (`core/status.py`)**:
+     - Verified platform status telemetry dynamically reflects 6/7 active vector corpora (85.7%) and 98.0% roadmap completion.
+  3. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Seeded sample Isaiah pericope (Isaiah 53:1-6, "The Suffering Servant Pierced for Our Transgressions") in `TestBuildVectorDb.setUp`.
+     - Added `test_compilation_execution_corpus_6_filter` asserting that `--corpus 6` isolates, compiles, and embeds Major & Minor Prophets pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 48 test modules pass 100% (1,058 tests passing in 8.6s).
+- **Consequences**:
+  - Resolves Task 7.13 on the project roadmap.
+  - Corpus 6 (Major & Minor Prophets) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
+  - Sets up the final vector campaign milestone: Task 7.14 (Corpus 7: Historical Books & Apocalyptic Consummation: Joshua to Esther, Revelation; ~150 pericopes).
+  - 100% zero external dependencies maintained (ADR-003).
+
+
