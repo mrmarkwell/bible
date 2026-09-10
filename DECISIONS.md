@@ -3695,3 +3695,35 @@ This document is an append-only log of significant design and architectural deci
   - Corpus 4 (Pastoral & General Epistles) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
   - Sets up the next milestone: Task 7.12 (Corpus 5: Wisdom Literature & Poetry: Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; ~240 pericopes).
   - 100% zero external dependencies maintained (ADR-003).
+
+---
+
+## ADR-110: Whole-Bible Vector Database Campaign: Corpus 5 Architecture (Wisdom Literature & Poetry)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following Corpus 1 (Pauline Foundations & Hebrews per Task 7.8 / ADR-105), Corpus 2 (The Four Gospels & Acts per Task 7.9 / ADR-106), Corpus 3 (Pentateuch & Covenant Foundations per Task 7.10 / ADR-107), and Corpus 4 (Pastoral & General Epistles per Task 7.11 / ADR-109), Task 7.12 requires executing the vector compilation campaign across Corpus 5: Wisdom Literature & Poetry (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; 253 pericopes).
+  - Corpus 5 embodies the Hebrew poetic canon: covenantal praise, righteous suffering, the mystery of divine justice, the fear of the Lord as the beginning of wisdom, the vanity of life under the sun without God, and marital love and devotion as shadows of Christ's love for His Church.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic state tracking and crash resilience.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, poetic structures (Psalmic lament, praise, Messianic royal psalm, wisdom aphorism, dramatic dialogue), and theological loci.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 253 canonical pericopes in Corpus 5.
+    5. Dynamic reflection of vector campaign completion in the Platform Status Dashboard (`core/status.py`), expanding vector campaign progress to 5/7 active corpora (71.4%).
+- **Decision**:
+  1. **Corpus 5 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 5` across all 5 poetic books of Corpus 5: Job (43 pericopes), Psalms (158 pericopes), Proverbs (32 pericopes), Ecclesiastes (12 pericopes), and Song of Solomon (8 pericopes).
+     - Successfully synthesized multi-tiered Semantic Passports, generated normalized 768-dimensional int8 signed vector embeddings, and registered all 253 canonical pericopes into SQLite `vector_checkpoint_ledger` and `pericope_embeddings`.
+     - Verified 100% ledger completion: 253/253 units completed, 0 failed, 0 in progress, 0 pending in 27.65s (expanding total tracked and verified units in whole-Bible ledger to 784/784 and total pericope vector embeddings in SQLite to 1,325).
+  2. **Platform Status Telemetry Dynamic Reflection (`core/status.py`)**:
+     - Upgraded platform status telemetry to dynamically reflect 5/7 active vector corpora (71.4%) and 97.0% roadmap completion.
+  3. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Seeded sample Psalm pericope (Psalms 23:1-6, "The Lord is My Shepherd") in `TestBuildVectorDb.setUp`.
+     - Added `test_compilation_execution_corpus_5_filter` asserting that `--corpus 5` isolates, compiles, and embeds Wisdom Literature & Poetry pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 48 test modules pass 100% (1,057 tests passing in 8.7s).
+- **Consequences**:
+  - Resolves Task 7.12 on the project roadmap.
+  - Corpus 5 (Wisdom Literature & Poetry) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
+  - Sets up the next milestone: Task 7.13 (Corpus 6: Major & Minor Prophets: Isaiah to Malachi; ~215 pericopes).
+  - 100% zero external dependencies maintained (ADR-003).
+

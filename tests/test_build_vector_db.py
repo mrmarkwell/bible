@@ -106,6 +106,25 @@ class TestBuildVectorDb(unittest.TestCase):
                 text="James, a servant of God and of the Lord Jesus Christ, to the twelve tribes which are in the Dispersion: Greetings.",
             )
         )
+
+        # Seed sample pericope in Psalms (Corpus 5)
+        ref_psalm = parse_reference("Psalms 23:1-6")
+        self.pericope_psalm = self.db.insert_pericope(
+            reference=ref_psalm,
+            title="The Lord is My Shepherd",
+            redemptive_summary="Yahweh shepherds His covenant people through valleys of shadow into eternal communion.",
+            genre="Wisdom & Poetry",
+            central_proposition="Yahweh is my shepherd; I shall lack nothing.",
+        )
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="WEB",
+                book_id=ref_psalm.book.number,
+                chapter=23,
+                verse=1,
+                text="Yahweh is my shepherd: I shall lack nothing.",
+            )
+        )
         self.ledger = VectorCheckpointLedger(self.db)
 
     def tearDown(self):
@@ -350,6 +369,30 @@ class TestBuildVectorDb(unittest.TestCase):
         emb_row = cur.execute(
             "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
             (self.pericope_james.id,),
+        ).fetchone()
+        self.assertIsNotNone(emb_row)
+        self.assertEqual(emb_row[0], 768)
+        self.assertEqual(emb_row[1], 768)
+
+    def test_compilation_execution_corpus_5_filter(self):
+        # Test compiling with corpus_filter="5" (Wisdom Literature & Poetry)
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="5",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
+        # Verify the Psalm pericope was embedded
+        cur = self.db.conn.cursor()
+        emb_row = cur.execute(
+            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope_psalm.id,),
         ).fetchone()
         self.assertIsNotNone(emb_row)
         self.assertEqual(emb_row[0], 768)
