@@ -491,7 +491,9 @@ class SemanticDatabaseCompiler:
         verses = self.db.get_verses_by_reference(ref, translation_id=tid)
         if not verses:
             try:
-                verses, _, _ = self.db.get_verses_with_fallback(ref, translation_id=tid)
+                verses, _, _ = self.db.get_verses_with_fallback(
+                    ref, translation_id=tid, allow_network=False
+                )
             except Exception:
                 verses = []
         if not verses:

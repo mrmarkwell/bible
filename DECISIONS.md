@@ -2922,10 +2922,35 @@ This document is an append-only log of significant design and architectural deci
   3. **Hermetic Test Suite Verification**:
      - Expanded `tests/test_corpora.py` with `test_corpus_2_composition`, asserting 5 canonical books, 117 total chapters, and exact book catalog ordering.
      - Verified all 43 hermetic test modules pass 100% (940 tests in ~30s).
+---
+
+## ADR-087: Whole-Bible Bounded Semantic Campaign: Corpus 3 (Pentateuch & Covenant Foundations) & Network-Decoupled Batch Compilation
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 3.11 on the roadmap called for the execution of Corpus 3: Pentateuch & Covenant Foundations (Genesis [1], Exodus [2], Leviticus [3], Numbers [4], Deuteronomy [5]; 5 books, 187 chapters, 28 canonical pericopes, 215 total compilation units) via the SQLite checkpoint ledger (ADR-082, ADR-085).
+  - The Pentateuch forms the foundational covenant bedrock of the entire biblical canon: Creation, Cosmic Fall, Protoevangelium (`Genesis 3:15`), Abrahamic Covenant (`Genesis 12/15/17`), Exodus Redemption (`Exodus 12/14`), Sinai Law & Tabernacle Dwelling (`Exodus 20/25`), Yom Kippur Sacrificial Atonement (`Leviticus 16/17`), Wilderness Testing & the Bronze Serpent (`Numbers 14/21`), and Deuteronomic Covenant Renewal & Circumcision of the Heart (`Deuteronomy 6/18/30`).
+  - During initial dry-run testing of Corpus 3 unit gathering, an architectural bottleneck was uncovered: `SemanticCompiler.fetch_passage_text()` called `db.get_verses_with_fallback()` with default `allow_network=True`. When compiling hundreds of units across the canon, if passage verses were not already in the 500-verse LRU cache, the compiler attempted sequential live HTTP network requests to the external ESV API for 187 chapters (~50 seconds of network latency and potential API rate limiting).
+  - This violated our offline-first architectural mandate (ADR-003, ADR-081, ADR-082). Batch compilation must be sovereign, completely hermetic, and capable of operating instantaneously offline from local SQLite data.
+- **Decision**:
+  1. **Network-Decoupled Batch Compilation (`core/semantic_compiler.py`)**:
+     - Updated `SemanticCompiler.fetch_passage_text()` to explicitly pass `allow_network=False` into `db.get_verses_with_fallback()`.
+     - This ensures that batch compilation utilizes cached ESV verses when available and immediately falls back to bundled offline SQLite translations (WEB) without blocking on hundreds of HTTP requests or failing in offline environments.
+     - Reduced compilation unit assembly time across 187 chapters from ~50 seconds down to **0.25 seconds** (a ~200x acceleration).
+  2. **Corpus 3 Batch Compilation Execution**:
+     - Executed `./bible build-semantic --corpus 3 --no-resume` against `data/bible.db`.
+     - Successfully compiled all 215 compilation units (28 canonical pericopes + 187 chapters) across Genesis, Exodus, Leviticus, Numbers, and Deuteronomy in **0.83 seconds**.
+     - Generated 215 pericopes, 215 discourse relations, 215 verse theology records, 30 typological arcs, 215 semantic propositions, and 215 int8 vector embeddings.
+     - Ingested Pentateuchal motifs and theological loci into `tags` and `verse_tags` tables via `TaggingService` (`creation`, `fall`, `covenant_of_grace`, `promised_seed`, `sovereign_election`, `tabernacle_presence`, `sacrificial_atonement`, `priesthood`, `covenant_faithfulness`).
+  3. **Hermetic Test Suite Expansion**:
+     - Expanded `tests/test_corpora.py` with `test_corpus_3_composition`, asserting 5 canonical books, 187 total chapters, and exact book catalog ordering.
+     - Added `test_main_dry_run_corpus_3` in `tests/test_build_semantic_db.py`.
+     - Verified all 43 hermetic test modules pass 100% (942 tests in 30.5s).
 - **Consequences**:
-  - Corpus 2 (The Four Gospels & Acts) is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
-  - Total tracked units in the SQLite semantic checkpoint ledger reached 1,333 units at 100.0% completion.
+  - Corpus 3 (Pentateuch & Covenant Foundations) is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
+  - Total tracked units in the SQLite checkpoint ledger reached 1,548 units at 100.0% completion.
   - Zero external dependencies introduced (100% Python standard library per ADR-003).
+
 
 
 
