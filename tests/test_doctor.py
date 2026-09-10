@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.doctor import (
     CheckResult,
@@ -408,6 +409,26 @@ class TestDoctorChecks(unittest.TestCase):
             self.assertEqual(len(results), 11)
             self.assertTrue(any(r.name == "API Credentials & Services" for r in results))
 
+
+    def test_github_step_summary_generation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            summary_file = Path(tmpdir) / "step_summary.md"
+            from tools.doctor import _write_github_step_summary
+            results = [
+                CheckResult("Zero External Dependencies (AST Audit)", True, "100% stdlib compliance", 0.05),
+                CheckResult("Documentation State Sync", True, "All synced", 0.02),
+                CheckResult("Simulated Failure", False, "Error message | with pipe", 0.01),
+            ]
+            with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary_file)}):
+                _write_github_step_summary(results, total_dur=0.08, failed=True)
+
+            self.assertTrue(summary_file.exists())
+            text = summary_file.read_text(encoding="utf-8")
+            self.assertIn("### 🩺 Bible Engine System Doctor & Health Diagnostics", text)
+            self.assertIn("- **System Health**: ❌ UNHEALTHY", text)
+            self.assertIn("- **Passed Checks**: 2/3", text)
+            self.assertIn("| ✅ Pass | **Zero External Dependencies (AST Audit)** | 0.050s |", text)
+            self.assertIn("| ❌ Fail | **Simulated Failure** | 0.010s | Error message \\| with pipe |", text)
 
 
 if __name__ == "__main__":

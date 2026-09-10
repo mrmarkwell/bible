@@ -36,6 +36,16 @@ Ideas can be added directly by the repository owner or generated during interact
 ---
 
 ## Active Ideas & Brainstorming Hopper
+ 
+### [COMPLETED] Automated GitHub Actions Step Summary Matrix & Omnichannel Step Summary Telemetry (Rank A+)
+- **Summary**: Equip the System Doctor engine (`tools/doctor.py`) with automated detection of `GITHUB_STEP_SUMMARY` and structured Markdown diagnostic table emission. When executed inside GitHub Actions CI/CD workflows, doctor outputs a comprehensive GitHub job summary report displaying overall health status badge, total passing/failing checks ratio, total execution duration, and an aligned Markdown table detailing each check name, individual execution latency, status icon (`✅ Pass` / `❌ Fail`), and sanitized diagnostic notes.
+- **Rationale**: Confronts the Senior Product Manager diagnostic questions by closing the observability gap between the test runner and the health doctor in CI/CD. While `tools/test_runner.py` emitted markdown test results to `$GITHUB_STEP_SUMMARY`, `tools/doctor.py` only output plain terminal text, forcing developers to comb through raw terminal logs to inspect doctor check results.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure file append using Python stdlib `os.environ` and standard file I/O).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High observability? Yes (structured CI Markdown tables and instant run diagnostics).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.33 / ADR-103).
+- **Status**: Completed and verified during Run 095 Senior PM Meta-Sprint (ADR-103).
 
 ### [COMPLETED] Bounded Spatial Interval Index Seeks, Dynamic Executive Phase Resolution & Omnichannel REPL Telemetry (Rank A+)
 - **Summary**: Eliminate unconstrained lower-bound table scans in SQLite interval queries across `verse_tags`, `pericopes`, `spans`, and `verse_theology` (`WHERE start_canonical_id <= ? AND end_canonical_id >= ?`) by maintaining cached maximum span length trackers (`SELECT MAX(end_canonical_id - start_canonical_id)`) and injecting spatial lower bounds (`start_canonical_id >= (start_id - max_span)`). Accelerate interval seeks by **102.7x** and reduce batch slide resolution tests (`tests/test_slide_batch.py`) from 8.991s to 0.183s (**49.1x speedup**). Synchronize `tools/executive_summary.py` with all 9 non-test diagnostics in `tools/doctor.py` and dynamic active phase parsing from `ROADMAP.md`. Equip interactive REPL Studio with full `/summary` command options (`[N]`, `-w=N`, `--window=N`, `--json`, `--doctor`, `--no-doctor`) and tab-completion.

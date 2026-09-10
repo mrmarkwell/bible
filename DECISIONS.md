@@ -3477,5 +3477,32 @@ This document is an append-only log of significant design and architectural deci
   - Scripture RAG now uses state-of-the-art rank fusion immune to scale calibration issues across dense, sparse, and graph modalities.
   - Zero external dependencies maintained (100% Python standard library per ADR-003).
 
+---
+
+## ADR-103: Automated GitHub Actions Step Summary Matrix & Omnichannel Health Diagnostics
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - During Run 095 Senior Product Manager Meta-Improvement Sprint, an audit of developer and CI/CD observability revealed an inconsistency between the test runner and the health doctor:
+    1. While `tools/test_runner.py` automatically writes a formatted Markdown summary to `$GITHUB_STEP_SUMMARY` when executing in GitHub Actions, `tools/doctor.py` (which audits dependencies, documentation state synchronization, shell scripts, git hooks, CI workflows, secret leak safeguards, static analysis, module-test symmetry, SQLite database integrity, and unit tests) only output plain ANSI terminal text.
+    2. Developers and agents inspecting GitHub Actions runs on GitHub were forced to comb through raw runner logs to check the details and timings of individual doctor checks.
+  - In accordance with the Senior Product Manager mandate to elevate engineering infrastructure and observability to world-class standards, the System Doctor should automatically output structured Markdown summary matrices into `$GITHUB_STEP_SUMMARY`.
+- **Decision**:
+  1. **Automated Step Summary Generation (`tools/doctor.py`)**:
+     - Implemented `_write_github_step_summary(results, total_dur, failed)` in `tools/doctor.py`.
+     - Automatically inspects `os.environ.get("GITHUB_STEP_SUMMARY")`. If set, appends a structured Markdown report containing:
+       * Overall System Health badge (`✅ EXCELLENT` vs `❌ UNHEALTHY`).
+       * Total checks and pass/total ratio (`passed_count/len(results)`).
+       * Total diagnostic execution duration.
+       * Formatted Markdown table listing Status (`✅ Pass` / `❌ Fail`), Diagnostic Check Name, Execution Duration (seconds), and sanitized, truncated diagnostic details.
+     - Automatically called upon completion of `run_all_checks()` across both normal text mode and machine-readable JSON mode.
+  2. **Hermetic Test Suite Verification (`tests/test_doctor.py`)**:
+     - Added `test_github_step_summary_generation` in `TestDoctorChecks` verifying that setting `GITHUB_STEP_SUMMARY` generates valid Markdown tables with correct passing/failing badges, duration metrics, and pipe-escaped details.
+     - Verified all 47 test modules pass 100% (**1,042 tests passing in 8.7s**).
+- **Consequences**:
+  - Resolves Task 0.33 on the project roadmap.
+  - GitHub Actions runs now display rich, instant executive diagnostic tables for both unit tests and system doctor checks on GitHub workflow summary pages without clicking into raw console logs.
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+
 
 

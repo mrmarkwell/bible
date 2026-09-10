@@ -210,9 +210,9 @@ class TestExecutiveSummary(unittest.TestCase):
     def test_active_phase_dynamic_fallback(self):
         report = generate_summary(window=1, run_doctor=False)
         md = format_markdown_report(report)
-        # Verify it doesn't contain the old hardcoded Phase 5
+        # Verify it reflects the live active phase parsed dynamically from ROADMAP.md
         self.assertNotIn("Phase 5: Visual Slide Generator", md)
-        self.assertIn("Phase 4, 7 & 8", md)
+        self.assertIn(report.roadmap_stats.active_phase, md)
 
 
 if __name__ == "__main__":

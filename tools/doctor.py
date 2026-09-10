@@ -1117,15 +1117,45 @@ def run_all_checks(
         }
         target_stream.write(json.dumps(payload, indent=2) + "\n")
         target_stream.flush()
+        _write_github_step_summary(results, total_dur, failed)
         return (1 if failed else 0), results
 
     emit(styler.bold("----------------------------------------------------------------------"))
     if failed:
         emit(styler.red(styler.bold(f" [!] System Health: UNHEALTHY (Completed in {total_dur:.2f}s)")))
+        _write_github_step_summary(results, total_dur, failed)
         return 1, results
     else:
         emit(styler.green(styler.bold(f" [✓] System Health: EXCELLENT (All checks passed in {total_dur:.2f}s)")))
+        _write_github_step_summary(results, total_dur, failed)
         return 0, results
+
+
+def _write_github_step_summary(results: List[CheckResult], total_dur: float, failed: bool) -> None:
+    """Write structured markdown diagnostic matrix to GITHUB_STEP_SUMMARY if active."""
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    try:
+        with open(summary_path, "a", encoding="utf-8") as f:
+            f.write("### 🩺 Bible Engine System Doctor & Health Diagnostics\n\n")
+            status_badge = "❌ UNHEALTHY" if failed else "✅ EXCELLENT"
+            f.write(f"- **System Health**: {status_badge}\n")
+            f.write(f"- **Total Checks**: {len(results)}\n")
+            passed_count = sum(1 for r in results if r.passed)
+            f.write(f"- **Passed Checks**: {passed_count}/{len(results)}\n")
+            f.write(f"- **Diagnostic Duration**: {total_dur:.2f}s\n\n")
+            f.write("| Status | Diagnostic Check | Duration | Details |\n")
+            f.write("| :---: | :--- | :---: | :--- |\n")
+            for r in results:
+                icon = "✅ Pass" if r.passed else "❌ Fail"
+                clean_details = r.details.replace("\n", " ").replace("|", "\\|")
+                if len(clean_details) > 120:
+                    clean_details = clean_details[:117] + "..."
+                f.write(f"| {icon} | **{r.name}** | {r.duration_sec:.3f}s | {clean_details} |\n")
+            f.write("\n")
+    except Exception:
+        pass
 
 
 def _emit_check(res: CheckResult, styler: DoctorStyler, emit: Callable[[str], None]) -> None:
