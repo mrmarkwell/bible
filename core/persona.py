@@ -28,10 +28,13 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-046, ADR-049, and ADR-0
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
 import re
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
-from core.db import Database
+from core.db import DEFAULT_DB_PATH, Database
 from core.esv import (
     DEFAULT_TRANSLATION,
     FALLBACK_TRANSLATION,
@@ -48,6 +51,9 @@ from core.theology import (
     TGCTheologyEngine,
     get_theology_engine,
 )
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_SESSIONS_DIR = REPO_ROOT / "data" / "sessions"
 
 
 def _utc_now_iso() -> str:
@@ -845,6 +851,240 @@ class PersonaDialogueResponse:
         }
 
 
+@dataclass
+class DialogueTurn:
+    """Individual conversational turn within a persona dialogue."""
+
+    role: str  # 'user' or 'character' / 'model'
+    speaker: str  # e.g., 'Inquirer' or 'Paul the Apostle'
+    content: str
+    timestamp: str = field(default_factory=_utc_now_iso)
+    grounded_passages: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert dialogue turn to dictionary representation."""
+        return {
+            "role": self.role,
+            "speaker": self.speaker,
+            "content": self.content,
+            "timestamp": self.timestamp,
+            "grounded_passages": list(self.grounded_passages),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DialogueTurn":
+        """Construct dialogue turn from dictionary representation."""
+        return cls(
+            role=str(data.get("role", "user")),
+            speaker=str(data.get("speaker", "Inquirer")),
+            content=str(data.get("content", "")),
+            timestamp=str(data.get("timestamp", _utc_now_iso())),
+            grounded_passages=list(data.get("grounded_passages", [])),
+        )
+
+
+@dataclass
+class DialogueTranscript:
+    """Archival record and study transcript of a character dialogue session."""
+
+    session_id: str
+    persona_id: str
+    character_name: str
+    title: str
+    created_at: str = field(default_factory=_utc_now_iso)
+    updated_at: str = field(default_factory=_utc_now_iso)
+    model: str = DEFAULT_GEMINI_MODEL
+    translation: str = DEFAULT_TRANSLATION
+    turns: List[DialogueTurn] = field(default_factory=list)
+    theological_metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert transcript to JSON-serializable dictionary."""
+        return {
+            "session_id": self.session_id,
+            "persona_id": self.persona_id,
+            "character_name": self.character_name,
+            "title": self.title,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "model": self.model,
+            "translation": self.translation,
+            "turns": [t.to_dict() for t in self.turns],
+            "theological_metadata": dict(self.theological_metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DialogueTranscript":
+        """Construct dialogue transcript from JSON dictionary."""
+        return cls(
+            session_id=str(data.get("session_id", "")),
+            persona_id=str(data.get("persona_id", "")),
+            character_name=str(data.get("character_name", "")),
+            title=str(data.get("title", f"Dialogue with {data.get('character_name', 'Character')}")),
+            created_at=str(data.get("created_at", _utc_now_iso())),
+            updated_at=str(data.get("updated_at", _utc_now_iso())),
+            model=str(data.get("model", DEFAULT_GEMINI_MODEL)),
+            translation=str(data.get("translation", DEFAULT_TRANSLATION)),
+            turns=[DialogueTurn.from_dict(t) for t in data.get("turns", [])],
+            theological_metadata=dict(data.get("theological_metadata", {})),
+        )
+
+    def to_markdown(self) -> str:
+        """Format transcript into an illuminated Sacred-Modern study document in Markdown."""
+        lines: List[str] = [
+            f"# {self.title}",
+            f"*Canonical Exegetical Dialogue with {self.character_name}*",
+            "",
+        ]
+
+        meta = self.theological_metadata
+        if meta:
+            lines.append("> [!NOTE]")
+            if meta.get("canonical_era"):
+                lines.append(f"> **Canonical Era**: {meta['canonical_era']}")
+            if meta.get("theological_role"):
+                lines.append(f"> **Theological Role**: {meta['theological_role']}")
+            if meta.get("lifespan_description"):
+                lines.append(f"> **Canonical Lifespan**: {meta['lifespan_description']}")
+            if meta.get("key_passages"):
+                passages_str = ", ".join(meta["key_passages"])
+                lines.append(f"> **Key Scripture Anchors**: {passages_str}")
+            if meta.get("christ_centered_orientation"):
+                lines.append(f"> **Christ-Centered Horizon**: {meta['christ_centered_orientation']}")
+            lines.append(
+                "> **Hermeneutical Guardrail**: Grounded in Holy Scripture per TGC Confessional Standards; zero extrabiblical speculation."
+            )
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
+        lines.append("## Conversation Transcript")
+        lines.append("")
+
+        collected_passages: Set[str] = set()
+        for turn in self.turns:
+            for p in turn.grounded_passages:
+                collected_passages.add(p)
+            ts_str = f" `{turn.timestamp[:19].replace('T', ' ')} UTC`" if turn.timestamp else ""
+            if turn.role == "user":
+                lines.append(f"### Inquirer{ts_str}")
+                lines.append("")
+                lines.append(turn.content.strip())
+                lines.append("")
+            else:
+                lines.append(f"### {turn.speaker}{ts_str}")
+                lines.append("")
+                if turn.grounded_passages:
+                    badges = ", ".join(f"`{p}`" for p in turn.grounded_passages)
+                    lines.append(f"*Grounded in: {badges}*")
+                    lines.append("")
+                lines.append(turn.content.strip())
+                lines.append("")
+
+        if collected_passages or (meta and meta.get("key_passages")):
+            all_refs = sorted(collected_passages | set(meta.get("key_passages", [])))
+            lines.append("---")
+            lines.append("")
+            lines.append("## Exegetical Reference Matrix")
+            lines.append("")
+            for ref in all_refs:
+                lines.append(f"- **{ref}**")
+            lines.append("")
+
+        lines.append("---")
+        lines.append(
+            f"*Archived by Bible Engine Character Dialogue Studio • "
+            f"Session ID: `{self.session_id}` • Model: `{self.model}` • Translation: `{self.translation}`*"
+        )
+        lines.append("")
+        return "\n".join(lines)
+
+
+class DialogueSessionManager:
+    """Manages disk persistence, retrieval, listing, and export of dialogue sessions."""
+
+    def __init__(self, sessions_dir: Optional[Path] = None) -> None:
+        self.sessions_dir = (sessions_dir or DEFAULT_SESSIONS_DIR).resolve()
+
+    def _ensure_dir(self) -> Path:
+        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        return self.sessions_dir
+
+    def _session_file(self, session_id: str) -> Path:
+        clean_id = re.sub(r"[^A-Za-z0-9_\-\.]", "_", session_id)
+        return self.sessions_dir / f"{clean_id}.json"
+
+    def save_transcript(self, transcript: DialogueTranscript) -> Path:
+        """Save dialogue transcript as JSON file."""
+        self._ensure_dir()
+        file_path = self._session_file(transcript.session_id)
+        data = transcript.to_dict()
+        tmp_path = file_path.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp_path.replace(file_path)
+        return file_path
+
+    def load_transcript(self, session_id: str) -> DialogueTranscript:
+        """Load transcript by session_id or filename prefix."""
+        file_path = self._session_file(session_id)
+        if not file_path.exists():
+            clean = re.sub(r"[^A-Za-z0-9_\-\.]", "_", session_id)
+            matches = list(self.sessions_dir.glob(f"*{clean}*.json"))
+            if len(matches) == 1:
+                file_path = matches[0]
+            elif len(matches) > 1:
+                options = [m.stem for m in matches]
+                raise FileNotFoundError(f"Ambiguous session ID '{session_id}': matches {options}")
+            else:
+                raise FileNotFoundError(f"Session '{session_id}' not found in {self.sessions_dir}")
+
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        return DialogueTranscript.from_dict(data)
+
+    def list_transcripts(self, persona_id: Optional[str] = None) -> List[DialogueTranscript]:
+        """List all saved transcripts, optionally filtered by persona_id, ordered newest first."""
+        if not self.sessions_dir.exists():
+            return []
+        transcripts: List[DialogueTranscript] = []
+        for p in self.sessions_dir.glob("*.json"):
+            if p.name.endswith(".tmp"):
+                continue
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                tr = DialogueTranscript.from_dict(data)
+                if persona_id is None or tr.persona_id.lower() == persona_id.lower():
+                    transcripts.append(tr)
+            except Exception:
+                continue
+        transcripts.sort(key=lambda t: t.updated_at or t.created_at, reverse=True)
+        return transcripts
+
+    def delete_transcript(self, session_id: str) -> bool:
+        """Delete saved transcript file."""
+        try:
+            file_path = self._session_file(session_id)
+            if file_path.exists():
+                file_path.unlink()
+                return True
+            clean = re.sub(r"[^A-Za-z0-9_\-\.]", "_", session_id)
+            matches = list(self.sessions_dir.glob(f"*{clean}*.json"))
+            if len(matches) == 1:
+                matches[0].unlink()
+                return True
+            return False
+        except Exception:
+            return False
+
+    def export_markdown(self, session_id: str, output_path: Optional[Path] = None) -> Path:
+        """Export session transcript to a Markdown document."""
+        tr = self.load_transcript(session_id)
+        md_text = tr.to_markdown()
+        out = output_path or (self.sessions_dir / f"{tr.session_id}.md")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(md_text, encoding="utf-8")
+        return out
+
+
 class BiblicalPersonaSession:
     """Manages an active multi-turn conversational session with a biblical character persona."""
 
@@ -859,6 +1099,9 @@ class BiblicalPersonaSession:
         model: str = DEFAULT_GEMINI_MODEL,
         temperature: float = 0.7,
         max_output_tokens: int = 2048,
+        session_id: Optional[str] = None,
+        title: Optional[str] = None,
+        created_at: Optional[str] = None,
     ) -> None:
         """Initialize persona dialogue session.
 
@@ -872,6 +1115,9 @@ class BiblicalPersonaSession:
             model: Gemini model identifier.
             temperature: Generation temperature (0.0 to 1.0).
             max_output_tokens: Maximum tokens in response.
+            session_id: Optional persistent session ID.
+            title: Optional session title.
+            created_at: Optional ISO timestamp when session originated.
         """
         self.persona = persona
         self.db = db or Database()
@@ -882,6 +1128,11 @@ class BiblicalPersonaSession:
         self.model = model
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+
+        self.session_id = session_id or self._generate_session_id(self.persona.id)
+        self.title = title or f"Dialogue with {self.persona.canonical_name}"
+        self.created_at = created_at or _utc_now_iso()
+        self.turns: List[DialogueTurn] = []
 
         # Load grounded scripture passages
         self.grounded_passages = load_character_scripture_passages(
@@ -901,9 +1152,15 @@ class BiblicalPersonaSession:
         # Multi-turn history: list of ChatMessage
         self.history: List[ChatMessage] = []
 
+    @staticmethod
+    def _generate_session_id(persona_id: str) -> str:
+        now_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        return f"{now_str}_{persona_id}"
+
     def reset(self) -> None:
         """Clear conversation history while preserving character context."""
         self.history.clear()
+        self.turns.clear()
 
     @property
     def turn_count(self) -> int:
@@ -946,11 +1203,31 @@ class BiblicalPersonaSession:
 
         clean_user_message = user_message.strip()
 
+        # Record user turn
+        now_ts = _utc_now_iso()
+        self.turns.append(
+            DialogueTurn(
+                role="user",
+                speaker="Inquirer",
+                content=clean_user_message,
+                timestamp=now_ts,
+            )
+        )
+
         # Check API key availability
         if not self.llm_client.is_available():
             offline_text = self._build_offline_response(clean_user_message)
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=offline_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
             return PersonaDialogueResponse(
                 character_name=self.persona.canonical_name,
                 character_id=self.persona.id,
@@ -978,6 +1255,15 @@ class BiblicalPersonaSession:
             )
             model_text = resp.text.strip()
             self.history.append(ChatMessage(role="model", content=model_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=model_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
 
             return PersonaDialogueResponse(
                 character_name=self.persona.canonical_name,
@@ -996,6 +1282,15 @@ class BiblicalPersonaSession:
                 + self._build_offline_response(clean_user_message)
             )
             self.history.append(ChatMessage(role="model", content=offline_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=offline_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
             return PersonaDialogueResponse(
                 character_name=self.persona.canonical_name,
                 character_id=self.persona.id,
@@ -1025,11 +1320,31 @@ class BiblicalPersonaSession:
 
         clean_user_message = user_message.strip()
 
+        # Record user turn
+        now_ts = _utc_now_iso()
+        self.turns.append(
+            DialogueTurn(
+                role="user",
+                speaker="Inquirer",
+                content=clean_user_message,
+                timestamp=now_ts,
+            )
+        )
+
         # Check API key availability
         if not self.llm_client.is_available():
             offline_text = self._build_offline_response(clean_user_message)
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=offline_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
             yield offline_text
             return
 
@@ -1054,6 +1369,15 @@ class BiblicalPersonaSession:
 
             full_text = "".join(accumulated_parts).strip()
             self.history.append(ChatMessage(role="model", content=full_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=full_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
 
         except Exception as exc:
             err_text = (
@@ -1061,8 +1385,95 @@ class BiblicalPersonaSession:
                 + self._build_offline_response(clean_user_message)
             )
             accumulated_parts.append(err_text)
-            self.history.append(ChatMessage(role="model", content="".join(accumulated_parts).strip()))
+            full_text = "".join(accumulated_parts).strip()
+            self.history.append(ChatMessage(role="model", content=full_text))
+            self.turns.append(
+                DialogueTurn(
+                    role="character",
+                    speaker=self.persona.canonical_name,
+                    content=full_text,
+                    timestamp=_utc_now_iso(),
+                    grounded_passages=[p.reference for p in self.grounded_passages],
+                )
+            )
             yield err_text
+
+    def to_transcript(self, title: Optional[str] = None) -> DialogueTranscript:
+        """Generate an archival DialogueTranscript from active session state."""
+        return DialogueTranscript(
+            session_id=self.session_id,
+            persona_id=self.persona.id,
+            character_name=self.persona.canonical_name,
+            title=title or self.title or f"Dialogue with {self.persona.canonical_name}",
+            created_at=self.created_at,
+            updated_at=_utc_now_iso(),
+            model=self.model,
+            translation=self.translation,
+            turns=list(self.turns),
+            theological_metadata={
+                "canonical_era": self.persona.canonical_era,
+                "theological_role": self.persona.theological_role,
+                "lifespan_description": self.persona.lifespan_description,
+                "key_passages": list(self.persona.key_passages),
+                "christ_centered_orientation": self.persona.christ_centered_orientation,
+            },
+        )
+
+    def save(
+        self,
+        title: Optional[str] = None,
+        session_id: Optional[str] = None,
+        sessions_dir: Optional[Path] = None,
+    ) -> DialogueTranscript:
+        """Persist dialogue session to disk as a JSON transcript."""
+        if session_id:
+            self.session_id = session_id
+        if title:
+            self.title = title
+        tr = self.to_transcript(title=self.title)
+        mgr = DialogueSessionManager(sessions_dir=sessions_dir)
+        mgr.save_transcript(tr)
+        return tr
+
+    def to_markdown(self) -> str:
+        """Format current dialogue session as illuminated Sacred-Modern Markdown."""
+        return self.to_transcript().to_markdown()
+
+    @classmethod
+    def resume(
+        cls,
+        session_id: str,
+        sessions_dir: Optional[Path] = None,
+        db: Optional[Database] = None,
+        llm_client: Optional[GeminiClient] = None,
+        theology_engine: Optional[TGCTheologyEngine] = None,
+    ) -> "BiblicalPersonaSession":
+        """Resume a prior dialogue session from disk by its session_id."""
+        mgr = DialogueSessionManager(sessions_dir=sessions_dir)
+        tr = mgr.load_transcript(session_id)
+        persona_def = get_persona_definition(tr.persona_id)
+        if not persona_def:
+            raise ValueError(
+                f"Unknown persona '{tr.persona_id}' recorded in saved session '{session_id}'"
+            )
+
+        session = cls(
+            persona=persona_def,
+            db=db,
+            llm_client=llm_client,
+            theology_engine=theology_engine,
+            translation=tr.translation,
+            model=tr.model,
+            session_id=tr.session_id,
+            title=tr.title,
+            created_at=tr.created_at,
+        )
+        session.turns = list(tr.turns)
+        session.history = []
+        for turn in tr.turns:
+            role = "user" if turn.role == "user" else "model"
+            session.history.append(ChatMessage(role=role, content=turn.content))
+        return session
 
 
 # ==============================================================================
@@ -1078,6 +1489,8 @@ def create_persona_session(
     translation: str = DEFAULT_TRANSLATION,
     fallback_translation: str = FALLBACK_TRANSLATION,
     model: str = DEFAULT_GEMINI_MODEL,
+    session_id: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> BiblicalPersonaSession:
     """Factory helper to instantiate a BiblicalPersonaSession by character name or ID.
 
@@ -1089,6 +1502,8 @@ def create_persona_session(
         translation: Preferred scripture translation (default ESV).
         fallback_translation: Fallback translation (default WEB).
         model: Gemini model identifier.
+        session_id: Optional explicit session ID.
+        title: Optional session title.
 
     Returns:
         Configured BiblicalPersonaSession instance.
@@ -1112,4 +1527,6 @@ def create_persona_session(
         translation=translation,
         fallback_translation=fallback_translation,
         model=model,
+        session_id=session_id,
+        title=title,
     )

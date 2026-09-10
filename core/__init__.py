@@ -116,8 +116,12 @@ from core.rag import (
 
 from core.persona import (
     CANONICAL_PERSONAS,
+    DEFAULT_SESSIONS_DIR,
     BiblicalPersonaSession,
     CharacterPersonaDefinition,
+    DialogueSessionManager,
+    DialogueTranscript,
+    DialogueTurn,
     GroundedScripturePassage,
     PersonaDialogueResponse,
     create_persona_session,
@@ -620,8 +624,12 @@ __all__ = [
     "retrieve_rag_context",
     # Biblical Character Dialogue Studio
     "CANONICAL_PERSONAS",
+    "DEFAULT_SESSIONS_DIR",
     "BiblicalPersonaSession",
     "CharacterPersonaDefinition",
+    "DialogueSessionManager",
+    "DialogueTranscript",
+    "DialogueTurn",
     "GroundedScripturePassage",
     "PersonaDialogueResponse",
     "create_persona_session",

@@ -5209,12 +5209,51 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output structured JSON payload (response, profile, and grounded passages)",
     )
+    parser_chat.add_argument(
+        "--save",
+        "--save-session",
+        dest="save_session",
+        action="store_true",
+        help="Persist dialogue session transcript to disk in data/sessions/",
+    )
+    parser_chat.add_argument(
+        "--title",
+        default=None,
+        help="Custom title for persistent dialogue session transcript",
+    )
+    parser_chat.add_argument(
+        "--sessions",
+        "--list-sessions",
+        dest="list_sessions",
+        action="store_true",
+        help="List all saved dialogue session transcripts",
+    )
+    parser_chat.add_argument(
+        "--resume",
+        default=None,
+        metavar="SESSION_ID",
+        help="Resume an existing dialogue session by ID or filename prefix",
+    )
+    parser_chat.add_argument(
+        "--export",
+        default=None,
+        metavar="SESSION_ID",
+        help="Export dialogue session transcript to an illuminated Markdown document",
+    )
+    parser_chat.add_argument(
+        "--export-out",
+        default=None,
+        metavar="PATH",
+        help="Target output file path for markdown transcript export (used with --export)",
+    )
 
     def cmd_chat(args: argparse.Namespace) -> int:
         from core.db import Database, DEFAULT_DB_PATH
         from core.persona import (
             CANONICAL_PERSONAS,
             BiblicalPersonaSession,
+            DialogueSessionManager,
+            DialogueTranscript,
             create_persona_session,
             get_persona_definition,
             list_canonical_personas,
@@ -5229,6 +5268,12 @@ def build_parser() -> argparse.ArgumentParser:
         target_trans = getattr(args, "translation", "ESV") or "ESV"
         target_model = getattr(args, "model", None)
         temperature = getattr(args, "temperature", 0.4)
+        list_sessions = getattr(args, "list_sessions", False)
+        export_session_id = getattr(args, "export", None)
+        export_out = getattr(args, "export_out", None)
+        resume_session_id = getattr(args, "resume", None)
+        save_session_flag = getattr(args, "save_session", False)
+        custom_title = getattr(args, "title", None)
 
         color_enabled = (
             hasattr(sys.stdout, "isatty")
@@ -5242,46 +5287,98 @@ def build_parser() -> argparse.ArgumentParser:
         bold = "\033[1m" if color_enabled else ""
         reset = "\033[0m" if color_enabled else ""
 
-        # Listing mode: --list or no character argument provided
-        char_arg = getattr(args, "character", None)
-        if do_list or not char_arg:
-            personas = list_canonical_personas()
-            if output_json:
-                print(json.dumps([p.to_dict() for p in personas], indent=2))
+        mgr = DialogueSessionManager()
+
+        # Export session transcript to Markdown document
+        if export_session_id:
+            try:
+                out_path = Path(export_out).resolve() if export_out else None
+                saved_path = mgr.export_markdown(export_session_id, output_path=out_path)
+                if output_json:
+                    print(json.dumps({"exported_file": str(saved_path), "session_id": export_session_id}, indent=2))
+                else:
+                    print(f"\n{green}✓ Dialogue transcript exported successfully:{reset}")
+                    print(f"  {bold}{saved_path}{reset}\n")
                 return 0
+            except Exception as exc:
+                sys.stderr.write(f"Error exporting transcript: {exc}\n")
+                return 1
 
-            print(f"\n{gold}{bold}=== Canonical Biblical Character Studio ==={reset}")
-            print(f"{dim}Total Personas: {len(personas)} | Grounded in Canonical Scripture & TGC Guardrails{reset}\n")
-            print(f"{bold}{'ID':<14} {'Canonical Name':<22} {'Testament':<10} {'Era':<32}{reset}")
-            print(f"{dim}{'─'*14} {'─'*22} {'─'*10} {'─'*32}{reset}")
-            for p in personas:
-                print(f"{gold}{p.id:<14}{reset} {bold}{p.canonical_name:<22}{reset} {cyan}{p.testament:<10}{reset} {dim}{p.canonical_era:<32}{reset}")
-            print(f"\n{dim}To chat: ./bible chat <id> [\"your message\"] (e.g. './bible chat paul \"Why do you boast in weakness?\"'){reset}")
-            print(f"{dim}To view profile: ./bible chat <id> --profile{reset}\n")
+        # List saved dialogue sessions
+        if list_sessions:
+            char_filter = getattr(args, "character", None)
+            transcripts = mgr.list_transcripts(persona_id=char_filter)
+            if output_json:
+                print(json.dumps([t.to_dict() for t in transcripts], indent=2))
+                return 0
+            print(f"\n{gold}{bold}=== Saved Biblical Character Dialogue Sessions ==={reset}")
+            print(f"{dim}Location: {mgr.sessions_dir} | Total Sessions: {len(transcripts)}{reset}\n")
+            if not transcripts:
+                print(f"{dim}No saved dialogue transcripts found. Start a dialogue with './bible chat <id> --save'.{reset}\n")
+                return 0
+            print(f"{bold}{'Session ID':<32} {'Character':<20} {'Turns':<8} {'Updated':<22} {'Title'}{reset}")
+            print(f"{dim}{'─'*32} {'─'*20} {'─'*8} {'─'*22} {'─'*30}{reset}")
+            for t in transcripts:
+                print(f"{cyan}{t.session_id:<32}{reset} {bold}{t.character_name:<20}{reset} {len(t.turns):<8} {dim}{t.updated_at[:19]:<22}{reset} {t.title}")
+            print(f"\n{dim}To resume: ./bible chat --resume <session_id>{reset}")
+            print(f"{dim}To export: ./bible chat --export <session_id> [--export-out transcript.md]{reset}\n")
             return 0
-
-        # Resolve character persona definition
-        persona_def = get_persona_definition(char_arg)
-        if not persona_def:
-            sys.stderr.write(
-                f"Error: Unknown biblical character persona '{char_arg}'.\n"
-                f"Run './bible chat --list' to view all {len(CANONICAL_PERSONAS)} available characters.\n"
-            )
-            return 1
 
         db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
         db = Database(db_path, auto_init=False) if db_path.exists() else None
 
-        # Instantiate dialogue session
-        kwargs = {
-            "character_identifier": persona_def.id,
-            "db": db,
-            "translation": target_trans,
-        }
-        if target_model:
-            kwargs["model"] = target_model
-        session = create_persona_session(**kwargs)
-        session.temperature = temperature
+        # Resume existing dialogue session if requested
+        if resume_session_id:
+            try:
+                session = BiblicalPersonaSession.resume(
+                    session_id=resume_session_id,
+                    db=db,
+                )
+                persona_def = session.persona
+                if not output_json:
+                    print(f"\n{green}✓ Resumed dialogue session '{session.session_id}' with {persona_def.canonical_name} ({len(session.turns)} prior turns).{reset}\n")
+            except Exception as exc:
+                sys.stderr.write(f"Error resuming session '{resume_session_id}': {exc}\n")
+                return 1
+        else:
+            # Listing mode: --list or no character argument provided
+            char_arg = getattr(args, "character", None)
+            if do_list or not char_arg:
+                personas = list_canonical_personas()
+                if output_json:
+                    print(json.dumps([p.to_dict() for p in personas], indent=2))
+                    return 0
+
+                print(f"\n{gold}{bold}=== Canonical Biblical Character Studio ==={reset}")
+                print(f"{dim}Total Personas: {len(personas)} | Grounded in Canonical Scripture & TGC Guardrails{reset}\n")
+                print(f"{bold}{'ID':<14} {'Canonical Name':<22} {'Testament':<10} {'Era':<32}{reset}")
+                print(f"{dim}{'─'*14} {'─'*22} {'─'*10} {'─'*32}{reset}")
+                for p in personas:
+                    print(f"{gold}{p.id:<14}{reset} {bold}{p.canonical_name:<22}{reset} {cyan}{p.testament:<10}{reset} {dim}{p.canonical_era:<32}{reset}")
+                print(f"\n{dim}To chat: ./bible chat <id> [\"your message\"] (e.g. './bible chat paul \"Why do you boast in weakness?\"'){reset}")
+                print(f"{dim}To view profile: ./bible chat <id> --profile{reset}\n")
+                return 0
+
+            # Resolve character persona definition
+            persona_def = get_persona_definition(char_arg)
+            if not persona_def:
+                sys.stderr.write(
+                    f"Error: Unknown biblical character persona '{char_arg}'.\n"
+                    f"Run './bible chat --list' to view all {len(CANONICAL_PERSONAS)} available characters.\n"
+                )
+                return 1
+
+            # Instantiate dialogue session
+            kwargs = {
+                "character_identifier": persona_def.id,
+                "db": db,
+                "translation": target_trans,
+                "title": custom_title,
+            }
+            if target_model:
+                kwargs["model"] = target_model
+            session = create_persona_session(**kwargs)
+            session.temperature = temperature
 
         # Profile-only inspection mode
         if do_profile:
@@ -5327,6 +5424,8 @@ def build_parser() -> argparse.ArgumentParser:
             api_key = get_gemini_api_key()
             if not api_key:
                 resp = session.say(user_msg)
+                if save_session_flag:
+                    session.save(title=custom_title)
                 if output_json:
                     print(json.dumps({
                         "character": persona_def.canonical_name,
@@ -5335,6 +5434,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "response": resp.text,
                         "offline_fallback": True,
                         "notice": "GEMINI_API_KEY not configured",
+                        "session_id": session.session_id,
                     }, indent=2))
                     return 1
 
@@ -5344,6 +5444,8 @@ def build_parser() -> argparse.ArgumentParser:
                 )
                 print(f"{bold}Inquirer:{reset} {user_msg}\n")
                 print(f"{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
+                if save_session_flag:
+                    print(f"{dim}[Saved offline turn to session: {session.session_id}]{reset}\n")
                 return 1
 
             if do_stream:
@@ -5363,6 +5465,11 @@ def build_parser() -> argparse.ArgumentParser:
                     sys.stderr.write(f"\nError during streaming dialogue: {exc}\n")
                     return 1
 
+                if save_session_flag:
+                    session.save(title=custom_title)
+                    if not output_json:
+                        print(f"{dim}[Saved dialogue turn to session: {session.session_id}]{reset}\n")
+
                 if show_scripture and not output_json:
                     print(f"{gold}{bold}--- Grounded Scripture Citations ---{reset}")
                     for p in session.grounded_passages:
@@ -5372,6 +5479,8 @@ def build_parser() -> argparse.ArgumentParser:
             # Unary non-streaming response
             try:
                 resp = session.say(user_msg)
+                if save_session_flag:
+                    session.save(title=custom_title)
             except LLMError as exc:
                 sys.stderr.write(f"Error during character dialogue: {exc}\n")
                 return 1
@@ -5386,13 +5495,17 @@ def build_parser() -> argparse.ArgumentParser:
                     "turn_count": resp.turn_count,
                     "offline_fallback": resp.offline_fallback,
                     "grounded_passages": resp.grounded_passages,
+                    "session_id": session.session_id,
                 }
                 print(json.dumps(res_dict, indent=2))
                 return 0
 
             print(f"\n{bold}Inquirer:{reset} {user_msg}\n")
             print(f"{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
-            print(f"{dim}[Model: {resp.model} | Latency: {resp.latency_seconds:.2f}s | Grounded Citations: {len(resp.grounded_passages)}]{reset}\n")
+            print(f"{dim}[Model: {resp.model} | Latency: {resp.latency_seconds:.2f}s | Grounded Citations: {len(resp.grounded_passages)}]{reset}")
+            if save_session_flag:
+                print(f"{dim}[Saved dialogue turn to session: {session.session_id}]{reset}")
+            print()
 
             if show_scripture:
                 print(f"{gold}{bold}--- Grounded Scripture Citations ---{reset}")
@@ -5410,7 +5523,8 @@ def build_parser() -> argparse.ArgumentParser:
             print(f"{green}Engine: Online AI Active ({session.model}){reset}")
         else:
             print(f"{gold}Engine: Offline Mode (Set GEMINI_API_KEY for dynamic dialogue){reset}")
-        print(f"{dim}Commands: '/profile' (view bio), '/passages' (view scripture), '/reset' (clear history), 'exit' / Ctrl+D (quit){reset}\n")
+        print(f"{dim}Session ID: {session.session_id} | Save with '--save' or '/save [title]'{reset}")
+        print(f"{dim}Commands: '/profile', '/passages', '/save [title]', '/export [path]', '/sessions', '/reset', 'exit'{reset}\n")
 
         prompt_str = f"{gold}{persona_def.id}> {reset}"
         while True:
@@ -5441,8 +5555,30 @@ def build_parser() -> argparse.ArgumentParser:
                 for p in session.grounded_passages:
                     print(f"{gold}[{p.reference}] ({p.translation}){reset}\n{p.text}\n")
                 continue
+            if cmd_lower.startswith("/save"):
+                save_title = line[5:].strip() or custom_title
+                tr = session.save(title=save_title)
+                print(f"{green}✓ Dialogue transcript saved:{reset} {cyan}{tr.session_id}{reset} ({len(session.turns)} turns)\n")
+                continue
+            if cmd_lower.startswith("/export"):
+                exp_path = line[7:].strip()
+                target_out = Path(exp_path).resolve() if exp_path else None
+                tr = session.save(title=custom_title)
+                exported_file = mgr.export_markdown(tr.session_id, output_path=target_out)
+                print(f"{green}✓ Dialogue transcript exported to Markdown:{reset}\n  {bold}{exported_file}{reset}\n")
+                continue
+            if cmd_lower == "/sessions":
+                past = mgr.list_transcripts()
+                if not past:
+                    print(f"{dim}No saved sessions found.{reset}\n")
+                else:
+                    print(f"\n{gold}Saved Dialogue Sessions:{reset}")
+                    for t in past:
+                        print(f"  {cyan}{t.session_id:<28}{reset} {t.character_name:<18} ({len(t.turns)} turns) - {t.title}")
+                    print()
+                continue
             if cmd_lower.startswith("/"):
-                print(f"{dim}Available commands: /profile, /passages, /reset, exit{reset}\n")
+                print(f"{dim}Available commands: /profile, /passages, /save, /export, /sessions, /reset, exit{reset}\n")
                 continue
 
             # Process dialogue turn
@@ -5455,6 +5591,11 @@ def build_parser() -> argparse.ArgumentParser:
             else:
                 resp = session.say(line)
                 print(f"\n{gold}{bold}{persona_def.canonical_name}:{reset}\n{resp.text}\n")
+
+        # Automatically save on exit if --save flag was specified
+        if save_session_flag and session.turns:
+            tr = session.save(title=custom_title)
+            print(f"{green}✓ Auto-saved dialogue session to:{reset} {mgr.sessions_dir / f'{tr.session_id}.json'}\n")
 
         return 0
 

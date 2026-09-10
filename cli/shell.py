@@ -2193,6 +2193,10 @@ class BibleShell(cmd.Cmd):
           /chat <id> --passages         View grounded scripture texts for character
           /chat <id> <message>          Converse with character (e.g. /chat paul Why do you boast in weakness?)
           /chat <message>               Converse with active character
+          /chat save [title]            Save active dialogue transcript to archival session file
+          /chat export [id] [path.md]   Export session as Sacred-Modern markdown transcript
+          /chat sessions                List saved archival dialogue sessions
+          /chat resume <session_id>     Resume conversation from saved dialogue session
           /chat reset                   Reset dialogue history for active character
           /chat exit                    Exit active character session
         """
@@ -2203,6 +2207,8 @@ class BibleShell(cmd.Cmd):
             CANONICAL_PERSONAS,
             get_persona_definition,
             list_canonical_personas,
+            DialogueSessionManager,
+            BiblicalPersonaSession,
         )
         from core.llm import LLMError, get_gemini_api_key
 
@@ -2223,10 +2229,93 @@ class BibleShell(cmd.Cmd):
             for p in personas:
                 self.stdout.write(f"{gold}{p.id:<14}{reset} {bold}{p.canonical_name:<22}{reset} {cyan}{p.testament:<10}{reset} {dim}{p.canonical_era:<32}{reset}\n")
             self.stdout.write(f"\n{dim}To chat: /chat <id> [message] (e.g. '/chat paul Why do you boast in weakness?'){reset}\n")
-            self.stdout.write(f"{dim}To view profile: /chat <id> --profile (or /persona <id>){reset}\n\n")
+            self.stdout.write(f"{dim}To view profile: /chat <id> --profile (or /persona <id>){reset}\n")
+            self.stdout.write(f"{dim}Archival Sessions: /chat sessions | /chat save [title] | /chat resume <id>{reset}\n\n")
             return
 
         first = tokens[0].lower()
+
+        if first in ("sessions", "--sessions", "list-sessions", "--list-sessions"):
+            mgr = DialogueSessionManager()
+            sessions = mgr.list_sessions()
+            if not sessions:
+                self.stdout.write("\nNo saved dialogue sessions found in data/sessions/.\n")
+                self.stdout.write("Start a conversation with '/chat <character>' and save with '/chat save [title]'.\n\n")
+                return
+
+            self.stdout.write(f"\n{gold}{bold}=== Archival Character Dialogue Sessions ==={reset}\n")
+            self.stdout.write(f"{dim}Total Sessions: {len(sessions)} | Stored in data/sessions/{reset}\n\n")
+            self.stdout.write(f"{bold}{'Session ID':<30} {'Character':<14} {'Turns':<8} {'Updated':<20} {'Title'}{reset}\n")
+            self.stdout.write(f"{dim}{'─'*30} {'─'*14} {'─'*8} {'─'*20} {'─'*20}{reset}\n")
+            for s in sessions:
+                self.stdout.write(
+                    f"{gold}{s.session_id:<30}{reset} "
+                    f"{bold}{s.character_name:<14}{reset} "
+                    f"{cyan}{s.turn_count:<8}{reset} "
+                    f"{dim}{s.updated_at[:19]:<20}{reset} "
+                    f"{s.title}\n"
+                )
+            self.stdout.write(f"\n{dim}To resume: /chat resume <session_id>{reset}\n")
+            self.stdout.write(f"{dim}To export: /chat export <session_id> [output.md]{reset}\n\n")
+            return
+
+        if first == "save":
+            if not self._active_persona_id or self._active_persona_id not in self._persona_sessions:
+                self.stdout.write("Error: No active character dialogue session to save.\n")
+                return
+            session = self._persona_sessions[self._active_persona_id]
+            if not session.history:
+                self.stdout.write("Notice: Dialogue session has no turns yet to save.\n")
+                return
+            title = " ".join(tokens[1:]).strip() or f"Dialogue with {session.persona.canonical_name}"
+            transcript = session.save(title=title)
+            self.stdout.write(f"\n{green}Saved dialogue session:{reset} {gold}{transcript.session_id}{reset}\n")
+            self.stdout.write(f"Title: {transcript.title}\n")
+            self.stdout.write(f"Turns: {len(transcript.turns)} | Updated: {transcript.updated_at}\n\n")
+            return
+
+        if first == "resume":
+            if len(tokens) < 2:
+                self.stdout.write("Usage: /chat resume <session_id>\n")
+                return
+            session_id = tokens[1]
+            mgr = DialogueSessionManager()
+            transcript = mgr.load(session_id)
+            if not transcript:
+                self.stdout.write(f"Error: Session '{session_id}' not found.\n")
+                return
+            session = BiblicalPersonaSession.resume(transcript, db=self.db, translation=self.translation_id)
+            self._persona_sessions[session.persona.id] = session
+            self._active_persona_id = session.persona.id
+            self._update_prompt()
+            self.stdout.write(f"\n{green}Resumed session:{reset} {gold}{transcript.session_id}{reset}\n")
+            self.stdout.write(f"Character: {bold}{session.persona.canonical_name}{reset} ({len(session.history)} previous turns)\n")
+            self.stdout.write(f"Title: {transcript.title}\n\n")
+            return
+
+        if first == "export":
+            if len(tokens) < 2 and not self._active_persona_id:
+                self.stdout.write("Usage: /chat export <session_id> [output.md] (or /chat export [output.md] when active)\n")
+                return
+            mgr = DialogueSessionManager()
+            if len(tokens) >= 2 and not tokens[1].endswith(".md"):
+                session_id = tokens[1]
+                transcript = mgr.load(session_id)
+                if not transcript:
+                    self.stdout.write(f"Error: Session '{session_id}' not found.\n")
+                    return
+                dest_path = tokens[2] if len(tokens) > 2 else f"data/sessions/{session_id}.md"
+                path = mgr.export_markdown(transcript, dest_path)
+            elif self._active_persona_id and self._active_persona_id in self._persona_sessions:
+                session = self._persona_sessions[self._active_persona_id]
+                transcript = session.to_transcript()
+                dest_path = tokens[1] if len(tokens) > 1 else f"data/sessions/{transcript.session_id}.md"
+                path = mgr.export_markdown(transcript, dest_path)
+            else:
+                self.stdout.write("Error: Must specify a session_id or have an active character dialogue.\n")
+                return
+            self.stdout.write(f"\n{green}Exported Sacred-Modern markdown transcript to:{reset} {path}\n\n")
+            return
 
         if first in ("reset", "--reset"):
             if self._active_persona_id:
@@ -2353,7 +2442,9 @@ class BibleShell(cmd.Cmd):
     def complete_chat(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Autocompletion for /chat, /persona, /character commands."""
         from core.persona import CANONICAL_PERSONAS
-        candidates = [p.id for p in CANONICAL_PERSONAS] + ["--list", "--profile", "--passages", "reset", "exit"]
+        candidates = [p.id for p in CANONICAL_PERSONAS] + [
+            "--list", "--profile", "--passages", "reset", "exit", "save", "sessions", "resume", "export"
+        ]
         return [c for c in candidates if c.startswith(text.lower())]
 
     complete_persona = complete_chat

@@ -2008,6 +2008,18 @@ def compute_db_audit_fingerprint(db_path: Path, db: Optional[Database] = None) -
     st = target.stat()
     data_version = 0
     schema_version = 0
+    change_counter = 0
+
+    # Read SQLite database header 4-byte change counter at offset 24 (big-endian uint32).
+    # Incremented by SQLite on every committed transaction that changes database content.
+    try:
+        with open(target, "rb") as f:
+            header = f.read(32)
+            if len(header) >= 28:
+                change_counter = struct.unpack(">I", header[24:28])[0]
+    except Exception:
+        pass
+
     try:
         if db is not None and db.conn:
             cur = db.conn.cursor()
@@ -2035,10 +2047,21 @@ def compute_db_audit_fingerprint(db_path: Path, db: Optional[Database] = None) -
     except Exception:
         pass
 
+    # Check WAL file size if in WAL mode
+    wal_size_bytes = 0
+    wal_file = target.parent / f"{target.name}-wal"
+    if wal_file.exists():
+        try:
+            wal_size_bytes = wal_file.stat().st_size
+        except Exception:
+            pass
+
     return {
         "path": str(target),
         "size_bytes": st.st_size,
+        "wal_size_bytes": wal_size_bytes,
         "mtime": st.st_mtime,
+        "change_counter": change_counter,
         "data_version": data_version,
         "schema_version": schema_version,
     }
@@ -2100,14 +2123,44 @@ def is_audit_cache_valid(
         return False
     cached_fp = entry["fingerprint"]
     current_fp = compute_db_audit_fingerprint(db_path, db=db)
-    if not current_fp:
+    size_match = cached_fp.get("size_bytes") == current_fp.get("size_bytes")
+    if not size_match:
         return False
-    return (
-        cached_fp.get("size_bytes") == current_fp.get("size_bytes")
-        and cached_fp.get("mtime") == current_fp.get("mtime")
-        and cached_fp.get("data_version") == current_fp.get("data_version")
-        and cached_fp.get("schema_version") == current_fp.get("schema_version")
-    )
+
+    # If WAL file exists, its size must also match
+    if "wal_size_bytes" in cached_fp and "wal_size_bytes" in current_fp:
+        if cached_fp["wal_size_bytes"] != current_fp["wal_size_bytes"]:
+            return False
+
+    # SQLite database header change counter (offset 24) and schema version counters are the
+    # authoritative ground truth for content modification. WAL checkpoints and shared read locks
+    # touch filesystem mtime without modifying database pages, data, or schema.
+    cached_cc = cached_fp.get("change_counter")
+    current_cc = current_fp.get("change_counter")
+    cached_sv = cached_fp.get("schema_version")
+    current_sv = current_fp.get("schema_version")
+    if (
+        cached_cc is not None
+        and current_cc is not None
+        and cached_sv is not None
+        and current_sv is not None
+        and cached_cc > 0
+        and current_cc > 0
+    ):
+        return cached_cc == current_cc and cached_sv == current_sv
+
+    # Fallback to data_version or mtime if header counter is unavailable
+    cached_dv = cached_fp.get("data_version")
+    current_dv = current_fp.get("data_version")
+    if (
+        cached_dv is not None
+        and current_dv is not None
+        and cached_sv is not None
+        and current_sv is not None
+    ):
+        return cached_dv == current_dv and cached_sv == current_sv
+
+    return cached_fp.get("mtime") == current_fp.get("mtime")
 
 
 def get_cached_or_run_audit(

@@ -646,5 +646,47 @@ class TestSemanticQualityAuditorIntegration(unittest.TestCase):
         self.assertTrue(rep.is_clean)
 
 
+class TestSemanticAuditCache(unittest.TestCase):
+    """Test suite for semantic audit cache fingerprinting and stability."""
+
+    def test_cache_fingerprint_and_validity(self):
+        import tempfile
+        from pathlib import Path
+        from core.semantic_audit import (
+            compute_db_audit_fingerprint,
+            is_audit_cache_valid,
+            save_audit_cache,
+            AuditReport,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = Path(td) / "test.db"
+            cache_file = Path(td) / "cache.json"
+            db = Database(str(db_file))
+            db.init_schema()
+
+            fp = compute_db_audit_fingerprint(db_file, db=db)
+            self.assertIn("size_bytes", fp)
+            self.assertIn("data_version", fp)
+            self.assertIn("schema_version", fp)
+            self.assertIn("path", fp)
+
+            audit_rep = AuditReport(total_inspected=10)
+            saved = save_audit_cache(db_file, audit_rep, None, cache_path=cache_file, db=db)
+            self.assertTrue(saved)
+            self.assertTrue(cache_file.exists())
+
+            # Cache is valid immediately
+            self.assertTrue(is_audit_cache_valid(db_file, cache_path=cache_file, db=db))
+
+            # If we insert data, data_version advances, invalidating cache
+            with db.conn:
+                db.conn.execute(
+                    "INSERT INTO character_profiles (name, canonical_spans, historical_context, theological_role) VALUES (?, ?, ?, ?)",
+                    ("Temp", "[]", "Temp", "Temp"),
+                )
+            self.assertFalse(is_audit_cache_valid(db_file, cache_path=cache_file, db=db))
+
+
 if __name__ == "__main__":
     unittest.main()

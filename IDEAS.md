@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Archival Character Dialogue Transcripts & Sovereign Audit Cache Stabilization (Rank A+)
+- **Summary**: Implement persistent multi-turn conversational session storage, resume capability, Sacred-Modern Markdown export, and authoritative multi-dimensional SQLite cache fingerprinting (change counter at header offset 24, schema version, and WAL tracking). Decouples audit cache invalidation from filesystem `mtime` jitter, accelerating doctor integrity checks from 2.8s to 0.087s. Enables users and scholars to save, resume, list, and export rich exegetical dialogues with biblical personas across both CLI and REPL.
+- **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by eliminating false-positive cache misses in diagnostic tooling and elevating the Biblical Character Studio from ephemeral memory to permanent study records.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (atomic JSON storage in `data/sessions/` and pure Markdown export).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - Fast execution? Yes (30x speedup in database integrity checking).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.29 / ADR-091).
+- **Status**: Completed and verified during Run 083 Senior PM Meta-Sprint (ADR-091).
+
 ### [COMPLETED] High-Velocity Graph Query Architecture, Bounded Spatial Index Seeks & Push-Down Slide Pipeline (Rank A+)
 - **Summary**: Eliminate full table scans over 343,000+ cross-reference edges in `Database.get_cross_references()` using mathematical spatial range bounding and dual binary search index seeks on `idx_cross_ref_source` and `idx_cross_ref_target`, accelerating graph queries by 226x (from 317ms to 1.4ms). Push down `limit` and `offset` slicing in `core/slide_batch.py` before multi-attribute database enrichment, accelerating passage resolution by 1,500x (<0.01s), decoupling batch slide export from external network dependencies (`allow_network=False`), and slashing full hermetic test suite runtime from ~30s down to <6s (a 5x end-to-end acceleration).
 - **Rationale**: Directly resolves the two core diagnostic questions of the Senior Product Manager Meta-Sprint by fixing the asymptotic degradation of large-scale graph traversals and restoring sub-6s hermetic test execution across all 43 modules without external dependencies.

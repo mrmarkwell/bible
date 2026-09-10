@@ -365,5 +365,153 @@ class TestDatabaseCharacterProfiles(unittest.TestCase):
             self.db.conn.execute("DELETE FROM character_profiles WHERE name = ?", (test_name,))
 
 
+class TestDialogueSessionManager(unittest.TestCase):
+    """Test archival dialogue transcripts, session persistence, markdown export, and resumption."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from core.persona import DialogueSessionManager
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.mgr = DialogueSessionManager(sessions_dir=self.temp_dir)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_save_and_load_transcript(self):
+        from core.persona import DialogueTurn, DialogueTranscript
+
+        turn1 = DialogueTurn(
+            role="user",
+            speaker="Inquirer",
+            content="Paul, what is the gospel?",
+            timestamp="2026-09-10T00:00:00Z",
+        )
+        turn2 = DialogueTurn(
+            role="character",
+            speaker="Paul (Apostle)",
+            content="That Christ died for our sins according to the Scriptures.",
+            timestamp="2026-09-10T00:00:01Z",
+        )
+        transcript = DialogueTranscript(
+            session_id="test_session_paul",
+            persona_id="paul",
+            character_name="Paul (Apostle)",
+            created_at="2026-09-10T00:00:00Z",
+            updated_at="2026-09-10T00:00:01Z",
+            title="The Gospel Definition",
+            translation="ESV",
+            turns=[turn1, turn2],
+        )
+
+        saved_path = self.mgr.save_transcript(transcript)
+        self.assertTrue(saved_path.exists())
+
+        loaded = self.mgr.load_transcript("test_session_paul")
+        self.assertIsNotNone(loaded)
+        self.assertEqual(loaded.session_id, "test_session_paul")
+        self.assertEqual(loaded.persona_id, "paul")
+        self.assertEqual(loaded.character_name, "Paul (Apostle)")
+        self.assertEqual(len(loaded.turns), 2)
+        self.assertEqual(loaded.turns[0].content, "Paul, what is the gospel?")
+        self.assertEqual(loaded.turns[1].speaker, "Paul (Apostle)")
+
+    def test_list_and_delete_sessions(self):
+        from core.persona import DialogueTurn, DialogueTranscript
+
+        t1 = DialogueTranscript(
+            session_id="session_1",
+            persona_id="peter",
+            character_name="Peter (Simon Peter)",
+            created_at="2026-09-10T00:00:00Z",
+            updated_at="2026-09-10T00:05:00Z",
+            title="On Confession",
+            turns=[DialogueTurn("user", "User", "Who is Jesus?", "2026-09-10T00:00:00Z")],
+        )
+        t2 = DialogueTranscript(
+            session_id="session_2",
+            persona_id="moses",
+            character_name="Moses",
+            created_at="2026-09-10T00:01:00Z",
+            updated_at="2026-09-10T00:06:00Z",
+            title="On the Law",
+            turns=[],
+        )
+        self.mgr.save_transcript(t1)
+        self.mgr.save_transcript(t2)
+
+        sessions = self.mgr.list_transcripts()
+        self.assertEqual(len(sessions), 2)
+        # Most recently updated first
+        self.assertEqual(sessions[0].session_id, "session_2")
+        self.assertEqual(sessions[1].session_id, "session_1")
+
+        deleted = self.mgr.delete_transcript("session_1")
+        self.assertTrue(deleted)
+        self.assertEqual(len(self.mgr.list_transcripts()), 1)
+        with self.assertRaises(FileNotFoundError):
+            self.mgr.load_transcript("session_1")
+
+    def test_export_markdown_transcript(self):
+        from core.persona import DialogueTurn, DialogueTranscript
+
+        transcript = DialogueTranscript(
+            session_id="markdown_test",
+            persona_id="david",
+            character_name="David",
+            created_at="2026-09-10T00:00:00Z",
+            updated_at="2026-09-10T00:00:02Z",
+            title="Songs in the Night",
+            translation="ESV",
+            turns=[
+                DialogueTurn("user", "Inquirer", "How do you praise God in grief?", "2026-09-10T00:00:00Z"),
+                DialogueTurn("character", "David", "I pour out my complaint before him; I tell my trouble before him.", "2026-09-10T00:00:02Z"),
+            ],
+        )
+        self.mgr.save_transcript(transcript)
+        md_text = transcript.to_markdown()
+        self.assertIn("# Songs in the Night", md_text)
+        self.assertIn("Canonical Exegetical Dialogue with David", md_text)
+        self.assertIn("### Inquirer", md_text)
+        self.assertIn("### David", md_text)
+        self.assertIn("I pour out my complaint", md_text)
+
+        export_path = self.temp_dir / "exported_david.md"
+        result_path = self.mgr.export_markdown(transcript.session_id, export_path)
+        self.assertTrue(result_path.exists())
+        self.assertEqual(result_path.read_text(encoding="utf-8"), md_text)
+
+    def test_session_resume_and_save_workflow(self):
+        from core.persona import BiblicalPersonaSession, DialogueTurn, DialogueTranscript
+
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+
+        session = create_persona_session("paul", llm_client=mock_client)
+        session.say("Why do you glory in tribulation?")
+
+        transcript = session.to_transcript(title="Glory in Tribulation")
+        self.assertEqual(transcript.persona_id, "paul")
+        self.assertEqual(len(transcript.turns), 2)
+
+        # Save through session method
+        session.save(sessions_dir=self.temp_dir)
+
+        # Resume session
+        resumed_session = BiblicalPersonaSession.resume(
+            transcript.session_id, sessions_dir=self.temp_dir, llm_client=mock_client
+        )
+        self.assertEqual(resumed_session.persona.id, "paul")
+        self.assertEqual(len(resumed_session.history), 2)
+        self.assertEqual(resumed_session.turn_count, 1)
+
+        # Ensure we can continue dialoguing
+        resumed_session.say("Can you explain further?")
+        self.assertEqual(len(resumed_session.history), 4)
+        self.assertEqual(resumed_session.turn_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
