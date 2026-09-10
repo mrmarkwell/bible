@@ -213,6 +213,20 @@ class TestBuildVectorDb(unittest.TestCase):
         data = json.loads(out.getvalue())
         self.assertIn("ledger_status", data)
 
+    def test_compilation_execution_corpus_filter(self):
+        # Test compiling with corpus_filter="1"
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="1",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
 
 if __name__ == "__main__":
     unittest.main()

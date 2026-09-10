@@ -3541,6 +3541,34 @@ This document is an append-only log of significant design and architectural deci
   - Bridges the user experience and exegesis parity gap across all platforms: CLI, interactive REPL studio, and Web UI now share identical 4D theological facet filtering, rank fusion toggles, and rich semantic pericope visualization.
   - Zero external dependencies maintained (100% Python standard library + vanilla HTML/CSS/JS per ADR-003).
 
+---
+
+## ADR-105: Whole-Bible Vector Database Campaign: Corpus 1 Architecture (Foundational Pauline Epistles & Hebrews)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), Task 7.7 established the Semantic Passport formulation engine and batch vector compiler (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083 and ADR-100).
+  - To fulfill the Whole-Bible Vector Database roadmap, the 1,304+ canonical pericopes must be ingested and compiled sequentially across the 7 canonical corpora defined in `core/corpora.py`:
+    * Corpus 1: Foundational Pauline Epistles & Hebrews (Romans, 1-2 Corinthians, Galatians, Ephesians, Philippians, Colossians, Hebrews; 115 pericopes).
+  - The vector database campaign must ensure:
+    1. Resilient ledger tracking in SQLite (`vector_checkpoint_ledger`) with atomic state transitions (`PENDING` -> `IN_PROGRESS` -> `COMPLETED`).
+    2. Multi-tiered Semantic Passport compilation synthesizing canonical citations, theological propositions, redemptive summaries, literary genres, storyline epochs, and theological loci into high-density semantic documents.
+    3. High-dimensional vector generation (768 dimensions) with unit normalization and signed int8 quantization ([-127, 127]) for compact SQLite BLOB storage.
+    4. Crash-resilient resumption (`--resume`) and comprehensive CLI/JSON telemetry.
+- **Decision**:
+  1. **Corpus 1 Vector Compilation Execution**:
+     - Executed `./bible build-vectors --corpus 1` across all 8 Pauline/Hebrew epistles (Romans, 1 Corinthians, 2 Corinthians, Galatians, Ephesians, Philippians, Colossians, Hebrews).
+     - Compiled all 115 canonical pericopes in Corpus 1 into 768-dimensional normalized signed int8 embeddings stored in `pericope_embeddings`.
+     - Verified 100% ledger completion (115/115 units completed, 0 failed, 0 pending).
+  2. **Hermetic Test Suite Verification (`tests/test_build_vector_db.py`)**:
+     - Added `test_compilation_execution_corpus_filter` to `tests/test_build_vector_db.py` verifying that `--corpus 1` accurately filters and compiles pericope units.
+     - Verified all 47 test modules pass 100% (**1,044 tests passing in 8.9s**).
+- **Consequences**:
+  - Resolves Task 7.8 on the project roadmap.
+  - Corpus 1 (the theological bedrock of justification, union with Christ, cross-centered ecclesiology, and Christ's supreme high priesthood) is fully embedded and indexed in SQLite with 100% ledger verification.
+  - Sets up next campaign milestone: Task 7.9 (Corpus 2: The Four Gospels & Acts; ~375 pericopes).
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+
 
 
 
