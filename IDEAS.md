@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Bounded Spatial Interval Index Seeks, Dynamic Executive Phase Resolution & Omnichannel REPL Telemetry (Rank A+)
+- **Summary**: Eliminate unconstrained lower-bound table scans in SQLite interval queries across `verse_tags`, `pericopes`, `spans`, and `verse_theology` (`WHERE start_canonical_id <= ? AND end_canonical_id >= ?`) by maintaining cached maximum span length trackers (`SELECT MAX(end_canonical_id - start_canonical_id)`) and injecting spatial lower bounds (`start_canonical_id >= (start_id - max_span)`). Accelerate interval seeks by **102.7x** and reduce batch slide resolution tests (`tests/test_slide_batch.py`) from 8.991s to 0.183s (**49.1x speedup**). Synchronize `tools/executive_summary.py` with all 9 non-test diagnostics in `tools/doctor.py` and dynamic active phase parsing from `ROADMAP.md`. Equip interactive REPL Studio with full `/summary` command options (`[N]`, `-w=N`, `--window=N`, `--json`, `--doctor`, `--no-doctor`) and tab-completion.
+- **Rationale**: Directly answers the Senior PM sprint questions by crushing the single largest query inefficiency in the SQLite storage layer, removing the slowest test straggler in the entire test suite, expanding executive health sentry verification to 100% of doctor checks, and unifying interactive CLI telemetry.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure SQLite B-tree index seek optimization and local state inspection).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High performance? Yes (102.7x query speedup, 49.1x test acceleration).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.32 / ADR-098).
+- **Status**: Completed and verified during Run 090 Senior PM Double Milestone (ADR-098).
+
 ### [COMPLETED] Omnichannel Interactive 2D Scatter Map Terminal REPL Studio & Executive Summary JSON Telemetry (Rank A+)
 - **Summary**: Establish 100% capability parity between CLI and the sovereign interactive study REPL (`cli/shell.py`) by implementing the `/map` (with aliases `/scatter` and `/scatter_map`) terminal scatter visualizer, integrating `/vector project` to directly compute and persist 2D pericope coordinates, expanding `preprocess_cli_argv` to recognize map commands without misrouting them to citation lookup, equipping the Executive Summary engine (`./bible summary`, `tools/executive_summary.py`) with machine-readable `--json` output, adding resilient hierarchical action extraction for Senior PM meta-sprints, and pruning all static analysis warnings across core, CLI, and test modules.
 - **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by eliminating feature parity gaps between the interactive REPL and the CLI, enabling programmatic JSON consumption of executive trajectory telemetry, ensuring multi-turn and script consumers have access to 2D scripture atlas visualization, and maintaining immaculate zero-warning static analysis cleanliness.

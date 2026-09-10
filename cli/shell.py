@@ -2447,14 +2447,44 @@ class BibleShell(cmd.Cmd):
     complete_dialogue = complete_chat
 
     def do_summary(self, arg: str) -> None:
-        """Generate executive summary and trajectory report."""
+        """Generate executive summary and trajectory report.
+        Usage:
+          /summary [N] [--json] [--doctor] [--window=N]
+        """
         from tools.executive_summary import generate_summary, format_markdown_report
+        tokens = arg.strip().split()
         window = 10
-        if arg.strip().isdigit():
-            window = int(arg.strip())
+        as_json = False
+        run_doctor = False
+        for tok in tokens:
+            if tok.isdigit():
+                window = int(tok)
+            elif tok in ("--json", "-j"):
+                as_json = True
+            elif tok in ("--doctor", "-d"):
+                run_doctor = True
+            elif tok in ("--no-doctor",):
+                run_doctor = False
+            elif tok.startswith("--window="):
+                val = tok.split("=", 1)[1]
+                if val.isdigit():
+                    window = int(val)
+            elif tok.startswith("-w="):
+                val = tok.split("=", 1)[1]
+                if val.isdigit():
+                    window = int(val)
+
         repo_root = Path(__file__).resolve().parent.parent
-        report = generate_summary(window=window, repo_root=repo_root, run_doctor=False)
-        self.stdout.write("\n" + format_markdown_report(report) + "\n\n")
+        report = generate_summary(window=window, repo_root=repo_root, run_doctor=run_doctor)
+        if as_json:
+            self.stdout.write(report.to_json(indent=2) + "\n")
+        else:
+            self.stdout.write("\n" + format_markdown_report(report) + "\n\n")
+
+    def complete_summary(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Autocompletion for /summary command."""
+        candidates = ["--window", "--json", "--doctor", "--no-doctor", "5", "10", "20"]
+        return [c for c in candidates if c.startswith(text.lower())]
 
     def do_serve(self, arg: str) -> None:
         """Launch, inspect, or stop the built-in HTTP web server and REST API.

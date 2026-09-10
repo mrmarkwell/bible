@@ -4,6 +4,7 @@ Zero external dependencies (Python 3 standard library only per ADR-003).
 """
 
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -494,6 +495,28 @@ class TestShell(unittest.TestCase):
             # Test /scatter and /scatter_map aliases
             sh.do_scatter("--status")
             sh.do_scatter_map("--status")
+
+    def test_shell_summary_options_and_completion(self):
+        out = io.StringIO()
+        with BibleShell(db_path=self.db_path, database=self.db, stdout=out) as sh:
+            sh.do_summary("5")
+            val = out.getvalue()
+            self.assertIn("Executive Summary", val)
+
+            # Test JSON output
+            out_json = io.StringIO()
+            sh.stdout = out_json
+            sh.do_summary("--window 3 --json")
+            json_val = out_json.getvalue().strip()
+            data = json.loads(json_val)
+            self.assertIn("roadmap", data)
+            self.assertIn("velocity", data)
+
+            # Test autocompletion
+            comp_sum = sh.complete_summary("--w", "--w", 0, 3)
+            self.assertIn("--window", comp_sum)
+            comp_doc = sh.complete_summary("--d", "--d", 0, 3)
+            self.assertIn("--doctor", comp_doc)
 
 
 class TestCliCitationPreprocessing(unittest.TestCase):

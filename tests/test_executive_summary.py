@@ -182,5 +182,38 @@ class TestExecutiveSummary(unittest.TestCase):
             self.assertTrue(any("Interval Sweep-Line" in a for a in entries[0].actions))
 
 
+    def test_generate_summary_all_nine_doctor_checks(self):
+        from unittest.mock import patch
+        from tools.doctor import CheckResult
+
+        def make_mock_check(name):
+            return CheckResult(name, True, f"Mock {name} OK", 0.001)
+
+        with patch("tools.doctor.check_zero_dependencies", return_value=make_mock_check("Zero External Dependencies (AST Audit)")), \
+             patch("tools.doctor.check_doc_synchronization", return_value=make_mock_check("Documentation State Sync")), \
+             patch("tools.doctor.check_bash_scripts", return_value=make_mock_check("Shell Script Integrity")), \
+             patch("tools.doctor.check_git_hooks", return_value=make_mock_check("Git Hook Safeguards")), \
+             patch("tools.doctor.check_ci_workflows", return_value=make_mock_check("CI/CD Automation & GitHub Actions")), \
+             patch("tools.doctor.check_secret_leak_prevention", return_value=make_mock_check("Secret Leak Safeguards")), \
+             patch("tools.doctor.check_code_quality", return_value=make_mock_check("Code Quality (Static Linter Audit)")), \
+             patch("tools.doctor.check_module_test_symmetry", return_value=make_mock_check("Module-Test Suite Symmetry")), \
+             patch("tools.doctor.check_database_integrity", return_value=make_mock_check("SQLite Scripture Database")):
+            report = generate_summary(window=3, run_doctor=True)
+            self.assertEqual(len(report.system_health_details), 9)
+            details_str = " ".join(report.system_health_details)
+            self.assertIn("Zero External Dependencies", details_str)
+            self.assertIn("CI/CD Automation", details_str)
+            self.assertIn("Secret Leak Safeguards", details_str)
+            self.assertIn("Module-Test Suite Symmetry", details_str)
+            self.assertIn("SQLite Scripture Database", details_str)
+
+    def test_active_phase_dynamic_fallback(self):
+        report = generate_summary(window=1, run_doctor=False)
+        md = format_markdown_report(report)
+        # Verify it doesn't contain the old hardcoded Phase 5
+        self.assertNotIn("Phase 5: Visual Slide Generator", md)
+        self.assertIn("Phase 4, 7 & 8", md)
+
+
 if __name__ == "__main__":
     unittest.main()

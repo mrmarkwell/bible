@@ -1063,5 +1063,110 @@ class TestPhase7SemanticArchitecture(unittest.TestCase):
         db.close()
 
 
+class TestBoundedSpatialIntervalSeeks(unittest.TestCase):
+    """Hermetic unit tests for bounded spatial interval index seeks (ADR-098)."""
+
+    def setUp(self):
+        self.db = Database(db_path=":memory:", auto_init=True)
+        self.db.add_translation("WEB", "World English Bible")
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_empty_table_safe_fallbacks(self):
+        """Verify empty tables return safe bounded max span fallback without errors."""
+        self.assertEqual(self.db._get_verse_tags_max_span(), 50000)
+        self.assertEqual(self.db._get_spans_max_span(), 50000)
+        self.assertEqual(self.db._get_pericopes_max_span(), 50000)
+        self.assertEqual(self.db._get_verse_theology_max_span(), 50000)
+
+    def test_verse_tags_spatial_lower_bounding_and_cache(self):
+        """Verify verse_tags max span cache updating and bounded query correctness."""
+        self.db.tag_reference("Genesis 1:1", "creation")
+        self.assertEqual(self.db._get_verse_tags_max_span(), 0)
+
+        # Multi-verse span in Romans (span = 2)
+        self.db.tag_reference("Romans 8:28-30", "providence")
+        self.assertEqual(self.db._get_verse_tags_max_span(), 2)
+
+        # Batch tags
+        self.db.tag_references_batch([
+            ("Psalm 23:1-6", False, "Shepherd psalm"),
+            ("John 3:16", True, "Golden verse"),
+        ], tag_name="devotional")
+        self.assertEqual(self.db._get_verse_tags_max_span(), 5)
+
+        # Query overlapping reference
+        tags = self.db.get_tags_for_reference("Romans 8:29")
+        tag_names = {t.tag_name for t in tags}
+        self.assertIn("providence", tag_names)
+
+        # Non-overlapping reference must not match
+        self.assertEqual(len(self.db.get_tags_for_reference("Genesis 1:2")), 0)
+
+    def test_spans_spatial_lower_bounding_and_cache(self):
+        """Verify spans max span cache updating and bounded overlap retrieval."""
+        s1 = self.db.add_span("Romans 8:1-11", label="Life in the Spirit")
+        self.assertEqual(self.db._get_spans_max_span(), 10)
+
+        # Add larger span in 1 Corinthians
+        s2 = self.db.add_span("1 Corinthians 13:1-13", label="Love Chapter")
+        self.assertEqual(self.db._get_spans_max_span(), 12)
+
+        # Overlap retrieval
+        overlaps = self.db.find_overlapping_spans("Romans 8:5")
+        self.assertEqual(len(overlaps), 1)
+        self.assertEqual(overlaps[0].id, s1.id)
+
+        # Disjoint reference
+        self.assertEqual(len(self.db.find_overlapping_spans("Romans 8:12")), 0)
+
+    def test_pericopes_spatial_lower_bounding_and_cache(self):
+        """Verify pericopes max span cache updating and bounded retrieval."""
+        p1 = self.db.insert_pericope("Genesis 1:1-2:3", "The Creation Account")
+        # Genesis 1:1 (1001001) to Genesis 2:3 (1002003) -> span = 1002
+        self.assertGreaterEqual(self.db._get_pericopes_max_span(), 1000)
+
+        # Batch insert
+        self.db.insert_pericopes_batch([
+            ("Romans 8:1-17", "Life in the Spirit", "Summary", "Epistle"),
+            ("Romans 8:18-30", "Future Glory", "Summary", "Epistle"),
+        ])
+
+        # Overlapping retrieval
+        pericopes = self.db.get_pericopes_for_reference("Romans 8:28")
+        self.assertEqual(len(pericopes), 1)
+        self.assertEqual(pericopes[0].title, "Future Glory")
+
+        # Chapter-filtered retrieval
+        ch_pericopes = self.db.get_pericopes_for_book("Romans", chapter=8)
+        self.assertEqual(len(ch_pericopes), 2)
+        titles = [p.title for p in ch_pericopes]
+        self.assertIn("Life in the Spirit", titles)
+        self.assertIn("Future Glory", titles)
+
+    def test_verse_theology_spatial_lower_bounding_and_cache(self):
+        """Verify verse_theology max span cache updating and bounded retrieval."""
+        vt1 = self.db.insert_verse_theology(
+            reference="Genesis 1:1-3",
+            storyline_epoch="Creation",
+            theological_locus="Theology Proper",
+            primary_doctrine="Creatio Ex Nihilo",
+            thematic_ribbon="Cosmic Temple",
+        )
+        self.assertEqual(self.db._get_verse_theology_max_span(), 2)
+
+        # Batch insert
+        self.db.insert_verse_theology_batch([
+            ("Romans 3:21-26", "Inaugurated Eschatology", "Soteriology", "Justification by Faith", "Covenant Righteousness"),
+        ])
+        self.assertEqual(self.db._get_verse_theology_max_span(), 5)
+
+        # Query theology
+        records = self.db.get_verse_theology_for_reference("Romans 3:23")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].primary_doctrine, "Justification by Faith")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -337,7 +337,10 @@ def generate_summary(
                 check_doc_synchronization,
                 check_bash_scripts,
                 check_git_hooks,
+                check_ci_workflows,
+                check_secret_leak_prevention,
                 check_code_quality,
+                check_module_test_symmetry,
                 check_database_integrity,
             )
             checks = [
@@ -345,7 +348,10 @@ def generate_summary(
                 check_doc_synchronization(root),
                 check_bash_scripts(root),
                 check_git_hooks(root),
+                check_ci_workflows(root),
+                check_secret_leak_prevention(root),
                 check_code_quality(root),
+                check_module_test_symmetry(root),
                 check_database_integrity(root),
             ]
             all_passed = all(c.passed for c in checks)
@@ -391,7 +397,8 @@ def format_markdown_report(report: ExecutiveReport) -> str:
     # 1. Executive Overview & High-Level State
     lines.append("## 1. Executive Overview & Trajectory")
     lines.append(f"- **Overall Project Completion**: **{pct_complete:.1f}%** ({report.roadmap_stats.completed_tasks}/{report.roadmap_stats.total_tasks} roadmap tasks completed)")
-    lines.append(f"- **Active Development Phase**: `{report.roadmap_stats.active_phase or 'Phase 5: Visual Slide Generator'}`")
+    active_phase_display = report.roadmap_stats.active_phase or "Phase 4, 7 & 8 (Active Roadmap)"
+    lines.append(f"- **Active Development Phase**: `{active_phase_display}`")
     lines.append(f"- **Remaining Backlog Tasks**: **{report.roadmap_stats.todo_tasks} tasks** pending (+ {report.roadmap_stats.in_progress_tasks} in progress)")
     lines.append(f"- **Observed Velocity**: ~**{report.avg_velocity_tasks_per_run} tasks/iteration** (accounting for meta-improvement cadences)")
     lines.append(f"- **Estimated Effort to Complete Roadmap**: **~{report.estimated_runs_remaining} Ralph loop iterations**")

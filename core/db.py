@@ -929,6 +929,10 @@ class Database:
         self._configure_pragmas()
         self._esv_client: Optional[Any] = None
         self._max_cross_ref_spans: Optional[Tuple[int, int]] = None
+        self._max_verse_tags_span: Optional[int] = None
+        self._max_spans_span: Optional[int] = None
+        self._max_pericopes_span: Optional[int] = None
+        self._max_verse_theology_span: Optional[int] = None
 
         if auto_init:
             self.init_schema()
@@ -1808,6 +1812,11 @@ class Database:
             )
             span_id = cur.lastrowid
 
+        if self._max_spans_span is not None:
+            span_len = end_id - start_id
+            if span_len > self._max_spans_span:
+                self._max_spans_span = span_len
+
         return SpanRecord(
             id=span_id,
             human_ref=human,
@@ -1844,14 +1853,16 @@ class Database:
         start_id = ref.canonical_start_id
         end_id = ref.canonical_end_id
 
+        max_span = self._get_spans_max_span()
+        min_start = max(0, start_id - max_span)
         cur = self.conn.cursor()
         cur.execute(
             """
             SELECT * FROM spans
-            WHERE start_canonical_id <= ? AND end_canonical_id >= ?
+            WHERE start_canonical_id >= ? AND start_canonical_id <= ? AND end_canonical_id >= ?
             ORDER BY start_canonical_id ASC
             """,
-            (end_id, start_id),
+            (min_start, end_id, start_id),
         )
         rows = cur.fetchall()
         cur.close()
@@ -2068,6 +2079,11 @@ class Database:
                     )
                 cur_star.close()
 
+        if self._max_verse_tags_span is not None:
+            span_len = end_id - start_id
+            if span_len > self._max_verse_tags_span:
+                self._max_verse_tags_span = span_len
+
         return VerseTagRecord(
             id=vt_id,
             tag_id=tag.id,
@@ -2107,15 +2123,17 @@ class Database:
                 (start_id, end_id),
             )
         else:
+            max_span = self._get_verse_tags_max_span()
+            min_start = max(0, start_id - max_span)
             cur.execute(
                 """
                 SELECT vt.*, t.name as tag_name, t.category as category
                 FROM verse_tags vt
                 JOIN tags t ON t.id = vt.tag_id
-                WHERE vt.start_canonical_id <= ? AND vt.end_canonical_id >= ?
+                WHERE vt.start_canonical_id >= ? AND vt.start_canonical_id <= ? AND vt.end_canonical_id >= ?
                 ORDER BY vt.starred DESC, vt.confidence DESC, vt.id ASC
                 """,
-                (end_id, start_id),
+                (min_start, end_id, start_id),
             )
         rows = cur.fetchall()
         cur.close()
@@ -2526,6 +2544,74 @@ class Database:
                 cur.close()
         return self._max_cross_ref_spans
 
+    def _get_verse_tags_max_span(self) -> int:
+        """Return maximum coordinate span for verse tags.
+
+        Cached in-memory to provide instantaneous mathematical lower-bounding for
+        spatial index seeks in get_tags_for_reference(), eliminating full table scans.
+        """
+        if self._max_verse_tags_span is None:
+            cur = self.conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT MAX(end_canonical_id - start_canonical_id) FROM verse_tags"
+                )
+                row = cur.fetchone()
+                self._max_verse_tags_span = int(row[0]) if (row and row[0] is not None) else 50000
+            except Exception:
+                self._max_verse_tags_span = 50000
+            finally:
+                cur.close()
+        return self._max_verse_tags_span
+
+    def _get_spans_max_span(self) -> int:
+        """Return maximum coordinate span for arbitrary passage spans."""
+        if self._max_spans_span is None:
+            cur = self.conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT MAX(end_canonical_id - start_canonical_id) FROM spans"
+                )
+                row = cur.fetchone()
+                self._max_spans_span = int(row[0]) if (row and row[0] is not None) else 50000
+            except Exception:
+                self._max_spans_span = 50000
+            finally:
+                cur.close()
+        return self._max_spans_span
+
+    def _get_pericopes_max_span(self) -> int:
+        """Return maximum coordinate span for canonical pericopes."""
+        if self._max_pericopes_span is None:
+            cur = self.conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT MAX(end_canonical_id - start_canonical_id) FROM pericopes"
+                )
+                row = cur.fetchone()
+                self._max_pericopes_span = int(row[0]) if (row and row[0] is not None) else 50000
+            except Exception:
+                self._max_pericopes_span = 50000
+            finally:
+                cur.close()
+        return self._max_pericopes_span
+
+    def _get_verse_theology_max_span(self) -> int:
+        """Return maximum coordinate span for verse theology records."""
+        if self._max_verse_theology_span is None:
+            cur = self.conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT MAX(end_canonical_id - start_canonical_id) FROM verse_theology"
+                )
+                row = cur.fetchone()
+                self._max_verse_theology_span = int(row[0]) if (row and row[0] is not None) else 50000
+            except Exception:
+                self._max_verse_theology_span = 50000
+            finally:
+                cur.close()
+        return self._max_verse_theology_span
+
     def get_cross_references(
         self,
         reference: Union[Reference, str],
@@ -2703,6 +2789,11 @@ class Database:
                         )
                     cur_star.close()
 
+        if self._max_verse_tags_span is not None and rows:
+            max_in_batch = max(r[2] - r[1] for r in rows)
+            if max_in_batch > self._max_verse_tags_span:
+                self._max_verse_tags_span = max_in_batch
+
         return len(rows)
 
     def clear_tag(self, tag_name: str) -> int:
@@ -2791,6 +2882,11 @@ class Database:
             )
             p_id = cur.lastrowid
 
+        if self._max_pericopes_span is not None:
+            span_len = end_id - start_id
+            if span_len > self._max_pericopes_span:
+                self._max_pericopes_span = span_len
+
         return PericopeRecord(
             id=p_id,
             book_id=book_id,
@@ -2866,6 +2962,12 @@ class Database:
                 """,
                 rows,
             )
+
+        if self._max_pericopes_span is not None and rows:
+            max_in_batch = max(r[2] - r[1] for r in rows)
+            if max_in_batch > self._max_pericopes_span:
+                self._max_pericopes_span = max_in_batch
+
         return len(rows)
 
     def get_pericopes_for_reference(
@@ -2877,16 +2979,18 @@ class Database:
         start_id = ref.canonical_start_id
         end_id = ref.canonical_end_id
 
+        max_span = self._get_pericopes_max_span()
+        min_start = max(0, start_id - max_span)
         cur = self.conn.cursor()
         cur.execute(
             """
             SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
                    redemptive_summary, genre, literary_structure, central_proposition, created_at
             FROM pericopes
-            WHERE start_canonical_id <= ? AND end_canonical_id >= ?
+            WHERE start_canonical_id >= ? AND start_canonical_id <= ? AND end_canonical_id >= ?
             ORDER BY start_canonical_id ASC, id ASC
             """,
-            (end_id, start_id),
+            (min_start, end_id, start_id),
         )
         rows = cur.fetchall()
         cur.close()
@@ -2918,15 +3022,17 @@ class Database:
         if chapter is not None:
             c_start = verse_canonical_id(b.number, chapter, 1)
             c_end = verse_canonical_id(b.number, chapter, 999)
+            max_span = self._get_pericopes_max_span()
+            min_start = max(0, c_start - max_span)
             cur.execute(
                 """
                 SELECT id, book_id, start_canonical_id, end_canonical_id, human_ref, title,
                        redemptive_summary, genre, literary_structure, central_proposition, created_at
                 FROM pericopes
-                WHERE book_id = ? AND start_canonical_id <= ? AND end_canonical_id >= ?
+                WHERE book_id = ? AND start_canonical_id >= ? AND start_canonical_id <= ? AND end_canonical_id >= ?
                 ORDER BY start_canonical_id ASC, id ASC
                 """,
-                (b.number, c_end, c_start),
+                (b.number, min_start, c_end, c_start),
             )
         else:
             cur.execute(
@@ -3348,6 +3454,11 @@ class Database:
             )
             vt_id = cur.lastrowid
 
+        if self._max_verse_theology_span is not None:
+            span_len = e_id - s_id
+            if span_len > self._max_verse_theology_span:
+                self._max_verse_theology_span = span_len
+
         return VerseTheologyRecord(
             id=vt_id,
             start_canonical_id=s_id,
@@ -3414,6 +3525,12 @@ class Database:
                 """,
                 rows,
             )
+
+        if self._max_verse_theology_span is not None and rows:
+            max_in_batch = max(r[1] - r[0] for r in rows)
+            if max_in_batch > self._max_verse_theology_span:
+                self._max_verse_theology_span = max_in_batch
+
         return len(rows)
 
     def get_verse_theology_for_reference(
@@ -3425,6 +3542,8 @@ class Database:
         start_id = ref.canonical_start_id
         end_id = ref.canonical_end_id
 
+        max_span = self._get_verse_theology_max_span()
+        min_start = max(0, start_id - max_span)
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -3432,10 +3551,10 @@ class Database:
                    thematic_ribbon, theological_locus, primary_doctrine, confidence,
                    created_at
             FROM verse_theology
-            WHERE start_canonical_id <= ? AND end_canonical_id >= ?
+            WHERE start_canonical_id >= ? AND start_canonical_id <= ? AND end_canonical_id >= ?
             ORDER BY start_canonical_id ASC, id ASC
             """,
-            (end_id, start_id),
+            (min_start, end_id, start_id),
         )
         rows = cur.fetchall()
         cur.close()
