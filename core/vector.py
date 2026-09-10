@@ -755,7 +755,30 @@ class PericopeRecommender:
                 "book_id": book_id,
                 "book_name": r["book_name"] or "",
                 "testament": testament,
+                "epochs": set(),
+                "loci": set(),
             }
+
+        # Associate theological epochs and loci from verse_theology
+        try:
+            cur = target_db.conn.cursor()
+            cur.execute("""
+                SELECT p.id as pericope_id, vt.storyline_epoch, vt.theological_locus
+                FROM verse_theology vt
+                JOIN pericopes p ON p.start_canonical_id <= vt.end_canonical_id AND p.end_canonical_id >= vt.start_canonical_id
+                WHERE vt.storyline_epoch IS NOT NULL OR vt.theological_locus IS NOT NULL
+            """)
+            vt_rows = cur.fetchall()
+            cur.close()
+            for vtr in vt_rows:
+                v_pid = int(vtr["pericope_id"])
+                if v_pid in self._pericope_meta:
+                    if vtr["storyline_epoch"]:
+                        self._pericope_meta[v_pid]["epochs"].add(str(vtr["storyline_epoch"]).strip().lower())
+                    if vtr["theological_locus"]:
+                        self._pericope_meta[v_pid]["loci"].add(str(vtr["theological_locus"]).strip().lower())
+        except Exception:
+            pass
 
         self._is_loaded = True
         return count
@@ -769,6 +792,8 @@ class PericopeRecommender:
         testament: Optional[str] = None,
         genre: Optional[str] = None,
         book: Optional[str] = None,
+        epoch: Optional[str] = None,
+        locus: Optional[str] = None,
         mode: str = "hierarchical",
         candidate_pool_size: int = 250,
     ) -> Dict[str, Any]:
@@ -816,6 +841,8 @@ class PericopeRecommender:
             testament=testament,
             genre=genre,
             book=book,
+            epoch=epoch,
+            locus=locus,
             mode=mode,
             candidate_pool_size=candidate_pool_size,
         )
@@ -829,6 +856,8 @@ class PericopeRecommender:
         testament: Optional[str] = None,
         genre: Optional[str] = None,
         book: Optional[str] = None,
+        epoch: Optional[str] = None,
+        locus: Optional[str] = None,
         mode: str = "hierarchical",
         candidate_pool_size: int = 250,
     ) -> Dict[str, Any]:
@@ -853,6 +882,8 @@ class PericopeRecommender:
         t_filter = testament.strip().upper() if testament else None
         g_filter = genre.strip().lower() if genre else None
         b_filter = book.strip().lower() if book else None
+        e_filter = epoch.strip().lower() if epoch else None
+        l_filter = locus.strip().lower() if locus else None
 
         def custom_filter(rec: VectorRecord) -> bool:
             if rec.entity_id == pericope_id:
@@ -865,6 +896,10 @@ class PericopeRecommender:
                 if b_filter and meta.get("book_name", "").lower() != b_filter:
                     return False
                 if g_filter and g_filter not in meta.get("genre", "").lower():
+                    return False
+                if e_filter and e_filter not in meta.get("epochs", set()):
+                    return False
+                if l_filter and l_filter not in meta.get("loci", set()):
                     return False
             return True
 
@@ -901,9 +936,16 @@ class PericopeRecommender:
                 )
             )
 
+        # Ensure source dictionary is strictly JSON serializable (convert sets to lists)
+        source_dict = dict(source_meta)
+        if "epochs" in source_dict and isinstance(source_dict["epochs"], set):
+            source_dict["epochs"] = sorted(list(source_dict["epochs"]))
+        if "loci" in source_dict and isinstance(source_dict["loci"], set):
+            source_dict["loci"] = sorted(list(source_dict["loci"]))
+
         return {
             "query_type": "passage",
-            "source": source_meta,
+            "source": source_dict,
             "total_vectors": len(self.index),
             "count": len(recommendations),
             "matches": [r.to_dict() for r in recommendations],
@@ -918,6 +960,8 @@ class PericopeRecommender:
         testament: Optional[str] = None,
         genre: Optional[str] = None,
         book: Optional[str] = None,
+        epoch: Optional[str] = None,
+        locus: Optional[str] = None,
         mode: str = "hierarchical",
         candidate_pool_size: int = 250,
         api_key: Optional[str] = None,
@@ -959,6 +1003,8 @@ class PericopeRecommender:
         t_filter = testament.strip().upper() if testament else None
         g_filter = genre.strip().lower() if genre else None
         b_filter = book.strip().lower() if book else None
+        e_filter = epoch.strip().lower() if epoch else None
+        l_filter = locus.strip().lower() if locus else None
 
         def custom_filter(rec: VectorRecord) -> bool:
             pid = int(rec.entity_id) if isinstance(rec.entity_id, (int, str)) and str(rec.entity_id).isdigit() else None
@@ -969,6 +1015,10 @@ class PericopeRecommender:
                 if b_filter and meta.get("book_name", "").lower() != b_filter:
                     return False
                 if g_filter and g_filter not in meta.get("genre", "").lower():
+                    return False
+                if e_filter and e_filter not in meta.get("epochs", set()):
+                    return False
+                if l_filter and l_filter not in meta.get("loci", set()):
                     return False
             return True
 

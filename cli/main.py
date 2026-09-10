@@ -5349,6 +5349,39 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable dense vector semantic similarity search over pericopes",
     )
+    parser_ask.add_argument(
+        "--testament",
+        choices=["OT", "NT", "ot", "nt"],
+        default=None,
+        help="Filter retrieval by canonical Testament ('OT' or 'NT')",
+    )
+    parser_ask.add_argument(
+        "--genre",
+        default=None,
+        help="Filter retrieval by biblical genre (e.g. 'Gospel', 'Epistle', 'Wisdom', 'Prophets')",
+    )
+    parser_ask.add_argument(
+        "--epoch",
+        default=None,
+        help="Filter retrieval by redemptive storyline epoch (e.g. 'creation', 'incarnation_climax')",
+    )
+    parser_ask.add_argument(
+        "--locus",
+        default=None,
+        help="Filter retrieval by theological locus (e.g. 'soteriology', 'christology')",
+    )
+    parser_ask.add_argument(
+        "--fusion",
+        choices=["rrf", "composite"],
+        default="rrf",
+        help="Ranking fusion strategy: 'rrf' (Reciprocal Rank Fusion, default) or 'composite'",
+    )
+    parser_ask.add_argument(
+        "--rrf-k",
+        type=int,
+        default=60,
+        help="Smoothing constant k for Reciprocal Rank Fusion (default: 60)",
+    )
 
     def cmd_ask(args: argparse.Namespace) -> int:
         from core.db import Database, DEFAULT_DB_PATH
@@ -5374,6 +5407,12 @@ def build_parser() -> argparse.ArgumentParser:
         max_tokens = getattr(args, "max_tokens", 4000)
         target_model = getattr(args, "model", None)
         target_trans = getattr(args, "translation", "ESV") or "ESV"
+        target_testament = getattr(args, "testament", None)
+        target_genre = getattr(args, "genre", None)
+        target_epoch = getattr(args, "epoch", None)
+        target_locus = getattr(args, "locus", None)
+        target_fusion = getattr(args, "fusion", "rrf")
+        target_rrf_k = getattr(args, "rrf_k", 60)
 
         color_enabled = (
             hasattr(sys.stdout, "isatty")
@@ -5395,6 +5434,12 @@ def build_parser() -> argparse.ArgumentParser:
                 max_tokens=max_tokens,
                 enable_vector=not no_vector,
                 preferred_translation=target_trans,
+                testament=target_testament,
+                genre=target_genre,
+                epoch=target_epoch,
+                locus=target_locus,
+                fusion_method=target_fusion,
+                rrf_k=target_rrf_k,
             )
 
             # Context-only mode

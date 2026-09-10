@@ -3429,4 +3429,53 @@ This document is an append-only log of significant design and architectural deci
   - Scripture RAG now combines dense semantic conceptual understanding with sparse lexical precision and theological guardrails.
   - Zero external dependencies maintained (100% Python standard library per ADR-003).
 
+---
+
+## ADR-102: Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) with Theological Facet Pre-Filtering
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 8.8 on the roadmap requires building a Tri-Modal Hybrid Search Engine combining dense vector similarity, SQLite FTS5 BM25 lexical search, and typological knowledge graph traversals using weighted Reciprocal Rank Fusion ($RRF = \sum \frac{w_m}{k + \text{rank}_m}$) with theological facet pre-filtering (Testament, Genre, Epoch, Locus) per ADR-083.
+  - While Task 8.7 added dense vector pericope scoring into composite linear summation (`cand["fts_score"] * w_fts + cand["vector_score"] * w_vec + ...`), linear score combination across heterogeneous retrieval modalities suffers from score calibration and dynamic range discrepancies:
+    1. FTS5 BM25 raw BM25/FTS match weights scale unpredictably based on passage length and query term counts.
+    2. Quantized `int8` cosine similarity produces normalized values in $[0.0, 1.0]$ with typical dense semantic matches clustering between $0.20$ and $0.65$.
+    3. Typological arc correspondences and systematic theological locus mappings represent discrete relational edges, which can artificially dominate or vanish depending on arbitrary additive weight tuning.
+  - Furthermore, serious theological research frequently demands targeted structural filtering (e.g. limiting an inquiry strictly to Gospels, Pentateuch, Epistles, or specific biblical epochs like Patriarchal, Mosaic, or Prophetic, or loci like Christology or Pneumatology).
+- **Decision**:
+  1. **Standardized Reciprocal Rank Fusion (`core/rag.py`)**:
+     - Implemented `compute_reciprocal_rank_fusion(ranked_modalities, modality_weights, k=60, normalize=True)` implementing Cormack et al. (SIGIR 2009):
+       $$RRF(d) = \sum_{m \in M} \frac{w_m}{k + \text{rank}_m(d)}$$
+     - Standardized default smoothing constant $k = 60$.
+     - When `normalize=True`, normalized scores by the theoretical maximum achievable score ($\sum \frac{w_m}{k+1}$), mapping RRF output directly to $[0.0, 1.0]$ to preserve full compatibility with UI match badges and thresholding.
+  2. **Theological Facet Pre-Filtering (`TheologicalFacetFilter`)**:
+     - Created `TheologicalFacetFilter` dataclass supporting `testament` (OT/NT), `genre` (Gospel, Epistle, Wisdom, Law/Pentateuch, History, Prophecy, Apocalyptic), `epoch`, and `locus`.
+     - Integrated `_genre_matches` with canonical aliases and case-insensitive matching.
+     - Implemented `matches_reference(ref, db)` with fast SQLite interval lookup against `pericopes` and `verse_theology`.
+     - Integrated facet pre-filtering directly into Stage 1 (FTS5 search), Stage 2b (vector search), and Stage 4 (typological arc expansion).
+     - Integrated auto-facet detection into `RAGQuery` via `extract_query_features` (e.g. detecting "ot", "old testament", "gospel", "epistle").
+  3. **Tri-Modal Retrieval Architecture (`ScriptureRAGEngine.retrieve()`)**:
+     - Distinct ranked lists are assembled across:
+       * Modality 1: Dense Vector Semantic Search (`vector`, weight `1.00`).
+       * Modality 2: Sparse SQLite FTS5 BM25 Lexical Search (`bm25`, weight `1.00`).
+       * Modality 3: Typological Arc Traversals (`typology`, weight `1.15`).
+       * Modality 4: Theological Tag Intersections (`tag`, weight `0.50`).
+     - Added secondary typological expansion attenuation ($0.40$) for general inquiries lacking explicit typological keywords, preventing shadows from eclipsing direct lexical hits.
+     - Added configurable `fusion_method` ("rrf" vs "composite") with `fusion_method="rrf"` as default.
+  4. **Pericope Vector Recommender Faceting (`core/vector.py`)**:
+     - Loaded `epochs` and `loci` sets into pericope metadata cache during startup.
+     - Extended `recommend_for_reference`, `recommend_for_pericope_id`, and `search_by_query` with `epoch` and `locus` parameters.
+     - Ensured all return dictionaries convert set collections to sorted lists for JSON serialization.
+  5. **Omnichannel CLI, Interactive REPL & Web UI Integration**:
+     - Added `--testament`, `--genre`, `--epoch`, `--locus`, `--fusion`, and `--rrf-k` to `./bible ask` in `cli/main.py`.
+     - Added matching flag parsing to interactive study shell `/ask` in `cli/shell.py`.
+     - Added matching parameters to `/api/rag` and `/api/rag/stream` in `web/server.py`.
+  6. **Hermetic Test Suite Verification**:
+     - Added `TestReciprocalRankFusionAlgorithm`, `TestTheologicalFacetFilter`, and `TestTriModalHybridRetrievalAndFaceting` in `tests/test_rag.py`.
+     - Verified all 47 test modules pass 100% (**1,041 tests passing in 8.7s**).
+- **Consequences**:
+  - Resolves Task 8.8 on the project roadmap, bringing **Phase 8 to 100% completion**.
+  - Scripture RAG now uses state-of-the-art rank fusion immune to scale calibration issues across dense, sparse, and graph modalities.
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+
+
 

@@ -24,12 +24,15 @@ from core.rag import (
     RAGResponse,
     RAGScoringWeights,
     ScriptureRAGEngine,
+    TheologicalFacetFilter,
+    compute_reciprocal_rank_fusion,
     estimate_tokens,
     extract_query_features,
     get_rag_engine,
     retrieve_rag_context,
 )
-from core.theology import ThematicRibbon, TheologicalLocus
+from core.reference import parse_reference
+from core.theology import RedemptiveEpoch, ThematicRibbon, TheologicalLocus
 
 
 class TestEstimateTokens(unittest.TestCase):
@@ -342,5 +345,200 @@ class TestVectorAssistedRAG(unittest.TestCase):
         self.assertGreater(len(p0.verses), 0)
 
 
+class TestReciprocalRankFusionAlgorithm(unittest.TestCase):
+    """Test standard mathematical formula and properties of Reciprocal Rank Fusion (ADR-083)."""
+
+    def test_empty_modalities_returns_empty_dict(self):
+        res = compute_reciprocal_rank_fusion({})
+        self.assertEqual(res, {})
+
+    def test_exact_rrf_mathematical_calculation(self):
+        # Two modalities with known rankings
+        ranked_modalities = {
+            "vector": ["docA", "docB", "docC"],
+            "bm25": ["docB", "docA", "docD"],
+        }
+        # Unnormalized check: RRF(d) = sum w / (k + rank)
+        # For k = 60, equal weights = 1.0:
+        # docA: 1/(60+1) + 1/(60+2) = 1/61 + 1/62 ≈ 0.0163934 + 0.0161290 = 0.0325224
+        # docB: 1/(60+2) + 1/(60+1) = 1/62 + 1/61 ≈ 0.0325224
+        # docC: 1/(60+3) = 1/63 ≈ 0.0158730
+        # docD: 1/(60+3) = 1/63 ≈ 0.0158730
+        scores_unnorm = compute_reciprocal_rank_fusion(
+            ranked_modalities,
+            k=60,
+            normalize=False,
+        )
+        self.assertAlmostEqual(scores_unnorm["docA"], 1.0 / 61 + 1.0 / 62, places=6)
+        self.assertAlmostEqual(scores_unnorm["docB"], 1.0 / 62 + 1.0 / 61, places=6)
+        self.assertAlmostEqual(scores_unnorm["docC"], 1.0 / 63, places=6)
+        self.assertAlmostEqual(scores_unnorm["docD"], 1.0 / 63, places=6)
+
+    def test_weighted_rrf_and_normalization(self):
+        ranked_modalities = {
+            "vector": ["docA", "docB"],
+            "bm25": ["docB", "docA"],
+        }
+        # Vector weight 2.0, BM25 weight 1.0
+        # Max possible = 2.0/61 + 1.0/61 = 3.0/61
+        scores_norm = compute_reciprocal_rank_fusion(
+            ranked_modalities,
+            modality_weights={"vector": 2.0, "bm25": 1.0},
+            k=60,
+            normalize=True,
+        )
+        # docA rank: vector=1, bm25=2 -> (2/61 + 1/62) / (3/61)
+        expected_docA = (2.0 / 61 + 1.0 / 62) / (3.0 / 61)
+        # docB rank: vector=2, bm25=1 -> (2/62 + 1/61) / (3/61)
+        expected_docB = (2.0 / 62 + 1.0 / 61) / (3.0 / 61)
+        self.assertAlmostEqual(scores_norm["docA"], expected_docA, places=6)
+        self.assertAlmostEqual(scores_norm["docB"], expected_docB, places=6)
+        # docA should beat docB because vector weight is higher
+        self.assertGreater(scores_norm["docA"], scores_norm["docB"])
+
+    def test_top_rank_in_all_modalities_has_normalized_score_one(self):
+        ranked_modalities = {
+            "vector": ["idealDoc", "otherDoc"],
+            "bm25": ["idealDoc", "secondDoc"],
+            "typology": ["idealDoc"],
+        }
+        scores_norm = compute_reciprocal_rank_fusion(
+            ranked_modalities,
+            k=60,
+            normalize=True,
+        )
+        self.assertAlmostEqual(scores_norm["idealDoc"], 1.0, places=6)
+
+
+class TestTheologicalFacetFilter(unittest.TestCase):
+    """Test theological facet pre-filtering model and matching rules."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.db = Database()
+
+    def test_is_active_flag(self):
+        empty_filter = TheologicalFacetFilter()
+        self.assertFalse(empty_filter.is_active)
+
+        active_filter = TheologicalFacetFilter(testament="OT")
+        self.assertTrue(active_filter.is_active)
+
+    def test_testament_pre_filter(self):
+        ot_filter = TheologicalFacetFilter(testament="OT")
+        nt_filter = TheologicalFacetFilter(testament="NT")
+
+        gen_ref = parse_reference("Genesis 1:1")
+        rom_ref = parse_reference("Romans 8:28")
+
+        self.assertTrue(ot_filter.matches_reference(gen_ref, self.db))
+        self.assertFalse(ot_filter.matches_reference(rom_ref, self.db))
+
+        self.assertFalse(nt_filter.matches_reference(gen_ref, self.db))
+        self.assertTrue(nt_filter.matches_reference(rom_ref, self.db))
+
+    def test_genre_pre_filter(self):
+        gospel_filter = TheologicalFacetFilter(genre="Gospel")
+        epistle_filter = TheologicalFacetFilter(genre="Epistle")
+
+        matthew_ref = parse_reference("Matthew 5:1-12")
+        romans_ref = parse_reference("Romans 8:1-11")
+
+        self.assertTrue(gospel_filter.matches_reference(matthew_ref, self.db))
+        self.assertFalse(gospel_filter.matches_reference(romans_ref, self.db))
+
+        self.assertFalse(epistle_filter.matches_reference(matthew_ref, self.db))
+        self.assertTrue(epistle_filter.matches_reference(romans_ref, self.db))
+
+    def test_epoch_pre_filter(self):
+        creation_filter = TheologicalFacetFilter(epoch=RedemptiveEpoch.CREATION)
+        gen_ref = parse_reference("Genesis 1:1-31")
+        self.assertTrue(creation_filter.matches_reference(gen_ref, self.db))
+
+    def test_locus_pre_filter(self):
+        soteriology_filter = TheologicalFacetFilter(locus=TheologicalLocus.SOTERIOLOGY)
+        rom_ref = parse_reference("Romans 3:21-26")
+        self.assertTrue(soteriology_filter.matches_reference(rom_ref, self.db))
+
+    def test_to_dict_serialization(self):
+        facet = TheologicalFacetFilter(testament="NT", genre="Gospel", locus=TheologicalLocus.CHRISTOLOGY)
+        d = facet.to_dict()
+        self.assertEqual(d["testament"], "NT")
+        self.assertEqual(d["genre"], "Gospel")
+        self.assertEqual(d["locus"], "christology")
+
+
+class TestTriModalHybridRetrievalAndFaceting(unittest.TestCase):
+    """Test Scripture RAG Engine Tri-Modal Hybrid Retrieval and Theological Facet Pre-Filtering (ADR-083)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.db = Database()
+        cls.engine = ScriptureRAGEngine(db=cls.db)
+
+    def test_testament_pre_filtering_ot(self):
+        # Query: "covenant of grace" filtered to Old Testament only
+        ctx = self.engine.retrieve("covenant of grace and redemption", max_passages=4, testament="OT")
+        self.assertGreater(len(ctx.passages), 0)
+        self.assertEqual(ctx.fusion_method, "rrf")
+        self.assertIsNotNone(ctx.facets)
+        self.assertEqual(ctx.facets["testament"], "OT")
+
+        for p in ctx.passages:
+            ref_obj = parse_reference(p.reference)
+            self.assertEqual(ref_obj.book.testament, "OT", f"Expected OT passage, got {p.reference}")
+
+    def test_testament_pre_filtering_nt(self):
+        # Query: "covenant of grace" filtered to New Testament only
+        ctx = self.engine.retrieve("covenant of grace and redemption", max_passages=4, testament="NT")
+        self.assertGreater(len(ctx.passages), 0)
+        self.assertEqual(ctx.facets["testament"], "NT")
+
+        for p in ctx.passages:
+            ref_obj = parse_reference(p.reference)
+            self.assertEqual(ref_obj.book.testament, "NT", f"Expected NT passage, got {p.reference}")
+
+    def test_genre_pre_filtering_gospels(self):
+        # Filter retrieval strictly to Gospels
+        ctx = self.engine.retrieve("kingdom of God and repentance", max_passages=4, genre="Gospel")
+        self.assertGreater(len(ctx.passages), 0)
+        self.assertEqual(ctx.facets["genre"], "Gospel")
+
+        for p in ctx.passages:
+            ref_obj = parse_reference(p.reference)
+            self.assertIn(ref_obj.book.name, ["Matthew", "Mark", "Luke", "John"])
+
+    def test_rrf_rank_diagnostics_in_retrieval_reasons(self):
+        ctx = self.engine.retrieve("Day of Atonement and sacrifice", max_passages=3, fusion_method="rrf")
+        self.assertGreater(len(ctx.passages), 0)
+        has_rrf_reason = any(
+            any("RRF:" in r for r in p.retrieval_reasons)
+            for p in ctx.passages
+        )
+        self.assertTrue(has_rrf_reason, "Expected RRF score diagnostics in retrieval_reasons")
+
+    def test_fusion_method_toggle_composite(self):
+        # Retrieve with composite linear fusion
+        ctx_comp = self.engine.retrieve("light of the world", max_passages=3, fusion_method="composite")
+        self.assertEqual(ctx_comp.fusion_method, "composite")
+        self.assertGreater(len(ctx_comp.passages), 0)
+
+        # Retrieve with rrf
+        ctx_rrf = self.engine.retrieve("light of the world", max_passages=3, fusion_method="rrf")
+        self.assertEqual(ctx_rrf.fusion_method, "rrf")
+        self.assertGreater(len(ctx_rrf.passages), 0)
+
+    def test_convenience_retrieve_rag_context_facets(self):
+        ctx = retrieve_rag_context("justification by faith", testament="NT", genre="Epistle", max_passages=2)
+        self.assertIsInstance(ctx, RAGContextWindow)
+        self.assertGreater(len(ctx.passages), 0)
+        self.assertEqual(ctx.facets["testament"], "NT")
+        self.assertEqual(ctx.facets["genre"], "Epistle")
+        for p in ctx.passages:
+            ref = parse_reference(p.reference)
+            self.assertEqual(ref.book.testament, "NT")
+
+
 if __name__ == "__main__":
     unittest.main()
+

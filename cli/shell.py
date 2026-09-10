@@ -2048,34 +2048,62 @@ class BibleShell(cmd.Cmd):
     def do_ask(self, arg: str) -> None:
         """Query Scripture RAG engine with biblical, thematic, or typological inquiries.
         Usage:
-          /ask <query>                      Retrieve grounded Scripture passages and answer via LLM
-          /ask --context-only <query>       Inspect retrieved Scripture passages and scores without LLM
-          /ask --show-context <query>       Synthesize answer and show underlying Scripture context
+          /ask <query>                                     Retrieve grounded Scripture passages and answer via LLM
+          /ask --context-only <query>                      Inspect retrieved Scripture passages and scores without LLM
+          /ask --show-context <query>                      Synthesize answer and show underlying Scripture context
+          /ask [--testament OT|NT] [--genre GOSPEL] <query> Filter by theological facets (Testament, Genre, Epoch, Locus)
+          /ask [--fusion rrf|composite] <query>            Specify ranking fusion strategy
         """
         raw_text = arg.strip()
         if not raw_text:
-            self.stdout.write("Usage: /ask [--context-only] [--show-context] <query>\n")
+            self.stdout.write("Usage: /ask [--context-only] [--show-context] [--testament OT|NT] [--genre GENRE] <query>\n")
             return
 
         context_only = False
         show_context = False
         enable_vector = True
+        testament = None
+        genre = None
+        epoch = None
+        locus = None
+        fusion = "rrf"
 
         tokens = raw_text.split()
         filtered_tokens = []
-        for t in tokens:
+        i = 0
+        while i < len(tokens):
+            t = tokens[i]
             if t in ("--context-only", "-c"):
                 context_only = True
+                i += 1
             elif t in ("--show-context", "-s"):
                 show_context = True
+                i += 1
             elif t in ("--no-vector", "-nv"):
                 enable_vector = False
+                i += 1
+            elif t in ("--testament", "-t") and i + 1 < len(tokens):
+                testament = tokens[i + 1]
+                i += 2
+            elif t in ("--genre", "-g") and i + 1 < len(tokens):
+                genre = tokens[i + 1]
+                i += 2
+            elif t in ("--epoch", "-e") and i + 1 < len(tokens):
+                epoch = tokens[i + 1]
+                i += 2
+            elif t in ("--locus", "-l") and i + 1 < len(tokens):
+                locus = tokens[i + 1]
+                i += 2
+            elif t in ("--fusion", "-f") and i + 1 < len(tokens):
+                fusion = tokens[i + 1]
+                i += 2
             else:
                 filtered_tokens.append(t)
+                i += 1
 
         query = " ".join(filtered_tokens).strip()
         if not query:
-            self.stdout.write("Usage: /ask [--context-only] [--show-context] [--no-vector] <query>\n")
+            self.stdout.write("Usage: /ask [--context-only] [--show-context] [--testament OT|NT] <query>\n")
             return
 
         if self.db is None:
@@ -2091,6 +2119,11 @@ class BibleShell(cmd.Cmd):
             max_tokens=4000,
             enable_vector=enable_vector,
             preferred_translation=self.translation_id,
+            testament=testament,
+            genre=genre,
+            epoch=epoch,
+            locus=locus,
+            fusion_method=fusion,
         )
 
         gold = "\033[1;33m" if self.use_color else ""

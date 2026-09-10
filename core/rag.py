@@ -142,8 +142,160 @@ RIBBON_MOTIF_WORDS: Dict[ThematicRibbon, List[str]] = {
 
 
 # ==============================================================================
-# Query Analysis & Feature Extraction
+# Query Analysis, Theological Faceting & Rank Fusion
 # ==============================================================================
+
+
+def _genre_matches(filter_genre: str, pericope_genre: str) -> bool:
+    """Case-insensitive genre matching with common biblical aliases."""
+    fg = filter_genre.strip().lower()
+    pg = pericope_genre.strip().lower()
+    if fg in pg:
+        return True
+    aliases = {
+        "gospels": "gospel",
+        "epistles": "epistle",
+        "prophets": "prophet",
+        "prophecy": "prophet",
+        "wisdom": "wisdom & poetry",
+        "poetry": "wisdom & poetry",
+        "history": "historical narrative",
+        "narrative": "historical narrative",
+        "law": "law",
+        "torah": "law",
+        "pentateuch": "law",
+        "apocalypse": "apocalyptic",
+    }
+    canonical_term = aliases.get(fg, fg)
+    return canonical_term in pg
+
+
+@dataclass
+class TheologicalFacetFilter:
+    """Theological and canonical facet pre-filters for hybrid retrieval."""
+
+    testament: Optional[str] = None  # "OT", "NT", "old", "new", etc.
+    genre: Optional[str] = None      # e.g. "Gospel", "Epistle", "Wisdom & Poetry", etc.
+    epoch: Optional[Union[str, RedemptiveEpoch]] = None  # e.g. "creation", "incarnation_climax"
+    locus: Optional[Union[str, TheologicalLocus]] = None  # e.g. "soteriology", "christology"
+
+    @property
+    def is_active(self) -> bool:
+        """Return True if any facet constraint is specified."""
+        return bool(self.testament or self.genre or self.epoch or self.locus)
+
+    def matches_reference(self, ref: Reference, db: Database) -> bool:
+        """Check whether a Reference satisfies all active facet criteria."""
+        if not self.is_active:
+            return True
+
+        # 1. Testament pre-filter
+        if self.testament:
+            t_raw = self.testament.strip().upper()
+            target_t = "OT" if t_raw in ("OT", "OLD", "OLD TESTAMENT", "OLD_TESTAMENT") else (
+                "NT" if t_raw in ("NT", "NEW", "NEW TESTAMENT", "NEW_TESTAMENT") else t_raw
+            )
+            if ref.book.testament.upper() != target_t:
+                return False
+
+        # 2. Genre pre-filter
+        if self.genre:
+            target_genre = self.genre.strip().lower()
+            try:
+                pericopes = db.get_pericopes_for_reference(ref)
+                if not pericopes:
+                    return False
+                if not any(_genre_matches(target_genre, p.genre or "") for p in pericopes):
+                    return False
+            except Exception:
+                return False
+
+        # 3. Epoch pre-filter
+        if self.epoch:
+            target_epoch = (
+                self.epoch.value if isinstance(self.epoch, RedemptiveEpoch) else str(self.epoch)
+            ).strip().lower()
+            try:
+                theology_records = db.get_verse_theology_for_reference(ref)
+                if not any(
+                    rec.storyline_epoch and rec.storyline_epoch.lower() == target_epoch
+                    for rec in theology_records
+                ):
+                    return False
+            except Exception:
+                return False
+
+        # 4. Locus pre-filter
+        if self.locus:
+            target_locus = (
+                self.locus.value if isinstance(self.locus, TheologicalLocus) else str(self.locus)
+            ).strip().lower()
+            try:
+                theology_records = db.get_verse_theology_for_reference(ref)
+                if not any(
+                    rec.theological_locus and rec.theological_locus.lower() == target_locus
+                    for rec in theology_records
+                ):
+                    return False
+            except Exception:
+                return False
+
+        return True
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize facet filters to dictionary."""
+        return {
+            "testament": self.testament,
+            "genre": self.genre,
+            "epoch": self.epoch.value if isinstance(self.epoch, RedemptiveEpoch) else self.epoch,
+            "locus": self.locus.value if isinstance(self.locus, TheologicalLocus) else self.locus,
+        }
+
+
+def compute_reciprocal_rank_fusion(
+    ranked_modalities: Dict[str, Sequence[str]],
+    modality_weights: Optional[Dict[str, float]] = None,
+    k: int = 60,
+    normalize: bool = True,
+) -> Dict[str, float]:
+    """Combine ranked candidate lists from multiple modalities using Reciprocal Rank Fusion (RRF).
+
+    Formula:
+        RRF(d) = sum_{m in modalities} [ w_m / (k + rank_m(d)) ]
+
+    Args:
+        ranked_modalities: Dictionary mapping modality name ('vector', 'bm25', 'typology', 'tag')
+            to an ordered list of unique document/reference strings.
+        modality_weights: Optional weights w_m for each modality. Defaults to 1.0.
+        k: Smoothing constant. Standard literature default is 60.
+        normalize: If True, normalizes scores by the theoretical maximum score
+            (when an item is rank #1 across all active modalities) so results fall in [0.0, 1.0].
+
+    Returns:
+        Dictionary mapping reference string to RRF score, sorted descending.
+    """
+    weights = modality_weights or {}
+    rrf_scores: Dict[str, float] = {}
+
+    active_modalities = [m for m, items in ranked_modalities.items() if items]
+    if not active_modalities:
+        return {}
+
+    max_possible_rrf = sum(float(weights.get(m, 1.0)) / (k + 1) for m in active_modalities)
+
+    for modality in active_modalities:
+        ranked_items = ranked_modalities[modality]
+        weight = float(weights.get(modality, 1.0))
+        for rank_zero, item in enumerate(ranked_items):
+            rank = rank_zero + 1  # 1-based rank
+            reciprocal_rank = weight / (k + rank)
+            rrf_scores[item] = rrf_scores.get(item, 0.0) + reciprocal_rank
+
+    if normalize and max_possible_rrf > 0.0:
+        for item in rrf_scores:
+            rrf_scores[item] = rrf_scores[item] / max_possible_rrf
+
+    return dict(sorted(rrf_scores.items(), key=lambda kv: kv[1], reverse=True))
 
 
 @dataclass
@@ -158,6 +310,9 @@ class RAGQuery:
     detected_loci: List[TheologicalLocus] = field(default_factory=list)
     detected_ribbons: List[ThematicRibbon] = field(default_factory=list)
     typological_keywords: List[str] = field(default_factory=list)
+    detected_testament: Optional[str] = None
+    detected_genres: List[str] = field(default_factory=list)
+    facet_filter: Optional[TheologicalFacetFilter] = None
 
     @property
     def is_empty(self) -> bool:
@@ -181,6 +336,9 @@ class RAGQuery:
             "detected_loci": [l.value for l in self.detected_loci],
             "detected_ribbons": [r.value for r in self.detected_ribbons],
             "typological_keywords": self.typological_keywords,
+            "detected_testament": self.detected_testament,
+            "detected_genres": self.detected_genres,
+            "facet_filter": self.facet_filter.to_dict() if self.facet_filter else None,
         }
 
 
@@ -352,6 +510,26 @@ def extract_query_features(query_text: str, db: Database) -> RAGQuery:
             if mw not in typological_keywords:
                 typological_keywords.append(mw)
 
+    # Detect testament mention (e.g. "in the Old Testament", "in the NT")
+    detected_testament: Optional[str] = None
+    if re.search(r"\b(?:in|from|across|of)\s+the\s+old\s+testament\b|\b(?:in|from)\s+the\s+ot\b", lower_query):
+        detected_testament = "OT"
+    elif re.search(r"\b(?:in|from|across|of)\s+the\s+new\s+testament\b|\b(?:in|from)\s+the\s+nt\b", lower_query):
+        detected_testament = "NT"
+
+    # Detect genre mention (e.g. "in the Gospels", "in the Epistles")
+    detected_genres: List[str] = []
+    genre_patterns = [
+        ("Gospel", r"\b(?:in|from)\s+the\s+gospels?\b|\bgospel\s+accounts?\b"),
+        ("Epistle", r"\b(?:in|from)\s+the\s+epistles?\b|\bletters?\s+of\s+paul\b"),
+        ("Wisdom & Poetry", r"\b(?:in|from)\s+(?:the\s+)?wisdom\s+(?:literature|books)\b|\b(?:in|from)\s+the\s+psalms\b"),
+        ("Prophets", r"\b(?:in|from)\s+the\s+prophets?\b|\bprophetic\s+books?\b"),
+        ("Law", r"\b(?:in|from)\s+the\s+law\b|\btorah\b|\bpentateuch\b"),
+    ]
+    for g_name, pat in genre_patterns:
+        if re.search(pat, lower_query):
+            detected_genres.append(g_name)
+
     return RAGQuery(
         raw_query=query_text,
         explicit_references=explicit_refs,
@@ -361,6 +539,8 @@ def extract_query_features(query_text: str, db: Database) -> RAGQuery:
         detected_loci=detected_loci,
         detected_ribbons=detected_ribbons,
         typological_keywords=typological_keywords,
+        detected_testament=detected_testament,
+        detected_genres=detected_genres,
     )
 
 
@@ -483,6 +663,8 @@ class RAGContextWindow:
     max_tokens_budget: int = 4000
     total_verses: int = 0
     estimated_tokens: int = 0
+    fusion_method: str = "rrf"
+    facets: Optional[Dict[str, Any]] = None
 
     def format_context_markdown(self) -> str:
         """Format the entire RAG context into illuminated markdown."""
@@ -544,6 +726,8 @@ class RAGContextWindow:
             "total_verses": self.total_verses,
             "estimated_tokens": self.estimated_tokens,
             "max_tokens_budget": self.max_tokens_budget,
+            "fusion_method": self.fusion_method,
+            "facets": self.facets,
             "passages": [p.to_dict() for p in self.passages],
             "system_prompt": self.system_prompt,
         }
@@ -589,6 +773,13 @@ class RAGScoringWeights:
     typology_weight: float = 0.35
     vector_weight: float = 0.30
     starred_boost: float = 0.05
+    # Reciprocal Rank Fusion (RRF) parameters (ADR-083)
+    fusion_method: str = "rrf"  # "rrf" or "composite"
+    rrf_k: int = 60
+    vector_rrf_weight: float = 1.00
+    bm25_rrf_weight: float = 1.00
+    typology_rrf_weight: float = 1.15
+    tag_rrf_weight: float = 0.50
 
 
 # ==============================================================================
@@ -631,26 +822,61 @@ class ScriptureRAGEngine:
         allow_expansion: bool = True,
         enable_vector: Optional[bool] = None,
         preferred_translation: Optional[str] = None,
+        facets: Optional[TheologicalFacetFilter] = None,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        epoch: Optional[Union[str, RedemptiveEpoch]] = None,
+        locus: Optional[Union[str, TheologicalLocus]] = None,
+        fusion_method: Optional[str] = None,
+        rrf_k: Optional[int] = None,
     ) -> RAGContextWindow:
-        """Execute multi-signal hybrid retrieval to build a grounded Scripture context window.
+        """Execute tri-modal hybrid retrieval to build a grounded Scripture context window.
+
+        Combines:
+        1. Dense Vector Similarity (semantic search over pericopes)
+        2. SQLite FTS5 BM25 Lexical Keyword Search
+        3. Typological Knowledge Graph Shadow-to-Fulfillment Traversals
+        4. Optional Semantic Tag Intersections
+        Fused via weighted Reciprocal Rank Fusion (RRF) with Theological Facet Pre-Filtering.
 
         Args:
             query: Natural language question, theological prompt, or passage topic.
             max_passages: Maximum distinct passages to include.
             max_tokens: Maximum estimated tokens budget for the context window.
-            min_score: Minimum composite score threshold.
+            min_score: Minimum composite / normalized RRF score threshold.
             allow_expansion: Whether to expand OT/NT connections via cross-refs and typological arcs.
             enable_vector: Whether to include dense vector semantic search over pericopes.
             preferred_translation: Override translation (defaults to ESV with WEB fallback).
+            facets: Optional TheologicalFacetFilter instance.
+            testament: Canonical testament pre-filter ('OT' or 'NT').
+            genre: Literary genre pre-filter (e.g. 'Gospel', 'Epistle', 'Wisdom & Poetry').
+            epoch: Redemptive storyline epoch pre-filter (e.g. 'creation', 'incarnation_climax').
+            locus: Systematic theological locus pre-filter (e.g. 'soteriology', 'christology').
+            fusion_method: Ranking fusion strategy ('rrf' or 'composite'). Defaults to 'rrf'.
+            rrf_k: Reciprocal Rank Fusion smoothing constant k (default: 60).
 
         Returns:
             Populated RAGContextWindow.
         """
         active_translation = preferred_translation or self.translation
         use_vector = self.enable_vector if enable_vector is None else enable_vector
+        effective_facets = facets or TheologicalFacetFilter(
+            testament=testament,
+            genre=genre,
+            epoch=epoch,
+            locus=locus,
+        )
+        effective_fusion = (fusion_method or self.weights.fusion_method).strip().lower()
+        effective_k = rrf_k if rrf_k is not None else self.weights.rrf_k
+
         rag_query = extract_query_features(query, self.db)
+        rag_query.facet_filter = effective_facets
 
         candidates: Dict[str, Dict[str, Any]] = {}
+        vector_ranked_refs: List[str] = []
+        bm25_ranked_refs: List[str] = []
+        typology_ranked_refs: List[str] = []
+        tag_ranked_refs: List[str] = []
 
         def _get_candidate(ref_str: str) -> Dict[str, Any]:
             if ref_str not in candidates:
@@ -670,16 +896,18 @@ class ScriptureRAGEngine:
             return candidates[ref_str]
 
         # ----------------------------------------------------------------------
-        # Stage 1: Explicit Scripture References
+        # Stage 1: Explicit Scripture References (with Facet Pre-Filtering)
         # ----------------------------------------------------------------------
         for ref_obj in rag_query.explicit_references:
+            if not effective_facets.matches_reference(ref_obj, self.db):
+                continue
             ref_str = ref_obj.format()
             cand = _get_candidate(ref_str)
             cand["explicit"] = True
             cand["reasons"].append(f"Explicit reference: {ref_str}")
 
         # ----------------------------------------------------------------------
-        # Stage 2: FTS5 Full-Text Keyword Search
+        # Stage 2: FTS5 Full-Text Keyword Search (BM25 Modality)
         # ----------------------------------------------------------------------
         if rag_query.keywords:
             fts_results: List[SearchResult] = []
@@ -691,7 +919,7 @@ class ScriptureRAGEngine:
                 or_hits = self.db.search_text(
                     or_query,
                     translation_id=[active_translation, self.fallback_translation],
-                    limit=25,
+                    limit=30,
                 )
                 for res in or_hits:
                     if res.verse_id not in seen_verse_ids:
@@ -707,7 +935,7 @@ class ScriptureRAGEngine:
                     and_hits = self.db.search_text(
                         and_query,
                         translation_id=[active_translation, self.fallback_translation],
-                        limit=10,
+                        limit=12,
                     )
                     # Prepend AND hits so they get top rank
                     for res in reversed(and_hits):
@@ -721,11 +949,15 @@ class ScriptureRAGEngine:
             for idx, res in enumerate(fts_results):
                 try:
                     ref_obj = parse_reference(res.human_ref)
+                    if not effective_facets.matches_reference(ref_obj, self.db):
+                        continue
                     pericopes = self.pericope_svc.get_pericopes_for_passage(ref_obj)
                     target_ref_str = pericopes[0].human_ref if pericopes else res.human_ref
                 except Exception:
-                    target_ref_str = res.human_ref
+                    continue
 
+                if target_ref_str not in bm25_ranked_refs:
+                    bm25_ranked_refs.append(target_ref_str)
                 cand = _get_candidate(target_ref_str)
                 fts_score = max(0.1, 1.0 - (idx / max(1, len(fts_results))))
                 cand["fts_score"] = max(cand["fts_score"], fts_score)
@@ -740,16 +972,34 @@ class ScriptureRAGEngine:
             try:
                 from core.vector import get_pericope_recommender
                 recommender = get_pericope_recommender(self.db)
-                # Dense similarity search with graceful offline fallback
+                epoch_arg = (
+                    effective_facets.epoch.value if isinstance(effective_facets.epoch, RedemptiveEpoch) else effective_facets.epoch
+                ) if effective_facets.epoch else None
+                locus_arg = (
+                    effective_facets.locus.value if isinstance(effective_facets.locus, TheologicalLocus) else effective_facets.locus
+                ) if effective_facets.locus else None
+                # Dense similarity search with graceful offline fallback & facet pre-filtering
                 v_results = recommender.search_by_query(
                     query_text=query,
-                    top_k=8,
+                    top_k=15,
                     min_score=0.10,
+                    testament=effective_facets.testament,
+                    genre=effective_facets.genre,
+                    epoch=epoch_arg,
+                    locus=locus_arg,
                 )
                 for m in v_results.get("matches", []):
                     target_ref = m.get("human_ref")
                     if not target_ref:
                         continue
+                    try:
+                        t_obj = parse_reference(target_ref)
+                        if not effective_facets.matches_reference(t_obj, self.db):
+                            continue
+                    except Exception:
+                        pass
+                    if target_ref not in vector_ranked_refs:
+                        vector_ranked_refs.append(target_ref)
                     cand = _get_candidate(target_ref)
                     cand["vector_score"] = max(cand["vector_score"], float(m.get("score", 0.0)))
                     v_reason = f"Vector similarity ({m.get('score', 0.0):.2f}) in '{m.get('title', target_ref)}'"
@@ -770,6 +1020,14 @@ class ScriptureRAGEngine:
                     hydrate_verses=False,
                 )
                 for tr in tag_relevances:
+                    try:
+                        tr_obj = parse_reference(tr.human_ref)
+                        if not effective_facets.matches_reference(tr_obj, self.db):
+                            continue
+                    except Exception:
+                        pass
+                    if tr.human_ref not in tag_ranked_refs:
+                        tag_ranked_refs.append(tr.human_ref)
                     cand = _get_candidate(tr.human_ref)
                     cand["tag_score"] = max(cand["tag_score"], tr.score)
                     reason = f"Matched tag(s): {', '.join(tr.matched_tags)}"
@@ -785,6 +1043,12 @@ class ScriptureRAGEngine:
             try:
                 theology_records = self.db.get_verse_theology_by_ribbon(ribbon.value, limit=10)
                 for rec in theology_records:
+                    try:
+                        r_obj = parse_reference(rec.human_ref)
+                        if not effective_facets.matches_reference(r_obj, self.db):
+                            continue
+                    except Exception:
+                        pass
                     cand = _get_candidate(rec.human_ref)
                     cand["theology_score"] = max(cand["theology_score"], 0.85)
                     reason = f"Thematic Ribbon: {ribbon.display_name.split(' (')[0]}"
@@ -793,20 +1057,26 @@ class ScriptureRAGEngine:
             except Exception:
                 pass
 
-        for locus in rag_query.detected_loci:
+        for locus_item in rag_query.detected_loci:
             try:
-                theology_records = self.db.get_verse_theology_by_locus(locus.value, limit=8)
+                theology_records = self.db.get_verse_theology_by_locus(locus_item.value, limit=8)
                 for rec in theology_records:
+                    try:
+                        r_obj = parse_reference(rec.human_ref)
+                        if not effective_facets.matches_reference(r_obj, self.db):
+                            continue
+                    except Exception:
+                        pass
                     cand = _get_candidate(rec.human_ref)
                     cand["theology_score"] = max(cand["theology_score"], 0.70)
-                    reason = f"Theological Locus: {locus.display_name.split(' (')[0]}"
+                    reason = f"Theological Locus: {locus_item.display_name.split(' (')[0]}"
                     if reason not in cand["reasons"]:
                         cand["reasons"].append(reason)
             except Exception:
                 pass
 
         # ----------------------------------------------------------------------
-        # Stage 5: Typological Arc Shadow-to-Fulfillment Expansion
+        # Stage 5: Typological Arc Knowledge Graph Traversal (ADR-083)
         # ----------------------------------------------------------------------
         if allow_expansion:
             all_arcs: List[TypologicalArcRecord] = []
@@ -824,20 +1094,34 @@ class ScriptureRAGEngine:
                     warr = (arc.warrant or "").lower()
                     if kw_lower in corr or kw_lower in warr or kw_lower in t_ref or kw_lower in a_ref:
                         if arc.type_human_ref:
-                            cand_type = _get_candidate(arc.type_human_ref)
-                            cand_type["typology_score"] = max(cand_type["typology_score"], 0.90)
-                            cand_type["arcs"].append(arc.to_dict())
-                            reason = f"Typological Type: {arc.type_human_ref} ➔ {arc.antitype_human_ref}"
-                            if reason not in cand_type["reasons"]:
-                                cand_type["reasons"].append(reason)
+                            try:
+                                t_obj = parse_reference(arc.type_human_ref)
+                                if effective_facets.matches_reference(t_obj, self.db):
+                                    if arc.type_human_ref not in typology_ranked_refs:
+                                        typology_ranked_refs.append(arc.type_human_ref)
+                                    cand_type = _get_candidate(arc.type_human_ref)
+                                    cand_type["typology_score"] = max(cand_type["typology_score"], 0.90)
+                                    cand_type["arcs"].append(arc.to_dict())
+                                    reason = f"Typological Type: {arc.type_human_ref} ➔ {arc.antitype_human_ref}"
+                                    if reason not in cand_type["reasons"]:
+                                        cand_type["reasons"].append(reason)
+                            except Exception:
+                                pass
 
                         if arc.antitype_human_ref:
-                            cand_anti = _get_candidate(arc.antitype_human_ref)
-                            cand_anti["typology_score"] = max(cand_anti["typology_score"], 0.95)
-                            cand_anti["arcs"].append(arc.to_dict())
-                            reason = f"Typological Antitype: {arc.antitype_human_ref} (from {arc.type_human_ref})"
-                            if reason not in cand_anti["reasons"]:
-                                cand_anti["reasons"].append(reason)
+                            try:
+                                a_obj = parse_reference(arc.antitype_human_ref)
+                                if effective_facets.matches_reference(a_obj, self.db):
+                                    if arc.antitype_human_ref not in typology_ranked_refs:
+                                        typology_ranked_refs.append(arc.antitype_human_ref)
+                                    cand_anti = _get_candidate(arc.antitype_human_ref)
+                                    cand_anti["typology_score"] = max(cand_anti["typology_score"], 0.95)
+                                    cand_anti["arcs"].append(arc.to_dict())
+                                    reason = f"Typological Antitype: {arc.antitype_human_ref} (from {arc.type_human_ref})"
+                                    if reason not in cand_anti["reasons"]:
+                                        cand_anti["reasons"].append(reason)
+                            except Exception:
+                                pass
 
             top_prelim = sorted(
                 candidates.values(),
@@ -869,8 +1153,13 @@ class ScriptureRAGEngine:
                         source_overlap = max(0, min(ref_obj.canonical_end_id, x.source_end_id) - max(ref_obj.canonical_start_id, x.source_start_id) + 1) > 0
                         other_ref = x.target_human_ref if source_overlap else x.source_human_ref
                         if other_ref and other_ref != ref_str:
+                            try:
+                                o_obj = parse_reference(other_ref)
+                                if not effective_facets.matches_reference(o_obj, self.db):
+                                    continue
+                            except Exception:
+                                continue
                             cand_x = _get_candidate(other_ref)
-                            # Attenuate expansion by parent score
                             cand_x["crossref_score"] = max(cand_x["crossref_score"], x.weight * parent_score * 0.60)
                             cand_x["crossrefs"].append(f"{ref_str} ({x.relationship_type})")
                             reason = f"Cross-reference connected to {ref_str}"
@@ -882,8 +1171,15 @@ class ScriptureRAGEngine:
                         type_overlap = max(0, min(ref_obj.canonical_end_id, arc.type_end_id) - max(ref_obj.canonical_start_id, arc.type_start_id) + 1) > 0
                         paired_ref = arc.antitype_human_ref if type_overlap else arc.type_human_ref
                         if paired_ref and paired_ref != ref_str:
+                            try:
+                                p_obj = parse_reference(paired_ref)
+                                if not effective_facets.matches_reference(p_obj, self.db):
+                                    continue
+                            except Exception:
+                                continue
+                            if paired_ref not in typology_ranked_refs:
+                                typology_ranked_refs.append(paired_ref)
                             cand_p = _get_candidate(paired_ref)
-                            # Attenuate expansion by parent score
                             cand_p["typology_score"] = max(cand_p["typology_score"], parent_score * 0.70)
                             cand_p["arcs"].append(arc.to_dict())
                             reason = f"Typological fulfillment linked to {ref_str}" if type_overlap else f"Typological shadow linked to {ref_str}"
@@ -893,24 +1189,70 @@ class ScriptureRAGEngine:
                     continue
 
         # ----------------------------------------------------------------------
-        # Stage 6: Scoring, Deduplication & Ranking
+        # Stage 6: Tri-Modal Reciprocal Rank Fusion & Ranking (ADR-083)
         # ----------------------------------------------------------------------
         scored_candidates: List[Tuple[float, str, Dict[str, Any]]] = []
-        for ref_str, cand in candidates.items():
-            if cand["explicit"]:
-                composite = self.weights.explicit_ref_score
-            else:
-                composite = (
-                    cand["fts_score"] * self.weights.fts_weight +
-                    cand["tag_score"] * self.weights.tag_weight +
-                    cand["theology_score"] * self.weights.theology_weight +
-                    cand["crossref_score"] * self.weights.crossref_weight +
-                    cand["typology_score"] * self.weights.typology_weight +
-                    cand["vector_score"] * self.weights.vector_weight
-                )
 
-            if composite >= min_score:
-                scored_candidates.append((composite, ref_str, cand))
+        if effective_fusion == "rrf":
+            ranked_modalities: Dict[str, Sequence[str]] = {
+                "vector": vector_ranked_refs,
+                "bm25": bm25_ranked_refs,
+                "typology": typology_ranked_refs,
+            }
+            if tag_ranked_refs:
+                ranked_modalities["tag"] = tag_ranked_refs
+
+            effective_typology_rrf = (
+                self.weights.typology_rrf_weight
+                if rag_query.typological_keywords
+                else (self.weights.typology_rrf_weight * 0.40)
+            )
+            modality_weights = {
+                "vector": self.weights.vector_rrf_weight,
+                "bm25": self.weights.bm25_rrf_weight,
+                "typology": effective_typology_rrf,
+                "tag": self.weights.tag_rrf_weight,
+            }
+
+            rrf_scores = compute_reciprocal_rank_fusion(
+                ranked_modalities=ranked_modalities,
+                modality_weights=modality_weights,
+                k=effective_k,
+                normalize=True,
+            )
+
+            for ref_str, cand in candidates.items():
+                if cand["explicit"]:
+                    composite = self.weights.explicit_ref_score + rrf_scores.get(ref_str, 0.0)
+                else:
+                    composite = rrf_scores.get(ref_str, 0.0)
+
+                # Track rank diagnostics
+                ranks_str = []
+                for m_name, m_items in ranked_modalities.items():
+                    if ref_str in m_items:
+                        ranks_str.append(f"{m_name}=#{m_items.index(ref_str) + 1}")
+                if ranks_str:
+                    cand["reasons"].append(f"RRF: {composite:.3f} ({', '.join(ranks_str)})")
+
+                if composite >= min_score or cand["explicit"]:
+                    scored_candidates.append((composite, ref_str, cand))
+        else:
+            # Linear composite scoring fallback
+            for ref_str, cand in candidates.items():
+                if cand["explicit"]:
+                    composite = self.weights.explicit_ref_score
+                else:
+                    composite = (
+                        cand["fts_score"] * self.weights.fts_weight +
+                        cand["tag_score"] * self.weights.tag_weight +
+                        cand["theology_score"] * self.weights.theology_weight +
+                        cand["crossref_score"] * self.weights.crossref_weight +
+                        cand["typology_score"] * self.weights.typology_weight +
+                        cand["vector_score"] * self.weights.vector_weight
+                    )
+                if composite >= min_score or cand["explicit"]:
+                    scored_candidates.append((composite, ref_str, cand))
 
         scored_candidates.sort(key=lambda item: item[0], reverse=True)
 
@@ -1067,6 +1409,8 @@ class ScriptureRAGEngine:
             max_tokens_budget=max_tokens,
             total_verses=total_verses,
             estimated_tokens=running_token_count,
+            fusion_method=effective_fusion,
+            facets=effective_facets.to_dict() if effective_facets.is_active else None,
         )
 
     # --------------------------------------------------------------------------
@@ -1194,6 +1538,14 @@ class ScriptureRAGEngine:
         max_passages: int = 5,
         model: Optional[str] = None,
         custom_instructions: Optional[str] = None,
+        facets: Optional[TheologicalFacetFilter] = None,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        epoch: Optional[Union[str, RedemptiveEpoch]] = None,
+        locus: Optional[Union[str, TheologicalLocus]] = None,
+        fusion_method: Optional[str] = None,
+        rrf_k: Optional[int] = None,
+        enable_vector: Optional[bool] = None,
     ) -> RAGResponse:
         """Execute complete Scripture RAG pipeline: retrieval followed by grounded generation.
 
@@ -1201,7 +1553,18 @@ class ScriptureRAGEngine:
             LLMAuthError: If GEMINI_API_KEY is not set or authorized.
             LLMError: If LLM generation fails or network is offline.
         """
-        context = self.retrieve(query, max_passages=max_passages)
+        context = self.retrieve(
+            query,
+            max_passages=max_passages,
+            facets=facets,
+            testament=testament,
+            genre=genre,
+            epoch=epoch,
+            locus=locus,
+            fusion_method=fusion_method,
+            rrf_k=rrf_k,
+            enable_vector=enable_vector,
+        )
 
         gemini_client = client
         if gemini_client is None:
@@ -1242,6 +1605,14 @@ class ScriptureRAGEngine:
         max_passages: int = 5,
         model: Optional[str] = None,
         custom_instructions: Optional[str] = None,
+        facets: Optional[TheologicalFacetFilter] = None,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        epoch: Optional[Union[str, RedemptiveEpoch]] = None,
+        locus: Optional[Union[str, TheologicalLocus]] = None,
+        fusion_method: Optional[str] = None,
+        rrf_k: Optional[int] = None,
+        enable_vector: Optional[bool] = None,
     ) -> Iterator[str]:
         """Execute Scripture RAG pipeline streaming answer tokens incrementally.
 
@@ -1249,7 +1620,18 @@ class ScriptureRAGEngine:
             LLMAuthError: If GEMINI_API_KEY is not set or authorized.
             LLMError: If LLM generation fails or network is offline.
         """
-        context = self.retrieve(query, max_passages=max_passages)
+        context = self.retrieve(
+            query,
+            max_passages=max_passages,
+            facets=facets,
+            testament=testament,
+            genre=genre,
+            epoch=epoch,
+            locus=locus,
+            fusion_method=fusion_method,
+            rrf_k=rrf_k,
+            enable_vector=enable_vector,
+        )
 
         gemini_client = client
         if gemini_client is None:
@@ -1300,6 +1682,13 @@ def retrieve_rag_context(
     max_tokens: int = 4000,
     enable_vector: Optional[bool] = None,
     preferred_translation: Optional[str] = None,
+    facets: Optional[TheologicalFacetFilter] = None,
+    testament: Optional[str] = None,
+    genre: Optional[str] = None,
+    epoch: Optional[Union[str, RedemptiveEpoch]] = None,
+    locus: Optional[Union[str, TheologicalLocus]] = None,
+    fusion_method: Optional[str] = None,
+    rrf_k: Optional[int] = None,
 ) -> RAGContextWindow:
     """Convenience function to retrieve a grounded Scripture RAG context window."""
     engine = get_rag_engine(db=db)
@@ -1309,4 +1698,11 @@ def retrieve_rag_context(
         max_tokens=max_tokens,
         enable_vector=enable_vector,
         preferred_translation=preferred_translation,
+        facets=facets,
+        testament=testament,
+        genre=genre,
+        epoch=epoch,
+        locus=locus,
+        fusion_method=fusion_method,
+        rrf_k=rrf_k,
     )

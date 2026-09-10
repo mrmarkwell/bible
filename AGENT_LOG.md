@@ -3780,4 +3780,47 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 8.7 is 100% complete and verified!
   - Next task up on roadmap: **Phase 8 Task 8.8**: *Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) in `core/rag.py` (ADR-083)*, OR **Phase 7 Task 7.8**: *Whole-Bible Vector Database Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via `./bible build-vectors --corpus 1`*.
 
+---
+
+## [Run 094] — 2026-09-10
+- **Agent**: Autonomous Feature Agent / Ralph Loop
+- **Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio
+- **Task Claimed**: **Task 8.8**: Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) in `core/rag.py` (ADR-083, ADR-102). Combine dense vector similarity, SQLite FTS5 BM25 lexical search, and typological knowledge graph traversals using weighted Reciprocal Rank Fusion ($RRF = \sum \frac{w_m}{k + \text{rank}_m}$) with theological facet pre-filtering (Testament, Genre, Epoch, Locus).
+- **Actions Taken**:
+  1. **Reciprocal Rank Fusion Algorithm (`core/rag.py`)**:
+     - Implemented standard Cormack et al. (SIGIR 2009) reciprocal rank fusion function: `compute_reciprocal_rank_fusion(ranked_modalities, modality_weights, k=60, normalize=True)`.
+     - Standardized default smoothing constant $k = 60$ and normalized fused scores to $[0.0, 1.0]$ based on the theoretical maximum achievable score ($\sum \frac{w_m}{k+1}$), enabling seamless compatibility with downstream score thresholds and UI badges.
+  2. **Theological Facet Pre-Filtering (`core/rag.py`, `core/vector.py`)**:
+     - Created `TheologicalFacetFilter` dataclass supporting `testament` (OT/NT), `genre` (Gospel, Epistle, Wisdom, Law/Pentateuch, History, Prophecy, Apocalyptic), `epoch`, and `locus`.
+     - Added `_genre_matches` with canonical genre aliases.
+     - Implemented `TheologicalFacetFilter.matches_reference()` with SQLite interval lookup.
+     - Enhanced `PericopeRecommender` in `core/vector.py` to associate `epochs` and `loci` sets loaded from `verse_theology` on startup, added `epoch` and `locus` filtering to `recommend_for_reference`, `recommend_for_pericope_id`, and `search_by_query`, and ensured strictly JSON-serializable list returns.
+     - Added auto-facet extraction to `RAGQuery` in `extract_query_features()`.
+  3. **Tri-Modal Retrieval Architecture (`core/rag.py`)**:
+     - Assembled distinct ranked lists across Modality 1: Dense Vector Similarity (`1.00`), Modality 2: FTS5 BM25 Lexical (`1.00`), Modality 3: Typological Arc Traversals (`1.15`), and Modality 4: Theological Tag Intersections (`0.50`).
+     - Added secondary typological expansion attenuation ($0.40$) for general inquiries lacking explicit typological keywords, preventing Old Testament shadows from artificially eclipsing direct New Testament fulfillment passages.
+     - Extended `RAGScoringWeights` with `fusion_method="rrf"`, `rrf_k=60`, and modality weights.
+     - Extended `RAGContextWindow` with `fusion_method` and `facets` metadata.
+  4. **Omnichannel CLI, Interactive REPL & Web UI Integration (`cli/main.py`, `cli/shell.py`, `web/server.py`)**:
+     - Added `--testament`, `--genre`, `--epoch`, `--locus`, `--fusion`, and `--rrf-k` to `parser_ask` and `cmd_ask` in `cli/main.py`.
+     - Added matching flag parsing to interactive study shell `/ask` in `cli/shell.py`.
+     - Added matching parameter support to `/api/rag` and `/api/rag/stream` in `web/server.py`.
+  5. **Hermetic Test Suite Expansion (`tests/test_rag.py`)**:
+     - Added `TestReciprocalRankFusionAlgorithm` (exact calculation, weights, normalization).
+     - Added `TestTheologicalFacetFilter` (testament, genre, epoch, locus matching).
+     - Added `TestTriModalHybridRetrievalAndFaceting` (OT/NT pre-filtering, Gospel genre pre-filtering, RRF diagnostics in reasons, composite toggle, convenience function).
+     - Verified all 47 test modules pass 100% (**1,041 tests passing in 8.7s**).
+  6. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-102: Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) with Theological Facet Pre-Filtering** in `DECISIONS.md`.
+     - Updated `ROADMAP.md`: Marked **Task 8.8** complete, bringing **Phase 8 to 100% completion** (89/97 tasks complete, 91.8%).
+- **Verification**:
+  - `./bible test`: **1,041 tests across 47 modules passed 100% in 8.697s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 10 diagnostic checks passed in 13.22s (102 ADRs registered, 94 sequential runs, 97 roadmap tasks tracked, 89 completed across 9 phases, 0 external dependencies, 0 linter errors across 99 files, SQLite verified).
+  - `python3 tools/linter.py`: **100% CLEAN** — 99 files inspected with 0 errors, 0 warnings.
+- **Handoff Notes for Next Agent**:
+  - Task 8.8 is 100% complete and Phase 8 is 100% complete!
+  - **Important Cadence Note**: The NEXT run will be **Run 095** (`95 % 5 == 0`), which is a mandatory **Senior Product Manager Meta-Improvement & System Health Sprint** per `AGENTS.md`. The next agent must answer the two core diagnostic questions and execute a Rank A+ meta-improvement.
+  - After Run 095, the next roadmap tasks are the Whole-Bible Vector Database Ingestion Campaigns in Phase 7 (Tasks 7.8–7.14).
+
+
 

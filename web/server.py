@@ -1546,6 +1546,27 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             enable_vector = bool(vector_raw)
 
+        testament = self._get_param(query, body_data, "testament")
+        if testament:
+            testament = str(testament).strip().upper()
+        genre = self._get_param(query, body_data, "genre")
+        if genre:
+            genre = str(genre).strip()
+        epoch = self._get_param(query, body_data, "epoch")
+        if epoch:
+            epoch = str(epoch).strip()
+        locus = self._get_param(query, body_data, "locus")
+        if locus:
+            locus = str(locus).strip()
+        fusion = self._get_param(query, body_data, "fusion", "rrf")
+        if fusion:
+            fusion = str(fusion).strip().lower()
+        rrf_k_raw = self._get_param(query, body_data, "rrf_k", 60)
+        try:
+            rrf_k = int(rrf_k_raw)
+        except (ValueError, TypeError):
+            rrf_k = 60
+
         try:
             rag_engine = get_rag_engine(self.db)
             context = rag_engine.retrieve(
@@ -1554,6 +1575,12 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 enable_vector=enable_vector,
                 preferred_translation=version,
+                testament=testament,
+                genre=genre,
+                epoch=epoch,
+                locus=locus,
+                fusion_method=fusion,
+                rrf_k=rrf_k,
             )
         except Exception as exc:
             self.send_json_error(f"Scripture RAG retrieval error: {exc}", status=500)
@@ -1884,6 +1911,27 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             enable_vector = bool(vector_raw)
 
+        testament = self._get_param(query, body_data, "testament")
+        if testament:
+            testament = str(testament).strip().upper()
+        genre = self._get_param(query, body_data, "genre")
+        if genre:
+            genre = str(genre).strip()
+        epoch = self._get_param(query, body_data, "epoch")
+        if epoch:
+            epoch = str(epoch).strip()
+        locus = self._get_param(query, body_data, "locus")
+        if locus:
+            locus = str(locus).strip()
+        fusion = self._get_param(query, body_data, "fusion", "rrf")
+        if fusion:
+            fusion = str(fusion).strip().lower()
+        rrf_k_raw = self._get_param(query, body_data, "rrf_k", 60)
+        try:
+            rrf_k = int(rrf_k_raw)
+        except (ValueError, TypeError):
+            rrf_k = 60
+
         try:
             rag_engine = get_rag_engine(self.db)
             context = rag_engine.retrieve(
@@ -1892,6 +1940,12 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 max_tokens=max_tokens,
                 enable_vector=enable_vector,
                 preferred_translation=version,
+                testament=testament,
+                genre=genre,
+                epoch=epoch,
+                locus=locus,
+                fusion_method=fusion,
+                rrf_k=rrf_k,
             )
         except Exception as exc:
             self.send_json_error(f"Scripture RAG retrieval error: {exc}", status=500)
