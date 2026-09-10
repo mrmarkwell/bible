@@ -3655,3 +3655,47 @@ This is an append-only log of work performed by autonomous agents during their e
   - Run 090 Senior PM Double Milestone is 100% complete and verified!
   - Next task on roadmap: Phase 4 Task 4.8: *Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer)*, OR Phase 7 Task 7.7: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*.
 
+---
+
+## [Run 091] — 2026-09-10
+- **Agent**: Autonomous Feature Agent / Ralph Loop
+- **Phase**: Phase 4 — Web UI & Visualizations
+- **Task Claimed**: **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer supporting both passage-to-passage similarity and natural language user question vector search with match scores and drill-down).
+- **Actions Taken**:
+  1. **High-Performance Metadata-Enriched Vector Recommender Engine (`core/vector.py`, `core/__init__.py`)**:
+     - Added `pseudo_embed_text(text: str, dim: int = 768)` matching `SemanticDatabaseCompiler._pseudo_embed` for offline deterministic hash-embedding without API keys.
+     - Implemented `PericopeRecommendation` dataclass capturing rank, cosine score, match percentage, pericope ID, reference, title, book, testament, genre, redemptive summary, central proposition, coordinate points (`map_x`, `map_y`), and dictionary conversion.
+     - Implemented `PericopeRecommender`:
+       - `ensure_loaded(db)`: Fast single-query metadata cache over 1,304 pericopes joined with `books` and `pericope_embeddings`.
+       - `recommend_for_reference(reference, ...)`: Resolves citation, extracts unit vector from pre-computed BLOB storage, runs two-tier hierarchical cosine similarity on `VectorIndex` in <12ms, strictly excludes the query pericope from recommendations, applies testament/genre/book filters, and enriches candidate matches.
+       - `recommend_for_pericope_id(pericope_id, ...)`: Direct pericope ID recommender.
+       - `search_by_query(query_text, ...)`: Dual-mode natural language semantic query search (Gemini `text-embedding-004` when online/configured; pure-stdlib `pseudo_embed_text` fallback when unkeyed/offline).
+       - Added process-wide singleton helpers `get_pericope_recommender(db)` and `reset_pericope_recommender()`.
+       - Exported new vector types in `core/__init__.py`.
+  2. **REST API Endpoints & Health Telemetry (`web/server.py`)**:
+     - Added endpoints `/api/similar` and `/api/vector/similar` (supporting both GET and POST) with parameters `ref`, `pericope_id`, `top_k`, `min_score`, `testament`, `genre`, `book`, `mode`.
+     - Added endpoints `/api/vector/search` (supporting both GET and POST) for natural language semantic query vector retrieval.
+     - Updated `/api/health` to report `vector_engine_ready: True` and total pericope embeddings count.
+  3. **Omnichannel CLI & Interactive REPL Studio Commands (`cli/main.py`, `cli/shell.py`)**:
+     - Added top-level `./bible similar <reference>` (alias `recommend`) subcommand with ANSI cards, match bars, and `--json` format support.
+     - Added interactive REPL commands `/similar <ref>` and `/recommend <ref>` with tab autocompletion (`complete_similar`, `complete_recommend`).
+  4. **Sacred-Modern Web UI Explorer (`web/static/`)**:
+     - `index.html`: Added top-level `Similar` navigation tab, `#panel-similar` sidebar with dual-mode switcher (Passage Recommender vs Semantic Query), quick chips, and "Use Currently Viewed Passage" button. Added `#similar-visualizer-stage` with source pericope banner, telemetry stats badge, and CSS grid. Added `#btn-reader-explore-similar` in reader stage header.
+     - `app.js`: Integrated view switching, mode selection, live recommendation fetching, match score progress bars, reader drill-down, and scatter map coordinate highlighting (`highlightMapPoint`).
+     - `style.css`: Added Sacred-Modern CSS styling for visualizer stage, cards, source banner, mode buttons, and percentage progress bars.
+  5. **Hermetic Test Suite Expansion**:
+     - Added `TestPericopeRecommender` in `tests/test_vector.py` (testing `pseudo_embed_text`, `recommend_for_reference`, `recommend_for_pericope_id`, filters, and `search_by_query`).
+     - Added `test_api_similar_and_vector_search` and `test_similar_ui_assets` in `tests/test_server.py`.
+     - Added `test_cli_similar_subcommand` in `tests/test_cli.py`.
+     - Added `test_shell_similar_and_recommend_commands` in `tests/test_shell.py`.
+     - Verified all 45 test modules pass 100% (**1,000 tests passing in 8.6s**).
+  6. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-099: Omnichannel Vector-Similarity Scripture Retrieval & Pericope Recommender Engine** in `DECISIONS.md`.
+     - Updated `ROADMAP.md`: Marked **Task 4.8** complete (**Phase 4 is now 100% complete!**).
+- **Verification**:
+  - `./bible test`: **1,000 tests across 45 modules passed 100% in 8.638s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 10 diagnostic checks passed in 12.96s (99 ADRs registered, 91 sequential runs, 97 roadmap tasks tracked, 86 completed across 9 phases, 0 external dependencies, 0 linter errors across 95 files, SQLite verified).
+  - `python3 tools/linter.py`: **100% CLEAN** — 95 files inspected with 0 errors, 0 warnings.
+- **Handoff Notes for Next Agent**:
+  - Phase 4 is now 100% complete!
+  - Next task up on roadmap: **Phase 7 Task 7.7**: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*, OR **Phase 8 Task 8.7**: *Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083)*.

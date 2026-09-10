@@ -172,6 +172,34 @@ document.addEventListener("DOMContentLoaded", () => {
   const mapLegendNtCount = document.getElementById("map-legend-nt-count");
   const mapLegendMetrics = document.getElementById("map-legend-metrics");
 
+  // DOM Elements - Vector Similarity & Pericope Recommender Stage & Sidebar (Task 4.8)
+  const similarVisualizerStage = document.getElementById("similar-visualizer-stage");
+  const btnSimilarModePassage = document.getElementById("btn-similar-mode-passage");
+  const btnSimilarModeQuery = document.getElementById("btn-similar-mode-query");
+  const similarPassageInputSection = document.getElementById("similar-passage-input-section");
+  const similarQueryInputSection = document.getElementById("similar-query-input-section");
+  const inputSimilarRef = document.getElementById("input-similar-ref");
+  const btnRunSimilarRef = document.getElementById("btn-run-similar-ref");
+  const inputSimilarQuery = document.getElementById("input-similar-query");
+  const btnRunSimilarQuery = document.getElementById("btn-run-similar-query");
+  const btnSimilarUseCurrent = document.getElementById("btn-similar-use-current");
+  const selectSimilarTestament = document.getElementById("select-similar-testament");
+  const selectSimilarLimit = document.getElementById("select-similar-limit");
+  const selectSimilarThreshold = document.getElementById("select-similar-threshold");
+  const similarSourceBanner = document.getElementById("similar-source-banner");
+  const similarSourceModePill = document.getElementById("similar-source-mode-pill");
+  const similarSourceTitle = document.getElementById("similar-source-title");
+  const similarSourceTestament = document.getElementById("similar-source-testament");
+  const similarSourceGenre = document.getElementById("similar-source-genre");
+  const similarSourceSummary = document.getElementById("similar-source-summary");
+  const similarSourceProp = document.getElementById("similar-source-prop");
+  const similarSourcePropText = document.getElementById("similar-source-prop-text");
+  const similarResultsStream = document.getElementById("similar-results-stream");
+  const similarResultsCountBadge = document.getElementById("similar-results-count-badge");
+  const similarTelemetryBadge = document.getElementById("similar-telemetry-badge");
+  const btnSimilarViewScatter = document.getElementById("btn-similar-view-scatter");
+  const btnReaderExploreSimilar = document.getElementById("btn-reader-explore-similar");
+
   // State
   let arcNetworkData = null;
   let activeArcId = null;
@@ -307,6 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
     search: document.getElementById("panel-search"),
     rag: document.getElementById("panel-rag"),
     persona: document.getElementById("panel-persona"),
+    similar: document.getElementById("panel-similar"),
     topics: document.getElementById("panel-topics"),
     crossref: document.getElementById("panel-crossref"),
     ribbon: document.getElementById("panel-ribbon"),
@@ -330,7 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Toggle Stage Views (Reader Stage vs Panoramic Arcs vs Scatter Map vs RAG Study vs Character Studio)
+    // Toggle Stage Views (Reader Stage vs Panoramic Arcs vs Scatter Map vs Similar Recommender vs RAG Study vs Character Studio)
     const chapterNavBar = document.querySelector(".chapter-nav-bar");
     const stageHeader = document.querySelector(".stage-header");
     const scriptureViewport = document.querySelector(".scripture-viewport");
@@ -338,6 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Hide all specialized stages first
     if (arcVisualizerStage) arcVisualizerStage.classList.add("hidden");
     if (mapVisualizerStage) mapVisualizerStage.classList.add("hidden");
+    if (similarVisualizerStage) similarVisualizerStage.classList.add("hidden");
     if (ragStudyStage) ragStudyStage.classList.add("hidden");
     if (personaStudioStage) personaStudioStage.classList.add("hidden");
 
@@ -363,6 +393,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
       initScatterMap();
       loadScatterMap();
+    } else if (view === "similar") {
+      if (chapterNavBar) chapterNavBar.classList.add("hidden");
+      if (stageHeader) stageHeader.classList.add("hidden");
+      if (passageTags) passageTags.classList.add("hidden");
+      if (pericopeNavBar) pericopeNavBar.classList.add("hidden");
+      if (scriptureViewport) scriptureViewport.classList.add("hidden");
+      if (crossrefSection) crossrefSection.classList.add("hidden");
+      if (similarVisualizerStage) similarVisualizerStage.classList.remove("hidden");
+
+      if (!similarResultsStream || !similarResultsStream.querySelector(".similar-card")) {
+        executeSimilarDiscovery();
+      }
     } else if (view === "rag") {
       if (chapterNavBar) chapterNavBar.classList.add("hidden");
       if (stageHeader) stageHeader.classList.add("hidden");
@@ -1929,6 +1971,309 @@ document.addEventListener("DOMContentLoaded", () => {
     ctx.globalAlpha = 1.0;
     ctx.restore();
   }
+
+  function highlightMapPoint(pid) {
+    if (!mapPoints || mapPoints.length === 0) return;
+    const pt = mapPoints.find((p) => p.entity_id === pid);
+    if (pt) {
+      selectedMapPoint = pt;
+      updateMapInspector(pt);
+      renderScatterMap();
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Vector Similarity & Pericope Recommender Engine (Task 4.8)
+  // -------------------------------------------------------------------------
+  let activeSimilarMode = "passage"; // "passage" or "query"
+
+  function setSimilarMode(mode) {
+    activeSimilarMode = mode;
+    if (btnSimilarModePassage) btnSimilarModePassage.classList.toggle("active", mode === "passage");
+    if (btnSimilarModeQuery) btnSimilarModeQuery.classList.toggle("active", mode === "query");
+    if (similarPassageInputSection) similarPassageInputSection.classList.toggle("hidden", mode !== "passage");
+    if (similarQueryInputSection) similarQueryInputSection.classList.toggle("hidden", mode !== "query");
+  }
+
+  async function executeSimilarDiscovery(overrideRef = null) {
+    if (!similarResultsStream) return;
+
+    const testament = selectSimilarTestament ? selectSimilarTestament.value : "";
+    const topK = selectSimilarLimit ? selectSimilarLimit.value : "10";
+    const minScore = selectSimilarThreshold ? selectSimilarThreshold.value : "0.0";
+
+    similarResultsStream.innerHTML = '<div class="loading-state">Computing dense 768-dimensional vector similarities...</div>';
+
+    try {
+      let url = "";
+      if (activeSimilarMode === "passage") {
+        const ref = (overrideRef || (inputSimilarRef ? inputSimilarRef.value : "") || (inputRef ? inputRef.value : "") || "Romans 8:28-39").trim();
+        if (inputSimilarRef && overrideRef) inputSimilarRef.value = overrideRef;
+        const params = new URLSearchParams({
+          ref: ref,
+          top_k: topK,
+          min_score: minScore,
+        });
+        if (testament) params.append("testament", testament);
+        url = `/api/similar?${params.toString()}`;
+      } else {
+        const query = (inputSimilarQuery ? inputSimilarQuery.value : "covenant faithfulness").trim();
+        const params = new URLSearchParams({
+          q: query,
+          top_k: topK,
+          min_score: minScore,
+        });
+        if (testament) params.append("testament", testament);
+        url = `/api/vector/search?${params.toString()}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      renderSimilarResults(data);
+    } catch (err) {
+      similarResultsStream.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">⚠️</div>
+          <p>Failed to retrieve pericope recommendations: ${escapeHtml(err.message)}</p>
+        </div>
+      `;
+    }
+  }
+
+  function renderSimilarResults(data) {
+    if (!similarResultsStream) return;
+
+    // 1. Update source card
+    if (data.query_type === "passage" && data.source) {
+      const src = data.source;
+      if (similarSourceModePill) similarSourceModePill.textContent = "SOURCE PERICOPE";
+      if (similarSourceTitle) similarSourceTitle.textContent = `${src.human_ref} · ${src.title}`;
+      if (similarSourceTestament) {
+        similarSourceTestament.textContent = src.testament || "Canon";
+        similarSourceTestament.style.display = "inline-block";
+      }
+      if (similarSourceGenre) {
+        similarSourceGenre.textContent = src.genre || "Scripture";
+        similarSourceGenre.style.display = "inline-block";
+      }
+      if (similarSourceSummary) similarSourceSummary.textContent = src.redemptive_summary || "(No summary recorded)";
+      if (similarSourceProp && similarSourcePropText) {
+        if (src.central_proposition) {
+          similarSourceProp.style.display = "block";
+          similarSourcePropText.textContent = src.central_proposition;
+        } else {
+          similarSourceProp.style.display = "none";
+        }
+      }
+    } else {
+      if (similarSourceModePill) similarSourceModePill.textContent = "SEMANTIC QUERY";
+      if (similarSourceTitle) similarSourceTitle.textContent = `“${data.query || ""}”`;
+      if (similarSourceTestament) similarSourceTestament.style.display = "none";
+      if (similarSourceGenre) {
+        similarSourceGenre.textContent = data.embedding_mode === "gemini" ? "Gemini text-embedding-004" : "Offline Pure-Stdlib Vector";
+        similarSourceGenre.style.display = "inline-block";
+      }
+      if (similarSourceSummary) similarSourceSummary.textContent = `Vector similarity search matching conceptual propositions and themes across canonical thought units.`;
+      if (similarSourceProp) similarSourceProp.style.display = "none";
+    }
+
+    // 2. Telemetry badge
+    if (similarTelemetryBadge) {
+      similarTelemetryBadge.textContent = `${data.total_vectors || 1304} Pericopes Indexed`;
+    }
+
+    // 3. Results count badge
+    const matches = data.matches || [];
+    if (similarResultsCountBadge) {
+      similarResultsCountBadge.textContent = `${matches.length} recommendation${matches.length === 1 ? "" : "s"}`;
+    }
+
+    if (matches.length === 0) {
+      similarResultsStream.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">✦</div>
+          <p>No pericopes exceeded the selected similarity threshold. Try lowering the threshold or changing the scope.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+    matches.forEach((m) => {
+      const pct = parseFloat(m.match_pct) || Math.round(Math.max(0, m.score) * 100);
+      const clampedPct = Math.max(5, Math.min(100, pct));
+      const testClass = m.testament === "NT" ? "badge-count" : "badge-gold";
+
+      html += `
+        <div class="similar-card" data-ref="${escapeHtml(m.human_ref)}" data-pid="${m.pericope_id}">
+          <div class="similar-card-top">
+            <div class="similar-card-rank-col">
+              <span class="similar-rank-badge">#${m.rank}</span>
+            </div>
+            <div class="similar-card-header-col">
+              <div class="similar-card-ref-row">
+                <span class="similar-card-ref">${escapeHtml(m.human_ref)}</span>
+                <span class="badge ${testClass}">${escapeHtml(m.testament)}</span>
+                <span class="badge badge-version">${escapeHtml(m.genre)}</span>
+              </div>
+              <h4 class="similar-card-title">${escapeHtml(m.title)}</h4>
+            </div>
+            <div class="similar-score-badge-col">
+              <div class="similar-score-meter-wrap" title="Cosine Similarity: ${m.score}">
+                <div class="similar-score-label">
+                  <span class="similar-score-pct">${m.match_pct}</span>
+                  <span class="similar-score-text">Match</span>
+                </div>
+                <div class="similar-progress-bar-bg">
+                  <div class="similar-progress-bar-fill" style="width: ${clampedPct}%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="similar-card-body">
+            ${m.redemptive_summary ? `<p class="similar-card-summary">${escapeHtml(m.redemptive_summary)}</p>` : ""}
+            ${m.central_proposition ? `<div class="similar-card-prop"><em>Proposition:</em> ${escapeHtml(m.central_proposition)}</div>` : ""}
+          </div>
+
+          <div class="similar-card-actions">
+            <button class="btn btn-sm btn-primary btn-similar-read" data-ref="${escapeHtml(m.human_ref)}">
+              <span>Read Passage &rarr;</span>
+            </button>
+            <button class="action-btn btn-similar-pivot" data-ref="${escapeHtml(m.human_ref)}" title="Find pericopes similar to this one">
+              <span>✦ Find Similar</span>
+            </button>
+            <button class="action-btn btn-similar-map" data-pid="${m.pericope_id}" title="Locate on 2D Scatter Map">
+              <span>Scatter Map</span>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    similarResultsStream.innerHTML = html;
+
+    // Attach click events
+    similarResultsStream.querySelectorAll(".btn-similar-read").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ref = btn.getAttribute("data-ref");
+        if (ref) {
+          if (inputRef) inputRef.value = ref;
+          switchView("passage");
+          fetchPassage(ref);
+        }
+      });
+    });
+
+    similarResultsStream.querySelectorAll(".btn-similar-pivot").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ref = btn.getAttribute("data-ref");
+        if (ref) {
+          setSimilarMode("passage");
+          if (inputSimilarRef) inputSimilarRef.value = ref;
+          executeSimilarDiscovery(ref);
+        }
+      });
+    });
+
+    similarResultsStream.querySelectorAll(".btn-similar-map").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const pid = parseInt(btn.getAttribute("data-pid"), 10);
+        switchView("map");
+        if (typeof highlightMapPoint === "function" && pid) {
+          highlightMapPoint(pid);
+        }
+      });
+    });
+  }
+
+  // Event Listeners for Similar Recommender
+  if (btnSimilarModePassage) {
+    btnSimilarModePassage.addEventListener("click", () => setSimilarMode("passage"));
+  }
+  if (btnSimilarModeQuery) {
+    btnSimilarModeQuery.addEventListener("click", () => setSimilarMode("query"));
+  }
+  if (btnRunSimilarRef) {
+    btnRunSimilarRef.addEventListener("click", () => {
+      setSimilarMode("passage");
+      executeSimilarDiscovery();
+    });
+  }
+  if (btnRunSimilarQuery) {
+    btnRunSimilarQuery.addEventListener("click", () => {
+      setSimilarMode("query");
+      executeSimilarDiscovery();
+    });
+  }
+  if (inputSimilarRef) {
+    inputSimilarRef.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        setSimilarMode("passage");
+        executeSimilarDiscovery();
+      }
+    });
+  }
+  if (inputSimilarQuery) {
+    inputSimilarQuery.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        setSimilarMode("query");
+        executeSimilarDiscovery();
+      }
+    });
+  }
+  if (btnSimilarUseCurrent) {
+    btnSimilarUseCurrent.addEventListener("click", () => {
+      const activeRef = (inputRef ? inputRef.value : "") || "Romans 8:28-39";
+      if (inputSimilarRef) inputSimilarRef.value = activeRef;
+      setSimilarMode("passage");
+      executeSimilarDiscovery(activeRef);
+    });
+  }
+  if (selectSimilarTestament) {
+    selectSimilarTestament.addEventListener("change", () => executeSimilarDiscovery());
+  }
+  if (selectSimilarLimit) {
+    selectSimilarLimit.addEventListener("change", () => executeSimilarDiscovery());
+  }
+  if (selectSimilarThreshold) {
+    selectSimilarThreshold.addEventListener("change", () => executeSimilarDiscovery());
+  }
+  if (btnSimilarViewScatter) {
+    btnSimilarViewScatter.addEventListener("click", () => switchView("map"));
+  }
+  if (btnReaderExploreSimilar) {
+    btnReaderExploreSimilar.addEventListener("click", () => {
+      const activeRef = (inputRef ? inputRef.value : "") || (displayCitation ? displayCitation.textContent : "Romans 8:28-39");
+      if (inputSimilarRef) inputSimilarRef.value = activeRef;
+      setSimilarMode("passage");
+      switchView("similar");
+      executeSimilarDiscovery(activeRef);
+    });
+  }
+
+  document.querySelectorAll("[data-similar-ref]").forEach((c) => {
+    c.addEventListener("click", () => {
+      const ref = c.getAttribute("data-similar-ref");
+      if (inputSimilarRef) inputSimilarRef.value = ref;
+      setSimilarMode("passage");
+      executeSimilarDiscovery(ref);
+    });
+  });
+
+  document.querySelectorAll("[data-similar-query]").forEach((c) => {
+    c.addEventListener("click", () => {
+      const q = c.getAttribute("data-similar-query");
+      if (inputSimilarQuery) inputSimilarQuery.value = q;
+      setSimilarMode("query");
+      executeSimilarDiscovery();
+    });
+  });
 
   // -------------------------------------------------------------------------
   // Dynamic Scripture RAG Study & Split-Screen Synthesis

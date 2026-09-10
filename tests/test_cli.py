@@ -1500,6 +1500,28 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("Scripture Semantic 2D Scatter Map Status", stdout.getvalue())
         self.assertIn("Projected 2D Coordinates", stdout.getvalue())
 
+    def test_cli_similar_subcommand(self):
+        """Verify ./bible similar renders formatted pericope recommendations and JSON output."""
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["similar", "Genesis 1:1", "--top-k", "3"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Canonical Scripture Pericope Recommender", out)
+        self.assertIn("Source Passage:", out)
+        self.assertIn("Top Recommendations", out)
+
+        # JSON mode
+        import json
+        stdout_json = io.StringIO()
+        with patch("sys.stdout", stdout_json):
+            code_json = main(["similar", "Romans 8:28", "--top-k", "2", "--json"])
+        self.assertEqual(code_json, 0)
+        data = json.loads(stdout_json.getvalue())
+        self.assertIn("source", data)
+        self.assertIn("matches", data)
+        self.assertEqual(len(data["matches"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

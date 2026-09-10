@@ -276,5 +276,72 @@ class TestVectorDatabaseIntegration(unittest.TestCase):
         self.assertIsInstance(p_idx, VectorIndex)
 
 
+class TestPericopeRecommender(unittest.TestCase):
+    """Test PericopeRecommender retrieval, cosine scoring, and filtering."""
+
+    @classmethod
+    def setUpClass(cls):
+        from core.db import DEFAULT_DB_PATH
+        cls.db = Database(DEFAULT_DB_PATH, check_same_thread=False)
+        from core.vector import PericopeRecommender
+        cls.recommender = PericopeRecommender(dimensions=768)
+        cls.recommender.ensure_loaded(cls.db)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.db.close()
+
+    def test_pseudo_embed_text(self):
+        from core.vector import pseudo_embed_text
+        v1 = pseudo_embed_text("covenant grace", dim=768)
+        self.assertEqual(len(v1), 768)
+        self.assertAlmostEqual(vector_norm(v1), 1.0, places=5)
+        # Determinism
+        v2 = pseudo_embed_text("covenant grace", dim=768)
+        self.assertEqual(v1, v2)
+        # Empty string fallback
+        v_empty = pseudo_embed_text("", dim=768)
+        self.assertEqual(len(v_empty), 768)
+
+    def test_recommend_for_reference(self):
+        res = self.recommender.recommend_for_reference("Genesis 1:1", db=self.db, top_k=5)
+        self.assertEqual(res["query_type"], "passage")
+        self.assertIn("source", res)
+        self.assertEqual(res["source"]["book_name"], "Genesis")
+        matches = res["matches"]
+        self.assertGreaterEqual(len(matches), 1)
+        self.assertIn("match_pct", matches[0])
+        self.assertIn("human_ref", matches[0])
+        self.assertEqual(matches[0]["rank"], 1)
+
+    def test_recommend_for_pericope_id(self):
+        # Genesis 1 pericope id is 1
+        res = self.recommender.recommend_for_pericope_id(pericope_id=1, db=self.db, top_k=3)
+        self.assertEqual(res["query_type"], "passage")
+        self.assertGreaterEqual(len(res["matches"]), 1)
+
+    def test_recommend_filters(self):
+        # Filter by testament
+        res_ot = self.recommender.recommend_for_reference("Genesis 1:1", db=self.db, testament="OT", top_k=3)
+        for rec in res_ot["matches"]:
+            self.assertEqual(rec["testament"], "OT")
+
+        res_nt = self.recommender.recommend_for_reference("Genesis 1:1", db=self.db, testament="NT", top_k=3)
+        for rec in res_nt["matches"]:
+            self.assertEqual(rec["testament"], "NT")
+
+    def test_search_by_query(self):
+        res = self.recommender.search_by_query("creation heavens earth", db=self.db, top_k=3)
+        self.assertEqual(res["query_type"], "query")
+        self.assertEqual(res["query"], "creation heavens earth")
+        self.assertIn("embedding_mode", res)
+        matches = res["matches"]
+        self.assertGreaterEqual(len(matches), 1)
+        d = matches[0]
+        self.assertIn("match_pct", d)
+        self.assertIn("human_ref", d)
+        self.assertIn("map_x", d)
+
+
 if __name__ == "__main__":
     unittest.main()

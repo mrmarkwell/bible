@@ -88,7 +88,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 4.4**: Implement drill-down verse viewer: clicking a heatmap cell / book chapter displays scripture passages, pericopes, and active tags. *(Run 031 / ADR-032)*
 - [x] **Task 4.5**: Implement pure SVG Typological Arc Network & Cross-Reference Graph connecting Old Testament shadows to New Testament fulfillments. *(Run 032 / ADR-033)*
 - [x] **Task 4.7**: Interactive 2D Semantic Similarity Scatter Map Visualizer in Web UI (clickable verse/pericope dots arranged by embedding proximity via pure-standard-library FastMap and PCA projection engines). *(Run 088 / ADR-096)*
-- [ ] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer supporting both passage-to-passage similarity and natural language user question vector search with match scores and drill-down).
+- [x] **Task 4.8**: Vector-Similarity Scripture Retrieval & Pericope Recommender UI (dual-mode cosine similarity explorer supporting both passage-to-passage similarity and natural language user question vector search with match scores and drill-down). *(Run 091 / ADR-099 — Phase 4 100% Complete)*
 
 
 ### Phase 5: Visual Verse Slide Generator for TV Screensavers & Presentation

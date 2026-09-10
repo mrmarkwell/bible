@@ -2731,6 +2731,64 @@ class BibleShell(cmd.Cmd):
         """Auto-complete for /vec alias."""
         return self.complete_vector(text, line, begidx, endidx)
 
+    def do_similar(self, arg: str) -> None:
+        """Find semantically similar pericopes across the Bible: /similar <reference> (alias: /recommend)"""
+        clean_arg = arg.strip()
+        if not clean_arg:
+            self.stdout.write("Usage: /similar <reference> (e.g. /similar Romans 8:28-39 or /similar John 3:16)\n")
+            return
+
+        from core.vector import get_pericope_recommender
+        try:
+            recommender = get_pericope_recommender(self.db)
+            result = recommender.recommend_for_reference(clean_arg, top_k=10)
+        except Exception as exc:
+            self.stdout.write(f"Error: {exc}\n")
+            return
+
+        source = result.get("source", {})
+        matches = result.get("matches", [])
+        gold = "\033[1;33m" if self.use_color else ""
+        cyan = "\033[1;36m" if self.use_color else ""
+        green = "\033[32m" if self.use_color else ""
+        dim = "\033[2m" if self.use_color else ""
+        reset = "\033[0m" if self.use_color else ""
+
+        self.stdout.write(f"{gold}================================================================={reset}\n")
+        self.stdout.write(f"{gold} Canonical Scripture Pericope Recommender (Vector Similarity){reset}\n")
+        self.stdout.write(f"{gold}================================================================={reset}\n")
+        self.stdout.write(f" Source:   {cyan}{source.get('human_ref', clean_arg)}{reset} — {source.get('title', '')}\n")
+        if source.get('genre'):
+            self.stdout.write(f" Scope:    {source.get('genre')} · {source.get('testament', '')}\n")
+        if source.get('redemptive_summary'):
+            self.stdout.write(f" Summary:  {dim}{source.get('redemptive_summary')}{reset}\n")
+        self.stdout.write(f"-----------------------------------------------------------------\n")
+        self.stdout.write(f" Top Recommendations ({len(matches)} matches across {result.get('total_vectors', 0):,} pericopes):\n")
+
+        for m in matches:
+            pct_str = m.get("match_pct", "0.0%")
+            score = m.get("score", 0.0)
+            pct_val = int(round(max(0.0, score) * 100))
+            bar = "█" * (pct_val // 10) + "░" * (10 - (pct_val // 10))
+            self.stdout.write(f" {m['rank']:2d}. {cyan}{m['human_ref']:<18}{reset} [{bar}] {green}{pct_str:>6}{reset}  {gold}{m.get('title', '')}{reset}\n")
+            if m.get("genre"):
+                self.stdout.write(f"     {dim}[{m.get('testament', '')} · {m.get('genre', '')}]{reset}\n")
+        self.stdout.write(f"{gold}================================================================={reset}\n")
+
+    def do_recommend(self, arg: str) -> None:
+        """Alias for /similar."""
+        self.do_similar(arg)
+
+    def complete_similar(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /similar."""
+        from core.reference import ALL_BOOKS
+        books = [b.name for b in ALL_BOOKS]
+        return [b for b in books if b.lower().startswith(text.lower())]
+
+    def complete_recommend(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /recommend."""
+        return self.complete_similar(text, line, begidx, endidx)
+
     def do_map(self, arg: str) -> None:
         """Interactive 2D Semantic Similarity Scatter Map Visualizer (ASCII/ANSI plot & stats).
 

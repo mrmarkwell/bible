@@ -4859,6 +4859,94 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_map.set_defaults(func=cmd_map)
 
+    # Subcommand: similar (aliases: recommend)
+    parser_similar = subparsers.add_parser(
+        "similar",
+        aliases=["recommend"],
+        help="Find semantically similar pericopes across the Bible using vector embeddings",
+        description="Search for the most semantically related pericopes across the 66 canonical books using dense 768-dimensional embeddings and cosine similarity.",
+    )
+    parser_similar.add_argument("reference", help="Source scripture citation (e.g. 'Romans 8:28-39', 'Genesis 1:1')")
+    parser_similar.add_argument("--top-k", "-k", type=int, default=10, help="Number of recommendations to return (default: 10)")
+    parser_similar.add_argument("--min-score", type=float, default=0.0, help="Minimum cosine similarity threshold (default: 0.0)")
+    parser_similar.add_argument("--testament", "-T", choices=["OT", "NT", "ot", "nt"], help="Filter recommendations by testament")
+    parser_similar.add_argument("--genre", "-g", help="Filter recommendations by literary genre")
+    parser_similar.add_argument("--book", "-b", help="Filter recommendations by book")
+    parser_similar.add_argument("--mode", choices=["hierarchical", "exhaustive"], default="hierarchical", help="Similarity search mode (default: hierarchical)")
+    parser_similar.add_argument("--json", action="store_true", help="Output results as JSON")
+
+    def cmd_similar(args: argparse.Namespace) -> int:
+        from core.vector import get_pericope_recommender
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Error: Database not found at '{db_path}'. Run './bible init'.\n")
+            return 1
+
+        db = Database(db_path)
+        output_json = getattr(args, "json", False)
+
+        try:
+            recommender = get_pericope_recommender(db)
+            result = recommender.recommend_for_reference(
+                reference=args.reference,
+                top_k=getattr(args, "top_k", 10),
+                min_score=getattr(args, "min_score", 0.0),
+                testament=getattr(args, "testament", None),
+                genre=getattr(args, "genre", None),
+                book=getattr(args, "book", None),
+                mode=getattr(args, "mode", "hierarchical"),
+            )
+        except Exception as exc:
+            sys.stderr.write(f"Error: {exc}\n")
+            return 1
+
+        if output_json:
+            print(json.dumps(result, indent=2))
+            return 0
+
+        source = result.get("source", {})
+        matches = result.get("matches", [])
+        color_enabled = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+        gold = "\033[1;33m" if color_enabled else ""
+        cyan = "\033[1;36m" if color_enabled else ""
+        green = "\033[32m" if color_enabled else ""
+        dim = "\033[2m" if color_enabled else ""
+        reset = "\033[0m" if color_enabled else ""
+
+        print(f"{gold}======================================================================{reset}")
+        print(f"{gold} Canonical Scripture Pericope Recommender (Vector Similarity){reset}")
+        print(f"{gold}======================================================================{reset}")
+        print(f" Source Passage:   {cyan}{source.get('human_ref', args.reference)}{reset}")
+        if source.get("title"):
+            print(f" Pericope Title:   {source.get('title')}")
+        if source.get("genre"):
+            print(f" Genre / Scope:    {source.get('genre')} · {source.get('testament', '')}")
+        if source.get("redemptive_summary"):
+            print(f" Summary:          {dim}{source.get('redemptive_summary')}{reset}")
+        print(f"----------------------------------------------------------------------")
+        print(f" Top Recommendations ({len(matches)} matches across {result.get('total_vectors', 0):,} pericopes):")
+
+        if not matches:
+            print(f"{dim}No matching pericopes exceeded similarity threshold {getattr(args, 'min_score', 0.0)}.{reset}")
+        else:
+            for m in matches:
+                pct_str = m.get("match_pct", "0.0%")
+                score = m.get("score", 0.0)
+                pct_val = int(round(max(0.0, score) * 100))
+                bar = "█" * (pct_val // 10) + "░" * (10 - (pct_val // 10))
+                print(f" {m['rank']:2d}. {cyan}{m['human_ref']:<18}{reset} [{bar}] {green}{pct_str:>6}{reset}  {gold}{m.get('title', '')}{reset}")
+                if m.get("genre") or m.get("testament"):
+                    print(f"     {dim}[{m.get('testament', '')} · {m.get('genre', '')}]{reset}")
+                if m.get("redemptive_summary"):
+                    print(f"     {dim}↳ {m.get('redemptive_summary')[:100]}...{reset}")
+
+        print(f"----------------------------------------------------------------------")
+        print(f" Web UI Explorer:  Launch './bible serve' and open the 'Similar' tab.")
+        print(f"{gold}======================================================================{reset}")
+        return 0
+
+    parser_similar.set_defaults(func=cmd_similar)
+
     # Subcommand: audit-semantic (aliases: audit, audit-critic)
     parser_audit_semantic = subparsers.add_parser(
         "audit-semantic",

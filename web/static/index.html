@@ -97,6 +97,7 @@
           <button class="nav-tab" data-view="search" role="tab" aria-selected="false">Search</button>
           <button class="nav-tab" data-view="rag" role="tab" aria-selected="false">RAG Study</button>
           <button class="nav-tab" data-view="persona" role="tab" aria-selected="false">Dialogue</button>
+          <button class="nav-tab" data-view="similar" role="tab" aria-selected="false">Similar</button>
           <button class="nav-tab" data-view="topics" role="tab" aria-selected="false">Topics</button>
           <button class="nav-tab" data-view="crossref" role="tab" aria-selected="false">Cross-Refs</button>
           <button class="nav-tab" data-view="ribbon" role="tab" aria-selected="false">Canon</button>
@@ -438,6 +439,97 @@
           </div>
         </div>
 
+        <!-- Tab: Vector-Similarity Scripture Retrieval & Pericope Recommender Controls -->
+        <div class="view-panel hidden" id="panel-similar" role="tabpanel">
+          <div class="canon-summary-card">
+            <h4>Vector Similarity Explorer</h4>
+            <p class="canon-summary-text">Dense 768-dimensional pericope embeddings and cosine similarity discovery connecting thematic thought units across the canon.</p>
+          </div>
+
+          <!-- Dual Mode Toggle -->
+          <div class="similar-mode-selector" role="group" aria-label="Similarity Discovery Mode">
+            <button class="similar-mode-btn active" id="btn-similar-mode-passage" type="button">Passage Recommender</button>
+            <button class="similar-mode-btn" id="btn-similar-mode-query" type="button">Semantic Query</button>
+          </div>
+
+          <!-- Mode 1: Passage-to-Passage Form -->
+          <div class="similar-input-section" id="similar-passage-input-section">
+            <div class="form-group">
+              <label for="input-similar-ref">Source Scripture Citation</label>
+              <div class="input-with-action">
+                <input type="text" id="input-similar-ref" placeholder="e.g. Romans 8:28-39, Genesis 1:1" value="Romans 8:28-39" spellcheck="false" autocomplete="off">
+                <button class="btn btn-primary" id="btn-run-similar-ref">Recommend</button>
+              </div>
+              <div class="quick-chips">
+                <span class="chip chip-gold" data-similar-ref="Romans 8:28-39">Rom 8:28-39</span>
+                <span class="chip chip-gold" data-similar-ref="Genesis 1:1-2:3">Gen 1:1-2:3 (Creation)</span>
+                <span class="chip chip-gold" data-similar-ref="Isaiah 53:1-12">Isa 53 (Servant)</span>
+                <span class="chip chip-gold" data-similar-ref="Psalm 23:1-6">Ps 23 (Shepherd)</span>
+                <span class="chip chip-gold" data-similar-ref="John 1:1-18">John 1:1-18 (Logos)</span>
+                <span class="chip chip-gold" data-similar-ref="Revelation 21:1-8">Rev 21:1-8 (New Eden)</span>
+              </div>
+              <button class="action-btn" id="btn-similar-use-current" style="margin-top: 10px; width: 100%;">
+                <span>✦ Use Currently Viewed Passage</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode 2: Natural Language Semantic Query Form -->
+          <div class="similar-input-section hidden" id="similar-query-input-section">
+            <div class="form-group">
+              <label for="input-similar-query">Natural Language Semantic Inquiry</label>
+              <div class="input-with-action">
+                <input type="text" id="input-similar-query" placeholder="e.g. resurrection hope, covenant faithfulness" value="covenant faithfulness and sovereign grace" spellcheck="false" autocomplete="off">
+                <button class="btn btn-primary" id="btn-run-similar-query">Search</button>
+              </div>
+              <div class="quick-chips">
+                <span class="chip chip-gold" data-similar-query="resurrection hope and new creation">Resurrection</span>
+                <span class="chip chip-gold" data-similar-query="covenant faithfulness and sovereign grace">Faithfulness</span>
+                <span class="chip chip-gold" data-similar-query="substitutionary sacrifice and atonement">Atonement</span>
+                <span class="chip chip-gold" data-similar-query="temple presence and dwelling of God">Temple</span>
+                <span class="chip chip-gold" data-similar-query="justification by faith alone">Justification</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filters & Tuning -->
+          <div class="form-group">
+            <label for="select-similar-testament">Testament Scope</label>
+            <select id="select-similar-testament">
+              <option value="" selected>All Canon (OT &amp; NT · 1,304 Pericopes)</option>
+              <option value="OT">Old Testament (OT · 928 Pericopes)</option>
+              <option value="NT">New Testament (NT · 376 Pericopes)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="select-similar-limit">Recommendations Limit</label>
+            <select id="select-similar-limit">
+              <option value="5">Top 5 Pericopes</option>
+              <option value="10" selected>Top 10 Pericopes (Default)</option>
+              <option value="15">Top 15 Pericopes</option>
+              <option value="25">Top 25 Pericopes (Deep Canonical)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="select-similar-threshold">Similarity Threshold</label>
+            <select id="select-similar-threshold">
+              <option value="0.0" selected>All Matches (&gt; 0% Similarity)</option>
+              <option value="0.5">&gt; 50% Cosine Similarity</option>
+              <option value="0.65">&gt; 65% Strong Correspondence</option>
+              <option value="0.75">&gt; 75% High Theological Affinity</option>
+            </select>
+          </div>
+
+          <div class="panel-section-divider"></div>
+
+          <div class="stats-card" id="similar-sidebar-stats-card">
+            <h4>Vector Engine Telemetry</h4>
+            <div id="similar-sidebar-stats-content">1,304 canonical pericopes indexed in-memory. Sub-5ms cosine retrieval.</div>
+          </div>
+        </div>
+
         <!-- Tab 7: REST API Documentation -->
         <div class="view-panel hidden" id="panel-api" role="tabpanel">
           <div class="api-doc-list">
@@ -463,6 +555,8 @@
               <li><a href="/api/characters" target="_blank"><code>GET /api/characters</code></a> <span>Canonical 19 biblical character personas</span></li>
               <li><a href="/api/characters/paul" target="_blank"><code>GET /api/characters/:id</code></a> <span>Character profile, background &amp; scripture</span></li>
               <li><a href="/api/rag?q=temple+presence" target="_blank"><code>GET /api/rag</code></a> <span>Scripture RAG retrieval &amp; synthesis</span></li>
+              <li><a href="/api/similar?ref=Romans+8:28-39" target="_blank"><code>GET /api/similar</code></a> <span>Pericope recommendations &amp; cosine similarity</span></li>
+              <li><a href="/api/vector/search?q=covenant+grace" target="_blank"><code>GET /api/vector/search</code></a> <span>Semantic concept query vector search</span></li>
               <li><a href="/api/chat/persona" target="_blank"><code>POST /api/chat/persona</code></a> <span>Biblical character dialogue turn</span></li>
               <li><a href="/api/stats" target="_blank"><code>GET /api/stats</code></a> <span>Corpus aggregate metrics</span></li>
             </ul>
@@ -502,6 +596,14 @@
           <div class="citation-row">
             <h1 class="citation-title" id="display-citation">Romans 8:28-39</h1>
             <div class="reader-actions">
+              <button class="action-btn btn-gold" id="btn-reader-explore-similar" title="Find semantically similar pericopes across the Bible">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="9"/>
+                  <line x1="12" y1="3" x2="12" y2="21"/>
+                  <line x1="3" y1="12" x2="21" y2="12"/>
+                </svg>
+                <span>Similar</span>
+              </button>
               <button class="action-btn" id="btn-copy-passage" title="Copy Passage with Citation ( c )">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -640,6 +742,56 @@
               <span class="legend-label">New Testament (<span id="map-legend-nt-count">0</span>)</span>
             </div>
             <div class="map-legend-metrics" id="map-legend-metrics">1,304 pericopes · FastMap 2D projection</div>
+          </div>
+        </section>
+
+        <!-- Vector-Similarity Scripture Retrieval & Pericope Recommender Stage (active in 'similar' view) -->
+        <section class="similar-visualizer-stage hidden" id="similar-visualizer-stage">
+          <div class="similar-stage-header">
+            <div class="similar-stage-titles">
+              <h2 class="similar-stage-heading">Vector-Similarity Scripture Retrieval &amp; Pericope Recommender</h2>
+              <p class="similar-stage-subheading">Dense 768-dimensional pericope embeddings and cosine similarity discovery connecting theological thought units across the canon.</p>
+            </div>
+            <div class="similar-stage-actions">
+              <span class="badge badge-version" id="similar-telemetry-badge">1,304 Pericopes Indexed</span>
+              <button class="action-btn btn-gold" id="btn-similar-view-scatter" title="Inspect Pericopes on 2D Scatter Map">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/>
+                  <circle cx="19" cy="5" r="2"/>
+                  <circle cx="5" cy="19" r="2"/>
+                </svg>
+                <span>Scatter Map &rarr;</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Source Pericope / Query Card -->
+          <div class="similar-source-banner" id="similar-source-banner">
+            <div class="similar-source-header">
+              <span class="similar-source-pill" id="similar-source-mode-pill">SOURCE PERICOPE</span>
+              <h3 class="similar-source-title" id="similar-source-title">Romans 8:28-39 · Everlasting Covenant Love</h3>
+              <div class="similar-source-meta" id="similar-source-meta">
+                <span class="badge badge-count" id="similar-source-testament">NT</span>
+                <span class="badge badge-version" id="similar-source-genre">Pauline Epistle</span>
+              </div>
+            </div>
+            <p class="similar-source-summary" id="similar-source-summary">
+              God works all things together for good to those who love Him. Nothing in all creation can separate us from the love of God in Christ Jesus.
+            </p>
+            <div class="similar-source-prop" id="similar-source-prop">
+              <em>Central Proposition:</em> <span id="similar-source-prop-text">The sovereign God guarantees the eternal glorification and unbreakable preservation of His elect in Christ Jesus.</span>
+            </div>
+          </div>
+
+          <!-- Results Stream Header -->
+          <div class="similar-results-header">
+            <h3 class="section-title">Top Recommended Canonical Pericopes</h3>
+            <span class="count-badge" id="similar-results-count-badge">0 recommendations</span>
+          </div>
+
+          <!-- Results Cards Stream -->
+          <div class="similar-results-stream" id="similar-results-stream">
+            <div class="loading-state">Select a passage or enter an inquiry to discover similar pericopes...</div>
           </div>
         </section>
 

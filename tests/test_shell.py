@@ -518,6 +518,17 @@ class TestShell(unittest.TestCase):
             comp_doc = sh.complete_summary("--d", "--d", 0, 3)
             self.assertIn("--doctor", comp_doc)
 
+    def test_shell_similar_and_recommend_commands(self):
+        """Verify /similar and /recommend commands in interactive BibleShell."""
+        shell, stdout = self._create_shell()
+        shell.onecmd("/similar")
+        self.assertIn("Usage: /similar <reference>", stdout.getvalue())
+
+        stdout.seek(0)
+        stdout.truncate(0)
+        shell.onecmd("/similar John 3:16")
+        self.assertTrue(len(stdout.getvalue()) > 0)
+
 
 class TestCliCitationPreprocessing(unittest.TestCase):
     """Hermetic tests for direct citation CLI preprocessing."""
@@ -560,6 +571,8 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["keys"]), ["keys"])
         self.assertEqual(preprocess_cli_argv(["key"]), ["key"])
         self.assertEqual(preprocess_cli_argv(["onboarding"]), ["onboarding"])
+        self.assertEqual(preprocess_cli_argv(["similar", "Genesis 1:1"]), ["similar", "Genesis 1:1"])
+        self.assertEqual(preprocess_cli_argv(["recommend", "Genesis 1:1"]), ["recommend", "Genesis 1:1"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])

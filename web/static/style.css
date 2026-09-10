@@ -2698,3 +2698,226 @@ kbd {
   flex-wrap: wrap;
   gap: 4px;
 }
+
+/* -------------------------------------------------------------------------
+   Task 4.8: Vector-Similarity Scripture Retrieval & Pericope Recommender
+   ------------------------------------------------------------------------- */
+.similar-visualizer-stage {
+  padding: 24px 32px;
+  overflow-y: auto;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.similar-stage-header {
+  margin-bottom: 20px;
+}
+
+.similar-mode-selector {
+  display: flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  margin-bottom: 12px;
+  gap: 4px;
+}
+
+.similar-mode-btn {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-weight: 500;
+  text-align: center;
+}
+
+.similar-mode-btn:hover {
+  color: var(--text-primary);
+}
+
+.similar-mode-btn.active {
+  background: var(--bg-card);
+  color: var(--gold-bright);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  font-weight: 600;
+}
+
+.similar-source-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(20, 20, 26, 0.7) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 22px;
+}
+
+.source-banner-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-banner-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gold-primary);
+  font-weight: 600;
+}
+
+.source-banner-ref {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.source-banner-title {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.source-banner-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.source-banner-summary {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 4px;
+  max-width: 700px;
+}
+
+.source-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.similar-results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.similar-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.similar-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.similar-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.similar-card-ref {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--gold-bright);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.similar-card-ref:hover {
+  text-decoration: underline;
+}
+
+.similar-card-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin: 2px 0 8px 0;
+}
+
+.similar-score-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 90px;
+}
+
+.similar-pct-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-primary);
+}
+
+.similar-progress-bar-bg {
+  width: 90px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.similar-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-primary), var(--gold-bright));
+  border-radius: 3px;
+  transition: width var(--transition-normal);
+}
+
+.similar-card-body {
+  flex: 1;
+  margin-bottom: 12px;
+}
+
+.similar-card-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.similar-card-prop {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  border-left: 2px solid var(--border-subtle);
+  padding-left: 8px;
+  margin-top: 6px;
+}
+
+.similar-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.similar-card-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 8px;
+}

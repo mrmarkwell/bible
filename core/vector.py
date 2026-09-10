@@ -12,6 +12,7 @@ Architectural invariants:
 
 from __future__ import annotations
 
+import hashlib
 import math
 import struct
 from dataclasses import dataclass
@@ -611,3 +612,425 @@ def get_pericope_vector_index(dimensions: int = DEFAULT_VECTOR_DIM) -> VectorInd
     if _GLOBAL_PERICOPE_INDEX is None:
         _GLOBAL_PERICOPE_INDEX = VectorIndex(dimensions=dimensions)
     return _GLOBAL_PERICOPE_INDEX
+
+
+def pseudo_embed_text(text: str, dim: int = DEFAULT_VECTOR_DIM) -> List[float]:
+    """Deterministic zero-dependency pseudo-vector generator based on text hashing.
+
+    Used for offline semantic similarity operations when no Gemini API key is configured.
+    Conforms to the exact hashing logic used by the Semantic Database Compiler.
+    """
+    vec = [0.0] * dim
+    tokens = text.lower().split()
+    if not tokens:
+        return vec
+    for i, token in enumerate(tokens):
+        h = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
+        idx = h % dim
+        sign = 1.0 if (h & 1) else -1.0
+        vec[idx] += sign / (1.0 + (i % 5))
+    return normalize_vector(vec)
+
+
+@dataclass(frozen=True)
+class PericopeRecommendation:
+    """Rich theological pericope recommendation with vector similarity metrics."""
+
+    rank: int
+    score: float
+    pericope_id: int
+    human_ref: str
+    title: str
+    book_id: int
+    book_name: str
+    testament: str
+    genre: str
+    redemptive_summary: str
+    central_proposition: str
+    start_canonical_id: int
+    end_canonical_id: int
+    map_x: Optional[float] = None
+    map_y: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert pericope recommendation to JSON-serializable dictionary."""
+        clamped_score = max(0.0, min(1.0, self.score))
+        return {
+            "rank": self.rank,
+            "score": round(self.score, 6),
+            "match_pct": f"{clamped_score * 100:.1f}%",
+            "pericope_id": self.pericope_id,
+            "human_ref": self.human_ref,
+            "title": self.title,
+            "book_id": self.book_id,
+            "book_name": self.book_name,
+            "testament": self.testament,
+            "genre": self.genre,
+            "redemptive_summary": self.redemptive_summary,
+            "central_proposition": self.central_proposition,
+            "start_canonical_id": self.start_canonical_id,
+            "end_canonical_id": self.end_canonical_id,
+            "map_x": self.map_x,
+            "map_y": self.map_y,
+        }
+
+
+class PericopeRecommender:
+    """High-velocity pericope recommendation and vector retrieval engine.
+
+    Provides dual-mode similarity discovery:
+    1. Passage-to-Passage Recommendation: finds the most semantically related
+       pericopes across the canon for a given scripture reference or pericope ID.
+    2. Semantic Concept Query Search: embeds natural language questions or themes
+       and retrieves the closest theological thought units.
+    """
+
+    def __init__(self, db: Any = None, dimensions: int = DEFAULT_VECTOR_DIM) -> None:
+        self.db = db
+        self.dimensions = dimensions
+        self.index = VectorIndex(dimensions=dimensions)
+        self._pericope_meta: Dict[int, Dict[str, Any]] = {}
+        self._is_loaded = False
+
+    def is_loaded(self) -> bool:
+        """Check if vector index and metadata are loaded into memory."""
+        return self._is_loaded and len(self.index) > 0
+
+    def ensure_loaded(self, db: Any = None) -> int:
+        """Ensure pericope vector index and metadata are loaded from database."""
+        target_db = db or self.db
+        if target_db is None:
+            from core.db import Database
+            target_db = Database()
+            self.db = target_db
+
+        if self._is_loaded and len(self.index) > 0:
+            return len(self.index)
+
+        self.index.clear()
+        self._pericope_meta.clear()
+
+        # Load pericope embeddings into index
+        count = self.index.build_from_database(target_db, table="pericope_embeddings")
+
+        # Load full metadata map in a single query
+        cur = target_db.conn.cursor()
+        cur.execute("""
+            SELECT
+                pe.pericope_id,
+                pe.human_ref,
+                pe.start_canonical_id,
+                pe.end_canonical_id,
+                pe.map_x,
+                pe.map_y,
+                COALESCE(p.title, pe.human_ref) as title,
+                COALESCE(p.genre, 'Other') as genre,
+                COALESCE(p.redemptive_summary, '') as redemptive_summary,
+                COALESCE(p.central_proposition, '') as central_proposition,
+                COALESCE(b.id, CAST(pe.start_canonical_id / 1000000 AS INTEGER)) as book_id,
+                COALESCE(b.name, '') as book_name,
+                COALESCE(b.testament, CASE WHEN CAST(pe.start_canonical_id / 1000000 AS INTEGER) <= 39 THEN 'OT' ELSE 'NT' END) as testament
+            FROM pericope_embeddings pe
+            LEFT JOIN pericopes p ON pe.pericope_id = p.id
+            LEFT JOIN books b ON p.book_id = b.id OR b.id = CAST(pe.start_canonical_id / 1000000 AS INTEGER)
+        """)
+        rows = cur.fetchall()
+        cur.close()
+
+        for r in rows:
+            pid = int(r["pericope_id"])
+            book_id = int(r["book_id"]) if r["book_id"] is not None else 1
+            testament = str(r["testament"]) if r["testament"] else ("OT" if book_id <= 39 else "NT")
+            self._pericope_meta[pid] = {
+                "pericope_id": pid,
+                "human_ref": r["human_ref"],
+                "start_canonical_id": int(r["start_canonical_id"]),
+                "end_canonical_id": int(r["end_canonical_id"]),
+                "map_x": round(float(r["map_x"]), 2) if r["map_x"] is not None else None,
+                "map_y": round(float(r["map_y"]), 2) if r["map_y"] is not None else None,
+                "title": r["title"] or r["human_ref"],
+                "genre": r["genre"] or "Other",
+                "redemptive_summary": r["redemptive_summary"] or "",
+                "central_proposition": r["central_proposition"] or "",
+                "book_id": book_id,
+                "book_name": r["book_name"] or "",
+                "testament": testament,
+            }
+
+        self._is_loaded = True
+        return count
+
+    def recommend_for_reference(
+        self,
+        reference: Any,
+        db: Any = None,
+        top_k: int = 10,
+        min_score: float = 0.0,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        book: Optional[str] = None,
+        mode: str = "hierarchical",
+        candidate_pool_size: int = 250,
+    ) -> Dict[str, Any]:
+        """Find the most semantically similar pericopes across the canon for a scripture reference."""
+        target_db = db or self.db
+        if target_db is None:
+            from core.db import Database
+            target_db = Database()
+            self.db = target_db
+
+        self.ensure_loaded(target_db)
+
+        from core.reference import parse_reference, Reference
+        if isinstance(reference, str):
+            ref_obj = parse_reference(reference)
+        elif isinstance(reference, Reference):
+            ref_obj = reference
+        else:
+            raise TypeError(f"Expected str or Reference, got {type(reference)}")
+
+        # Find matching pericope(s)
+        matching_pericopes = target_db.get_pericopes_for_reference(ref_obj)
+        source_id = None
+        if matching_pericopes:
+            # Pick the most specific (smallest span) pericope among matches
+            matching_pericopes.sort(key=lambda p: (p.end_canonical_id - p.start_canonical_id))
+            source_id = matching_pericopes[0].id
+        else:
+            # Check by book if no exact range match
+            book_pericopes = target_db.get_pericopes_for_book(ref_obj.book.number)
+            if book_pericopes:
+                # Find pericope with closest canonical ID
+                ref_mid = (ref_obj.canonical_start_id + ref_obj.canonical_end_id) // 2
+                book_pericopes.sort(key=lambda p: abs(((p.start_canonical_id + p.end_canonical_id) // 2) - ref_mid))
+                source_id = book_pericopes[0].id
+
+        if source_id is None or source_id not in self._pericope_meta:
+            raise ValueError(f"No pericope or vector embedding found for reference '{ref_obj.format()}'")
+
+        return self.recommend_for_pericope_id(
+            pericope_id=source_id,
+            db=target_db,
+            top_k=top_k,
+            min_score=min_score,
+            testament=testament,
+            genre=genre,
+            book=book,
+            mode=mode,
+            candidate_pool_size=candidate_pool_size,
+        )
+
+    def recommend_for_pericope_id(
+        self,
+        pericope_id: int,
+        db: Any = None,
+        top_k: int = 10,
+        min_score: float = 0.0,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        book: Optional[str] = None,
+        mode: str = "hierarchical",
+        candidate_pool_size: int = 250,
+    ) -> Dict[str, Any]:
+        """Find the most semantically similar pericopes for a given pericope ID."""
+        target_db = db or self.db
+        if target_db is None:
+            from core.db import Database
+            target_db = Database()
+            self.db = target_db
+
+        self.ensure_loaded(target_db)
+
+        if pericope_id not in self._pericope_meta:
+            raise ValueError(f"Pericope ID {pericope_id} not found in loaded pericope metadata")
+
+        source_meta = self._pericope_meta[pericope_id]
+        source_vec_rec = self.index.get_vector(pericope_id)
+        if source_vec_rec is None:
+            raise ValueError(f"No vector embedding found in index for pericope ID {pericope_id}")
+
+        # Build predicate filter excluding the source pericope itself
+        t_filter = testament.strip().upper() if testament else None
+        g_filter = genre.strip().lower() if genre else None
+        b_filter = book.strip().lower() if book else None
+
+        def custom_filter(rec: VectorRecord) -> bool:
+            if rec.entity_id == pericope_id:
+                return False
+            pid = int(rec.entity_id) if isinstance(rec.entity_id, (int, str)) and str(rec.entity_id).isdigit() else None
+            if pid is not None and pid in self._pericope_meta:
+                meta = self._pericope_meta[pid]
+                if t_filter and meta.get("testament", "").upper() != t_filter:
+                    return False
+                if b_filter and meta.get("book_name", "").lower() != b_filter:
+                    return False
+                if g_filter and g_filter not in meta.get("genre", "").lower():
+                    return False
+            return True
+
+        matches = self.index.search(
+            query_vector=source_vec_rec.raw_bytes,
+            top_k=top_k,
+            mode=mode,
+            candidate_pool_size=candidate_pool_size,
+            min_score=min_score,
+            filter_fn=custom_filter,
+        )
+
+        recommendations: List[PericopeRecommendation] = []
+        for rank, m in enumerate(matches, start=1):
+            pid = int(m.entity_id) if isinstance(m.entity_id, (int, str)) and str(m.entity_id).isdigit() else 0
+            meta = self._pericope_meta.get(pid, {})
+            recommendations.append(
+                PericopeRecommendation(
+                    rank=rank,
+                    score=m.score,
+                    pericope_id=pid,
+                    human_ref=meta.get("human_ref", m.human_ref),
+                    title=meta.get("title", m.human_ref),
+                    book_id=meta.get("book_id", 0),
+                    book_name=meta.get("book_name", ""),
+                    testament=meta.get("testament", ""),
+                    genre=meta.get("genre", "Other"),
+                    redemptive_summary=meta.get("redemptive_summary", ""),
+                    central_proposition=meta.get("central_proposition", ""),
+                    start_canonical_id=meta.get("start_canonical_id", 0),
+                    end_canonical_id=meta.get("end_canonical_id", 0),
+                    map_x=meta.get("map_x"),
+                    map_y=meta.get("map_y"),
+                )
+            )
+
+        return {
+            "query_type": "passage",
+            "source": source_meta,
+            "total_vectors": len(self.index),
+            "count": len(recommendations),
+            "matches": [r.to_dict() for r in recommendations],
+        }
+
+    def search_by_query(
+        self,
+        query_text: str,
+        db: Any = None,
+        top_k: int = 10,
+        min_score: float = 0.0,
+        testament: Optional[str] = None,
+        genre: Optional[str] = None,
+        book: Optional[str] = None,
+        mode: str = "hierarchical",
+        candidate_pool_size: int = 250,
+        api_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Search pericopes by natural language semantic query or concept inquiry."""
+        target_db = db or self.db
+        if target_db is None:
+            from core.db import Database
+            target_db = Database()
+            self.db = target_db
+
+        self.ensure_loaded(target_db)
+
+        clean_q = query_text.strip()
+        if not clean_q:
+            raise ValueError("Query text cannot be empty")
+
+        # Attempt online Gemini embedding if key is available
+        embedding_mode = "offline_pseudo"
+        from core.llm import get_gemini_api_key, GeminiClient
+        effective_key = api_key or get_gemini_api_key()
+        if effective_key:
+            try:
+                client = GeminiClient(api_key=effective_key)
+                q_floats = client.embed_content(clean_q)
+                norm_q = normalize_vector(q_floats)
+                query_bytes, _ = quantize_float_to_int8(norm_q)
+                embedding_mode = "gemini"
+            except Exception:
+                pseudo_vec = pseudo_embed_text(clean_q, dim=self.dimensions)
+                query_bytes, _ = quantize_float_to_int8(pseudo_vec)
+                embedding_mode = "offline_pseudo"
+        else:
+            pseudo_vec = pseudo_embed_text(clean_q, dim=self.dimensions)
+            query_bytes, _ = quantize_float_to_int8(pseudo_vec)
+            embedding_mode = "offline_pseudo"
+
+        # Build predicate filter
+        t_filter = testament.strip().upper() if testament else None
+        g_filter = genre.strip().lower() if genre else None
+        b_filter = book.strip().lower() if book else None
+
+        def custom_filter(rec: VectorRecord) -> bool:
+            pid = int(rec.entity_id) if isinstance(rec.entity_id, (int, str)) and str(rec.entity_id).isdigit() else None
+            if pid is not None and pid in self._pericope_meta:
+                meta = self._pericope_meta[pid]
+                if t_filter and meta.get("testament", "").upper() != t_filter:
+                    return False
+                if b_filter and meta.get("book_name", "").lower() != b_filter:
+                    return False
+                if g_filter and g_filter not in meta.get("genre", "").lower():
+                    return False
+            return True
+
+        matches = self.index.search(
+            query_vector=query_bytes,
+            top_k=top_k,
+            mode=mode,
+            candidate_pool_size=candidate_pool_size,
+            min_score=min_score,
+            filter_fn=custom_filter,
+        )
+
+        recommendations: List[PericopeRecommendation] = []
+        for rank, m in enumerate(matches, start=1):
+            pid = int(m.entity_id) if isinstance(m.entity_id, (int, str)) and str(m.entity_id).isdigit() else 0
+            meta = self._pericope_meta.get(pid, {})
+            recommendations.append(
+                PericopeRecommendation(
+                    rank=rank,
+                    score=m.score,
+                    pericope_id=pid,
+                    human_ref=meta.get("human_ref", m.human_ref),
+                    title=meta.get("title", m.human_ref),
+                    book_id=meta.get("book_id", 0),
+                    book_name=meta.get("book_name", ""),
+                    testament=meta.get("testament", ""),
+                    genre=meta.get("genre", "Other"),
+                    redemptive_summary=meta.get("redemptive_summary", ""),
+                    central_proposition=meta.get("central_proposition", ""),
+                    start_canonical_id=meta.get("start_canonical_id", 0),
+                    end_canonical_id=meta.get("end_canonical_id", 0),
+                    map_x=meta.get("map_x"),
+                    map_y=meta.get("map_y"),
+                )
+            )
+
+        return {
+            "query_type": "query",
+            "query": clean_q,
+            "embedding_mode": embedding_mode,
+            "total_vectors": len(self.index),
+            "count": len(recommendations),
+            "matches": [r.to_dict() for r in recommendations],
+        }
+
+
+# Global singleton pericope recommender
+_GLOBAL_PERICOPE_RECOMMENDER: Optional[PericopeRecommender] = None
+
+
+def get_pericope_recommender(db: Any = None, dimensions: int = DEFAULT_VECTOR_DIM) -> PericopeRecommender:
+    """Get or create the process-wide PericopeRecommender instance."""
+    global _GLOBAL_PERICOPE_RECOMMENDER
+    if _GLOBAL_PERICOPE_RECOMMENDER is None:
+        _GLOBAL_PERICOPE_RECOMMENDER = PericopeRecommender(db=db, dimensions=dimensions)
+    elif db is not None and _GLOBAL_PERICOPE_RECOMMENDER.db is None:
+        _GLOBAL_PERICOPE_RECOMMENDER.db = db
+    return _GLOBAL_PERICOPE_RECOMMENDER
+
+
+def reset_pericope_recommender() -> None:
+    """Reset the process-wide PericopeRecommender singleton (used for testing)."""
+    global _GLOBAL_PERICOPE_RECOMMENDER
+    _GLOBAL_PERICOPE_RECOMMENDER = None
+

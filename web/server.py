@@ -46,6 +46,7 @@ from core.reference import (
     verse_canonical_id,
 )
 from core.tags import TaggingService
+from core.vector import get_pericope_recommender
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8080
@@ -244,6 +245,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_map_svg(query)
         elif clean_path in ("/api/map", "/api/embeddings/map", "/api/scatter"):
             self.handle_map(query)
+        elif clean_path in ("/api/similar", "/api/vector/similar", "/api/recommend", "/api/pericopes/similar"):
+            self.handle_similar(query, body_data=body_data)
+        elif clean_path in ("/api/vector/search", "/api/similar/search", "/api/search/vector"):
+            self.handle_vector_search(query, body_data=body_data)
         else:
             self.send_json_error(f"Unknown API endpoint: '{path}'", status=404)
 
@@ -266,10 +271,10 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "translations": translations,
                 "gemini_api_available": api_avail,
                 "canonical_characters": len(list_canonical_personas()),
+                "total_pericope_embeddings": self.db.count_pericope_embeddings(),
+                "vector_engine_ready": True,
             }
             self.send_json(data)
-        except Exception as exc:
-            self.send_json_error(f"Database error during health check: {exc}", status=500)
         except Exception as exc:
             self.send_json_error(f"Database error during health check: {exc}", status=500)
 
@@ -1054,6 +1059,116 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(raw_bytes)
+
+    def handle_similar(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET or POST /api/similar or /api/vector/similar — Find semantically similar pericopes."""
+        body = body_data or {}
+        ref_str = query.get("ref", query.get("passage", [None]))[0] or body.get("ref") or body.get("passage")
+        pid_val = query.get("pericope_id", query.get("id", [None]))[0] or body.get("pericope_id") or body.get("id")
+
+        if not ref_str and pid_val is None:
+            self.send_json_error(
+                "Missing required parameter: 'ref' (scripture citation) or 'pericope_id'",
+                status=400,
+            )
+            return
+
+        try:
+            top_k_str = query.get("top_k", query.get("limit", [None]))[0] or body.get("top_k") or body.get("limit") or 10
+            top_k = int(top_k_str)
+        except (ValueError, TypeError):
+            top_k = 10
+
+        try:
+            min_score_str = query.get("min_score", [None])[0] or body.get("min_score") or 0.0
+            min_score = float(min_score_str)
+        except (ValueError, TypeError):
+            min_score = 0.0
+
+        testament = query.get("testament", [None])[0] or body.get("testament")
+        genre = query.get("genre", [None])[0] or body.get("genre")
+        book = query.get("book", [None])[0] or body.get("book")
+        mode = query.get("mode", ["hierarchical"])[0] or body.get("mode", "hierarchical")
+
+        try:
+            recommender = get_pericope_recommender(self.db)
+            if pid_val is not None:
+                pid = int(pid_val)
+                result = recommender.recommend_for_pericope_id(
+                    pericope_id=pid,
+                    top_k=top_k,
+                    min_score=min_score,
+                    testament=testament,
+                    genre=genre,
+                    book=book,
+                    mode=mode,
+                )
+            else:
+                result = recommender.recommend_for_reference(
+                    reference=ref_str,
+                    top_k=top_k,
+                    min_score=min_score,
+                    testament=testament,
+                    genre=genre,
+                    book=book,
+                    mode=mode,
+                )
+            self.send_json(result)
+        except ValueError as exc:
+            self.send_json_error(str(exc), status=404)
+        except Exception as exc:
+            self.send_json_error(f"Error computing pericope recommendations: {exc}", status=500)
+
+    def handle_vector_search(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET or POST /api/vector/search — Natural language semantic query vector search over pericopes."""
+        body = body_data or {}
+        q_text = query.get("q", query.get("query", [None]))[0] or body.get("q") or body.get("query")
+
+        if not q_text or not str(q_text).strip():
+            self.send_json_error("Missing required parameter: 'q' or 'query'", status=400)
+            return
+
+        try:
+            top_k_str = query.get("top_k", query.get("limit", [None]))[0] or body.get("top_k") or body.get("limit") or 10
+            top_k = int(top_k_str)
+        except (ValueError, TypeError):
+            top_k = 10
+
+        try:
+            min_score_str = query.get("min_score", [None])[0] or body.get("min_score") or 0.0
+            min_score = float(min_score_str)
+        except (ValueError, TypeError):
+            min_score = 0.0
+
+        testament = query.get("testament", [None])[0] or body.get("testament")
+        genre = query.get("genre", [None])[0] or body.get("genre")
+        book = query.get("book", [None])[0] or body.get("book")
+        mode = query.get("mode", ["hierarchical"])[0] or body.get("mode", "hierarchical")
+
+        try:
+            recommender = get_pericope_recommender(self.db)
+            result = recommender.search_by_query(
+                query_text=str(q_text).strip(),
+                top_k=top_k,
+                min_score=min_score,
+                testament=testament,
+                genre=genre,
+                book=book,
+                mode=mode,
+            )
+            self.send_json(result)
+        except ValueError as exc:
+            self.send_json_error(str(exc), status=400)
+        except Exception as exc:
+            self.send_json_error(f"Error executing vector query search: {exc}", status=500)
 
     def handle_slide(self, query: Dict[str, List[str]]) -> None:
         """GET /api/slide or /api/slide.svg — Render high-resolution visual scripture slide."""

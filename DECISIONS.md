@@ -3335,3 +3335,21 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies (100% Python standard library per ADR-003).
 
 
+
+---
+
+## ADR-099: Omnichannel Vector-Similarity Scripture Retrieval & Pericope Recommender Engine
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - With the completion of whole-Bible 2D projection and FastMap/PCA coordinate mapping (ADR-096), the platform possessed 1,304 pre-computed 768-dimensional pericope_embeddings stored as int8 signed quantization BLOBs in SQLite.
+  - However, users and researchers lacked an omnichannel, interactive interface to exploit these dense embeddings for passage-to-passage similarity, natural language query search, and Sacred-Modern UI controls.
+- **Decision**:
+  1. Implemented PericopeRecommender in core/vector.py with two-tier hierarchical cosine similarity and offline pseudo-embedding fallback.
+  2. Exposed REST API endpoints /api/similar and /api/vector/search in web/server.py.
+  3. Built Sacred-Modern UI tab 'Similar' with progress bars, source pericope cards, and scatter map locator in web/static/.
+  4. Added CLI 'bible similar <ref>' and REPL '/similar' commands.
+  5. Verified 100% tests passing (1,000 tests across 45 test modules).
+- **Consequences**:
+  - Phase 4 of the project roadmap is now 100% complete.
+  - Scripture discovery transcends keyword lookup with zero external dependencies.

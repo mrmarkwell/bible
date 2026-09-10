@@ -956,6 +956,76 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('id="map-visualizer-stage"', html_str)
         self.assertIn('id="map-canvas"', html_str)
 
+    def test_api_similar_and_vector_search(self) -> None:
+        """Verify /api/similar, /api/vector/similar, and /api/vector/search endpoints."""
+        # /api/similar via GET with reference
+        status, headers, body = self._get("/api/similar?ref=Genesis+1:1&top_k=3")
+        self.assertEqual(status, 200)
+        data = json.loads(body.decode("utf-8"))
+        self.assertEqual(data["query_type"], "passage")
+        self.assertIn("source", data)
+        self.assertIn("matches", data)
+        self.assertGreaterEqual(len(data["matches"]), 1)
+        rec0 = data["matches"][0]
+        self.assertIn("score", rec0)
+        self.assertIn("match_pct", rec0)
+        self.assertIn("human_ref", rec0)
+
+        # /api/similar alias via GET
+        status_alias, _, body_alias = self._get("/api/vector/similar?ref=Romans+8:28&top_k=2")
+        self.assertEqual(status_alias, 200)
+        data_alias = json.loads(body_alias.decode("utf-8"))
+        self.assertEqual(data_alias["query_type"], "passage")
+
+        # /api/similar POST
+        status_post, _, body_post = self._post("/api/similar", {"ref": "Genesis 1:1", "top_k": 2})
+        self.assertEqual(status_post, 200)
+        data_post = json.loads(body_post.decode("utf-8"))
+        self.assertEqual(data_post["query_type"], "passage")
+
+        # /api/similar 400 Bad Request if missing ref and pericope_id
+        status_err, _, body_err = self._get("/api/similar")
+        self.assertEqual(status_err, 400)
+        self.assertIn("Missing required parameter", json.loads(body_err.decode("utf-8"))["error"])
+
+        # /api/vector/search GET
+        status_q, _, body_q = self._get("/api/vector/search?q=covenant+faithfulness&top_k=3")
+        self.assertEqual(status_q, 200)
+        data_q = json.loads(body_q.decode("utf-8"))
+        self.assertEqual(data_q["query_type"], "query")
+        self.assertIn("matches", data_q)
+
+        # /api/vector/search POST
+        status_q_post, _, body_q_post = self._post("/api/vector/search", {"q": "creation of light", "top_k": 2})
+        self.assertEqual(status_q_post, 200)
+        self.assertEqual(json.loads(body_q_post.decode("utf-8"))["query_type"], "query")
+
+        # /api/vector/search 400 error
+        status_q_err, _, _ = self._get("/api/vector/search")
+        self.assertEqual(status_q_err, 400)
+
+        # Health endpoint reports vector status
+        status_h, _, body_h = self._get("/api/health")
+        self.assertEqual(status_h, 200)
+        health_data = json.loads(body_h.decode("utf-8"))
+        self.assertTrue(health_data.get("vector_engine_ready", False))
+        self.assertGreater(health_data.get("total_pericope_embeddings", 0), 0)
+
+    def test_similar_ui_assets(self) -> None:
+        """Verify HTML and CSS contain Task 4.8 UI hooks and selectors."""
+        status_html, _, body_html = self._get("/index.html")
+        self.assertEqual(status_html, 200)
+        html_str = body_html.decode("utf-8")
+        self.assertIn('data-view="similar"', html_str)
+        self.assertIn('id="panel-similar"', html_str)
+        self.assertIn('id="similar-visualizer-stage"', html_str)
+
+        status_css, _, body_css = self._get("/style.css")
+        self.assertEqual(status_css, 200)
+        css_str = body_css.decode("utf-8")
+        self.assertIn(".similar-visualizer-stage", css_str)
+        self.assertIn(".similar-card", css_str)
+
 
 class TestWebCliAndShellIntegration(unittest.TestCase):
     """Test CLI argument parsing and REPL shell integration for the web server."""
