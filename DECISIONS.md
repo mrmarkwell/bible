@@ -2995,8 +2995,27 @@ This document is an append-only log of significant design and architectural deci
   - Restores sub-6-second high-velocity test execution across all 43 modules.
   - Guarantees 100% Zero-Dependency compliance (Python 3 standard library only per ADR-003).
 
+---
 
-
-
-
-
+## ADR-089: Whole-Bible Bounded Semantic Campaign: Corpus 4 (Pastoral & General Epistles) Execution, Hermeneutical Trajectory & Checkpoint Ledger Verification
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Following the successful campaigns over Corpus 1 (Pauline Foundations & Hebrews, ADR-085), Corpus 2 (The Four Gospels & Acts, ADR-086), and Corpus 3 (Pentateuch & Covenant Foundations, ADR-087), Task 3.12 called for the execution of Corpus 4: Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 13 books, 43 chapters, 10 canonical pericopes, 53 total compilation units) via the SQLite checkpoint ledger (ADR-082, ADR-085).
+  - Corpus 4 encompasses the pastoral and general epistolary literature of the New Testament, addressing the life of the apostolic Church facing false teaching, social hostility, and suffering while waiting for the Parousia:
+    * *Pauline Pastoral Epistles & Epistles of Expectation* (1-2 Thessalonians, 1-2 Timothy, Titus, Philemon): Sound doctrine, elder qualifications, the household of God, pastoral endurance, gospel reconciliation, and holy living in anticipation of the Lord's return.
+    * *General / Catholic Epistles* (James, 1-2 Peter, 1-3 John, Jude): Living faith proved by works, holy living in exile, suffering for righteousness, discernment against antinomian deceivers, assurance of eternal life, abiding in love and truth, and contending earnestly for the faith once delivered to the saints.
+- **Decision**:
+  1. **Corpus 4 Batch Compilation Execution**:
+     - Executed `./bible build-semantic --corpus 4 --no-resume` against `data/bible.db`.
+     - Successfully compiled all 53 compilation units (10 canonical pericopes + 43 chapters) across all 13 books in 0.20s with zero errors.
+     - Generated 53 pericopes, 53 discourse relations, 53 verse theology records, 53 semantic propositions, and 53 int8 vector embeddings.
+     - Ingested pastoral and general epistolary motifs into `tags` and `verse_tags` tables via `TaggingService` (`parousia_hope`, `holiness_sanctification`, `sound_doctrine`, `household_of_god`, `living_hope`, `royal_priesthood`, `faith_without_works_is_dead`, `assurance_of_salvation`, `contend_for_the_faith`).
+  2. **Hermetic Test Suite Expansion**:
+     - Expanded `tests/test_corpora.py` with `test_corpus_4_composition`, asserting 13 canonical books, 43 total chapters, and exact catalog sequence.
+     - Added `test_main_dry_run_corpus_4` in `tests/test_build_semantic_db.py`.
+     - Verified all 43 hermetic test modules pass 100% (946 tests in 5.90s).
+- **Consequences**:
+  - Corpus 4 is 100% semantically compiled, indexed in SQLite, and verified in the checkpoint ledger.
+  - Progresses the Whole-Bible Semantic Database roadmap towards full canon coverage (Corpora 1, 2, 3, and 4 now fully compiled).
+  - Zero external dependencies introduced (100% Python standard library per ADR-003).

@@ -96,6 +96,37 @@ class TestCanonicalCorpora(unittest.TestCase):
         # 50 + 40 + 27 + 36 + 34 = 187 chapters
         self.assertEqual(c3.total_chapters, 187)
 
+    def test_corpus_4_composition(self):
+        """Verify Corpus 4 includes the Pastoral & General Epistles."""
+        c4 = CANONICAL_CORPORA[4]
+        self.assertEqual(c4.corpus_id, 4)
+        self.assertEqual(c4.name, "pastoral_general_epistles")
+        self.assertEqual(
+            c4.book_names,
+            (
+                "1 Thessalonians",
+                "2 Thessalonians",
+                "1 Timothy",
+                "2 Timothy",
+                "Titus",
+                "Philemon",
+                "James",
+                "1 Peter",
+                "2 Peter",
+                "1 John",
+                "2 John",
+                "3 John",
+                "Jude",
+            ),
+        )
+        self.assertEqual(
+            c4.book_ids,
+            (52, 53, 54, 55, 56, 57, 59, 60, 61, 62, 63, 64, 65),
+        )
+        self.assertEqual(len(c4.books), 13)
+        # 5 + 3 + 6 + 4 + 3 + 1 + 5 + 5 + 3 + 5 + 1 + 1 + 1 = 43 chapters
+        self.assertEqual(c4.total_chapters, 43)
+
     def test_get_corpus_by_id_and_string(self):
         """Verify get_corpus resolves by integer, numeric string, and textual name."""
         c1 = get_corpus(1)
