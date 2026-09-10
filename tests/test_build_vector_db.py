@@ -474,15 +474,37 @@ class TestBuildVectorDb(unittest.TestCase):
         self.assertIn("Vector Compilation Summary:", val)
         self.assertIn("Completed:         1", val)
 
-        # Verify the Revelation pericope was embedded
+        # Verify the Revelation pericope was embedded and auto-projected to 2D
         cur = self.db.conn.cursor()
         emb_row = cur.execute(
-            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            "SELECT dimensions, LENGTH(embedding), map_x, map_y FROM pericope_embeddings WHERE pericope_id = ?",
             (self.pericope_rev.id,),
         ).fetchone()
         self.assertIsNotNone(emb_row)
         self.assertEqual(emb_row[0], 768)
         self.assertEqual(emb_row[1], 768)
+        self.assertIsNotNone(emb_row[2])
+        self.assertIsNotNone(emb_row[3])
+
+    def test_auto_projection_disabled_flag(self):
+        # Test compiling with auto_project=False leaves coordinates null
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                book_filter="Romans",
+                resume=False,
+                auto_project=False,
+            )
+        self.assertEqual(code, 0)
+        cur = self.db.conn.cursor()
+        row = cur.execute(
+            "SELECT map_x, map_y FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope.id,),
+        ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertIsNone(row[0])
+        self.assertIsNone(row[1])
 
 
 if __name__ == "__main__":

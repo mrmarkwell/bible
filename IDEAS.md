@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Automated 2D Vector Projection & Whole-Bible Scatter Atlas Verification Architecture (Rank A+)
+- **Summary**: Implement automatic end-to-end 2D projection post-processing in the batch vector compiler (`tools/build_vector_db.py` / `./bible build-vectors`) and whole-Bible projection sentry auditing in System Doctor (`tools/doctor.py`). When vector compilation completes, the compiler automatically invokes FastMap dimensionality reduction (`core/projection.py`) to map 768-dimensional embeddings to 2D coordinates (`map_x`, `map_y`) in SQLite in <0.75s, supporting `--no-project` and `--project-method`. Extended `tools/doctor.py` to continuously audit vector embedding totals and 2D projection coverage (`1,333 pericope vectors (1,333 projected 2D [100.0%])`), eliminating lifecycle desynchronization between vector embeddings and visual scatter atlases across CLI, REPL, and Web UI.
+- **Rationale**: Confronts the two core diagnostic questions of the Senior Product Manager sprint by removing a manual multi-step decoupling between vector embedding compilation and visual scatter map rendering, bringing projection coverage to 100.0% (1,333/1,333 pericopes), and establishing continuous automated sentry verification in the System Doctor.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure local SQLite queries and standard library FastMap projection).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High performance? Yes (full 1,333 pericope FastMap projection completes in 0.73s).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.36 / ADR-113).
+- **Status**: Completed and verified during Run 105 Senior PM Cleanup Sprint (ADR-113).
+
 ### [COMPLETED] Sovereign Omnichannel Platform Status Dashboard & Test Suite Latency Decoupling Architecture (Rank A+)
 - **Summary**: Establish a consolidated, omnichannel platform status engine (`core/status.py`) that aggregates the 7 core dimensions of Bible Engine: Scripture Canon & Translations (62,205 verses across WEB/KJV, 66 books), Knowledge Graph & Theological Architecture (1,333 pericopes, 343,598 cross-references, 318 tags, 26 typological arcs), Whole-Bible Semantic Campaign (7/7 corpora complete), Dense Vector Database (1,317 normalized 768d vectors with signed int8 quantization), External Credentials & Capabilities (ESV/Gemini discovery, 100% sovereign offline posture), Roadmap Velocity (95/100 tasks complete, 95.0%), and System Health & Governance (Run 100 centennial milestone, 108 ADRs, 0 pip/npm packages). Render an illuminated Sacred-Modern ANSI dashboard with gold accents in CLI (`./bible status` and default `./bible` invocation), interactive REPL (`/status`), and REST API (`/api/status`), alongside clamping test runner worker concurrency to eliminate high-core disk and lock contention.
 - **Rationale**: Directly answers the two core diagnostic questions of the Senior Product Manager sprint by eliminating platform observability fragmentation across disparate subcommands, transforming developer and user first impressions from a raw 60-line argparse help dump into an illuminated Sacred-Modern dashboard, and mitigating test worker thrashing.

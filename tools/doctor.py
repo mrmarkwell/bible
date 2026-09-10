@@ -767,12 +767,25 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
                 # Non-fatal if semantic audit module has an unexpected issue
                 semantic_summary = f" (semantic audit warning: {e_audit})"
 
+            # 6. Check Vector Database & 2D Projection Map Coverage
+            vector_summary = ""
+            try:
+                cur.execute("SELECT COUNT(*) FROM pericope_embeddings")
+                total_embs = cur.fetchone()[0]
+                if total_embs > 0:
+                    cur.execute("SELECT COUNT(*) FROM pericope_embeddings WHERE map_x IS NOT NULL AND map_y IS NOT NULL")
+                    proj_embs = cur.fetchone()[0]
+                    proj_pct = (proj_embs / total_embs) * 100.0
+                    vector_summary = f", {total_embs:,} pericope vectors ({proj_embs:,} projected 2D [{proj_pct:.1f}%])"
+            except Exception:
+                pass
+
             dur = time.time() - t0
             fix_msg = " (Auto-repaired semantic schema)" if schema_repaired else ""
             return CheckResult(
                 "SQLite Scripture Database",
                 True,
-                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified{semantic_summary}){fix_msg}",
+                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified{semantic_summary}{vector_summary}){fix_msg}",
                 dur,
             )
     except Exception as exc:

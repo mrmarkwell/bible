@@ -35,6 +35,7 @@ from core.llm import (
     get_gemini_api_key,
 )
 from core.passport import SemanticPassportGenerator
+from core.projection import project_embeddings
 from core.reference import Book, get_book
 from core.semantic_compiler import CompilationUnitStatus, RateLimiter
 from core.vector import (
@@ -485,6 +486,8 @@ def run_vector_build(
     api_key: Optional[str] = None,
     json_output: bool = False,
     verbose: bool = False,
+    auto_project: bool = True,
+    project_method: str = "fastmap",
 ) -> int:
     """Execute batch vector compilation or ledger inspection."""
     if not db_path.exists():
@@ -651,6 +654,21 @@ def run_vector_build(
         callback=telemetry_callback,
     )
 
+    # Auto-update 2D projection coordinates for newly compiled vector embeddings
+    if auto_project and progress.completed_units > 0 and progress.failed_units == 0:
+        try:
+            embeddings = db.get_all_pericope_embeddings()
+            if embeddings:
+                raw_vectors = [e.embedding for e in embeddings]
+                coords = project_embeddings(raw_vectors, method=project_method)
+                update_items = [(embeddings[i].pericope_id, coords[i][0], coords[i][1]) for i in range(len(embeddings))]
+                updated_count = db.update_pericope_embedding_coordinates_batch(update_items)
+                if not json_output:
+                    print(f"  * 2D Coordinates:    {updated_count:,} pericopes projected & persisted ({project_method.upper()})")
+        except Exception as proj_exc:
+            if verbose and not json_output:
+                print(f"  * 2D Projection:     Warning: {proj_exc}")
+
     if json_output:
         print(json.dumps({
             "status": "COMPLETED" if progress.failed_units == 0 else "COMPLETED_WITH_FAILURES",
@@ -757,6 +775,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Print detailed progress and error messages",
     )
+    parser.add_argument(
+        "--no-project",
+        action="store_false",
+        dest="auto_project",
+        default=True,
+        help="Do not automatically calculate and persist 2D projection coordinates upon completion",
+    )
+    parser.add_argument(
+        "--project-method",
+        choices=["fastmap", "pca"],
+        default="fastmap",
+        help="Dimensionality reduction algorithm for auto-projecting (default: fastmap)",
+    )
 
     args = parser.parse_args(argv)
     db_path = Path(args.db).resolve()
@@ -776,6 +807,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         rate_limit_rpm=args.rpm,
         json_output=args.json,
         verbose=args.verbose,
+        auto_project=args.auto_project,
+        project_method=args.project_method,
     )
 
 

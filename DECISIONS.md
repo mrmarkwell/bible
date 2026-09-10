@@ -3792,3 +3792,32 @@ This document is an append-only log of significant design and architectural deci
 
 
 
+
+---
+
+## ADR-113: Automated 2D Vector Projection & Whole-Bible Scatter Atlas Verification Architecture
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - During the Run 105 Senior Product Manager Meta-Improvement & System Health Sprint, a deep structural audit of the vector and visual atlas subsystems revealed a subtle lifecycle disconnect:
+    1. The whole-Bible vector campaign (Tasks 7.8–7.14 / ADRs 105–112) expanded total pericope vector embeddings from 1,304 to 1,333 units across all 7 canonical corpora.
+    2. However, batch vector compilation (tools/build_vector_db.py / ./bible build-vectors) only populated pericope_embeddings.embedding without automatically projecting and storing 2D coordinates (map_x, map_y).
+    3. As a result, the 2D scatter map in the Sacred-Modern Web UI (Task 4.7) and terminal scatter visualizer (./bible map / /map) showed 1,304 projected points, leaving 29 newly compiled pericopes (2.2%) unprojected in the database.
+    4. Furthermore, while the System Doctor (tools/doctor.py) verified 100% semantic coverage (31,103/31,103 verses), it did not audit pericope vector embedding totals or 2D projection map coordinates, allowing vector/map desynchronization to go undetected by automated sentries.
+- **Decision**:
+  1. **Automated End-to-End Vector-to-Projection Pipeline**:
+     - Upgraded tools/build_vector_db.py (run_vector_build) and CLI (./bible build-vectors) with an automatic 2D projection post-processing pass (auto_project=True).
+     - Upon successful completion of vector compilation without errors, the compiler automatically invokes FastMap dimensionality reduction (core/projection.py) across all stored embeddings and persists normalized 2D coordinates (map_x, map_y) into SQLite in <0.75s.
+     - Added --no-project and --project-method (fastmap/pca) CLI options for explicit pipeline control.
+  2. **100% Whole-Bible Projection Completion**:
+     - Executed full 2D projection across all 1,333 canonical pericopes in data/bible.db, achieving 100.0% coverage (1,333/1,333 pericopes with valid 2D coordinates).
+  3. **System Doctor Vector & Projection Sentry**:
+     - Extended check_database_integrity in tools/doctor.py to audit both vector embedding counts and 2D projection coordinates (1,333 pericope vectors (1,333 projected 2D [100.0%])).
+  4. **Hermetic Test Suite Coverage**:
+     - Added unit tests in tests/test_build_vector_db.py verifying that compilation automatically computes and persists 2D coordinates (map_x, map_y) and that --no-project cleanly skips coordinate generation.
+     - Updated tests/test_doctor.py verifying doctor audits pericope vector and projection metrics.
+     - All 48 test modules pass 100% (1,060 tests in 8.8s).
+- **Consequences**:
+  - Guarantees seamless synchronization between vector embeddings and visual 2D scatter maps.
+  - Newly compiled vectors are instantly ready for interactive visual exploration without manual secondary CLI invocations.
+  - Zero external dependencies: 100% Python standard library (core/projection.py, sqlite3).

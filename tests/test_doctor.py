@@ -82,6 +82,7 @@ class TestDoctorChecks(unittest.TestCase):
         self.assertIn("PRAGMA quick_check & FK passed", res.details)
         self.assertIn("tables verified", res.details)
         self.assertIn("semantically audited", res.details)
+        self.assertIn("pericope vectors", res.details)
         self.assertRegex(res.details, r"\d+\.\d+%")
 
     def test_check_unit_tests_clean(self):

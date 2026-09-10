@@ -5194,6 +5194,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print detailed progress and error messages",
     )
+    parser_build_vectors.add_argument(
+        "--no-project",
+        action="store_false",
+        dest="auto_project",
+        default=True,
+        help="Do not automatically calculate and persist 2D projection coordinates upon completion",
+    )
+    parser_build_vectors.add_argument(
+        "--project-method",
+        choices=["fastmap", "pca"],
+        default="fastmap",
+        help="Dimensionality reduction algorithm for auto-projecting (default: fastmap)",
+    )
 
     def cmd_build_vectors(args: argparse.Namespace) -> int:
         from tools.build_vector_db import run_vector_build
@@ -5213,6 +5226,8 @@ def build_parser() -> argparse.ArgumentParser:
             rate_limit_rpm=getattr(args, "rpm", 60.0),
             json_output=getattr(args, "json", False),
             verbose=getattr(args, "verbose", False),
+            auto_project=getattr(args, "auto_project", True),
+            project_method=getattr(args, "project_method", "fastmap"),
         )
 
     parser_build_vectors.set_defaults(func=cmd_build_vectors)
