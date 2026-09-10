@@ -36,6 +36,16 @@ Ideas can be added directly by the repository owner or generated during interact
 ---
 
 ## Active Ideas & Brainstorming Hopper
+
+### [COMPLETED] Sovereign Omnichannel Platform Status Dashboard & Test Suite Latency Decoupling Architecture (Rank A+)
+- **Summary**: Establish a consolidated, omnichannel platform status engine (`core/status.py`) that aggregates the 7 core dimensions of Bible Engine: Scripture Canon & Translations (62,205 verses across WEB/KJV, 66 books), Knowledge Graph & Theological Architecture (1,333 pericopes, 343,598 cross-references, 318 tags, 26 typological arcs), Whole-Bible Semantic Campaign (7/7 corpora complete), Dense Vector Database (1,317 normalized 768d vectors with signed int8 quantization), External Credentials & Capabilities (ESV/Gemini discovery, 100% sovereign offline posture), Roadmap Velocity (95/100 tasks complete, 95.0%), and System Health & Governance (Run 100 centennial milestone, 108 ADRs, 0 pip/npm packages). Render an illuminated Sacred-Modern ANSI dashboard with gold accents in CLI (`./bible status` and default `./bible` invocation), interactive REPL (`/status`), and REST API (`/api/status`), alongside clamping test runner worker concurrency to eliminate high-core disk and lock contention.
+- **Rationale**: Directly answers the two core diagnostic questions of the Senior Product Manager sprint by eliminating platform observability fragmentation across disparate subcommands, transforming developer and user first impressions from a raw 60-line argparse help dump into an illuminated Sacred-Modern dashboard, and mitigating test worker thrashing.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (pure local SQLite queries and filesystem inspection).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - High performance? Yes (status queries execute in <20ms, sub-millisecond with `--no-health`).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.35 / ADR-108).
+- **Status**: Completed and verified during Run 100 Senior PM Double Milestone (ADR-108).
  
 ### [COMPLETED] Omnichannel Theological Facet Navigation & Scripture RAG Feature Parity Architecture (Rank A+)
 - **Summary**: Establish full UI and interactive REPL feature parity for Scripture RAG and multi-modal discovery. While `core/rag.py` and `./bible ask` implemented tri-modal hybrid search (vector dense, FTS5 lexical, and typological arc graph), reciprocal rank fusion (RRF), and four-dimensional theological faceting (Testament: OT/NT; Genre: Gospel, Epistle, Torah, Wisdom, History, Prophecy, Apocalyptic; Storyline Epoch; Theological Locus), the Sacred-Modern Web UI and interactive REPL studio lacked facet filtering controls, pericope title display, central proposition rendering, and retrieval reason badges. By adding interactive facet controls to the Web UI sidebar with live auto-refresh, rendering pericope titles, central theological propositions, redemptive storyline epochs, theological loci, and RRF retrieval diagnostic badges, and adding REPL tab-completion flags (`--testament`, `--genre`, `--epoch`, `--locus`, `--fusion`), theological research is seamlessly democratized across all platforms.

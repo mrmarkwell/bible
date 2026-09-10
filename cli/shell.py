@@ -1499,6 +1499,55 @@ class BibleShell(cmd.Cmd):
     # Meta / Diagnostic Commands
     # --------------------------------------------------------------------------
 
+    def do_status(self, arg: str) -> None:
+        """Display sovereign platform status and executive dashboard: /status [--json] [--no-health]"""
+        import shlex
+        from core.status import get_platform_status, format_terminal_dashboard
+
+        json_output = False
+        check_health = True
+
+        if arg.strip():
+            tokens = shlex.split(arg)
+            if "--json" in tokens:
+                json_output = True
+            if "--no-health" in tokens:
+                check_health = False
+
+        status = get_platform_status(
+            db_path=self.db_path,
+            check_health=check_health,
+            fast_health=True,
+        )
+
+        if json_output:
+            self.stdout.write(status.to_json(indent=2) + "\n")
+            return
+
+        dashboard = format_terminal_dashboard(
+            status,
+            use_color=self.use_color and self.theme != "plain",
+            width=self.width or 78,
+        )
+        self.stdout.write(dashboard + "\n")
+
+    def do_info(self, arg: str) -> None:
+        """Alias for /status."""
+        self.do_status(arg)
+
+    def do_dashboard(self, arg: str) -> None:
+        """Alias for /status."""
+        self.do_status(arg)
+
+    def do_overview(self, arg: str) -> None:
+        """Alias for /status."""
+        self.do_status(arg)
+
+    def complete_status(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Tab-completion for /status flags."""
+        flags = ["--json", "--no-health"]
+        return [f for f in flags if f.startswith(text)]
+
     def do_doctor(self, arg: str) -> None:
         """Run repository health diagnostic check: /doctor [fast|install|uninstall|hooks]"""
         from tools.doctor import run_all_checks, install_hooks, uninstall_hooks, check_git_hooks, DoctorStyler

@@ -358,7 +358,7 @@ def run_tests_parallel(
     # Sort test files via Longest Processing Time (LPT) heuristics to eliminate stragglers
     sorted_files = sort_tests_longest_processing_time(test_files, repo_root)
 
-    max_workers = jobs or max(1, os.cpu_count() or 4)
+    max_workers = jobs or max(1, min(os.cpu_count() or 4, 12))
     max_workers = min(max_workers, total_files)
 
     t0 = time.time()
@@ -545,7 +545,7 @@ def run_tests(
             out.write(text + "\n")
             out.flush()
 
-    mode_desc = f"Parallel ({jobs or max(1, os.cpu_count() or 4)} workers)" if parallel else "Sequential"
+    mode_desc = f"Parallel ({jobs or max(1, min(os.cpu_count() or 4, 12))} workers)" if parallel else "Sequential"
     warn_desc = " [Strict Resource Audit]" if warn_error else ""
     pattern_desc = f" (matching '{pattern}')" if pattern else ""
 

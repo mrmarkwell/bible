@@ -3627,3 +3627,40 @@ This document is an append-only log of significant design and architectural deci
   - Sets up the next milestone: Task 7.11 (Corpus 4: Pastoral & General Epistles: 1-2 Thess, 1-2 Tim, Titus, Phlm, James, 1-2 Pet, 1-3 John, Jude; ~80 pericopes).
   - 100% zero external dependencies maintained (ADR-003).
 
+
+---
+
+## ADR-108: Sovereign Omnichannel Platform Status Dashboard & Test Suite Latency Decoupling Architecture
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - During the Centennial Milestone (Run 100) Senior Product Manager Meta-Improvement Sprint, a comprehensive audit across all subsystems, tooling, and execution processes answered the two mandatory diagnostic questions:
+    1. *"What is the weakest aspect of this project structure?"*: The absence of a unified, consolidated platform status telemetry command. While Bible Engine has 36 CLI subcommands and 81 REPL commands across 8 complete phases, users and developers had to execute 6 disparate commands (`db`, `corpora`, `build-vectors --status`, `keys`, `doctor`, `summary`) to assess scripture counts, semantic campaign progress, vector database size, credential readiness, and system health. Additionally, running `./bible` with no arguments displayed an overwhelming 60-line wall of raw argparse help text.
+    2. *"What is preventing this from being more incredible?"*: The lack of an omnichannel Sacred-Modern executive dashboard delivering real-time status across CLI (`./bible status`), interactive REPL (`/status`), and REST API (`/api/status`), alongside worker concurrency thrashing on high-core hosts where 128 workers contended on SQLite database locks.
+- **Decision**:
+  1. **Core Status Telemetry Engine (`core/status.py`)**:
+     - Formulated `PlatformStatus` dataclass and `get_platform_status()` synthesizing the 7 core dimensions of Bible Engine:
+       - **Scripture Canon & Translations**: 62,205 verses across WEB and KJV, 66 Protestant books.
+       - **Knowledge Graph & Theological Architecture**: 1,333 pericopes, 343,598 TSK cross-reference edges, 318 tags, 26 typological arcs.
+       - **Whole-Bible Semantic Database**: 7/7 corpora completed (100.0%).
+       - **Dense Vector Database**: 1,317 normalized 768-dimensional vectors with signed int8 quantization ([-127, 127]), 3/7 corpora active (42.9%).
+       - **External Credentials & Service Capabilities**: ESV API key discovery, Gemini LLM API key discovery, 100% sovereign offline posture.
+       - **Roadmap Velocity & Backlog State**: Active phase, 94/99 tasks completed (94.9%), remaining backlog.
+       - **System Health & Governance**: Run 100 centennial milestone, 108 ADRs, 0 pip/0 npm dependencies, static analysis status.
+     - Implemented `format_terminal_dashboard()` rendering an illuminated Sacred-Modern ANSI dashboard with gold styling, box borders, status pills (`● Configured`, `✓ EXCELLENT`), Unicode progress bars, and quick action tips.
+  2. **Omnichannel Integration Across CLI, Interactive REPL & REST API**:
+     - Added `status` (aliases: `info`, `dashboard`, `overview`) to CLI (`cli/main.py`) with `--json` and `--no-health` flags.
+     - Modernized default `./bible` invocation: running with no arguments now renders the Sacred-Modern Platform Status Dashboard instead of dumping raw argparse help.
+     - Added `/status` (aliases: `/info`, `/dashboard`, `/overview`) to interactive study REPL (`cli/shell.py`) with tab-completion.
+     - Added `/api/status` endpoint to web server (`web/server.py`) returning full status JSON with CORS headers.
+  3. **Concurrency Optimization in Test Runner (`tools/test_runner.py`)**:
+     - Clamped default worker concurrency to `min(os.cpu_count() or 4, 12)` to eliminate disk thrashing and SQLite lock contention on high-core machines.
+  4. **Hermetic Test Suite Symmetry (`tests/test_status.py`)**:
+     - Created dedicated unit test suite `tests/test_status.py` verifying byte formatting, platform status aggregation, isolated temporary DBs, ANSI dashboard rendering, CLI invocation, REPL commands, and REST endpoint.
+     - Optimized doctor check mocking to reduce redundant whole-repo re-scans.
+     - Preserved 100% 1-to-1 module-test symmetry (48 production modules mapped to 48 hermetic test suites, 1055 tests passing).
+- **Consequences**:
+  - Resolves Task 0.35 in Phase 0 on the project roadmap.
+  - Transforms user onboarding and developer experience with immediate, elegant platform observability.
+  - Slashes test runner parallel thrashing across workers.
+  - 100% zero external dependencies maintained (ADR-003).

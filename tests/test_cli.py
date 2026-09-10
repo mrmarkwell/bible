@@ -357,6 +357,15 @@ class TestCliExecution(unittest.TestCase):
         with patch("sys.stdout", stdout):
             code = main([])
         self.assertEqual(code, 0)
+        self.assertIn("Bible Engine — Sovereign Scripture", stdout.getvalue())
+
+    def test_cli_help_flag(self):
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            try:
+                main(["--help"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
         self.assertIn("usage: bible", stdout.getvalue())
 
     @patch("tools.doctor.run_all_checks", return_value=(0, []))

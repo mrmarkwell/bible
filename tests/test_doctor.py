@@ -141,7 +141,8 @@ class TestDoctorChecks(unittest.TestCase):
     def test_run_all_checks_fast_mode(self):
         from unittest.mock import patch
         with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "100% stdlib compliance", 0.001)), \
-             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)):
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "100% clean", 0.001)), \
+             patch("tools.doctor.check_module_test_symmetry", return_value=CheckResult("Module-Test Suite Symmetry", True, "Verified 48 modules", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, quiet=True)
             self.assertEqual(code, 0)
             self.assertEqual(len(results), 8)
@@ -160,7 +161,8 @@ class TestDoctorChecks(unittest.TestCase):
         from unittest.mock import patch
         buf = io.StringIO()
         with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero Dependencies", True, "OK", 0.001)), \
-             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality", True, "OK", 0.001)):
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality", True, "OK", 0.001)), \
+             patch("tools.doctor.check_module_test_symmetry", return_value=CheckResult("Module-Test Suite Symmetry", True, "OK", 0.001)):
             code, results = run_all_checks(repo_root=REPO_ROOT, color=False, fast=True, stream=buf)
             self.assertEqual(code, 0)
             output = buf.getvalue()
@@ -363,7 +365,8 @@ class TestDoctorChecks(unittest.TestCase):
         from unittest.mock import patch
         buf = io.StringIO()
         with patch("tools.doctor.check_zero_dependencies", return_value=CheckResult("Zero External Dependencies (AST Audit)", True, "OK", 0.001)), \
-             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "OK", 0.001)):
+             patch("tools.doctor.check_code_quality", return_value=CheckResult("Code Quality (Static Linter Audit)", True, "OK", 0.001)), \
+             patch("tools.doctor.check_module_test_symmetry", return_value=CheckResult("Module-Test Suite Symmetry", True, "OK", 0.001)):
             code, results = run_all_checks(
                 repo_root=REPO_ROOT,
                 color=False,

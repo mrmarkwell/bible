@@ -193,6 +193,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         clean_path = path.rstrip("/")
         if clean_path == "/api/health":
             self.handle_health()
+        elif clean_path in ("/api/status", "/api/dashboard", "/api/overview"):
+            self.handle_status(query)
         elif clean_path == "/api/books":
             self.handle_books(query)
         elif clean_path == "/api/passage":
@@ -277,6 +279,23 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_json(data)
         except Exception as exc:
             self.send_json_error(f"Database error during health check: {exc}", status=500)
+
+    def handle_status(self, query: Dict[str, List[str]]) -> None:
+        """GET /api/status — Comprehensive sovereign platform status across 7 dimensions."""
+        try:
+            from core.status import get_platform_status
+            no_health_param = self._get_param(query, None, "no_health", "0")
+            check_health = no_health_param not in ("1", "true", "yes")
+            db_obj = getattr(self, "db", None)
+            db_path = getattr(db_obj, "db_path", None) if db_obj else None
+            status = get_platform_status(
+                db_path=db_path,
+                check_health=check_health,
+                fast_health=True,
+            )
+            self.send_json(status.to_dict())
+        except Exception as exc:
+            self.send_json_error(f"Error compiling platform status: {exc}", status=500)
 
     def handle_books(self, query: Dict[str, List[str]]) -> None:
         """GET /api/books — Canonical 66 books catalog with filtering."""

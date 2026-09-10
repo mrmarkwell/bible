@@ -6201,6 +6201,44 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_keys.set_defaults(func=cmd_keys)
 
+    # -------------------------------------------------------------------------
+    # status / info / dashboard / overview
+    # -------------------------------------------------------------------------
+    parser_status = subparsers.add_parser(
+        "status",
+        aliases=["info", "dashboard", "overview"],
+        help="Display sovereign platform status and executive dashboard",
+        description="Display comprehensive Bible Engine status across scripture, knowledge graph, vector DB, credentials, roadmap, and system health.",
+    )
+    parser_status.add_argument(
+        "--json",
+        action="store_true",
+        help="Output platform status in machine-readable JSON format",
+    )
+    parser_status.add_argument(
+        "--no-health",
+        action="store_true",
+        help="Skip running live system doctor diagnostics for instant sub-millisecond query",
+    )
+
+    def cmd_status(args: argparse.Namespace) -> int:
+        from core.status import get_platform_status, format_terminal_dashboard
+        db_path = Path(args.db).resolve() if getattr(args, "db", None) else None
+        check_health = not getattr(args, "no_health", False)
+        status = get_platform_status(
+            db_path=db_path,
+            check_health=check_health,
+            fast_health=True,
+        )
+        if getattr(args, "json", False):
+            print(status.to_json(indent=2))
+            return 0
+        use_color = should_use_color()
+        print(format_terminal_dashboard(status, use_color=use_color))
+        return 0
+
+    parser_status.set_defaults(func=cmd_status)
+
     return parser
 
 
@@ -6246,6 +6284,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "chat", "persona", "character", "dialogue",
         "ci", "workflow", "workflows", "actions",
         "keys", "key", "onboarding", "credentials",
+        "status", "info", "dashboard", "overview",
     }
 
     pos_idx = -1
@@ -6312,8 +6351,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return launch_shell(db_path=db_path)
 
     if not hasattr(args, "func") or args.func is None:
-        parser.print_help()
-        print("\nTip: Run './bible shell' for interactive scripture exploration.")
+        from core.status import get_platform_status, format_terminal_dashboard
+        db_path = Path(args.db).resolve() if args.db else None
+        status = get_platform_status(db_path=db_path, check_health=True, fast_health=True)
+        use_color = should_use_color()
+        print(format_terminal_dashboard(status, use_color=use_color))
         return 0
 
     return args.func(args)
