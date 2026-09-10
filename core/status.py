@@ -63,7 +63,7 @@ class PlatformStatus:
     vector_dim: int = 768
     vector_quantization: str = "signed int8 ([-127, 127])"
     vector_corpora_total: int = 7
-    vector_corpora_completed: int = 3
+    vector_corpora_completed: int = 0
     vector_completion_pct: float = 42.9
 
     # External Credentials & Capabilities
@@ -348,6 +348,38 @@ def get_platform_status(
                 try:
                     c.execute("SELECT COUNT(*) FROM pericope_embeddings")
                     status.total_vector_embeddings = c.fetchone()[0]
+                except Exception:
+                    pass
+
+                # Vector Corpora Completed
+                try:
+                    from core.corpora import CANONICAL_CORPORA
+                    completed_corpora = 0
+                    for _cid, corpus in CANONICAL_CORPORA.items():
+                        ph = ",".join("?" for _ in corpus.book_ids)
+                        row = c.execute(
+                            f"SELECT COUNT(*) FROM pericopes WHERE book_id IN ({ph})",
+                            corpus.book_ids,
+                        ).fetchone()
+                        total_p = row[0] if row else 0
+                        if total_p > 0:
+                            emb_row = c.execute(
+                                f"""
+                                SELECT COUNT(DISTINCT pe.pericope_id)
+                                FROM pericope_embeddings pe
+                                JOIN pericopes p ON pe.pericope_id = p.id
+                                WHERE p.book_id IN ({ph})
+                                """,
+                                corpus.book_ids,
+                            ).fetchone()
+                            embedded_p = emb_row[0] if emb_row else 0
+                            if embedded_p >= total_p:
+                                completed_corpora += 1
+                    status.vector_corpora_completed = completed_corpora
+                    if status.vector_corpora_total > 0:
+                        status.vector_completion_pct = round(
+                            (completed_corpora / status.vector_corpora_total) * 100.0, 1
+                        )
                 except Exception:
                     pass
 

@@ -3664,3 +3664,34 @@ This document is an append-only log of significant design and architectural deci
   - Transforms user onboarding and developer experience with immediate, elegant platform observability.
   - Slashes test runner parallel thrashing across workers.
   - 100% zero external dependencies maintained (ADR-003).
+
+
+---
+
+## ADR-109: Whole-Bible Vector Database Campaign: Corpus 4 Architecture (Pastoral & General Epistles)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following Corpus 1 (Pauline Foundations & Hebrews per Task 7.8 / ADR-105), Corpus 2 (The Four Gospels & Acts per Task 7.9 / ADR-106), and Corpus 3 (Pentateuch & Covenant Foundations per Task 7.10 / ADR-107), Task 7.11 requires executing the vector compilation campaign across Corpus 4: Pastoral & General Epistles (1-2 Thessalonians, 1-2 Timothy, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 53 pericopes).
+  - Corpus 4 encapsulates apostolic instructions for ecclesial order, pastoral ministry, godly suffering, living faith working through love, Christ our Advocate and Propitiation, sound doctrine against apostasy, and steadfast eschatological hope.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic state tracking.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, literary genres (Pauline Epistle, Pastoral Epistle, General Epistle, Apostolic Doxology), and theological loci.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 53 canonical pericopes in Corpus 4.
+    5. Dynamic reflection of vector campaign completion in the Platform Status Dashboard (`core/status.py`).
+- **Decision**:
+  1. **Corpus 4 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 4` across all 13 books of Corpus 4: 1-2 Thessalonians, 1-2 Timothy, Titus, Philemon, James, 1-2 Peter, 1-3 John, and Jude.
+     - Verified 100% ledger completion in `vector_checkpoint_ledger`: 53/53 units completed, 0 failed, 0 in progress, 0 pending in 12.36s (bringing whole-Bible ledger total to 531 tracked and completed units).
+  2. **Platform Status Telemetry Dynamic Reflection (`core/status.py`)**:
+     - Upgraded `get_platform_status()` to dynamically compute completed vector corpora (checking `embedded_p >= total_p` across `CANONICAL_CORPORA`), updating vector campaign telemetry to 4/7 active (57.1%).
+  3. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Seeded sample James pericope (James 1:1-4, "Faith and Wisdom in Trials") in `TestBuildVectorDb.setUp`.
+     - Added `test_compilation_execution_corpus_4_filter` asserting that `--corpus 4` isolates, compiles, and embeds General Epistle pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 48 test modules pass 100% (1,056 tests passing in 8.7s).
+- **Consequences**:
+  - Resolves Task 7.11 on the project roadmap.
+  - Corpus 4 (Pastoral & General Epistles) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
+  - Sets up the next milestone: Task 7.12 (Corpus 5: Wisdom Literature & Poetry: Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; ~240 pericopes).
+  - 100% zero external dependencies maintained (ADR-003).

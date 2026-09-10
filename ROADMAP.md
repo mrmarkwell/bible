@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 7 (Phase 0, 1, 2, 3, 4, 5, 6, 8 Complete)
-- **Overall Progress**: 95 Completed / 100 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 96 Completed / 100 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -122,7 +122,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 7.8**: Whole-Bible Vector Database Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, 1-2 Corinthians, Galatians, Ephesians, Philippians, Colossians, Hebrews; 115 pericopes) via `./bible build-vectors --corpus 1`. *(Run 097 / ADR-105)*
 - [x] **Task 7.9**: Whole-Bible Vector Database Campaign: Corpus 2 - The Four Gospels & Acts (Matthew, Mark, Luke, John, Acts; 148 pericopes) via `./bible build-vectors --corpus 2`. *(Run 098 / ADR-106)*
 - [x] **Task 7.10**: Whole-Bible Vector Database Campaign: Corpus 3 - Pentateuch & Covenant Foundations (Genesis, Exodus, Leviticus, Numbers, Deuteronomy; 215 pericopes) via `./bible build-vectors --corpus 3`. *(Run 099 / ADR-107)*
-- [ ] **Task 7.11**: Whole-Bible Vector Database Campaign: Corpus 4 - Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; ~80 pericopes) via `./bible build-vectors --corpus 4`.
+- [x] **Task 7.11**: Whole-Bible Vector Database Campaign: Corpus 4 - Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 53 pericopes) via `./bible build-vectors --corpus 4`. *(Run 101 / ADR-109)*
 - [ ] **Task 7.12**: Whole-Bible Vector Database Campaign: Corpus 5 - Wisdom Literature & Poetry (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; ~240 pericopes) via `./bible build-vectors --corpus 5`.
 - [ ] **Task 7.13**: Whole-Bible Vector Database Campaign: Corpus 6 - Major & Minor Prophets (Isaiah to Malachi; ~215 pericopes) via `./bible build-vectors --corpus 6`.
 - [ ] **Task 7.14**: Whole-Bible Vector Database Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; ~150 pericopes) via `./bible build-vectors --corpus 7`.
