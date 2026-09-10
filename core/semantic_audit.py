@@ -2091,6 +2091,15 @@ def save_audit_cache(
     p = cache_path or DEFAULT_SEMANTIC_AUDIT_CACHE_PATH
     try:
         target_str = str(db_path.resolve())
+        # Checkpoint WAL before computing fingerprint to guarantee file size and WAL size stability
+        try:
+            if db is not None and db.conn:
+                db.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            else:
+                with sqlite3.connect(target_str) as _ckpt_conn:
+                    _ckpt_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception:
+            pass
         fp = compute_db_audit_fingerprint(db_path, db=db)
         if not fp:
             return False

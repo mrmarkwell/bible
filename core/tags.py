@@ -871,30 +871,47 @@ class TaggingService:
         }
         ordered_tag_names = [r["name"] for r in tag_rows]
 
-        # Step 2: Query overlapping verse_tags associations
-        # Two associations overlap if: vt1.start_canonical_id <= vt2.end_canonical_id
-        #                         AND vt1.end_canonical_id >= vt2.start_canonical_id
-        overlap_query = """
-            SELECT
-                vt1.tag_id AS tag_a_id,
-                vt2.tag_id AS tag_b_id,
-                COUNT(DISTINCT vt1.id || '-' || vt2.id) AS shared_count
-            FROM verse_tags vt1
-            JOIN verse_tags vt2 ON vt1.tag_id < vt2.tag_id
-            WHERE vt1.start_canonical_id <= vt2.end_canonical_id
-              AND vt1.end_canonical_id >= vt2.start_canonical_id
-        """
-        overlap_params: List[Any] = []
+        # Step 2: Extract relevant verse_tags intervals and compute overlaps using
+        # book-stratified interval sweep-line algorithm (O(N log N) vs O(N^2) SQL cross join).
+        # Two intervals overlap iff:
+        #   vt1.book == vt2.book AND vt1.start_canonical_id <= vt2.end_canonical_id AND vt1.end_canonical_id >= vt2.start_canonical_id
+        vt_query = "SELECT tag_id, start_canonical_id, end_canonical_id FROM verse_tags"
+        vt_params: List[Any] = []
         if tag_meta:
             id_placeholders = ",".join("?" for _ in tag_meta.keys())
-            overlap_query += f" AND vt1.tag_id IN ({id_placeholders}) AND vt2.tag_id IN ({id_placeholders})"
-            overlap_params.extend(tag_meta.keys())
-            overlap_params.extend(tag_meta.keys())
-
-        overlap_query += " GROUP BY vt1.tag_id, vt2.tag_id"
-        cur.execute(overlap_query, overlap_params)
-        overlap_rows = cur.fetchall()
+            vt_query += f" WHERE tag_id IN ({id_placeholders})"
+            vt_params.extend(tag_meta.keys())
+        cur.execute(vt_query, vt_params)
+        vt_rows = cur.fetchall()
         cur.close()
+
+        # Group intervals by book (start_canonical_id // 1_000_000)
+        from collections import defaultdict
+        by_book: Dict[int, List[Tuple[int, int, int]]] = defaultdict(list)
+        for r in vt_rows:
+            tid = r[0]
+            if tid not in tag_meta:
+                continue
+            s_id = int(r[1])
+            e_id = int(r[2])
+            book_id = s_id // 1_000_000
+            by_book[book_id].append((s_id, e_id, tid))
+
+        pair_shared_counts: Dict[Tuple[int, int], int] = defaultdict(int)
+        for book_id, intervals in by_book.items():
+            intervals.sort(key=lambda x: x[0])
+            num_intervals = len(intervals)
+            for i in range(num_intervals):
+                s1, e1, t1 = intervals[i]
+                for j in range(i + 1, num_intervals):
+                    s2, e2, t2 = intervals[j]
+                    if s2 > e1:
+                        # Since intervals are sorted by start_canonical_id, no subsequent interval can overlap with e1
+                        break
+                    if t1 == t2:
+                        continue
+                    pair_key = (t1, t2) if t1 < t2 else (t2, t1)
+                    pair_shared_counts[pair_key] += 1
 
         # Step 3: Populate matrix grid
         matrix: Dict[str, Dict[str, int]] = {
@@ -909,15 +926,12 @@ class TaggingService:
                 matrix[name][name] = t_info["count"]
 
         pair_metrics: List[TagCoOccurrence] = []
-        for r in overlap_rows:
-            id_a = r["tag_a_id"]
-            id_b = r["tag_b_id"]
+        for (id_a, id_b), shared in pair_shared_counts.items():
             if id_a not in tag_meta or id_b not in tag_meta:
                 continue
 
             name_a = tag_meta[id_a]["name"]
             name_b = tag_meta[id_b]["name"]
-            shared = int(r["shared_count"])
 
             matrix[name_a][name_b] = shared
             matrix[name_b][name_a] = shared

@@ -236,6 +236,15 @@ def run_semantic_build(
         print(f"  * Duration:          {progress.duration_sec:.2f}s")
         print("=" * 78)
 
+    if not dry_run and progress.completed_units > 0:
+        try:
+            from core.semantic_audit import get_cached_or_run_audit
+            with Database(db_path) as db_inst:
+                db_inst.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                get_cached_or_run_audit(db_inst, force_re_audit=True)
+        except Exception:
+            pass
+
     return 0 if progress.failed_units == 0 else 1
 
 

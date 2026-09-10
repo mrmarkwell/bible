@@ -813,6 +813,43 @@ class TestWebServerEndpoints(unittest.TestCase):
                 )
                 self.assertEqual(len(data["history"]), 2)
 
+    def test_api_chat_stream_offline(self) -> None:
+        """Verify /api/chat/stream SSE endpoint streams offline fallback event."""
+        status, headers, body = self._get(
+            "/api/chat/stream?character=paul&message=Greetings"
+        )
+        self.assertEqual(status, 200)
+        self.assertIn("text/event-stream", headers.get("Content-Type", ""))
+        text = body.decode("utf-8")
+        self.assertIn("event: start", text)
+        self.assertIn("event: token", text)
+        self.assertIn("event: done", text)
+        self.assertIn("OFFLINE PERSONA PROFILE", text)
+
+    def test_api_chat_stream_missing_params(self) -> None:
+        """Verify /api/chat/stream returns error for missing parameters."""
+        status, data = self._get_json("/api/chat/stream")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required parameter", data["error"])
+
+    def test_api_rag_stream_offline(self) -> None:
+        """Verify /api/rag/stream SSE endpoint streams context and offline event when unkeyed."""
+        status, headers, body = self._get(
+            "/api/rag/stream?q=justification+by+faith"
+        )
+        self.assertEqual(status, 200)
+        self.assertIn("text/event-stream", headers.get("Content-Type", ""))
+        text = body.decode("utf-8")
+        self.assertIn("event: context", text)
+        self.assertIn("event: offline", text)
+        self.assertIn("event: done", text)
+
+    def test_api_rag_stream_missing_query(self) -> None:
+        """Verify /api/rag/stream returns 400 for missing query."""
+        status, data = self._get_json("/api/rag/stream")
+        self.assertEqual(status, 400)
+        self.assertIn("Missing required parameter: 'query'", data["error"])
+
     def test_api_cors_options_post_allowed(self) -> None:
         req = urllib.request.Request(
             f"{self.server.url}/api/chat/persona",

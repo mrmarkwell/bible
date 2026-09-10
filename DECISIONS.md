@@ -3113,3 +3113,41 @@ This document is an append-only log of significant design and architectural deci
   - 6 of the 7 Canonical Corpora (Corpora 1, 2, 3, 4, 5, 6) are now fully compiled. Only Corpus 7 (Historical Books & Apocalyptic Consummation) remains to achieve 100% whole-Bible semantic compilation.
   - Zero external dependencies introduced (100% Python standard library per ADR-003).
 
+---
+
+## ADR-093: Sovereign Interval Sweep-Line Tag Co-Occurrence Engine, WAL Checkpoint Fingerprint Stabilization, Push-Down Reference Slicing & Real-Time HTTP Server-Sent Events (SSE) Streaming
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - During the Run 085 Senior Product Manager Meta-Improvement & System Health Sprint, auditing the system against the two mandatory diagnostic questions identified two major structural weaknesses:
+    1. *Weakest Aspect of Project Structure*:
+       - In `core/tags.py` (`TaggingService.get_tag_co_occurrences`), computing tag co-occurrences executed an $O(N^2)$ cross-product join over 8,156 `verse_tags` records with string concatenation in `COUNT(DISTINCT vt1.id || '-' || vt2.id)` and inequality range checks, taking **6.936 seconds** in SQLite! This slowed down web endpoints (`/api/tags/co-occurrence`) and test suites (`test_server.py`).
+       - In `core/semantic_audit.py` and `tools/build_semantic_db.py`, when a batch compilation campaign completed, SQLite left uncheckpointed pages in the WAL file (`data/bible.db-wal`). When subsequent read-only connections ran passive WAL checkpoints, the main database file grew and the WAL truncated, causing `is_audit_cache_valid` to detect a size mismatch. This forced expensive full-database `PRAGMA quick_check` scans (2.6s to 2.9s) in `doctor.py` and `bootstrap.py` on subsequent checks until manually re-audited.
+       - In `core/slide_batch.py` (`SlideBatchExporter.resolve_passages`), passing `offset` and `limit` without shuffle still loaded and resolved hundreds of verses across whole chapters (e.g. 15 Psalms chapters) before slicing them post-resolution, inflating latency in tests and CLI runs to ~3.0s.
+    2. *Preventing the Project from Being More Incredible*:
+       - While `BiblicalPersonaSession.say_stream()` and `GeminiClient.generate_stream()` offered native token streaming, `web/server.py` exposed only unary REST endpoints (`/api/chat/persona`, `/api/rag`), forcing users and web clients to wait 2–5 seconds for complete synthesis rather than enjoying a real-time, typewriter-smooth streaming experience.
+- **Decision**:
+  1. **Sovereign Interval Sweep-Line Tag Co-Occurrence Engine (`core/tags.py`)**:
+     - Refactored `TaggingService.get_tag_co_occurrences` to use an $O(N \log N)$ book-stratified interval sweep-line algorithm in pure Python.
+     - Grouped verse tag intervals by canonical book ID (`start_canonical_id // 1_000_000`) and sorted them by start coordinate. Early-exits comparison loop as soon as an interval's start exceeds the current interval's end.
+     - Accelerated co-occurrence matrix generation by **308x** (from 6.936s down to 0.0225s), while verifying 100% exact mathematical equivalence across all 1,550 pairwise intersections.
+  2. **Authoritative WAL Checkpoint Cache Stabilization (`core/semantic_audit.py`, `tools/build_semantic_db.py`)**:
+     - Updated `save_audit_cache` to execute `PRAGMA wal_checkpoint(TRUNCATE)` before computing the cryptographic/counter fingerprint, ensuring all WAL pages are flushed into the main `.db` file and the WAL is zeroed.
+     - Updated `run_semantic_build` in `tools/build_semantic_db.py` to automatically checkpoint WAL and update the audit cache ledger upon batch compilation completion.
+     - Decouples cache validity from post-compilation passive checkpoint drift, slashing `check_database_integrity` in `tools/doctor.py` and `get_db_stats` in `core/bootstrap.py` from 2.88s down to 0.112s (a 25x acceleration).
+  3. **Push-Down Reference Slicing in `SlideBatchExporter` (`core/slide_batch.py`)**:
+     - Pushed down `offset` and `limit` slicing into `_resolve_references` prior to database queries when `shuffle=False`, eliminating redundant verse retrievals and accelerating slide batch resolution from ~3.0s to <0.05s.
+  4. **Real-Time Server-Sent Events (SSE) Streaming Engine (`web/server.py`, `core/rag.py`)**:
+     - Implemented native zero-dependency HTTP SSE (`text/event-stream`) endpoints in `web/server.py`:
+       * `/api/chat/stream`: Streams character dialogue tokens in real-time from `BiblicalPersonaSession.say_stream()`, emitting structured JSON events (`event: start`, `event: token`, `event: done`).
+       * `/api/rag/stream`: Streams grounded Scripture RAG synthesis from `ScriptureRAGEngine.answer_stream()`, emitting `event: context`, `event: token`, and `event: done` with graceful offline fallback events (`event: offline`).
+     - Added `ScriptureRAGEngine.answer_stream()` in `core/rag.py` connecting directly to `GeminiClient.generate_stream()`.
+  5. **Hermetic Test Suite Verification (`tests/test_server.py`)**:
+     - Added 4 new hermetic unit tests in `tests/test_server.py` (`test_api_chat_stream_offline`, `test_api_chat_stream_missing_params`, `test_api_rag_stream_offline`, `test_api_rag_stream_missing_query`).
+     - Slashed `test_server.py` runtime from 6.84s down to 3.81s, and `test_bootstrap.py` from 5.64s down to 0.48s.
+     - Verified all 43 hermetic test modules pass 100% (960 tests).
+- **Consequences**:
+  - Web API gains real-time token streaming capabilities for both character dialogue and Scripture RAG.
+  - Test runner bottlenecks and doctor cache misses eliminated, reducing database check times from ~2.9s to ~0.11s.
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+

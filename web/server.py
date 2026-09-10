@@ -225,8 +225,12 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_characters(query, body_data=body_data, path_id=sub_id)
         elif clean_path in ("/api/characters", "/api/personas"):
             self.handle_characters(query, body_data=body_data)
+        elif clean_path in ("/api/rag/stream", "/api/rag/live"):
+            self.handle_rag_stream(query, body_data=body_data)
         elif clean_path == "/api/rag":
             self.handle_rag(query, body_data=body_data)
+        elif clean_path in ("/api/chat/stream", "/api/persona/chat/stream", "/api/chat/persona/stream"):
+            self.handle_chat_stream(query, body_data=body_data)
         elif clean_path in ("/api/chat/persona", "/api/chat", "/api/persona/chat"):
             self.handle_chat_persona(query, body_data=body_data)
         else:
@@ -1474,6 +1478,218 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             })
         except Exception as exc:
             self.send_json_error(f"Dialogue processing error: {exc}", status=500)
+
+    def handle_chat_stream(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET/POST /api/chat/stream — Server-Sent Events (SSE) token streaming for character dialogue."""
+        char_id = (
+            self._get_param(query, body_data, "character")
+            or self._get_param(query, body_data, "persona")
+            or self._get_param(query, body_data, "id")
+        )
+        if not char_id:
+            self.send_json_error(
+                "Missing required parameter: 'character' (e.g. 'paul', 'moses', 'david', 'peter')",
+                status=400,
+            )
+            return
+
+        persona = get_persona_definition(str(char_id).strip())
+        if not persona:
+            self.send_json_error(
+                f"Unknown biblical persona '{char_id}'. Available: {', '.join(p.id for p in CANONICAL_PERSONAS)}",
+                status=404,
+            )
+            return
+
+        message = (
+            self._get_param(query, body_data, "message")
+            or self._get_param(query, body_data, "q")
+            or self._get_param(query, body_data, "prompt")
+        )
+        if not message or not str(message).strip():
+            self.send_json_error("Missing required parameter: 'message'", status=400)
+            return
+
+        clean_message = str(message).strip()
+        version = str(self._get_param(query, body_data, "version", "ESV")).strip().upper()
+        model = self._get_param(query, body_data, "model")
+        if model:
+            model = str(model).strip()
+
+        temperature_raw = self._get_param(query, body_data, "temperature", 0.7)
+        try:
+            temperature = max(0.0, min(1.0, float(temperature_raw)))
+        except (ValueError, TypeError):
+            temperature = 0.7
+
+        max_tokens_raw = self._get_param(query, body_data, "max_tokens", 2048)
+        try:
+            max_tokens = max(100, min(8192, int(max_tokens_raw)))
+        except (ValueError, TypeError):
+            max_tokens = 2048
+
+        session = BiblicalPersonaSession(
+            persona=persona,
+            db=self.db,
+            translation=version,
+            model=model or DEFAULT_GEMINI_MODEL,
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+        )
+
+        history_raw = self._get_param(query, body_data, "history")
+        if isinstance(history_raw, str):
+            try:
+                history_raw = json.loads(history_raw)
+            except Exception:
+                history_raw = []
+
+        if isinstance(history_raw, list):
+            for item in history_raw:
+                if isinstance(item, dict) and "role" in item and "content" in item:
+                    r = str(item["role"]).strip().lower()
+                    c = str(item["content"]).strip()
+                    if r in ("user", "model", "assistant") and c:
+                        norm_role = "model" if r == "assistant" else r
+                        session.history.append(ChatMessage(role=norm_role, content=c))
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.close_connection = True
+
+        def _send_sse(event_name: str, payload_dict: Dict[str, Any]) -> bool:
+            try:
+                line = f"event: {event_name}\ndata: {json.dumps(payload_dict)}\n\n"
+                self.wfile.write(line.encode("utf-8"))
+                self.wfile.flush()
+                return True
+            except (BrokenPipeError, ConnectionResetError):
+                return False
+
+        if not _send_sse("start", {
+            "character": persona.to_dict(),
+            "user_message": clean_message,
+            "api_available": session.llm_client.is_available(),
+        }):
+            return
+
+        try:
+            for token in session.say_stream(clean_message):
+                if not _send_sse("token", {"token": token}):
+                    break
+
+            _send_sse("done", {
+                "status": "complete",
+                "character": persona.id,
+                "turn_count": session.turn_count,
+                "grounded_passages": [p.reference for p in session.grounded_passages],
+                "api_available": session.llm_client.is_available(),
+            })
+        except Exception as stream_err:
+            _send_sse("error", {"error": str(stream_err)})
+
+    def handle_rag_stream(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET/POST /api/rag/stream — Server-Sent Events (SSE) token streaming for Scripture RAG."""
+        q_text = self._get_param(query, body_data, "q") or self._get_param(query, body_data, "query")
+        if not q_text or not str(q_text).strip():
+            self.send_json_error("Missing required parameter: 'query' (or 'q')", status=400)
+            return
+
+        q_text = str(q_text).strip()
+
+        max_passages_raw = self._get_param(query, body_data, "max_passages", 5)
+        try:
+            max_passages = max(1, min(20, int(max_passages_raw)))
+        except (ValueError, TypeError):
+            max_passages = 5
+
+        max_tokens_raw = self._get_param(query, body_data, "max_tokens", 4000)
+        try:
+            max_tokens = max(100, min(16000, int(max_tokens_raw)))
+        except (ValueError, TypeError):
+            max_tokens = 4000
+
+        version = str(self._get_param(query, body_data, "version", "ESV")).strip().upper()
+        model = self._get_param(query, body_data, "model")
+        if model:
+            model = str(model).strip()
+
+        try:
+            rag_engine = get_rag_engine(self.db)
+            context = rag_engine.retrieve(
+                query=q_text,
+                max_passages=max_passages,
+                max_tokens=max_tokens,
+                preferred_translation=version,
+            )
+        except Exception as exc:
+            self.send_json_error(f"Scripture RAG retrieval error: {exc}", status=500)
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.close_connection = True
+
+        def _send_sse(event_name: str, payload_dict: Dict[str, Any]) -> bool:
+            try:
+                line = f"event: {event_name}\ndata: {json.dumps(payload_dict)}\n\n"
+                self.wfile.write(line.encode("utf-8"))
+                self.wfile.flush()
+                return True
+            except (BrokenPipeError, ConnectionResetError):
+                return False
+
+        if not _send_sse("context", {
+            "query": q_text,
+            "context": context.to_dict(),
+            "total_passages": len(context.passages),
+            "total_verses": context.total_verses,
+            "estimated_tokens": context.estimated_tokens,
+        }):
+            return
+
+        api_avail = GeminiClient().is_available()
+        if not api_avail:
+            _send_sse("offline", {
+                "message": (
+                    "GEMINI_API_KEY is not configured. Grounded Scripture RAG retrieval succeeded, "
+                    "but theological answer streaming requires an API key in the environment."
+                ),
+            })
+            _send_sse("done", {"status": "offline_fallback"})
+            return
+
+        try:
+            for token in rag_engine.answer_stream(
+                query=q_text,
+                max_passages=max_passages,
+                model=model,
+            ):
+                if not _send_sse("token", {"token": token}):
+                    break
+
+            _send_sse("done", {
+                "status": "complete",
+                "model": model or DEFAULT_GEMINI_MODEL,
+            })
+        except Exception as exc:
+            _send_sse("error", {"error": str(exc)})
 
     # -------------------------------------------------------------------------
     # Static File Serving

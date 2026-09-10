@@ -350,16 +350,23 @@ class SlideBatchExporter:
                 allow_network=allow_network,
             )
         elif file_path:
+            target_path = Path(file_path)
             items = self._resolve_file(
                 db,
-                file_path=Path(file_path),
+                file_path=target_path,
                 translation_id=translation_id,
                 allow_network=allow_network,
             )
         elif references:
+            target_refs = list(references)
+            if not shuffle:
+                if offset > 0:
+                    target_refs = target_refs[offset:]
+                if limit is not None:
+                    target_refs = target_refs[:limit]
             items = self._resolve_references(
                 db,
-                references=references,
+                references=target_refs,
                 translation_id=translation_id,
                 allow_network=allow_network,
             )
@@ -368,12 +375,16 @@ class SlideBatchExporter:
         if shuffle:
             rng = random.Random(seed)
             rng.shuffle(items)
-
-        # Apply offset and limit pushdown BEFORE metadata enrichment
-        if offset > 0:
-            items = items[offset:]
-        if limit is not None:
-            items = items[:limit]
+            if offset > 0:
+                items = items[offset:]
+            if limit is not None:
+                items = items[:limit]
+        elif not references:
+            # Apply offset and limit pushdown for non-pre-sliced collection sources
+            if offset > 0:
+                items = items[offset:]
+            if limit is not None:
+                items = items[:limit]
 
         # Enrich pericope titles and tags if missing ONLY on the final sliced items
         for item in items:

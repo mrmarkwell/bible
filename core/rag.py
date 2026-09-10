@@ -17,7 +17,7 @@ Zero-dependency implementation per ADR-003, ADR-006, ADR-041, ADR-042, and ADR-0
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Union
 
 from core.crossref import CrossReferenceService
 from core.db import (
@@ -1199,6 +1199,46 @@ class ScriptureRAGEngine:
             model=response.model,
             token_usage=token_usage,
         )
+
+    def answer_stream(
+        self,
+        query: str,
+        client: Optional[GeminiClient] = None,
+        max_passages: int = 5,
+        model: Optional[str] = None,
+        custom_instructions: Optional[str] = None,
+    ) -> Iterator[str]:
+        """Execute Scripture RAG pipeline streaming answer tokens incrementally.
+
+        Raises:
+            LLMAuthError: If GEMINI_API_KEY is not set or authorized.
+            LLMError: If LLM generation fails or network is offline.
+        """
+        context = self.retrieve(query, max_passages=max_passages)
+
+        gemini_client = client
+        if gemini_client is None:
+            api_key = get_gemini_api_key()
+            if not api_key:
+                raise LLMAuthError(
+                    "GEMINI_API_KEY is not configured. Scripture RAG retrieval succeeded, "
+                    "but LLM answer synthesis requires an API key in the environment or ~/.config/bible/gemini_api_key."
+                )
+            gemini_client = GeminiClient(api_key=api_key)
+
+        prompt_payload = context.format_prompt_payload(custom_instructions=custom_instructions)
+        chosen_model = model or DEFAULT_GEMINI_MODEL
+
+        system_text = prompt_payload["system_instruction"]["parts"][0]["text"]
+        user_prompt = prompt_payload["contents"][0]["parts"][0]["text"]
+
+        for chunk in gemini_client.generate_stream(
+            user_prompt,
+            system_instruction=system_text,
+            model=chosen_model,
+        ):
+            if chunk.text:
+                yield chunk.text
 
 
 # ==============================================================================
