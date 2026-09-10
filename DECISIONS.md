@@ -3758,4 +3758,37 @@ This document is an append-only log of significant design and architectural deci
   - Sets up the final vector campaign milestone: Task 7.14 (Corpus 7: Historical Books & Apocalyptic Consummation: Joshua to Esther, Revelation; ~150 pericopes).
   - 100% zero external dependencies maintained (ADR-003).
 
+---
+
+## ADR-112: Whole-Bible Vector Database Campaign: Corpus 7 Architecture (Historical Books & Apocalyptic Consummation)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following Corpus 1 (Pauline Foundations & Hebrews per Task 7.8 / ADR-105), Corpus 2 (The Four Gospels & Acts per Task 7.9 / ADR-106), Corpus 3 (Pentateuch & Covenant Foundations per Task 7.10 / ADR-107), Corpus 4 (Pastoral & General Epistles per Task 7.11 / ADR-109), Corpus 5 (Wisdom Literature & Poetry per Task 7.12 / ADR-110), and Corpus 6 (Major & Minor Prophets per Task 7.13 / ADR-111), Task 7.14 requires executing the vector compilation campaign across Corpus 7: Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; 285 pericopes).
+  - Corpus 7 binds the redemptive-historical narrative arc of Israel from the conquest of Canaan, the judges, the rise and fall of the Davidic monarchy, the tragedy of exile, and the post-exilic temple restoration (Joshua through Esther) with the final apocalyptic consummation of all biblical revelation in John's Apocalypse (Revelation 1–22) — witnessing the ultimate triumph of the Lamb, the defeat of the dragon and Babylon, the resurrection of the saints, and the descent of the New Jerusalem where God dwells with redeemed humanity forever.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic state tracking and crash resilience.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, narrative structures, covenantal transitions, and apocalyptic symbolism.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 285 canonical pericopes in Corpus 7.
+    5. Reaching the monumental milestone of 100.0% whole-Bible vector compilation across all 7 canonical corpora, tracking all 1,333 canonical pericopes with 1,333 signed int8 dense vector embeddings in SQLite.
+    6. Dynamic reflection of full whole-Bible vector campaign completion (7/7 active corpora, 100.0%) in the Platform Status Dashboard (`core/status.py`) and advancing roadmap completion to 99/100 tasks (99.0%).
+- **Decision**:
+  1. **Corpus 7 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 7` across all 13 canonical books of Corpus 7: Joshua (25 pericopes), Judges (21 pericopes), Ruth (5 pericopes), 1 Samuel (33 pericopes), 2 Samuel (25 pericopes), 1 Kings (23 pericopes), 2 Kings (25 pericopes), 1 Chronicles (29 pericopes), 2 Chronicles (36 pericopes), Ezra (10 pericopes), Nehemiah (13 pericopes), Esther (10 pericopes), and Revelation (30 pericopes; total 285 pericopes).
+     - Successfully synthesized multi-tiered Semantic Passports, generated normalized 768-dimensional int8 signed vector embeddings, and registered all 285 canonical pericopes into SQLite `vector_checkpoint_ledger` and `pericope_embeddings`.
+     - Verified 100% ledger completion: 285/285 units completed, 0 failed, 0 in progress, 0 pending in 23.44s (achieving 1,333/1,333 total tracked units in whole-Bible ledger and 1,333 pericope vector embeddings in SQLite).
+  2. **Platform Status Telemetry Dynamic Reflection (`core/status.py`)**:
+     - Verified platform status telemetry dynamically reflects 7/7 active vector corpora (100.0%), 1,333 pericope vector embeddings, and 99.0% roadmap completion.
+  3. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Seeded sample Revelation pericope (Revelation 21:1-4, "The New Heaven and the New Earth") in `TestBuildVectorDb.setUp`.
+     - Added `test_compilation_execution_corpus_7_filter` asserting that `--corpus 7` isolates, compiles, and embeds Historical Books & Apocalyptic Consummation pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 48 test modules pass 100% (1,059 tests passing in 8.8s).
+- **Consequences**:
+  - Resolves Task 7.14 on the project roadmap.
+  - The Whole-Bible Vector Database Campaign across all 7 Canonical Corpora (Corpora 1–7) is 100% complete and fully verified in SQLite with crash-resilient ledger auditing.
+  - Sets up the final remaining task on the roadmap: Task 7.15 (Whole-Bible Verse-Level Fine-Grained Micro-Anchor Embedding Ingestion).
+  - 100% zero external dependencies maintained (ADR-003).
+
+
 

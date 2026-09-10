@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 7 (Phase 0, 1, 2, 3, 4, 5, 6, 8 Complete)
-- **Overall Progress**: 98 Completed / 100 Total Tasks Tracked across 9 Phases
+- **Overall Progress**: 99 Completed / 100 Total Tasks Tracked across 9 Phases
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -125,7 +125,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 7.11**: Whole-Bible Vector Database Campaign: Corpus 4 - Pastoral & General Epistles (1-2 Thess, 1-2 Tim, Titus, Philemon, James, 1-2 Peter, 1-3 John, Jude; 53 pericopes) via `./bible build-vectors --corpus 4`. *(Run 101 / ADR-109)*
 - [x] **Task 7.12**: Whole-Bible Vector Database Campaign: Corpus 5 - Wisdom Literature & Poetry (Job, Psalms, Proverbs, Ecclesiastes, Song of Solomon; 253 pericopes) via `./bible build-vectors --corpus 5`. *(Run 102 / ADR-110)*
 - [x] **Task 7.13**: Whole-Bible Vector Database Campaign: Corpus 6 - Major & Minor Prophets (Isaiah to Malachi; 264 pericopes) via `./bible build-vectors --corpus 6`. *(Run 103 / ADR-111)*
-- [ ] **Task 7.14**: Whole-Bible Vector Database Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; ~150 pericopes) via `./bible build-vectors --corpus 7`.
+- [x] **Task 7.14**: Whole-Bible Vector Database Campaign: Corpus 7 - Historical Books & Apocalyptic Consummation (Joshua to Esther, Revelation; 285 pericopes) via `./bible build-vectors --corpus 7`. *(Run 104 / ADR-112)*
 - [ ] **Task 7.15**: Whole-Bible Verse-Level Fine-Grained Micro-Anchor Embedding Ingestion (~31,102 verses mapped to parent pericopes).
 
 

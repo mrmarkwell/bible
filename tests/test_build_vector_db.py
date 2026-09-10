@@ -144,6 +144,25 @@ class TestBuildVectorDb(unittest.TestCase):
                 text="But he was pierced for our transgressions. He was crushed for our iniquities. The punishment that brought our peace was on him; and by his wounds we are healed.",
             )
         )
+
+        # Seed sample pericope in Revelation (Corpus 7)
+        ref_rev = parse_reference("Revelation 21:1-4")
+        self.pericope_rev = self.db.insert_pericope(
+            reference=ref_rev,
+            title="The New Heaven and the New Earth",
+            redemptive_summary="Consummation of all redemptive history where God dwells with man and wipes away every tear.",
+            genre="Apocalyptic",
+            central_proposition="He will dwell with them, and they will be his people, and God himself will be with them as their God.",
+        )
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="WEB",
+                book_id=ref_rev.book.number,
+                chapter=21,
+                verse=4,
+                text="He will wipe away every tear from their eyes. Death will be no more; neither will there be mourning, nor crying, nor pain, any more. The first things have passed away.",
+            )
+        )
         self.ledger = VectorCheckpointLedger(self.db)
 
     def tearDown(self):
@@ -436,6 +455,30 @@ class TestBuildVectorDb(unittest.TestCase):
         emb_row = cur.execute(
             "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
             (self.pericope_isaiah.id,),
+        ).fetchone()
+        self.assertIsNotNone(emb_row)
+        self.assertEqual(emb_row[0], 768)
+        self.assertEqual(emb_row[1], 768)
+
+    def test_compilation_execution_corpus_7_filter(self):
+        # Test compiling with corpus_filter="7" (Historical Books & Apocalyptic Consummation)
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="7",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
+        # Verify the Revelation pericope was embedded
+        cur = self.db.conn.cursor()
+        emb_row = cur.execute(
+            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope_rev.id,),
         ).fetchone()
         self.assertIsNotNone(emb_row)
         self.assertEqual(emb_row[0], 768)
