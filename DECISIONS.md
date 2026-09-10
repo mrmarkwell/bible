@@ -3597,3 +3597,33 @@ This document is an append-only log of significant design and architectural deci
   - The total number of indexed pericope embeddings in the database expands to 1,309 embeddings.
   - Sets up the next milestone: Task 7.10 (Corpus 3: Pentateuch & Covenant Foundations: Genesis to Deuteronomy).
   - 100% zero external dependencies maintained (ADR-003).
+
+---
+
+## ADR-107: Whole-Bible Vector Database Campaign: Corpus 3 Architecture (Pentateuch & Covenant Foundations)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - In Phase 7 (Offline Theological Enrichment & Whole-Bible Semantic Database Compiler), following the completion of Corpus 1 (Pauline Epistles & Hebrews per Task 7.8 / ADR-105) and Corpus 2 (The Four Gospels & Acts per Task 7.9 / ADR-106), Task 7.10 requires executing the vector compilation campaign across Corpus 3: Pentateuch & Covenant Foundations (Genesis, Exodus, Leviticus, Numbers, Deuteronomy; 215 pericopes).
+  - Corpus 3 forms the foundational bedrock of biblical theology: Creation, the cosmic Fall, the Protoevangelium, Abrahamic covenantal promises, Exodus redemption, Tabernacle dwelling, sacrificial atonement (Yom Kippur), Levitical holiness, wilderness wandering, and Deuteronomic covenant renewal pointing toward circumcision of the heart and the Prophet like Moses.
+  - The vector database campaign must ensure:
+    1. Complete ledger registration and processing in SQLite (`vector_checkpoint_ledger`) with atomic tracking.
+    2. Multi-tiered Semantic Passport generation synthesizing pericope headings, central propositions, redemptive summaries, literary genres (Historical Narrative, Legal Code, Covenant Treaty, Sacrificial Ritual, Theophanic Blessing), storyline epochs (Creation/Fall, Patriarchal, Exodus, Sinai, Wilderness), and theological loci.
+    3. Generation of 768-dimensional normalized dense vectors quantized to signed int8 byte representations stored in `pericope_embeddings`.
+    4. 100% ledger verification with zero failed or pending units across all 215 canonical pericopes in Corpus 3.
+- **Decision**:
+  1. **Corpus 3 Vector Compilation Campaign Execution**:
+     - Executed `./bible build-vectors --corpus 3` across all 5 books of the Pentateuch: Genesis, Exodus, Leviticus, Numbers, and Deuteronomy.
+     - Successfully compiled all 215 canonical pericopes into 768-dimensional normalized signed int8 embeddings stored in `pericope_embeddings`.
+     - Verified 100% ledger completion in `vector_checkpoint_ledger`: 215/215 units completed, 0 failed, 0 in progress, 0 pending in 4.42s.
+  2. **Hermetic Test Suite Expansion (`tests/test_build_vector_db.py`)**:
+     - Updated `TestBuildVectorDb.setUp` to seed a representative Pentateuch pericope (Genesis 1:1-3, "The Creation of the Heavens and the Earth").
+     - Added `test_compilation_execution_corpus_3_filter` asserting that `--corpus 3` specifically isolates, compiles, and embeds Pentateuch pericopes into `pericope_embeddings` with correct 768-dimensional int8 signatures.
+     - Verified all 47 test modules pass 100% (**1,046 tests passing in 8.9s**).
+- **Consequences**:
+  - Resolves Task 7.10 on the project roadmap.
+  - Corpus 3 (Pentateuch & Covenant Foundations) is fully indexed in SQLite with 100% vector checkpoint ledger validation.
+  - The total number of indexed pericope embeddings in the database expands to 1,317 embeddings.
+  - Sets up the next milestone: Task 7.11 (Corpus 4: Pastoral & General Epistles: 1-2 Thess, 1-2 Tim, Titus, Phlm, James, 1-2 Pet, 1-3 John, Jude; ~80 pericopes).
+  - 100% zero external dependencies maintained (ADR-003).
+

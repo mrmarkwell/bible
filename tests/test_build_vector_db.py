@@ -69,6 +69,25 @@ class TestBuildVectorDb(unittest.TestCase):
                 text="In the beginning was the Word, and the Word was with God, and the Word was God.",
             )
         )
+
+        # Seed sample pericope in Genesis (Corpus 3)
+        ref_gen = parse_reference("Genesis 1:1-3")
+        self.pericope_gen = self.db.insert_pericope(
+            reference=ref_gen,
+            title="The Creation of the Heavens and the Earth",
+            redemptive_summary="God creates the cosmos out of nothing by His sovereign Word.",
+            genre="Historical Narrative",
+            central_proposition="In the beginning God created the heavens and the earth.",
+        )
+        self.db.insert_verse(
+            VerseRecord(
+                translation_id="WEB",
+                book_id=ref_gen.book.number,
+                chapter=1,
+                verse=1,
+                text="In the beginning, God created the heavens and the earth.",
+            )
+        )
         self.ledger = VectorCheckpointLedger(self.db)
 
     def tearDown(self):
@@ -265,6 +284,30 @@ class TestBuildVectorDb(unittest.TestCase):
         emb_row = cur.execute(
             "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
             (self.pericope_john.id,),
+        ).fetchone()
+        self.assertIsNotNone(emb_row)
+        self.assertEqual(emb_row[0], 768)
+        self.assertEqual(emb_row[1], 768)
+
+    def test_compilation_execution_corpus_3_filter(self):
+        # Test compiling with corpus_filter="3" (Pentateuch & Covenant Foundations)
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            code = run_vector_build(
+                db_path=self.db_path,
+                corpus_filter="3",
+                resume=False,
+            )
+        self.assertEqual(code, 0)
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Summary:", val)
+        self.assertIn("Completed:         1", val)
+
+        # Verify the Genesis pericope was embedded
+        cur = self.db.conn.cursor()
+        emb_row = cur.execute(
+            "SELECT dimensions, LENGTH(embedding) FROM pericope_embeddings WHERE pericope_id = ?",
+            (self.pericope_gen.id,),
         ).fetchone()
         self.assertIsNotNone(emb_row)
         self.assertEqual(emb_row[0], 768)
