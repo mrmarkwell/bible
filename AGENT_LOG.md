@@ -3743,3 +3743,41 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 7.7 is 100% complete and verified!
   - Next task up on roadmap: **Phase 7 Task 7.8**: *Whole-Bible Vector Database Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via `./bible build-vectors --corpus 1`*, OR **Phase 8 Task 8.7**: *Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083)*.
 
+---
+
+## [Run 093] — 2026-09-10
+- **Agent**: Autonomous Feature Agent / Ralph Loop
+- **Phase**: Phase 8 — Online Scripture RAG & Biblical Character Dialogue Studio
+- **Task Claimed**: **Task 8.7**: Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083, ADR-101). When a user submits an inquiry, embed the question via `text-embedding-004` (or offline stdlib pseudo-embeddings), perform fast int8 cosine similarity against the pre-computed offline pericope vector database, and supply top matching complete parent pericopes as grounded context for RAG response synthesis in CLI (`./bible ask`), REPL (`/ask`), and Web UI (`/api/rag`).
+- **Actions Taken**:
+  1. **Multi-Signal Composite Scoring with Dense Vector Weight (`core/rag.py`)**:
+     - Added `vector_weight: float = 0.30` to `RAGScoringWeights`.
+     - Added `"vector_score": 0.0` to candidate tracking dictionaries in `ScriptureRAGEngine.retrieve()`.
+     - Integrated `vector_score * self.weights.vector_weight` into Stage 5 top candidate sorting and Stage 6 composite scoring.
+  2. **Stage 2b Dense Vector Semantic Search over Pericopes (`core/rag.py`)**:
+     - Integrated `PericopeRecommender.search_by_query(query, top_k=8, min_score=0.10)` into `ScriptureRAGEngine.retrieve()`.
+     - Automatically uses Gemini embeddings when online or pure-stdlib pseudo-embeddings when unkeyed/offline, ensuring 100% air-gapped usability.
+     - Maps matches to candidate pericopes, updates vector scores, and annotates human-readable reasons (e.g. `Vector similarity (0.47) in 'Zephaniah Chapter 1'`).
+     - Added `enable_vector: bool = True` toggle to `ScriptureRAGEngine.__init__()`, `retrieve()`, and `retrieve_rag_context()`.
+  3. **Parent-Document Pericope Expansion (`core/rag.py`)**:
+     - Verified and ensured that candidates and hits are expanded into complete parent pericopes via `PericopeService.get_pericopes_for_passage()`, preventing isolated verse proof-texting per ADR-083.
+     - Enriched retrieved passages with complete theological pericope metadata (`pericope_title`, `central_proposition`, `christological_fulfillment`, `storyline_epoch`, `theological_loci`, and `thematic_ribbons`).
+  4. **Omnichannel CLI, Interactive REPL & Web UI Integration (`cli/main.py`, `cli/shell.py`, `web/server.py`)**:
+     - Added `--no-vector` flag to `parser_ask` and `cmd_ask` in `cli/main.py`.
+     - Added `--no-vector` / `-nv` flag support to interactive study shell `/ask` in `cli/shell.py`.
+     - Added `vector: bool` parameter parsing to `/api/rag` and `/api/rag/stream` in `web/server.py`.
+  5. **Hermetic Test Suite Expansion**:
+     - Added `TestVectorAssistedRAG` in `tests/test_rag.py` (4 tests verifying `vector_weight` configuration, vector score annotation, `--no-vector` toggle, and parent pericope expansion metadata).
+     - Verified all 47 test modules pass 100% (**1,025 tests passing in 8.7s**).
+  6. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-101: Dense Vector-Based Semantic Retrieval & Parent-Document Pericope Expansion in Scripture RAG Engine** in `DECISIONS.md`.
+     - Updated `ROADMAP.md`: Marked **Task 8.7** complete (88/97 tasks complete, 90.7%).
+- **Verification**:
+  - `./bible test`: **1,025 tests across 47 modules passed 100% in 8.732s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 10 diagnostic checks passed in 10.57s (101 ADRs registered, 93 sequential runs, 97 roadmap tasks tracked, 88 completed across 9 phases, 0 external dependencies, 0 linter errors across 99 files, SQLite verified).
+  - `python3 tools/linter.py`: **100% CLEAN** — 99 files inspected with 0 errors, 0 warnings.
+- **Handoff Notes for Next Agent**:
+  - Task 8.7 is 100% complete and verified!
+  - Next task up on roadmap: **Phase 8 Task 8.8**: *Tri-Modal Hybrid Search Engine & Reciprocal Rank Fusion (RRF) in `core/rag.py` (ADR-083)*, OR **Phase 7 Task 7.8**: *Whole-Bible Vector Database Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via `./bible build-vectors --corpus 1`*.
+
+

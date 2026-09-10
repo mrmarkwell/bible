@@ -5344,6 +5344,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output structured JSON payload (response and retrieved context)",
     )
+    parser_ask.add_argument(
+        "--no-vector",
+        action="store_true",
+        help="Disable dense vector semantic similarity search over pericopes",
+    )
 
     def cmd_ask(args: argparse.Namespace) -> int:
         from core.db import Database, DEFAULT_DB_PATH
@@ -5364,6 +5369,7 @@ def build_parser() -> argparse.ArgumentParser:
         context_only = getattr(args, "context_only", False)
         show_context = getattr(args, "show_context", False)
         do_stream = getattr(args, "stream", False)
+        no_vector = getattr(args, "no_vector", False)
         max_passages = getattr(args, "max_passages", 5)
         max_tokens = getattr(args, "max_tokens", 4000)
         target_model = getattr(args, "model", None)
@@ -5387,6 +5393,7 @@ def build_parser() -> argparse.ArgumentParser:
                 query_text,
                 max_passages=max_passages,
                 max_tokens=max_tokens,
+                enable_vector=not no_vector,
                 preferred_translation=target_trans,
             )
 

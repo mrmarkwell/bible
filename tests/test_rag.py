@@ -301,5 +301,46 @@ class TestRAGModuleSingletons(unittest.TestCase):
         self.assertEqual(len(ctx.passages), 1)
 
 
+class TestVectorAssistedRAG(unittest.TestCase):
+    """Test dense vector semantic search integration into Scripture RAG (ADR-101)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.db = Database()
+        cls.engine = ScriptureRAGEngine(db=cls.db)
+
+    def test_scoring_weights_has_vector_weight(self):
+        weights = RAGScoringWeights()
+        self.assertTrue(hasattr(weights, "vector_weight"))
+        self.assertAlmostEqual(weights.vector_weight, 0.30)
+
+    def test_vector_assisted_retrieval_adds_vector_score_and_reason(self):
+        # Query known to match pericopes in offline/online vector search
+        ctx = self.engine.retrieve("Day of Yahweh and judgment in Zephaniah", max_passages=3, enable_vector=True)
+        self.assertIsInstance(ctx, RAGContextWindow)
+        self.assertGreater(len(ctx.passages), 0)
+
+        # Check that at least one passage has vector-related reasons or non-zero score
+        all_reasons = [r for p in ctx.passages for r in p.retrieval_reasons]
+        has_vector_reason = any("Vector similarity" in r for r in all_reasons)
+        self.assertTrue(has_vector_reason, f"Expected vector similarity in retrieval reasons: {all_reasons}")
+
+    def test_no_vector_flag_disables_vector_search(self):
+        ctx_no_vec = self.engine.retrieve("Day of Yahweh and judgment in Zephaniah", max_passages=3, enable_vector=False)
+        self.assertIsInstance(ctx_no_vec, RAGContextWindow)
+        all_reasons_no_vec = [r for p in ctx_no_vec.passages for r in p.retrieval_reasons]
+        has_vector_reason = any("Vector similarity" in r for r in all_reasons_no_vec)
+        self.assertFalse(has_vector_reason, "Vector similarity should not appear when enable_vector=False")
+
+    def test_parent_pericope_expansion_metadata(self):
+        ctx = self.engine.retrieve("creation of the heavens and earth", max_passages=2, enable_vector=True)
+        self.assertGreater(len(ctx.passages), 0)
+        p0 = ctx.passages[0]
+        # Verify parent pericope enrichment fields
+        self.assertIsNotNone(p0.pericope_title)
+        self.assertIsNotNone(p0.human_ref)
+        self.assertGreater(len(p0.verses), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

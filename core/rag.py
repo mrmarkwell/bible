@@ -587,6 +587,7 @@ class RAGScoringWeights:
     theology_weight: float = 0.15
     crossref_weight: float = 0.15
     typology_weight: float = 0.35
+    vector_weight: float = 0.30
     starred_boost: float = 0.05
 
 
@@ -605,12 +606,14 @@ class ScriptureRAGEngine:
         fallback_translation: str = FALLBACK_TRANSLATION,
         theology_engine: Optional[TGCTheologyEngine] = None,
         weights: Optional[RAGScoringWeights] = None,
+        enable_vector: bool = True,
     ) -> None:
         self.db = db if db is not None else Database(DEFAULT_DB_PATH)
         self.translation = translation
         self.fallback_translation = fallback_translation
         self.theology_engine = theology_engine or get_theology_engine()
         self.weights = weights or RAGScoringWeights()
+        self.enable_vector = enable_vector
         self.tag_mgr = TaggingService(self.db)
         self.crossref_mgr = CrossReferenceService(self.db)
         self.pericope_svc = PericopeService(self.db)
@@ -626,6 +629,7 @@ class ScriptureRAGEngine:
         max_tokens: int = 4000,
         min_score: float = 0.05,
         allow_expansion: bool = True,
+        enable_vector: Optional[bool] = None,
         preferred_translation: Optional[str] = None,
     ) -> RAGContextWindow:
         """Execute multi-signal hybrid retrieval to build a grounded Scripture context window.
@@ -636,12 +640,14 @@ class ScriptureRAGEngine:
             max_tokens: Maximum estimated tokens budget for the context window.
             min_score: Minimum composite score threshold.
             allow_expansion: Whether to expand OT/NT connections via cross-refs and typological arcs.
+            enable_vector: Whether to include dense vector semantic search over pericopes.
             preferred_translation: Override translation (defaults to ESV with WEB fallback).
 
         Returns:
             Populated RAGContextWindow.
         """
         active_translation = preferred_translation or self.translation
+        use_vector = self.enable_vector if enable_vector is None else enable_vector
         rag_query = extract_query_features(query, self.db)
 
         candidates: Dict[str, Dict[str, Any]] = {}
@@ -655,6 +661,7 @@ class ScriptureRAGEngine:
                     "theology_score": 0.0,
                     "crossref_score": 0.0,
                     "typology_score": 0.0,
+                    "vector_score": 0.0,
                     "explicit": False,
                     "reasons": [],
                     "arcs": [],
@@ -725,6 +732,31 @@ class ScriptureRAGEngine:
                 reason = f"FTS5 match '{res.text[:45]}...'"
                 if reason not in cand["reasons"]:
                     cand["reasons"].append(reason)
+
+        # ----------------------------------------------------------------------
+        # Stage 2b: Dense Vector Semantic Search over Pericopes (ADR-076, ADR-101)
+        # ----------------------------------------------------------------------
+        if use_vector:
+            try:
+                from core.vector import get_pericope_recommender
+                recommender = get_pericope_recommender(self.db)
+                # Dense similarity search with graceful offline fallback
+                v_results = recommender.search_by_query(
+                    query_text=query,
+                    top_k=8,
+                    min_score=0.10,
+                )
+                for m in v_results.get("matches", []):
+                    target_ref = m.get("human_ref")
+                    if not target_ref:
+                        continue
+                    cand = _get_candidate(target_ref)
+                    cand["vector_score"] = max(cand["vector_score"], float(m.get("score", 0.0)))
+                    v_reason = f"Vector similarity ({m.get('score', 0.0):.2f}) in '{m.get('title', target_ref)}'"
+                    if v_reason not in cand["reasons"]:
+                        cand["reasons"].append(v_reason)
+            except Exception:
+                pass
 
         # ----------------------------------------------------------------------
         # Stage 3: Semantic Tag & Topic Intersection
@@ -814,7 +846,8 @@ class ScriptureRAGEngine:
                         c["fts_score"] * self.weights.fts_weight +
                         c["tag_score"] * self.weights.tag_weight +
                         c["theology_score"] * self.weights.theology_weight +
-                        c["typology_score"] * self.weights.typology_weight
+                        c["typology_score"] * self.weights.typology_weight +
+                        c["vector_score"] * self.weights.vector_weight
                     )
                 ),
                 reverse=True,
@@ -826,7 +859,8 @@ class ScriptureRAGEngine:
                     cand_item["fts_score"] * self.weights.fts_weight +
                     cand_item["tag_score"] * self.weights.tag_weight +
                     cand_item["theology_score"] * self.weights.theology_weight +
-                    cand_item["typology_score"] * self.weights.typology_weight
+                    cand_item["typology_score"] * self.weights.typology_weight +
+                    cand_item["vector_score"] * self.weights.vector_weight
                 )
                 try:
                     ref_obj = parse_reference(ref_str)
@@ -871,7 +905,8 @@ class ScriptureRAGEngine:
                     cand["tag_score"] * self.weights.tag_weight +
                     cand["theology_score"] * self.weights.theology_weight +
                     cand["crossref_score"] * self.weights.crossref_weight +
-                    cand["typology_score"] * self.weights.typology_weight
+                    cand["typology_score"] * self.weights.typology_weight +
+                    cand["vector_score"] * self.weights.vector_weight
                 )
 
             if composite >= min_score:
@@ -1263,6 +1298,7 @@ def retrieve_rag_context(
     db: Optional[Database] = None,
     max_passages: int = 5,
     max_tokens: int = 4000,
+    enable_vector: Optional[bool] = None,
     preferred_translation: Optional[str] = None,
 ) -> RAGContextWindow:
     """Convenience function to retrieve a grounded Scripture RAG context window."""
@@ -1271,5 +1307,6 @@ def retrieve_rag_context(
         query,
         max_passages=max_passages,
         max_tokens=max_tokens,
+        enable_vector=enable_vector,
         preferred_translation=preferred_translation,
     )

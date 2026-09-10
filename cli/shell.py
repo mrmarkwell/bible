@@ -2059,6 +2059,7 @@ class BibleShell(cmd.Cmd):
 
         context_only = False
         show_context = False
+        enable_vector = True
 
         tokens = raw_text.split()
         filtered_tokens = []
@@ -2067,12 +2068,14 @@ class BibleShell(cmd.Cmd):
                 context_only = True
             elif t in ("--show-context", "-s"):
                 show_context = True
+            elif t in ("--no-vector", "-nv"):
+                enable_vector = False
             else:
                 filtered_tokens.append(t)
 
         query = " ".join(filtered_tokens).strip()
         if not query:
-            self.stdout.write("Usage: /ask [--context-only] [--show-context] <query>\n")
+            self.stdout.write("Usage: /ask [--context-only] [--show-context] [--no-vector] <query>\n")
             return
 
         if self.db is None:
@@ -2086,6 +2089,7 @@ class BibleShell(cmd.Cmd):
             query,
             max_passages=5,
             max_tokens=4000,
+            enable_vector=enable_vector,
             preferred_translation=self.translation_id,
         )
 

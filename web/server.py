@@ -1540,12 +1540,19 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             synthesize = bool(synthesize_raw)
 
+        vector_raw = self._get_param(query, body_data, "vector", True)
+        if isinstance(vector_raw, str):
+            enable_vector = vector_raw.lower() not in ("false", "0", "no", "off")
+        else:
+            enable_vector = bool(vector_raw)
+
         try:
             rag_engine = get_rag_engine(self.db)
             context = rag_engine.retrieve(
                 query=q_text,
                 max_passages=max_passages,
                 max_tokens=max_tokens,
+                enable_vector=enable_vector,
                 preferred_translation=version,
             )
         except Exception as exc:
@@ -1871,12 +1878,19 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         if model:
             model = str(model).strip()
 
+        vector_raw = self._get_param(query, body_data, "vector", True)
+        if isinstance(vector_raw, str):
+            enable_vector = vector_raw.lower() not in ("false", "0", "no", "off")
+        else:
+            enable_vector = bool(vector_raw)
+
         try:
             rag_engine = get_rag_engine(self.db)
             context = rag_engine.retrieve(
                 query=q_text,
                 max_passages=max_passages,
                 max_tokens=max_tokens,
+                enable_vector=enable_vector,
                 preferred_translation=version,
             )
         except Exception as exc:

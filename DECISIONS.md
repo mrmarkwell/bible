@@ -3392,3 +3392,41 @@ This document is an append-only log of significant design and architectural deci
   - Enables subsequent whole-Bible vector compilation campaigns (Tasks 7.8–7.14) to proceed with bounded, resumable execution.
   - Strict 100% Zero-Dependency compliance maintained (ADR-003).
 
+---
+
+## ADR-101: Dense Vector-Based Semantic Retrieval & Parent-Document Pericope Expansion in Scripture RAG Engine
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 8.7 on the roadmap requires integrating vector-based semantic search of user queries into Scripture RAG tooling with parent-document pericope expansion per ADR-076 and ADR-083.
+  - Previously, `ScriptureRAGEngine.retrieve()` (`core/rag.py`) relied on sparse keyword FTS5 BM25 search, semantic tag intersection, theological locus/thematic ribbon mapping, and typological arc expansion.
+  - While robust for lexical and theological tag matches, natural language queries describing biblical situations, spiritual questions, or conceptual dilemmas in modern language without exact vocabulary (e.g., "how does God handle suffering and grief?", "covenant loyalty in the face of judgment") missed relevant passages due to vocabulary mismatch.
+  - Furthermore, with 1,304 canonical pericopes embedded in SQLite (`pericope_embeddings`), the platform possessed pre-computed 768-dimensional `int8` vector representations capturing high-level redemptive propositions, yet Scripture RAG was not tapping into this dense similarity signal.
+  - In addition, isolated verse hits risked hermeneutical "proof-texting" without adequate parent-document literary context (ADR-083).
+- **Decision**:
+  1. **Multi-Signal Composite Scoring Expansion (`core/rag.py`)**:
+     - Added `vector_weight: float = 0.30` to `RAGScoringWeights`.
+     - Added `"vector_score": 0.0` to candidate tracking dictionaries in `ScriptureRAGEngine.retrieve()`.
+     - Upgraded composite score formula:
+       `cand["fts_score"] * weights.fts_weight + cand["tag_score"] * weights.tag_weight + cand["theology_score"] * weights.theology_weight + cand["crossref_score"] * weights.crossref_weight + cand["typology_score"] * weights.typology_weight + cand["vector_score"] * weights.vector_weight`.
+  2. **Dense Vector Pericope Search Stage (Stage 2b in `ScriptureRAGEngine.retrieve()`)**:
+     - Introduced Stage 2b using `PericopeRecommender.search_by_query(query, top_k=8, min_score=0.10)` via `core.vector.get_pericope_recommender()`.
+     - Supports online Gemini embedding (`text-embedding-004`) when `GEMINI_API_KEY` is present, with zero-overhead fallback to hermetic stdlib pseudo-embeddings when offline or air-gapped.
+     - For each vector match, resolves the pericope's canonical bounds, updates candidate `vector_score = max(cand["vector_score"], match.score)`, and annotates retrieval reasons (`Vector similarity (0.47) in 'Pericope Title'`).
+     - Added `enable_vector: bool = True` toggle to `ScriptureRAGEngine.__init__()`, `retrieve()`, and `retrieve_rag_context()`.
+  3. **Parent-Document Pericope Expansion (ADR-083)**:
+     - Leveraged Stage 2 and Stage 2b pericope grouping to expand fine-grained verse hits into their complete literary pericope bounds via `PericopeService.get_pericopes_for_passage()`.
+     - In Stage 7, retrieved passages are enriched with parent pericope metadata (`pericope_title`, `central_proposition`, `christological_fulfillment`, `storyline_epoch`, `theological_loci`, and `thematic_ribbons`).
+  4. **Omnichannel CLI, REPL & Web UI Integration**:
+     - Added `--no-vector` flag to `parser_ask` and `cmd_ask` in `cli/main.py`.
+     - Added `--no-vector` / `-nv` flag support to interactive study shell `/ask` in `cli/shell.py`.
+     - Added `vector: bool` parameter parsing to `/api/rag` and `/api/rag/stream` in `web/server.py`.
+  5. **Hermetic Test Suite Verification**:
+     - Added `TestVectorAssistedRAG` in `tests/test_rag.py` (4 tests verifying `vector_weight` configuration, vector score annotation, `--no-vector` toggle, and parent pericope expansion metadata).
+     - Verified all 47 test modules pass 100% (**1,025 unit tests passing in 8.7s**).
+- **Consequences**:
+  - Resolves Task 8.7 on the project roadmap.
+  - Scripture RAG now combines dense semantic conceptual understanding with sparse lexical precision and theological guardrails.
+  - Zero external dependencies maintained (100% Python standard library per ADR-003).
+
+
