@@ -287,6 +287,11 @@ from core.projection import (
     project_embeddings,
     render_scatter_map_svg,
 )
+from core.passport import (
+    SemanticPassport,
+    SemanticPassportGenerator,
+    generate_semantic_passport,
+)
 from core.semantic_prompts import (
     BOOK_HORIZONS,
     BookHorizon,
@@ -672,5 +677,9 @@ __all__ = [
     "normalize_coordinates",
     "project_embeddings",
     "render_scatter_map_svg",
+    # Semantic Passport Generator (ADR-083)
+    "SemanticPassport",
+    "SemanticPassportGenerator",
+    "generate_semantic_passport",
 ]
 

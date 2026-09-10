@@ -3699,3 +3699,47 @@ This is an append-only log of work performed by autonomous agents during their e
 - **Handoff Notes for Next Agent**:
   - Phase 4 is now 100% complete!
   - Next task up on roadmap: **Phase 7 Task 7.7**: *Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083)*, OR **Phase 8 Task 8.7**: *Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083)*.
+
+---
+
+## [Run 092] — 2026-09-10
+- **Agent**: Autonomous Feature Agent / Ralph Loop
+- **Phase**: Phase 7 — Offline Theological Enrichment & Whole-Bible Semantic Database Compiler
+- **Task Claimed**: **Task 7.7**: Implement Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors` per ADR-083) with `--corpus`, `--book`, and `--resumable` checkpoint ledger support, `batchEmbedContents` integration, and signed `int8` quantization.
+- **Actions Taken**:
+  1. **Semantic Passport Generator & Structured Context Formulator (`core/passport.py`, `core/__init__.py`)**:
+     - Formulated `SemanticPassport` dataclass synthesizing the 6 structured context tiers from ADR-083:
+       * `[DOCUMENT TITLE]`: Canonical citation and authoritative pericope heading.
+       * `[CANONICAL HORIZON]`: Author, genre, era, redemptive storyline epoch, testament, and historical setting (from `core/semantic_prompts.py`).
+       * `[THEOLOGICAL LOCI & RIBBONS]`: Systematic theological loci and thematic redemptive ribbons aggregated from `verse_theology` and `verse_tags`.
+       * `[CENTRAL PROPOSITION]`: Main exegetical proposition and Christological orientation.
+       * `[PRECEDING CONTEXT]`: Narrative/discourse transition linking preceding pericope units.
+       * `[SCRIPTURE TEXT]`: Full passage text with bracketed verse numerals.
+     - Implemented `SemanticPassportGenerator` with `generate_for_pericope_record()` and `generate_for_pericope_id()`.
+     - Provided top-level convenience helper `generate_semantic_passport()`.
+     - Exported new passport symbols in `core/__init__.py`.
+  2. **Batch Vector Compiler & SQLite Checkpoint Ledger (`tools/build_vector_db.py`)**:
+     - Implemented `VectorCheckpointLedger` in SQLite (`vector_checkpoint_ledger` table with status indexes) managing unit lifecycle (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`) for crash-resilient resumption.
+     - Implemented `BatchVectorCompiler` loading pericopes by canonical corpus (`CANONICAL_CORPORA` 1-7) or book, generating embeddings with Google Gemini API (`text-embedding-004`) or pure-stdlib pseudo-embedding fallback, quantizing to signed `int8` bytes (`[-127, 127]`), and updating `pericope_embeddings`.
+     - Added robust CLI flags: `--corpus`, `--book`, `--all`, `--resume`/`--no-resume`, `--reset-failed`, `--clear-ledger`, `--status`, `--dry-run`, `--rpm`, `--version`, and `--json`.
+  3. **Omnichannel CLI & Interactive REPL Studio Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Added top-level subcommand `./bible build-vectors` (aliases `compile-vectors`, `build-vectordb`) with full argument parsing and citation routing whitelist support.
+     - Added interactive REPL commands `/build-vectors` and `/compile-vectors` to `BibleShell` with tab autocompletion (`complete_build_vectors`, `complete_compile_vectors`) and updated `/help`.
+     - Improved `get_pericope_recommender()` in `core/vector.py` to always refresh the active database connection when passed.
+  4. **Hermetic Test Suite Expansion**:
+     - Created `tests/test_passport.py` (5 tests covering record formulation, BookHorizon injection, theological loci/ribbon aggregation, pericope ID resolution, dictionary serialization, and missing ID handling).
+     - Created `tests/test_build_vector_db.py` (14 tests covering CLI arguments, missing database errors, book and corpus filters, ledger clearing/resetting, status telemetry, dry-run JSON, and compilation resumption).
+     - Added `test_cli_build_vectors_subcommand` in `tests/test_cli.py`.
+     - Added `test_shell_build_vectors_commands` and citation preprocessing tests in `tests/test_shell.py`.
+     - Total test suite: **1,021 tests across 47 modules passing 100% in 8.61s**.
+  5. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-100: Semantic Passport Generator & Batch Vector Ingestion Engine** in `DECISIONS.md`.
+     - Updated `ROADMAP.md`: Marked **Task 7.7** complete (87/97 tasks complete, 89.7%).
+- **Verification**:
+  - `./bible test`: **1,021 tests across 47 modules passed 100% in 8.613s**.
+  - `./bible doctor`: **100% EXCELLENT** — all 10 diagnostic checks passed in 13.11s (100 ADRs registered, 92 sequential runs, 97 roadmap tasks tracked, 87 completed across 9 phases, 0 external dependencies, 0 linter errors across 99 files, SQLite verified).
+  - `python3 tools/linter.py`: **100% CLEAN** — 99 files inspected with 0 errors, 0 warnings.
+- **Handoff Notes for Next Agent**:
+  - Task 7.7 is 100% complete and verified!
+  - Next task up on roadmap: **Phase 7 Task 7.8**: *Whole-Bible Vector Database Campaign: Corpus 1 - Foundational Pauline Epistles & Hebrews (Romans, Galatians, Ephesians, Philippians, Colossians, Hebrews; ~110 pericopes) via `./bible build-vectors --corpus 1`*, OR **Phase 8 Task 8.7**: *Integrate Vector-Based Semantic Search of User Queries into Scripture RAG Tooling with Parent-Document Pericope Expansion (ADR-076, ADR-083)*.
+

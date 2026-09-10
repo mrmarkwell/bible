@@ -3353,3 +3353,42 @@ This document is an append-only log of significant design and architectural deci
 - **Consequences**:
   - Phase 4 of the project roadmap is now 100% complete.
   - Scripture discovery transcends keyword lookup with zero external dependencies.
+
+---
+
+## ADR-100: Semantic Passport Generator & Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors`)
+- **Date**: 2026-09-10
+- **Status**: Accepted
+- **Context**:
+  - Task 7.7 on the roadmap requires implementing a Semantic Passport Generator and Batch Vector Ingestion Engine (`tools/build_vector_db.py` / `./bible build-vectors`) per the architecture formalized in ADR-083.
+  - While Phase 7 previously compiled raw semantic text and established 768-dimensional int8 vector similarity primitives (`core/vector.py`), embedding isolated or raw scripture texts causes severe exegetical myopia and creates a large vocabulary gap between ancient translations and 21st-century user inquiries.
+  - In ADR-083, the concept of a "Semantic Passport" document was formulated to synthesize multi-tiered context:
+    1. `[DOCUMENT TITLE]`: Canonical reference and pericope title.
+    2. `[CANONICAL HORIZON]`: Author, genre, date range, storyline epoch, and redemptive setting from `BookHorizon`.
+    3. `[THEOLOGICAL LOCI & RIBBONS]`: Systematic doctrinal loci and thematic redemptive ribbons.
+    4. `[CENTRAL PROPOSITION]`: The exegetical proposition and main redemptive idea.
+    5. `[PRECEDING CONTEXT]`: Argumentative or narrative discourse transition from preceding units.
+    6. `[SCRIPTURE TEXT]`: Full passage text with bracketed verse markers.
+  - A standalone, resumable vector compiler was required to generate these Semantic Passports across all 1,304 canonical pericopes or filtered subsets (`--corpus`, `--book`), generate dense 768-dim embeddings via Google Gemini (`text-embedding-004`) or hermetic pure-stdlib hash pseudo-embeddings, quantize to signed `int8` bytes, ingest into SQLite `pericope_embeddings`, and maintain a crash-resilient SQLite checkpoint ledger (`vector_checkpoint_ledger`).
+- **Decision**:
+  1. **Semantic Passport Formulation & Core Library Module (`core/passport.py`, `core/__init__.py`)**:
+     - Implemented `SemanticPassport` dataclass with `format_document()` synthesizing the 6 structured document sections.
+     - Implemented `SemanticPassportGenerator` pulling canonical pericopes, BookHorizons, associated `verse_theology` records, and normalized `verse_tags` to construct dense passports.
+     - Exported `SemanticPassport`, `SemanticPassportGenerator`, and `generate_semantic_passport` in `core/__init__.py`.
+  2. **Batch Vector Compiler & Resumable Checkpoint Ledger (`tools/build_vector_db.py`)**:
+     - Created `tools/build_vector_db.py` featuring `VectorCheckpointLedger` in SQLite (`vector_checkpoint_ledger`), tracking unit progress (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`).
+     - Implemented `BatchVectorCompiler` with `--corpus` (1-7), `--book`, `--all`, `--resume`, `--reset-failed`, `--clear-ledger`, `--status`, `--dry-run`, and rate-limiting (`--rpm`).
+     - Standardized on 768 dimensions with signed `int8` quantization (`[-127, 127]`) yielding 4x storage reduction.
+  3. **Omnichannel CLI & Interactive REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Added top-level subcommand `./bible build-vectors` (aliases `compile-vectors`, `build-vectordb`) in `cli/main.py` and preprocessed command whitelist.
+     - Added interactive study shell commands `/build-vectors` and `/compile-vectors` with tab completion and updated `/help` in `cli/shell.py`.
+  4. **Hermetic Test Suite Expansion**:
+     - Authored `tests/test_passport.py` (5 tests covering record generation, BookHorizon injection, theological loci/ribbon aggregation, pericope ID lookup, dictionary serialization, and missing ID handling).
+     - Authored `tests/test_build_vector_db.py` (14 tests covering CLI flags, missing database error handling, book and corpus filters, clear/reset ledger, status telemetry, dry-run JSON, and compilation resumption).
+     - Added CLI and shell integration tests in `tests/test_cli.py` and `tests/test_shell.py`.
+     - Verified all 47 test modules pass 100% (**1,021 tests passing in 8.6s**).
+- **Consequences**:
+  - Delivers complete Semantic Passport generation and batch vector ingestion capability to the Bible Engine platform.
+  - Enables subsequent whole-Bible vector compilation campaigns (Tasks 7.8–7.14) to proceed with bounded, resumable execution.
+  - Strict 100% Zero-Dependency compliance maintained (ADR-003).
+

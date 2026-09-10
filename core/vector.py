@@ -1024,7 +1024,7 @@ def get_pericope_recommender(db: Any = None, dimensions: int = DEFAULT_VECTOR_DI
     global _GLOBAL_PERICOPE_RECOMMENDER
     if _GLOBAL_PERICOPE_RECOMMENDER is None:
         _GLOBAL_PERICOPE_RECOMMENDER = PericopeRecommender(db=db, dimensions=dimensions)
-    elif db is not None and _GLOBAL_PERICOPE_RECOMMENDER.db is None:
+    elif db is not None:
         _GLOBAL_PERICOPE_RECOMMENDER.db = db
     return _GLOBAL_PERICOPE_RECOMMENDER
 

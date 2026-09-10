@@ -1522,6 +1522,21 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("matches", data)
         self.assertEqual(len(data["matches"]), 2)
 
+    def test_cli_build_vectors_subcommand(self):
+        """Verify ./bible build-vectors --dry-run and --status execute cleanly."""
+        stdout = io.StringIO()
+        with patch("sys.stdout", stdout):
+            code = main(["build-vectors", "--status"])
+        self.assertEqual(code, 0)
+        self.assertIn("Vector Compilation Ledger Status", stdout.getvalue())
+
+        stdout_dry = io.StringIO()
+        with patch("sys.stdout", stdout_dry):
+            code_dry = main(["build-vectors", "--dry-run", "--book", "Romans"])
+        self.assertEqual(code_dry, 0)
+        self.assertIn("[Dry Run] Prepared", stdout_dry.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
+

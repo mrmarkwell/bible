@@ -5110,6 +5110,114 @@ def build_parser() -> argparse.ArgumentParser:
     parser_build_semantic.set_defaults(func=cmd_build_semantic)
 
     # -------------------------------------------------------------------------
+    # Subcommand: build-vectors (aliases: compile-vectors, build-vectordb)
+    # -------------------------------------------------------------------------
+    parser_build_vectors = subparsers.add_parser(
+        "build-vectors",
+        aliases=["compile-vectors", "build-vectordb"],
+        help="Batch vector ingestion engine & whole-Bible vector database builder",
+        description="Compile structured Semantic Passports and dense 768-dim int8 vector embeddings into SQLite with crash-resilient ledger resumption (ADR-083).",
+    )
+    parser_build_vectors.add_argument(
+        "--all",
+        action="store_true",
+        dest="compile_all",
+        help="Compile vector embeddings across all canonical pericopes in the database",
+    )
+    parser_build_vectors.add_argument(
+        "--book",
+        type=str,
+        default=None,
+        help="Filter vector compilation to a specific canonical book (e.g. 'Romans', 'Genesis')",
+    )
+    parser_build_vectors.add_argument(
+        "--corpus",
+        type=str,
+        default=None,
+        help="Filter vector compilation to a canonical corpus (1-7, e.g. '1' for Pauline Epistles & Hebrews)",
+    )
+    parser_build_vectors.add_argument(
+        "--no-resume",
+        action="store_false",
+        dest="resume",
+        default=True,
+        help="Do not skip previously completed units; reprocess all",
+    )
+    parser_build_vectors.add_argument(
+        "--reset-failed",
+        action="store_true",
+        help="Reset failed units in the vector ledger back to PENDING",
+    )
+    parser_build_vectors.add_argument(
+        "--clear-ledger",
+        action="store_true",
+        help="Clear vector checkpoint records from the ledger",
+    )
+    parser_build_vectors.add_argument(
+        "--status",
+        action="store_true",
+        help="Inspect current vector checkpoint ledger status without executing compilation",
+    )
+    parser_build_vectors.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview compilation units and passport formulation without generating embeddings",
+    )
+    parser_build_vectors.add_argument(
+        "--model",
+        type=str,
+        default="text-embedding-004",
+        help="Target embedding model (default: text-embedding-004)",
+    )
+    parser_build_vectors.add_argument(
+        "--rpm",
+        type=float,
+        default=60.0,
+        help="Rate limit in requests per minute (default: 60.0)",
+    )
+    parser_build_vectors.add_argument(
+        "--version",
+        "-v_id",
+        dest="version",
+        type=str,
+        default="WEB",
+        help="Target scripture translation for passage context (default: WEB)",
+    )
+    parser_build_vectors.add_argument(
+        "--json",
+        action="store_true",
+        help="Output machine-readable JSON telemetry",
+    )
+    parser_build_vectors.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print detailed progress and error messages",
+    )
+
+    def cmd_build_vectors(args: argparse.Namespace) -> int:
+        from tools.build_vector_db import run_vector_build
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        return run_vector_build(
+            db_path=db_path,
+            book_filter=getattr(args, "book", None),
+            corpus_filter=getattr(args, "corpus", None),
+            compile_all=getattr(args, "compile_all", False),
+            resume=getattr(args, "resume", True),
+            reset_failed=getattr(args, "reset_failed", False),
+            clear_ledger=getattr(args, "clear_ledger", False),
+            status_only=getattr(args, "status", False),
+            dry_run=getattr(args, "dry_run", False),
+            translation_id=getattr(args, "version", "WEB"),
+            model_id=getattr(args, "model", "text-embedding-004"),
+            rate_limit_rpm=getattr(args, "rpm", 60.0),
+            json_output=getattr(args, "json", False),
+            verbose=getattr(args, "verbose", False),
+        )
+
+    parser_build_vectors.set_defaults(func=cmd_build_vectors)
+
+    # -------------------------------------------------------------------------
     # Subcommand: issues (aliases: bug, bugs)
     # -------------------------------------------------------------------------
     parser_issues = subparsers.add_parser(
@@ -6080,6 +6188,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "map", "scatter", "scatter-map",
         "audit-semantic", "audit", "audit-critic",
         "build-semantic", "compile-semantic", "build-db",
+        "build-vectors", "compile-vectors", "build-vectordb",
         "issues", "bug", "bugs",
         "ask", "rag", "inquiry",
         "chat", "persona", "character", "dialogue",

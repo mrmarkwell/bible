@@ -3024,6 +3024,56 @@ class BibleShell(cmd.Cmd):
         """Auto-complete for /compile-semantic."""
         return self.complete_build_semantic(text, line, begidx, endidx)
 
+    def do_build_vectors(self, arg: str) -> None:
+        """Batch vector ingestion engine & whole-Bible vector database builder (ADR-083).
+
+        Usage:
+          /build-vectors status              Inspect vector ledger status
+          /build-vectors status [corpus]     Inspect status for a corpus (e.g. status 1)
+          /build-vectors dry-run [book]      Preview pericope units and passports
+          /build-vectors dry-run -c [id]     Preview corpus units (e.g. dry-run -c 1)
+          /build-vectors run [book]          Execute vector compilation
+          /build-vectors corpus [id]         Compile a specific canonical corpus (1-7)
+          /build-vectors reset-failed        Reset failed units back to PENDING
+        """
+        parts = arg.strip().split()
+        action = parts[0].lower() if parts else "status"
+
+        from tools.build_vector_db import run_vector_build
+        db_path = self.db_path
+
+        if action == "status":
+            c_filter = parts[1] if len(parts) > 1 and parts[1].isdigit() else None
+            b_filter = parts[1] if len(parts) > 1 and not parts[1].isdigit() else None
+            run_vector_build(db_path=db_path, book_filter=b_filter, corpus_filter=c_filter, status_only=True)
+        elif action == "dry-run":
+            c_filter = parts[2] if len(parts) > 2 and parts[1] in ("-c", "--corpus") else (parts[1] if len(parts) > 1 and parts[1].isdigit() else None)
+            b_filter = parts[1] if len(parts) > 1 and not parts[1].isdigit() and parts[1] not in ("-c", "--corpus") else None
+            run_vector_build(db_path=db_path, book_filter=b_filter, corpus_filter=c_filter, dry_run=True)
+        elif action == "corpus":
+            c_filter = parts[1] if len(parts) > 1 else "1"
+            run_vector_build(db_path=db_path, corpus_filter=c_filter)
+        elif action == "reset-failed":
+            run_vector_build(db_path=db_path, reset_failed=True)
+        elif action in ("run", "start", "compile"):
+            b_filter = parts[1] if len(parts) > 1 else None
+            run_vector_build(db_path=db_path, book_filter=b_filter)
+        else:
+            self.stdout.write(f"Unknown action '{action}'. Available: status, dry-run, corpus, run, reset-failed\n")
+
+    def do_compile_vectors(self, arg: str) -> None:
+        """Alias for /build-vectors."""
+        self.do_build_vectors(arg)
+
+    def complete_build_vectors(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /build-vectors."""
+        options = ["status", "dry-run", "corpus", "run", "reset-failed"]
+        return [o for o in options if o.startswith(text.lower())]
+
+    def complete_compile_vectors(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
+        """Auto-complete for /compile-vectors."""
+        return self.complete_build_vectors(text, line, begidx, endidx)
+
     def do_audit_semantic(self, arg: str) -> None:
         """Audit semantic database coordinates, schema validation, and whole-Bible coverage.
 
@@ -3201,6 +3251,7 @@ Study & Search:
   /vector [action]        Semantic vector similarity engine & search (alias: /vec)
   /map [options]          Interactive 2D Semantic Similarity Scatter Map (aliases: /scatter, /scatter_map)
   /build-semantic [act]   Resumable batch semantic compiler & whole-Bible builder (alias: /compile-semantic)
+  /build-vectors [act]    Batch vector ingestion engine & pericope database builder (alias: /compile-vectors)
   /audit-semantic [opts]  Audit semantic database coordinates & 100% whole-Bible coverage (alias: /audit)
   /slide <ref> [options]  Generate 4K/1080p visual verse slide for TV screensavers (alias: /render)
   /slide-batch [options]  Batch export 4K scripture slides for TV screensavers (alias: /batch_slide)

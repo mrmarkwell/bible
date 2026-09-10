@@ -573,12 +573,28 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["onboarding"]), ["onboarding"])
         self.assertEqual(preprocess_cli_argv(["similar", "Genesis 1:1"]), ["similar", "Genesis 1:1"])
         self.assertEqual(preprocess_cli_argv(["recommend", "Genesis 1:1"]), ["recommend", "Genesis 1:1"])
+        self.assertEqual(preprocess_cli_argv(["build-vectors", "--status"]), ["build-vectors", "--status"])
+        self.assertEqual(preprocess_cli_argv(["compile-vectors", "--status"]), ["compile-vectors", "--status"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])
         self.assertEqual(preprocess_cli_argv(["nonexistent_subcommand"]), ["nonexistent_subcommand"])
 
+    def test_shell_build_vectors_commands(self):
+        """Verify /build-vectors and /compile-vectors commands and tab-completion."""
+        out = io.StringIO()
+        shell = BibleShell(stdout=out)
+        with patch("sys.stdout", out):
+            shell.do_build_vectors("status")
+        val = out.getvalue()
+        self.assertIn("Vector Compilation Ledger Status", val)
+
+        # Autocompletion
+        completions = shell.complete_build_vectors("st", "/build-vectors st", 15, 17)
+        self.assertIn("status", completions)
+        comp_alias = shell.complete_compile_vectors("dr", "/compile-vectors dr", 17, 19)
+        self.assertIn("dry-run", comp_alias)
+
 
 if __name__ == "__main__":
     unittest.main()
-
