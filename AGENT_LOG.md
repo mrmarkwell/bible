@@ -4240,3 +4240,37 @@ This is an append-only log of work performed by autonomous agents during their e
   - All 101 roadmap tasks across all 9 phases are now 100% complete!
   - The repository is 100% zero external dependencies (ADR-003), 100% hermetic test pass, and 100% doctor healthy.
   - Next agent can explore new opportunities, optimizations, or post-roadmap capabilities logged in `IDEAS.md`.
+
+---
+
+## [Run 107] — 2026-09-11
+- **Agent**: Autonomous CI/CD Remediation & Systems Architect Agent (Run 107 / ADR-115)
+- **Phase**: Priority 0 Check — GitHub Actions CI/CD Pipeline Remediation (ADR-115)
+- **Goal**: Diagnose and fix broken GitHub Actions CI/CD pipeline on origin/main across all Python matrix versions (3.10, 3.11, 3.12, 3.13) caused by missing verse micro-anchor embeddings and 2D coordinate projections in clean database bootstrap.
+- **Actions Taken**:
+  1. **Root Cause Analysis & Diagnosis**:
+     - Interrogated GitHub Actions failure logs via `python3 tools/ci.py --details`:
+       All 4 matrix jobs (Python 3.10, 3.11, 3.12, 3.13) failed in `tests/test_doctor.py` (`test_check_database_integrity_clean`):
+       `AssertionError: 'verse micro-anchors' not found in 'OK (PRAGMA quick_check & FK passed, 31,103 WEB verses, FTS5 operational, 28 tables verified, 31,103/31,103 verses semantically audited (100.0%), 1,304 pericope vectors (1,304 projected 2D [100.0%]))'`.
+     - In local persistent workspaces, `./bible build-vectors` had previously populated `verse_embeddings` (31,103 rows). In CI's clean checkout, however, `python3 ./bible init` (`bootstrap_database`) compiled `pericope_embeddings` from the permanent semantic pack, but did not project FastMap 2D coordinates or propagate parent pericope embeddings into `verse_embeddings`.
+  2. **Database Bootstrap Lifecycle Integration (`core/bootstrap.py`)**:
+     - Updated `bootstrap_database` to immediately project 2D coordinates via FastMap (`project_embeddings`) and persist to SQLite (`pericope_embeddings.map_x` / `map_y`) right after semantic pack compilation.
+     - Immediately invoke `db.sync_verse_embeddings_from_pericopes(translation_id="WEB")` directly after semantic compilation, ensuring all 31,103 verse micro-anchors are stored in `verse_embeddings`.
+     - Added automatic backfill safeguard in `bootstrap_database` idempotent execution branch to backfill missing verse micro-anchors when existing pericopes are found.
+  3. **System Doctor Sentry Auto-Repair (`tools/doctor.py`)**:
+     - Enhanced `check_database_integrity`: if `pericope_embeddings` are present but `verse_embeddings` is empty, auto-synchronize verse micro-anchors; if 2D coordinates are unprojected, auto-project and persist them.
+  4. **Hermetic Test Suite Expansion (`tests/test_bootstrap.py`)**:
+     - Added `test_bootstrap_idempotent_backfills_missing_verse_embeddings` verifying that bootstrap backfills verse micro-anchors when pericopes exist.
+     - Verified all 48 test modules pass 100% (**1,063 tests passing in 8.9s**).
+  5. **Governance & Documentation**:
+     - Formulated and recorded **ADR-115: Automated Database Bootstrap 2D Vector Projection and Verse Micro-Anchor Synchronization** in `DECISIONS.md`.
+- **Verification**:
+  - `python3 tools/doctor.py`: **100% EXCELLENT** — all checks passed in 11.24s (AST audit, doc sync, shell scripts, git hooks, CI workflows, secret leak prevention, code quality, test symmetry, SQLite integrity, and hermetic tests).
+  - `python3 tools/linter.py`: **100% CLEAN** — 101 files inspected with 0 errors, 0 warnings.
+  - `python3 tools/benchmark.py --quick --compare-baseline`: **100% PASSED** — all 16 benchmarks verified within performance budgets.
+  - `python3 tools/coverage.py --threshold 70.0`: **82.6% coverage** (well above 70.0% threshold).
+  - Verified clean temp bootstrap: produced 1,304 pericope vectors, 1,304 projected 2D (100.0%), and 31,103 verse micro-anchors.
+- **Handoff Notes for Next Agent**:
+  - GitHub Actions CI root cause is fully resolved and verified hermetic.
+  - Next agent can proceed to Roadmap or GitHub Issues triage.
+

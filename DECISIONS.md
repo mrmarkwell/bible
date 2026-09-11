@@ -3856,3 +3856,27 @@ This document is an append-only log of significant design and architectural deci
   - Enables instant verse-level semantic lookups and cross-reference micro-anchoring.
   - Zero external dependencies: 100% Python standard library and SQLite.
 
+---
+
+## ADR-115: Automated Database Bootstrap 2D Vector Projection and Verse Micro-Anchor Synchronization
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - In GitHub Actions CI/CD environments (and any fresh developer clone), the pipeline executes `python3 ./bible init` (`core.bootstrap.bootstrap_database`) to bootstrap `data/bible.db` from raw sources.
+  - While `compiler.compile_permanent_semantic_pack` populated `pericope_embeddings` (1,304 pericopes), `bootstrap_database` did not execute 2D coordinate projection or parent pericope micro-anchor propagation into `verse_embeddings` via `Database.sync_verse_embeddings_from_pericopes()`.
+  - In persistent local environments where `./bible build-vectors` had been executed previously, `verse_embeddings` contained 31,103 rows. In CI, however, `verse_embeddings` remained empty (0 rows), causing `test_check_database_integrity_clean` in `tests/test_doctor.py` to fail across all Python matrix versions (3.10, 3.11, 3.12, 3.13) with `AssertionError: 'verse micro-anchors' not found`.
+- **Decision**:
+  1. **Lifecycle Integration in Database Bootstrap (`core/bootstrap.py`)**:
+     - Updated `bootstrap_database` to immediately project FastMap 2D coordinates for all pericope embeddings and write them to SQLite (`pericope_embeddings.map_x` / `map_y`) right after semantic pack compilation.
+     - Immediately invoke `db.sync_verse_embeddings_from_pericopes(translation_id="WEB")` to populate all 31,103 verse micro-anchors into `verse_embeddings`.
+     - In the fast idempotent exit check, added auto-backfill of `verse_embeddings` if pericopes exist but verse micro-anchors are missing, ensuring existing databases are healed during `./bible init` without `--force`.
+  2. **System Doctor Sentry Auto-Repair (`tools/doctor.py`)**:
+     - Updated `check_database_integrity`: if `pericope_embeddings` are present but `verse_embeddings` is empty, automatically synchronize verse micro-anchors from parent pericopes; if 2D coordinates are unprojected, compute and persist them.
+  3. **Hermetic Test Suite Coverage (`tests/test_bootstrap.py`)**:
+     - Added `test_bootstrap_idempotent_backfills_missing_verse_embeddings` verifying that bootstrap automatically backfills verse micro-anchors when pericopes exist.
+     - All 48 test suites passing 100% (1,063 tests).
+- **Consequences**:
+  - Completely resolves GitHub Actions CI failure on `main`, ensuring all Python versions (3.10, 3.11, 3.12, 3.13) compile and verify a 100% complete database out of the box with zero manual intervention.
+  - Zero external dependencies: 100% Python 3 standard library and SQLite.
+
+

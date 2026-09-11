@@ -334,6 +334,10 @@ def bootstrap_database(
     # Check for fast idempotent exit if healthy and not forced
     if not force and not quick and books is None and is_database_healthy(target_path):
         stats = get_db_stats(target_path)
+        if stats.get("total_pericope_embeddings", 0) > 0 and stats.get("total_verse_embeddings", 0) == 0:
+            with Database(target_path, check_same_thread=False) as db_sync:
+                db_sync.sync_verse_embeddings_from_pericopes(translation_id="WEB")
+            stats = get_db_stats(target_path)
         hooks_ok = False
         if install_git_hooks and (REPO_ROOT / ".git").exists():
             from tools.doctor import install_hooks
@@ -456,6 +460,21 @@ def bootstrap_database(
         from core.semantic_compiler import SemanticDatabaseCompiler
         compiler = SemanticDatabaseCompiler(db=db)
         compiler.compile_permanent_semantic_pack(resume=True, include_all_chapters=True)
+
+        # 7b. 2D Coordinate Projection & Verse Micro-Anchor Ingestion (ADR-113, ADR-114)
+        _notify("Projecting 2D semantic coordinates & synchronizing verse micro-anchors...", 0.94)
+        from core.projection import project_embeddings
+        embeddings = db.get_all_pericope_embeddings()
+        if embeddings:
+            raw_vectors = [e.embedding for e in embeddings]
+            coords = project_embeddings(raw_vectors)
+            update_items = [
+                (embeddings[i].pericope_id, coords[i][0], coords[i][1])
+                for i in range(len(embeddings))
+            ]
+            db.update_pericope_embedding_coordinates_batch(update_items)
+
+        db.sync_verse_embeddings_from_pericopes(translation_id="WEB")
 
     # 8. Optimize Pragmas and Analyzers
     _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.96)

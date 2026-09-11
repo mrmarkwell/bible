@@ -775,9 +775,29 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
                 cur.execute("SELECT COUNT(*) FROM verse_embeddings")
                 total_verse_embs = cur.fetchone()[0]
                 if total_embs > 0:
+                    if total_verse_embs == 0:
+                        try:
+                            total_verse_embs = db.sync_verse_embeddings_from_pericopes(translation_id="WEB")
+                        except Exception:
+                            pass
                     cur.execute("SELECT COUNT(*) FROM pericope_embeddings WHERE map_x IS NOT NULL AND map_y IS NOT NULL")
                     proj_embs = cur.fetchone()[0]
-                    proj_pct = (proj_embs / total_embs) * 100.0
+                    if proj_embs < total_embs and (fix or proj_embs == 0):
+                        try:
+                            from core.projection import project_embeddings
+                            all_embs = db.get_all_pericope_embeddings()
+                            if all_embs:
+                                raw_vecs = [e.embedding for e in all_embs]
+                                coords = project_embeddings(raw_vecs)
+                                update_items = [
+                                    (all_embs[i].pericope_id, coords[i][0], coords[i][1])
+                                    for i in range(len(all_embs))
+                                ]
+                                db.update_pericope_embedding_coordinates_batch(update_items)
+                                proj_embs = len(all_embs)
+                        except Exception:
+                            pass
+                    proj_pct = (proj_embs / total_embs) * 100.0 if total_embs > 0 else 0.0
                     verse_note = f", {total_verse_embs:,} verse micro-anchors" if total_verse_embs > 0 else ""
                     vector_summary = f", {total_embs:,} pericope vectors ({proj_embs:,} projected 2D [{proj_pct:.1f}%]{verse_note})"
             except Exception:

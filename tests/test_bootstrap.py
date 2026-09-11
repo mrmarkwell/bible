@@ -149,5 +149,41 @@ class TestBootstrapModule(unittest.TestCase):
                 self.assertFalse(kwargs["probe"])
 
 
+    def test_bootstrap_idempotent_backfills_missing_verse_embeddings(self):
+        """Verify that idempotent bootstrap backfills verse embeddings if pericopes exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = Path(tmpdir) / "test_backfill.db"
+            with Database(tmp_db) as db:
+                from core.db import VerseRecord
+                db.add_translation("WEB", "World English Bible")
+                p = db.insert_pericope("Romans 1:1-7", "Greeting", "Epistle", "Gospel of God")
+                db.insert_verses([
+                    VerseRecord("WEB", 45, 1, v, f"Romans 1:{v} text") for v in range(1, 8)
+                ])
+                import struct
+                dim = 8
+                emb = struct.pack(f"{dim}b", *([10] * dim))
+                db.save_pericope_embedding(p.id, "Romans 1:1-7", "test-model", dim, emb)
+                db.conn.execute("INSERT INTO tags (name) VALUES ('theology')")
+                for i in range(45):
+                    db.conn.execute(
+                        "INSERT INTO cross_references (source_start_id, source_end_id, source_human_ref, target_start_id, target_end_id, target_human_ref) "
+                        "VALUES (?, ?, 'Rom 1:1', ?, ?, 'Rom 1:2')",
+                        (1001001, 1001001, 1001002 + i, 1001002 + i),
+                    )
+                db.conn.commit()
+
+            from unittest.mock import patch
+            with patch("core.bootstrap.is_database_healthy", return_value=True):
+                rep = bootstrap_database(db_path=tmp_db, force=False, install_git_hooks=False)
+                self.assertTrue(rep.is_clean)
+
+            with Database(tmp_db) as db:
+                cur = db.conn.cursor()
+                cur.execute("SELECT count(*) FROM verse_embeddings")
+                ve_count = cur.fetchone()[0]
+                self.assertGreater(ve_count, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
