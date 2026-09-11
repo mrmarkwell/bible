@@ -177,7 +177,12 @@ body {
   align-items: center;
   gap: 12px;
   text-decoration: none;
-  cursor: default;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.brand:hover {
+  opacity: 0.85;
 }
 
 .brand-icon {
@@ -398,21 +403,26 @@ body {
 /* Tabs */
 .nav-tabs {
   display: flex;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   border-bottom: 1px solid var(--border-subtle);
-  background-color: rgba(0, 0, 0, 0.15);
-  overflow-x: auto;
+  background-color: var(--bg-surface);
+  padding: 6px 8px;
+  gap: 4px;
 }
 
 .nav-tab {
-  flex: 1;
-  padding: 10px 6px;
+  flex: 1 0 auto;
+  padding: 6px 10px;
   font-size: 11.5px;
   font-weight: 600;
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
   transition: all var(--transition-smooth);
   white-space: nowrap;
   text-align: center;
@@ -421,12 +431,14 @@ body {
 .nav-tab:hover {
   color: var(--text-secondary);
   background-color: var(--bg-hover);
+  border-color: var(--border-subtle);
 }
 
 .nav-tab.active {
-  color: var(--gold-primary);
-  border-bottom-color: var(--gold-primary);
-  background-color: rgba(212, 175, 55, 0.05);
+  color: var(--gold-bright);
+  background-color: var(--gold-badge-bg);
+  border-color: var(--border-gold-glow);
+  font-weight: 700;
 }
 
 /* Panels */
@@ -1955,6 +1967,29 @@ kbd {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.rag-stage-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rag-btn-open-reader {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 8px;
+  color: var(--gold-primary);
+  border-color: rgba(212, 175, 55, 0.3);
+  text-decoration: none;
+}
+
+.rag-btn-open-reader:hover {
+  background-color: var(--gold-badge-bg);
+  border-color: var(--gold-primary);
+  color: var(--gold-bright);
 }
 
 /* Split container for Grounded Passages and Exegetical Notes */

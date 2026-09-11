@@ -4114,6 +4114,37 @@ This document is an append-only log of significant design and architectural deci
   - Users have a complete, studio-grade interface to ask complex theological questions and inspect the grounding, typological arcs, and algorithmic RRF rankings side-by-side with synthesized answers.
   - 100% Zero-Dependency architecture strictly preserved per ADR-003.
 
+---
 
-
-
+## ADR-122: Web UI Persistent Sticky Wrapped Navigation, Cross-Stage Routing, and #rag Endpoint Navigation Safeguards (Resolving GitHub Issue #3)
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - GitHub Issue #3 reported by @mrmarkwell: *"Web UI bug: When I click 'ask the bible' other tab options go away. The #rag endpoint doesn't have the options to go to other pages."*
+  - Diagnostic investigation revealed a combination of architectural and CSS layout factors in the Web UI:
+    1. **Non-Wrapping & Horizontal Auto-Scroll in Navigation Tabs**: `.nav-tabs` previously used `flex-direction: row; flex-wrap: nowrap; overflow-x: auto;` in a fixed 380px sidebar. With 11 tab options totaling ~806px in rendered width, more than half of the tabs were hidden off-screen. When clicking the 3rd tab ("Ask the Bible"), the browser scrolled the container horizontally to focus the active element, scrolling "Passage" and "Search" off-screen to the left into hidden overflow, while the rightmost tabs remained hidden off-screen, giving the user the experience that other tabs "went away".
+    2. **Non-Sticky Sidebar Navigation**: `.nav-tabs` lacked `position: sticky; top: 0;`. When users scrolled down to configure the extensive RAG controls in `#panel-rag` (inquiry prompt, filters, epochs, loci, fusion strategy), the navigation tabs scrolled out of view completely, stranding the user without navigation.
+    3. **Missing Cross-Stage Navigation on the #rag Endpoint**: The `#rag` visualizer stage lacked stage-header navigation buttons to jump to other pages (unlike other stages which had explicit actions to return to the reader or view the scatter map), and individual pericope cards lacked explicit "Read" action buttons.
+    4. **Uncaught ReferenceError on #rag Switch**: `ragPassagesStream` and `personaRefBody` were used in `web/static/app.js` without explicit `document.getElementById` variable declarations.
+- **Decision**:
+  1. **Sticky Wrapped Tab Navigation (`web/static/style.css`)**:
+     - Configured `.nav-tabs` with `flex-wrap: wrap; position: sticky; top: 0; z-index: 20; background-color: var(--bg-surface); padding: 6px 8px; gap: 4px;`.
+     - Styled `.nav-tab` as `flex: 1 0 auto; padding: 6px 10px; border-radius: var(--radius-sm);` with obsidian active/hover tokens.
+     - All 11 tabs now wrap gracefully across 3 compact rows within the 380px sidebar. Tabs never scroll horizontally, never overflow, and never scroll out of view when scrolling the sidebar panels.
+  2. **Dedicated Cross-Stage Navigation on the #rag Endpoint (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`)**:
+     - Added `.rag-stage-nav-group` to `.rag-stage-header` containing explicit action buttons:
+       - `#btn-rag-nav-reader`: `← Scripture Reader` (switches to `passage` view).
+       - `#btn-rag-nav-persona`: `Dialogue →` (switches to `persona` view).
+       - `#btn-rag-nav-similar`: `Concordance →` (switches to `similar` view).
+     - Added explicit `<button class="btn btn-sm btn-ghost rag-btn-open-reader">Read &rarr;</button>` button on every grounded pericope card in `ragPassagesStream`, allowing users to open any retrieved pericope in the full Scripture Reader with a single click.
+     - Made the top header brand logo (`#app-brand`) interactive with `cursor: pointer;` and keyboard accessibility, routing directly to the Scripture Reader.
+  3. **DOM Variable Declaration Safeguards (`web/static/app.js`)**:
+     - Declared `ragPassagesStream`, `personaRefBody`, `btnRagNavReader`, `btnRagNavPersona`, `btnRagNavSimilar`, and `appBrand` via `document.getElementById`.
+     - Prevented `ReferenceError` crashes during view transitions.
+  4. **Hermetic Regression Test Suite (`tests/test_server.py`)**:
+     - Authored `test_web_ui_rag_navigation_options_regression` validating HTML elements, CSS sticky/wrapping rules, JavaScript variable declarations, and cross-stage navigation listeners.
+     - Verified 100% test pass rate across 1,121 unit tests.
+- **Consequences**:
+  - Completely fixes GitHub Issue #3.
+  - The `#rag` endpoint and all other views maintain permanent, visible, sticky navigation.
+  - Zero external dependencies preserved per ADR-003.

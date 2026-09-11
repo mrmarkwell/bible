@@ -122,11 +122,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const checkRagSynthesize = document.getElementById("check-rag-synthesize");
   const ragSidebarStatsContent = document.getElementById("rag-sidebar-stats-content");
   const ragStudyStage = document.getElementById("rag-study-stage");
+  const ragPassagesStream = document.getElementById("rag-passages-stream");
   const ragStageApiBadge = document.getElementById("rag-stage-api-badge");
   const ragStageVersesBadge = document.getElementById("rag-stage-verses-badge");
   const ragGroundedCount = document.getElementById("rag-grounded-count");
   const ragNotesContent = document.getElementById("rag-notes-content");
   const btnRagCopyAnswer = document.getElementById("btn-rag-copy-answer");
+  const btnRagNavReader = document.getElementById("btn-rag-nav-reader");
+  const btnRagNavPersona = document.getElementById("btn-rag-nav-persona");
+  const btnRagNavSimilar = document.getElementById("btn-rag-nav-similar");
+  const appBrand = document.getElementById("app-brand");
   let lastRagSynthesizedAnswer = "";
 
   // DOM Elements - Biblical Character Dialogue Studio Stage & Sidebar
@@ -153,6 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnPersonaSend = document.getElementById("btn-persona-send");
   const personaTheologicalDesc = document.getElementById("persona-theological-desc");
   const personaKeyPassagesList = document.getElementById("persona-key-passages-list");
+  const personaRefBody = document.getElementById("persona-ref-body");
 
   // DOM Elements - Scatter Map Stage & Sidebar (Task 4.7)
   const mapVisualizerStage = document.getElementById("map-visualizer-stage");
@@ -2520,6 +2526,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <div class="rag-passage-header">
                 <span class="rag-passage-ref" title="Click to view full chapter in reader">${escapeHtml(refDisplay)}</span>
                 ${rrfHtml}
+                <button class="btn btn-sm btn-ghost rag-btn-open-reader" data-ref="${escapeHtml(refDisplay)}" title="Open ${escapeHtml(refDisplay)} in Scripture Reader">Read &rarr;</button>
               </div>
               ${pericopeHtml}
               <div class="rag-passage-text">${escapeHtml(p.text || "")}</div>
@@ -2529,15 +2536,25 @@ document.addEventListener("DOMContentLoaded", () => {
               ${(epochBadges || ribbonBadges || lociBadges || reasonBadges) ? `<div class="rag-passage-badges">${epochBadges}${ribbonBadges}${lociBadges}${reasonBadges}</div>` : ''}
             `;
 
-            // Click listener on passage ref
+            // Click listener on passage ref and explicit Read button
+            const openPassageInReader = (refTarget) => {
+              const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+              if (passageTab) passageTab.click();
+              if (inputRef) inputRef.value = refTarget;
+              fetchPassage(refTarget);
+              showToast(`Opened ${refTarget}`);
+            };
+
             const refEl = card.querySelector(".rag-passage-ref");
             if (refEl) {
-              refEl.addEventListener("click", () => {
-                const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
-                if (passageTab) passageTab.click();
-                if (inputRef) inputRef.value = refDisplay;
-                fetchPassage(refDisplay);
-                showToast(`Opened ${refDisplay}`);
+              refEl.addEventListener("click", () => openPassageInReader(refDisplay));
+            }
+
+            const readBtn = card.querySelector(".rag-btn-open-reader");
+            if (readBtn) {
+              readBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                openPassageInReader(refDisplay);
               });
             }
 
@@ -2700,6 +2717,41 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
+
+  // Cross-Page Navigation Buttons from Ask the Bible (#rag) Stage
+  if (btnRagNavReader) {
+    btnRagNavReader.addEventListener("click", () => {
+      const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+      if (passageTab) passageTab.click();
+    });
+  }
+  if (btnRagNavPersona) {
+    btnRagNavPersona.addEventListener("click", () => {
+      const personaTab = document.querySelector('.nav-tab[data-view="persona"]');
+      if (personaTab) personaTab.click();
+    });
+  }
+  if (btnRagNavSimilar) {
+    btnRagNavSimilar.addEventListener("click", () => {
+      const similarTab = document.querySelector('.nav-tab[data-view="similar"]');
+      if (similarTab) similarTab.click();
+    });
+  }
+
+  // App Brand click returns to Scripture Reader home
+  if (appBrand) {
+    appBrand.addEventListener("click", () => {
+      const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+      if (passageTab) passageTab.click();
+    });
+    appBrand.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+        if (passageTab) passageTab.click();
+      }
+    });
+  }
 
   // -------------------------------------------------------------------------
   // Biblical Character Dialogue Studio Subsystem

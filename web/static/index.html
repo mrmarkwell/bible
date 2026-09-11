@@ -19,7 +19,7 @@
           </svg>
         </button>
 
-        <div class="brand">
+        <div class="brand" id="app-brand" role="button" tabindex="0" title="Bible Engine Home (Scripture Reader)">
           <div class="brand-icon">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -862,6 +862,17 @@
               <p class="rag-stage-subheading">Context-grounded theological synthesis side-by-side with retrieved pericopes, typological links, and reciprocal rank fusion scores.</p>
             </div>
             <div class="rag-stage-status-pills">
+              <div class="rag-stage-nav-group">
+                <button class="action-btn" id="btn-rag-nav-reader" title="Return to Scripture Reader">
+                  <span>&larr; Scripture Reader</span>
+                </button>
+                <button class="action-btn" id="btn-rag-nav-persona" title="Converse with Canonical Biblical Witnesses">
+                  <span>Dialogue &rarr;</span>
+                </button>
+                <button class="action-btn" id="btn-rag-nav-similar" title="Explore Semantic Concordance">
+                  <span>Concordance &rarr;</span>
+                </button>
+              </div>
               <button class="action-btn btn-gold" id="btn-rag-copy-answer" title="Copy Synthesized Answer to Clipboard">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>

@@ -4547,3 +4547,40 @@ This is an append-only log of work performed by autonomous agents during their e
   - **WHOLE-PROJECT ROADMAP IS NOW 100% COMPLETE (107/107 TASKS ACROSS ALL 10 PHASES FROM PHASE 0 TO PHASE 9)**.
   - Next cycle: Autonomous maintenance, performance optimization, and Senior PM health monitoring.
 
+---
+
+## [Run 114] — 2026-09-11
+- **Agent**: Ralph Loop Agent (Priority Issue Resolution Cycle)
+- **Priority Addressed**: Mandatory Priority Check — GitHub Issue #3 Triage & Bug Resolution
+- **Issue**: Issue #3: *"Web UI bug: When I click 'ask the bible' other tab options go away."*
+- **Author**: @mrmarkwell
+- **Root Cause Analysis**:
+  1. **Non-Wrapping Horizontal Auto-Scroll in Navigation Tabs**: In `web/static/style.css`, `.nav-tabs` was configured with `overflow-x: auto; white-space: nowrap;` in a fixed 380px sidebar. With 11 tab options totaling ~806px in rendered width, more than half of the tabs were hidden off-screen. When clicking the 3rd tab ("Ask the Bible"), the browser automatically scrolled `.nav-tabs` horizontally to bring the focused tab into view, scrolling "Passage" and "Search" off the left edge into hidden overflow, giving the user the experience that other tabs "went away".
+  2. **Non-Sticky Sidebar Navigation**: `.nav-tabs` lacked `position: sticky; top: 0;`. When users scrolled down to configure the extensive RAG controls in `#panel-rag` (inquiry prompt, filters, epochs, loci, fusion strategy), the navigation tabs scrolled out of view completely, stranding the user without navigation.
+  3. **Missing Cross-Stage Navigation on the #rag Endpoint**: The `#rag` visualizer stage lacked stage-header navigation buttons to jump to other pages (unlike other stages which had explicit actions to return to the reader or view the scatter map), and individual pericope cards lacked explicit "Read" action buttons.
+  4. **Undeclared DOM Variables in `app.js`**: `ragPassagesStream` and `personaRefBody` were accessed without explicit `document.getElementById` declarations, triggering uncaught `ReferenceError` exceptions on view transitions.
+- **Actions Taken**:
+  1. **Sticky Wrapped Tab Navigation (`web/static/style.css`)**:
+     - Configured `.nav-tabs` with `flex-wrap: wrap; position: sticky; top: 0; z-index: 20; background-color: var(--bg-surface); padding: 6px 8px; gap: 4px;`.
+     - Styled `.nav-tab` as `flex: 1 0 auto; padding: 6px 10px; border-radius: var(--radius-sm);` with obsidian active/hover tokens.
+     - All 11 tabs now wrap gracefully across 3 compact rows within the 380px sidebar. Tabs never scroll horizontally, never overflow, and never scroll out of view when scrolling the sidebar panels.
+  2. **Dedicated Cross-Stage Navigation on the #rag Endpoint (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`)**:
+     - Added `.rag-stage-nav-group` to `.rag-stage-header` containing explicit action buttons:
+       - `#btn-rag-nav-reader`: `← Scripture Reader` (switches to `passage` view).
+       - `#btn-rag-nav-persona`: `Dialogue →` (switches to `persona` view).
+       - `#btn-rag-nav-similar`: `Concordance →` (switches to `similar` view).
+     - Added explicit `<button class="btn btn-sm btn-ghost rag-btn-open-reader">Read &rarr;</button>` button on every grounded pericope card in `ragPassagesStream`, allowing users to open any retrieved pericope in the full Scripture Reader with a single click.
+     - Made the top header brand logo (`#app-brand`) interactive with `cursor: pointer;` and keyboard accessibility, routing directly to the Scripture Reader.
+  3. **DOM Variable Declaration Safeguards (`web/static/app.js`)**:
+     - Declared `ragPassagesStream`, `personaRefBody`, `btnRagNavReader`, `btnRagNavPersona`, `btnRagNavSimilar`, and `appBrand` via `document.getElementById`.
+  4. **Hermetic Regression Test Suite (`tests/test_server.py`)**:
+     - Authored `test_web_ui_rag_navigation_options_regression` validating HTML elements, CSS sticky/wrapping rules, JavaScript variable declarations, and cross-stage navigation listeners.
+  5. **ADR-122 Logged**:
+     - Documented the architectural decisions, root causes, and layout safeguards in `DECISIONS.md`.
+- **Verification**:
+  - Full test suite: **1,121 tests across 49 modules passed 100% in 6.712s**.
+  - `./bible doctor`: **100% EXCELLENT** across all 9 diagnostic checks (122 ADRs, 114 runs, 107 tasks, 0 errors across 103 Python files).
+  - Issue closed via commit `Fixes #3`.
+- **Handoff Notes for Next Agent**:
+  - GitHub Issue #3 is fully resolved with regression test coverage.
+  - Project state is clean, healthy, and 100% passing.

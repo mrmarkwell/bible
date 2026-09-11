@@ -996,6 +996,39 @@ class TestWebServerEndpoints(unittest.TestCase):
             self.assertIn("central_proposition", first_p)
             self.assertIn("pericope_title", first_p)
 
+    def test_web_ui_rag_navigation_options_regression(self) -> None:
+        """Verify Web UI Issue #3 regression: #rag endpoint retains visible navigation and cross-page routing."""
+        # 1. Verify index.html defines cross-page navigation buttons in rag-stage-header
+        status, _, body = self._get("/")
+        self.assertEqual(status, 200)
+        html_text = body.decode("utf-8")
+        self.assertIn('id="btn-rag-nav-reader"', html_text)
+        self.assertIn('id="btn-rag-nav-persona"', html_text)
+        self.assertIn('id="btn-rag-nav-similar"', html_text)
+        self.assertIn('id="app-brand"', html_text)
+
+        # 2. Verify style.css keeps .nav-tabs sticky and wrapped so other tabs never disappear
+        status, _, body = self._get("/style.css")
+        self.assertEqual(status, 200)
+        css_text = body.decode("utf-8")
+        self.assertIn(".nav-tabs", css_text)
+        self.assertIn("flex-wrap: wrap", css_text)
+        self.assertIn("position: sticky", css_text)
+        self.assertIn(".rag-stage-nav-group", css_text)
+        self.assertIn(".rag-btn-open-reader", css_text)
+
+        # 3. Verify app.js declares ragPassagesStream, personaRefBody, and navigation handlers
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("ragPassagesStream = document.getElementById", js_text)
+        self.assertIn("personaRefBody = document.getElementById", js_text)
+        self.assertIn("btnRagNavReader", js_text)
+        self.assertIn("btnRagNavPersona", js_text)
+        self.assertIn("btnRagNavSimilar", js_text)
+        self.assertIn("rag-btn-open-reader", js_text)
+        self.assertIn("appBrand", js_text)
+
     def test_web_api_map_endpoints(self) -> None:
         """Verify /api/map and /api/map/svg REST endpoints."""
         # 1. JSON endpoint /api/map
