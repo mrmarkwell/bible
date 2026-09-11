@@ -29,10 +29,14 @@ from core.persona import (
     GroundedScripturePassage,
     PersonaDialogueResponse,
     create_persona_session,
+    enforce_citation_brackets,
+    extract_scripture_citations,
     generate_persona_system_prompt,
     get_persona_definition,
     list_canonical_personas,
     load_character_scripture_passages,
+    render_citation_reader_links,
+    retrieve_author_scoped_rag,
 )
 
 
@@ -521,10 +525,13 @@ class CharacterDialogueRAGRetrievalTest(unittest.TestCase):
         from core.persona import CANONICAL_PERSONAS, get_persona_definition
 
         for p in CANONICAL_PERSONAS:
-            self.assertTrue(
-                len(p.author_books) > 0,
-                f"Persona '{p.id}' has empty author_books!",
-            )
+            if p.id == "whole-bible":
+                self.assertEqual(p.author_books, (), "Whole Bible Counselor spans all 66 books and has empty author_books")
+            else:
+                self.assertTrue(
+                    len(p.author_books) > 0,
+                    f"Persona '{p.id}' has empty author_books!",
+                )
             # Verify serialization
             d = p.to_dict()
             self.assertIn("author_books", d)
@@ -679,6 +686,160 @@ class CharacterDialogueRAGRetrievalTest(unittest.TestCase):
 
         self.assertEqual(len(resp.dynamic_passages), 0)
         self.assertFalse(any("% match" in b for b in resp.grounded_passages))
+
+
+class TestWholeBibleCounselor(unittest.TestCase):
+    """Test the canonical 'Whole Bible Counselor' persona."""
+
+    def test_whole_bible_counselor_registration(self):
+        p = get_persona_definition("whole-bible")
+        self.assertIsNotNone(p)
+        self.assertEqual(p.id, "whole-bible")
+        self.assertEqual(p.canonical_name, "Whole Bible Counselor")
+        self.assertEqual(p.testament, "BOTH")
+        self.assertEqual(p.author_books, ())
+        self.assertEqual(len(p.key_passages), 10)
+
+    def test_whole_bible_aliases(self):
+        for alias in ("counselor", "pastor", "biblical counselor", "whole bible", "wisdom counselor"):
+            p = get_persona_definition(alias)
+            self.assertIsNotNone(p, f"Alias '{alias}' must resolve to whole-bible persona")
+            self.assertEqual(p.id, "whole-bible")
+
+    def test_whole_bible_to_dict_fields(self):
+        p = get_persona_definition("whole-bible")
+        d = p.to_dict()
+        self.assertEqual(d["id"], "whole-bible")
+        self.assertEqual(d["canonical_name"], "Whole Bible Counselor")
+        self.assertEqual(d["name"], "Whole Bible Counselor")
+        self.assertEqual(d["theological_role"], p.theological_role)
+        self.assertEqual(d["epithet"], p.theological_role)
+        self.assertEqual(d["historical_context"], p.lifespan_description)
+        self.assertEqual(d["theological_significance"], p.theological_role)
+        self.assertEqual(d["testament"], "BOTH")
+        self.assertEqual(len(d["key_scriptures"]), 10)
+
+    def test_whole_bible_system_prompt_guardrails(self):
+        p = get_persona_definition("whole-bible")
+        prompt = generate_persona_system_prompt(p)
+        self.assertIn("Mandatory Scripture Citation Formatting", prompt)
+        self.assertIn("[Book Chapter:Verse]", prompt)
+        self.assertIn("Whole Bible Counselor", prompt)
+        self.assertIn("Canonical Whole-Bible Horizon", prompt)
+
+
+class TestCitationEnforcementAndReaderLinks(unittest.TestCase):
+    """Test scripture citation bracket enforcement and hyperlink rendering."""
+
+    def test_enforce_citation_brackets_bare_references(self):
+        text = "As Paul writes in Romans 8:28, God works all things together for good."
+        bracketed = enforce_citation_brackets(text)
+        self.assertIn("[Romans 8:28]", bracketed)
+        self.assertNotIn("in Romans 8:28,", bracketed)
+
+    def test_enforce_citation_brackets_parenthetical(self):
+        text = "Remember the promise of eternal life (John 3:16) and peace."
+        bracketed = enforce_citation_brackets(text)
+        self.assertIn("[John 3:16]", bracketed)
+
+    def test_enforce_citation_brackets_preserves_already_bracketed(self):
+        text = "Already formatted: [Genesis 1:1] and [Revelation 22:20]."
+        bracketed = enforce_citation_brackets(text)
+        self.assertEqual(text, bracketed)
+
+    def test_enforce_citation_brackets_numbered_and_multiword_books(self):
+        text = "Consider 1 Corinthians 13:4-8, 2 Timothy 3:16, and Song of Solomon 2:4."
+        bracketed = enforce_citation_brackets(text)
+        self.assertIn("[1 Corinthians 13:4-8]", bracketed)
+        self.assertIn("[2 Timothy 3:16]", bracketed)
+        self.assertIn("[Song of Solomon 2:4]", bracketed)
+
+    def test_enforce_citation_brackets_ignores_non_scripture(self):
+        text = "The meeting is at 10:30 tomorrow or at 14:00."
+        bracketed = enforce_citation_brackets(text)
+        self.assertEqual(text, bracketed)
+
+    def test_extract_scripture_citations(self):
+        text = "Reflect on [Romans 8:28], then [Psalm 23:1], and remember [Romans 8:28] again."
+        citations = extract_scripture_citations(text)
+        self.assertEqual(citations, ["Romans 8:28", "Psalms 23:1"])
+
+    def test_extract_scripture_citations_empty(self):
+        self.assertEqual(extract_scripture_citations("No scripture here."), [])
+        self.assertEqual(extract_scripture_citations(""), [])
+
+    def test_render_citation_reader_links_markdown(self):
+        text = "Consider [Romans 8:28] and [Genesis 1:1]."
+        md = render_citation_reader_links(text, base_url="#passage=", as_html=False)
+        self.assertIn("[Romans 8:28](#passage=Romans%208%3A28)", md)
+        self.assertIn("[Genesis 1:1](#passage=Genesis%201%3A1)", md)
+
+    def test_render_citation_reader_links_html(self):
+        text = "Consider [Romans 8:28]."
+        html = render_citation_reader_links(text, base_url="#passage=", as_html=True)
+        self.assertIn('class="citation-reader-link"', html)
+        self.assertIn('data-ref="Romans 8:28"', html)
+        self.assertIn('href="#passage=Romans%208%3A28"', html)
+        self.assertIn('>[Romans 8:28]</a>', html)
+
+
+class TestWholeBibleCounselorSession(unittest.TestCase):
+    """Test whole-bible counselor session, dynamic RAG, and citation tracking."""
+
+    def test_whole_bible_dynamic_rag(self):
+        persona = get_persona_definition("whole-bible")
+        passages = retrieve_author_scoped_rag(persona, "suffering and comfort in affliction", max_passages=3)
+        self.assertGreater(len(passages), 0)
+        for p in passages:
+            self.assertTrue(p.human_ref)
+            self.assertGreater(p.similarity_pct, 0.0)
+
+    def test_offline_counselor_response_citations(self):
+        session = create_persona_session("whole-bible")
+        resp = session.step("How should I bear heavy grief and sorrow?")
+        self.assertTrue(resp.offline_fallback)
+        self.assertEqual(resp.character_id, "whole-bible")
+        self.assertTrue(len(resp.citations) > 0)
+        for citation in resp.citations:
+            self.assertIn(f"[{citation}]", resp.text)
+        md_text = resp.text_with_reader_links(as_html=False)
+        self.assertIn("](#passage=", md_text)
+        html_text = resp.text_with_reader_links(as_html=True)
+        self.assertIn('class="citation-reader-link"', html_text)
+
+    def test_live_mocked_llm_citation_enforcement(self):
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = True
+        mock_client.generate_content.return_value = LLMResponse(
+            text="As written in Romans 8:28 and Psalm 23:1-3, the Lord shepherds his people through valley deeps.",
+            model="gemini-2.5-pro",
+            latency_seconds=0.35,
+            usage={"prompt_tokens": 100, "completion_tokens": 30, "total_tokens": 130},
+        )
+        session = create_persona_session("whole-bible", llm_client=mock_client)
+        resp = session.step("Where do I find peace in grief?")
+        self.assertFalse(resp.offline_fallback)
+        self.assertIn("[Romans 8:28]", resp.text)
+        self.assertIn("[Psalm 23:1-3]", resp.text)
+        self.assertIn("Romans 8:28", resp.citations)
+        self.assertIn("Psalms 23:1-3", resp.citations)
+
+    def test_dialogue_transcript_markdown_with_citations(self):
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = True
+        mock_client.generate_content.return_value = LLMResponse(
+            text="Peace be with you. Take heart from [John 16:33] and [Romans 8:31].",
+            model="gemini-2.5-pro",
+            latency_seconds=0.25,
+            usage={"prompt_tokens": 80, "completion_tokens": 20, "total_tokens": 100},
+        )
+        session = create_persona_session("whole-bible", llm_client=mock_client)
+        session.step("I feel overwhelmed by the world.")
+        transcript = session.to_transcript()
+        md = transcript.to_markdown()
+        self.assertIn("[John 16:33](#passage=John%2016%3A33)", md)
+        self.assertIn("[Romans 8:31](#passage=Romans%208%3A31)", md)
+        self.assertIn("## Exegetical Reference Matrix", md)
 
 
 if __name__ == "__main__":

@@ -4316,4 +4316,46 @@ This is an append-only log of work performed by autonomous agents during their e
   - Task 9.1 is 100% complete, verified, and pushed.
   - Next task on the roadmap is Phase 9, **Task 9.2**: *Implement canonical "Whole Bible Counselor" (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses.*
 
+---
+
+## [Run 109] — 2026-09-11
+- **Agent**: Autonomous Biblical Persona & Exegetical Systems Architect Agent (Run 109 / Task 9.2 / ADR-117)
+- **Phase**: Phase 9 — Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI (Task 9.2)
+- **Goal**: Implement canonical "Whole Bible Counselor" (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses.
+- **Actions Taken**:
+  1. **Canonical Whole Bible Counselor Definition (`core/persona.py`)**:
+     - Registered `whole-bible` in `CANONICAL_PERSONAS` with testament `"BOTH"`, `canonical_era="Canonical Whole-Bible Horizon (Creation to Consummation / All 66 Books)"`, 10 canonical multi-genre Scripture anchors (`Genesis 50:20`, `Psalm 23:1-6`, `Psalm 119:105`, `Isaiah 40:27-31`, `Matthew 11:28-30`, `Romans 8:28-39`, `2 Corinthians 1:3-7`, `2 Timothy 3:16-17`, `Hebrews 4:14-16`, `Revelation 21:1-5`), pastoral whole-counsel theological role, trials/afflictions, Christ-centered teleology, and aliases (`"counselor"`, `"pastor"`, `"biblical counselor"`, `"whole bible"`, `"wisdom counselor"`).
+     - Defined `author_books=()`: signaling whole-canon unconstrained breadth.
+     - Updated `retrieve_author_scoped_rag`: if `not persona.author_books`, queries across all 66 books with `testament_scope=None`, dynamically retrieving passages across OT and NT.
+  2. **Mandatory Citation Bracket Enforcement Engine (`core/persona.py`, `core/__init__.py`)**:
+     - Implemented `enforce_citation_brackets(text: str) -> str`: automatically detects bare and parenthetical Scripture references (`Romans 8:28`, `(John 3:16)`) and encloses them in brackets `[Book Chapter:Verse]`, while preserving existing brackets and rejecting non-scripture expressions.
+     - Implemented `extract_scripture_citations(text: str) -> List[str]`: scans bracketed text, validates chunks against canonical books, and returns an ordered, deduplicated list of canonical references (ignoring bare numbers/verse numbers).
+     - Implemented `render_citation_reader_links(text: str, base_url="#passage=", as_html=False) -> str`: transforms bracketed citations into Markdown hyperlinks or HTML `<a>` tags (`class="citation-reader-link"`).
+     - Added Guardrail #5 to `generate_persona_system_prompt()`: mandatory Scripture citation bracket formatting.
+     - Enforced bracket formatting and citation extraction in `say()`, `say_stream()`, and `_build_offline_response()`.
+     - Enriched `PersonaDialogueResponse` and `DialogueTurn` with `citations: List[str]` and `text_with_reader_links()`.
+     - Updated `DialogueTranscript.to_markdown()` to linkify citations in turns and the `## Exegetical Reference Matrix`.
+     - Exported citation utilities in `core/__init__.py`.
+  3. **Web UI Split-Screen Reader Integration (`web/server.py`, `web/static/app.js`, `web/static/style.css`)**:
+     - Updated `/api/chat/persona` to return `citations` and `text_with_links`.
+     - Added whole-bible counseling suggested prompts in `web/static/app.js`.
+     - Implemented `formatContentWithReaderLinks` in `web/static/app.js` and attached click handlers.
+     - Implemented `openSplitScreenReaderPassage(ref)`: asynchronously loads passage and renders `#persona-split-reader-card` directly in the right-hand column (`persona-ref-body`) of the Persona Studio stage, providing seamless split-screen reading without leaving the conversation.
+     - Added CSS styling in `web/static/style.css` for `.citation-reader-link` (gold illuminated border and glow) and `.persona-split-reader-card`.
+  4. **Hermetic Test Suite Expansion (`tests/test_persona.py`)**:
+     - Added `TestWholeBibleCounselor`, `TestCitationEnforcementAndReaderLinks`, and `TestWholeBibleCounselorSession` (17 new unit tests covering catalog registration, aliases, whole-bible dynamic RAG, bracket enforcement, parentheticals, multiword books, citation extraction, markdown/html rendering, offline responses, and live mocked LLM enforcement).
+     - Full test suite expanded to **1,088 tests across 48 modules passing 100% in 9.39s**.
+  5. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-117: Canonical Whole Bible Counselor Persona and Mandatory Scripture Citation Formatting with Split-Screen Reader Hyperlinks** in `DECISIONS.md`.
+     - Marked **Task 9.2** complete in `ROADMAP.md` (103/105 tasks completed, 98.1%).
+- **Verification**:
+  - `./bible test`: **1,088 tests across 48 modules passed 100% in 9.388s**.
+  - `python3 tools/doctor.py`: **100% EXCELLENT** — all 10 diagnostic checks passed in 14.42s.
+  - `python3 tools/linter.py`: **100% CLEAN** — 101 files inspected with 0 errors, 0 warnings.
+  - Zero external dependencies: 100% Python standard library and vanilla HTML/CSS/JS per ADR-003.
+- **Handoff Notes for Next Agent**:
+  - Task 9.2 is 100% complete, verified, and pushed.
+  - Next task on the roadmap is Phase 9, **Task 9.3**: *Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.*
+
+
 

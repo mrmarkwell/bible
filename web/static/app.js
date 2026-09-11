@@ -2528,7 +2528,9 @@ document.addEventListener("DOMContentLoaded", () => {
     filtered.forEach((char) => {
       const opt = document.createElement("option");
       opt.value = char.id;
-      opt.textContent = `${char.name} (${char.testament}) — ${char.epithet}`;
+      const charName = char.name || char.canonical_name || char.id;
+      const charRole = char.epithet || char.theological_role || "";
+      opt.textContent = `${charName} (${char.testament}) — ${charRole}`;
       if (char.id === activeCharacterId) opt.selected = true;
       selectPersonaCharacter.appendChild(opt);
     });
@@ -2556,56 +2558,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
     activeCharacterData = char;
 
+    const charName = char.name || char.canonical_name || char.id;
+    const charRole = char.epithet || char.theological_role || "";
+    const charDesc = char.historical_context || char.lifespan_description || char.theological_significance || "";
+    const keyScriptures = char.key_scriptures || char.key_passages || [];
+
     // Update Sidebar Profile Card
-    if (personaSidebarAvatar) personaSidebarAvatar.textContent = char.name.charAt(0);
-    if (personaSidebarName) personaSidebarName.textContent = char.name;
-    if (personaSidebarRole) personaSidebarRole.textContent = `${char.epithet} (${char.testament})`;
-    if (personaSidebarDesc) personaSidebarDesc.textContent = char.historical_context || char.theological_significance || "";
+    if (personaSidebarAvatar) personaSidebarAvatar.textContent = charName.charAt(0);
+    if (personaSidebarName) personaSidebarName.textContent = charName;
+    if (personaSidebarRole) personaSidebarRole.textContent = `${charRole} (${char.testament})`;
+    if (personaSidebarDesc) personaSidebarDesc.textContent = charDesc;
 
     // Sidebar Passages
     if (personaSidebarPassages) {
       personaSidebarPassages.innerHTML = "";
-      (char.key_scriptures || []).slice(0, 4).forEach((ref) => {
+      keyScriptures.slice(0, 4).forEach((ref) => {
         const pill = document.createElement("span");
         pill.className = "chip chip-gold";
         pill.textContent = ref;
         pill.addEventListener("click", () => {
-          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
-          if (passageTab) passageTab.click();
-          inputRef.value = ref;
-          fetchPassage(ref);
+          openSplitScreenReaderPassage(ref);
         });
         personaSidebarPassages.appendChild(pill);
       });
     }
 
     // Update Studio Stage Banner
-    if (personaStageAvatar) personaStageAvatar.textContent = char.name.charAt(0);
-    if (personaStageName) personaStageName.textContent = char.name;
+    if (personaStageAvatar) personaStageAvatar.textContent = charName.charAt(0);
+    if (personaStageName) personaStageName.textContent = charName;
     if (personaStageTestament) personaStageTestament.textContent = `${char.testament} CANON`;
-    if (personaStageEpithet) personaStageEpithet.textContent = char.epithet;
-    if (personaStagePassageCount) personaStagePassageCount.textContent = (char.key_scriptures || []).length;
+    if (personaStageEpithet) personaStageEpithet.textContent = charRole;
+    if (personaStagePassageCount) personaStagePassageCount.textContent = keyScriptures.length;
 
     // Update Reference Column
     if (personaTheologicalDesc) {
-      personaTheologicalDesc.textContent = `${char.historical_context} ${char.theological_significance}`;
+      personaTheologicalDesc.textContent = `${charDesc} ${charRole}`;
     }
 
     if (personaKeyPassagesList) {
       personaKeyPassagesList.innerHTML = "";
-      (char.key_scriptures || []).forEach((ref) => {
+      keyScriptures.forEach((ref) => {
         const item = document.createElement("div");
         item.className = "persona-key-passage-item";
         item.innerHTML = `
           <div class="persona-kp-ref">${escapeHtml(ref)}</div>
-          <div class="persona-kp-text">Click to read in canonical Scripture explorer &rarr;</div>
+          <div class="persona-kp-text">Click to read in split-screen reader &rarr;</div>
         `;
         item.addEventListener("click", () => {
-          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
-          if (passageTab) passageTab.click();
-          inputRef.value = ref;
-          fetchPassage(ref);
-          showToast(`Loaded ${ref}`);
+          openSplitScreenReaderPassage(ref);
         });
         personaKeyPassagesList.appendChild(item);
       });
@@ -2614,11 +2614,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update Welcome Card Suggested Prompts
     if (personaSuggestedPrompts) {
       personaSuggestedPrompts.innerHTML = "";
-      const defaultPrompts = [
+      let defaultPrompts = [
         `What is the central theological theme of your calling?`,
         `How do you understand God's covenant faithfulness?`,
         `How does your life and writing point forward to Christ?`,
       ];
+      if (char.id === "whole-bible") {
+        defaultPrompts = [
+          `How can I walk faithfully through severe, unresolved suffering?`,
+          `How does the whole Bible connect human anxiety to God's sovereignty?`,
+          `How do law and gospel distinguish biblical counsel from moralism?`,
+        ];
+      }
       defaultPrompts.forEach((pText) => {
         const chip = document.createElement("span");
         chip.className = "chip chip-gold";
@@ -2655,6 +2662,62 @@ document.addEventListener("DOMContentLoaded", () => {
     personaChatViewport.scrollTop = personaChatViewport.scrollHeight;
   }
 
+  function formatContentWithReaderLinks(content) {
+    if (!content) return "";
+    const escaped = escapeHtml(content);
+    // Matches bracketed Scripture citations: [Book Chapter:Verse]
+    const citationRegex = /\[((?:[1-3]\s+)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?\s+\d+:\d+(?:\s*-\s*(?:\d+:)?\d+)?(?:[a-z])?)\]/g;
+    return escaped.replace(citationRegex, (match, refText) => {
+      const cleanRef = refText.trim();
+      return `<a href="#passage=${encodeURIComponent(cleanRef)}" class="citation-reader-link" data-ref="${escapeHtml(cleanRef)}" title="Click to view ${escapeHtml(cleanRef)} in split-screen reader">[${escapeHtml(cleanRef)}]</a>`;
+    });
+  }
+
+  async function openSplitScreenReaderPassage(ref) {
+    if (!ref) return;
+    if (inputRef) inputRef.value = ref;
+    fetchPassage(ref);
+    showToast(`Loaded ${ref} in Scripture Reader`);
+
+    // In Persona Studio split-screen view: render passage in right-hand column
+    if (personaRefBody) {
+      try {
+        const v = selectVersion ? selectVersion.value : "ESV";
+        const res = await fetch(`/api/passage?ref=${encodeURIComponent(ref)}&version=${encodeURIComponent(v)}`);
+        if (res.ok) {
+          const pData = await res.json();
+          let card = document.getElementById("persona-split-reader-card");
+          if (!card) {
+            card = document.createElement("div");
+            card.id = "persona-split-reader-card";
+            card.className = "persona-theological-card persona-split-reader-card";
+            personaRefBody.insertBefore(card, personaRefBody.firstChild);
+          }
+          const versesHtml = (pData.verses || []).map((v) => `<span class="reader-vnum">${v.verse}</span> ${escapeHtml(v.text)}`).join(" ");
+          card.innerHTML = `
+            <div class="split-card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 8px;">
+              <div>
+                <span class="badge badge-version" style="margin-right: 6px;">${escapeHtml(pData.translation || "ESV")}</span>
+                <strong style="color: var(--gold);">${escapeHtml(pData.reference || ref)}</strong>
+              </div>
+              <button class="btn btn-sm btn-ghost btn-close-split" title="Close passage" style="cursor: pointer; font-size: 16px; line-height: 1; border: none; background: none; color: var(--text-muted);">&times;</button>
+            </div>
+            <div class="split-card-text" style="font-size: 13.5px; line-height: 1.6; color: var(--text);">
+              ${versesHtml || "No passage text available."}
+            </div>
+          `;
+          const closeBtn = card.querySelector(".btn-close-split");
+          if (closeBtn) {
+            closeBtn.addEventListener("click", () => card.remove());
+          }
+          card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      } catch (err) {
+        console.warn("Could not load split reader passage preview:", err);
+      }
+    }
+  }
+
   function appendChatBubble(role, content, groundedPassages = []) {
     if (!personaChatViewport) return;
 
@@ -2663,11 +2726,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const avatar = document.createElement("div");
     avatar.className = "chat-bubble-avatar";
-    avatar.textContent = role === "user" ? "You" : (activeCharacterData ? activeCharacterData.name.charAt(0) : "✦");
+    const displayName = activeCharacterData ? (activeCharacterData.name || activeCharacterData.canonical_name || "✦") : "✦";
+    avatar.textContent = role === "user" ? "You" : displayName.charAt(0);
 
     const contentBox = document.createElement("div");
     contentBox.className = "chat-bubble-content";
-    contentBox.textContent = content;
+    if (role === "user") {
+      contentBox.textContent = content;
+    } else {
+      contentBox.innerHTML = formatContentWithReaderLinks(content);
+      contentBox.querySelectorAll(".citation-reader-link").forEach((link) => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          const targetRef = link.getAttribute("data-ref");
+          if (targetRef) {
+            openSplitScreenReaderPassage(targetRef);
+          }
+        });
+      });
+    }
 
     if (groundedPassages && groundedPassages.length > 0) {
       const groundedTray = document.createElement("div");
@@ -2677,10 +2754,7 @@ document.addEventListener("DOMContentLoaded", () => {
         pill.className = "chat-ref-chip";
         pill.textContent = ref;
         pill.addEventListener("click", () => {
-          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
-          if (passageTab) passageTab.click();
-          inputRef.value = ref;
-          fetchPassage(ref);
+          openSplitScreenReaderPassage(ref);
         });
         groundedTray.appendChild(pill);
       });

@@ -45,10 +45,7 @@ from core.llm import (
     GenerationConfig,
 )
 from core.reference import parse_reference
-from core.rag import (
-    RetrievedPassage,
-    ScriptureRAGEngine,
-)
+from core.rag import ScriptureRAGEngine
 from core.semantic_audit import CharacterEntityDeduplicator
 from core.theology import (
     TGCTheologyEngine,
@@ -124,11 +121,16 @@ class CharacterPersonaDefinition:
         return {
             "id": self.id,
             "canonical_name": self.canonical_name,
+            "name": self.canonical_name,
             "testament": self.testament,
             "canonical_era": self.canonical_era,
             "lifespan_description": self.lifespan_description,
+            "historical_context": self.lifespan_description,
             "theological_role": self.theological_role,
+            "theological_significance": self.theological_role,
+            "epithet": self.theological_role,
             "key_passages": list(self.key_passages),
+            "key_scriptures": list(self.key_passages),
             "core_trials_and_failures": list(self.core_trials_and_failures),
             "christ_centered_orientation": self.christ_centered_orientation,
             "speaking_style": self.speaking_style,
@@ -682,6 +684,38 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         aliases=("Mary Magdalene", "Magdalene"),
         author_books=("Matthew", "Mark", "Luke", "John"),
     ),
+
+    # --- Whole-Bible Canonical Counsel ---
+    CharacterPersonaDefinition(
+        id="whole-bible",
+        canonical_name="Whole Bible Counselor",
+        testament="BOTH",
+        canonical_era="Canonical Whole-Bible Horizon (Creation to Consummation / All 66 Books)",
+        lifespan_description="Wise, pastorally compassionate biblical counselor grounded in the entire 66-book Protestant canon from Genesis to Revelation; applies the whole counsel of God, redemptive-historical biblical theology, the law and gospel distinction, and the all-sufficiency of Holy Scripture to human suffering, anxiety, trial, repentance, and sanctification.",
+        theological_role="Biblical theologian, pastor, and counselor synthesizing the whole canon (Creation, Fall, Redemption, Consummation) to minister the sufficiency of Holy Scripture, upholding Christ as Prophet, Priest, King, and All-Sufficient Savior.",
+        key_passages=(
+            "Genesis 50:20",
+            "Psalm 23:1-6",
+            "Psalm 119:105",
+            "Isaiah 40:27-31",
+            "Matthew 11:28-30",
+            "Romans 8:28-39",
+            "2 Corinthians 1:3-7",
+            "2 Timothy 3:16-17",
+            "Hebrews 4:14-16",
+            "Revelation 21:1-5",
+        ),
+        core_trials_and_failures=(
+            "Confronting the deep tragedy of the fall: indwelling sin, grief, spiritual warfare, chronic suffering, and physical decay in a broken world",
+            "Guarding against legalism, moralism, cheap grace, and quick-fix therapeutic substitutes that bypass the cross of Christ",
+            "Enduring pastoral sorrow alongside afflicted saints while patiently pointing weary souls beyond human frailty to divine mercy",
+            "Submitting in awe to God's sovereign and unsearchable providence when His ways are beyond human comprehension (Romans 11:33-36)",
+        ),
+        christ_centered_orientation="Binds every counseling issue, trial, and promise to Jesus Christ—the eternal Word made flesh who suffered for us, was raised for our justification, intercedes at the Father's right hand, and will wipe every tear from our eyes.",
+        speaking_style="Pastoral, empathetic, deeply steeped in Scripture, listening with discernment, speaking the truth in love with fatherly/shepherdly warmth, balancing tender comfort with heart-probing biblical conviction.",
+        aliases=("whole-bible", "counselor", "pastor", "biblical counselor", "whole bible", "wisdom counselor"),
+        author_books=(),
+    ),
 )
 
 
@@ -854,7 +888,7 @@ def retrieve_author_scoped_rag(
     collected_passages: List[DynamicRetrievedPassage] = []
     seen_references: Set[str] = set()
 
-    # Pass 1: Author books constrained retrieval (if author_books defined)
+    # Pass 1: Author books constrained retrieval (or full canon if whole-bible / no author_books)
     if persona.author_books:
         try:
             author_window = engine.retrieve(
@@ -884,6 +918,39 @@ def retrieve_author_scoped_rag(
                             retrieval_reasons=tuple(rp.retrieval_reasons),
                         )
                     )
+        except Exception:
+            pass
+    else:
+        # Whole-Bible persona or unconstrained retrieval across the entire canon
+        try:
+            canon_window = engine.retrieve(
+                query=clean_query,
+                max_passages=max_passages,
+                min_score=min_score,
+                preferred_translation=translation,
+                testament=testament_scope,
+            )
+            for rp in canon_window.passages:
+                if rp.reference not in seen_references:
+                    seen_references.add(rp.reference)
+                    sim_pct = round(max(0.0, min(1.0, rp.score)) * 100.0, 1)
+                    collected_passages.append(
+                        DynamicRetrievedPassage(
+                            reference=rp.reference,
+                            human_ref=rp.human_ref,
+                            score=float(rp.score),
+                            similarity_pct=sim_pct,
+                            text=rp.text,
+                            translation=rp.translation,
+                            pericope_title=rp.pericope_title,
+                            theological_loci=tuple(rp.theological_loci),
+                            thematic_ribbons=tuple(rp.thematic_ribbons),
+                            central_proposition=rp.central_proposition,
+                            retrieval_reasons=tuple(rp.retrieval_reasons),
+                        )
+                    )
+                    if len(collected_passages) >= max_passages:
+                        break
         except Exception:
             pass
 
@@ -925,7 +992,147 @@ def retrieve_author_scoped_rag(
 
 
 # ==============================================================================
-# 4. Persona Dialogue System Prompt Generator
+# 4. Mandatory Scripture Citation Formatting & Reader Hyperlinking
+# ==============================================================================
+
+_CITATION_SCAN_REGEX = re.compile(
+    r"(?P<pre>\[|\()?((?:[1-3](?:st|nd|rd)?\s+)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?\s+\d+:\d+(?:\s*-\s*(?:\d+:)?\d+)?(?:[a-z])?)(?P<post>\]|\))?"
+)
+
+
+def enforce_citation_brackets(text: str) -> str:
+    """Enforce mandatory square bracket formatting [Book Chapter:Verse] on all Scripture citations.
+
+    Scans text for canonical Bible citations and guarantees they are enclosed
+    in square brackets `[Book Chapter:Verse]` (e.g. `[Romans 8:28]`, `[Genesis 1:1]`),
+    transforming bare references or parenthetical `(Romans 8:28)` into `([Romans 8:28])`
+    while leaving properly bracketed references intact.
+    """
+    if not text:
+        return ""
+
+    from core.reference import get_book
+
+    def _replace_match(match: re.Match) -> str:
+        pre = match.group("pre")
+        candidate = match.group(2).strip()
+        post = match.group("post")
+        full = match.group(0)
+
+        # Parse book candidate from front
+        m_book = re.match(
+            r"^((?:[1-3](?:st|nd|rd)?\s+)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?)\s+(\d+.*)$",
+            candidate,
+        )
+        if not m_book:
+            return full
+
+        book_str = m_book.group(1).strip()
+        if not get_book(book_str):
+            return full
+
+        # If already bracketed: [Book C:V]
+        if pre == "[" and post == "]":
+            return full
+
+        # If enclosed in parentheses: (Book C:V) -> ([Book C:V])
+        if pre == "(" and post == ")":
+            return f"([{candidate}])"
+
+        if pre == "[":
+            return f"[{candidate}]"
+        if post == "]":
+            return f"[{candidate}]"
+
+        res = f"[{candidate}]"
+        if pre:
+            res = pre + res
+        if post:
+            res = res + post
+        return res
+
+    return _CITATION_SCAN_REGEX.sub(_replace_match, text)
+
+
+def extract_scripture_citations(text: str) -> List[str]:
+    """Extract an ordered, deduplicated list of all Scripture citations from text.
+
+    Scans for [Book Chapter:Verse] citations and validates them against canonical books.
+    """
+    if not text:
+        return []
+
+    from core.reference import parse_reference
+
+    # Ensure citations are bracketed first
+    bracketed = enforce_citation_brackets(text)
+    citations: List[str] = []
+    seen: Set[str] = set()
+
+    for m in re.finditer(r"\[([^\]\n]+)\]", bracketed):
+        chunk = m.group(1).strip()
+        # Must contain book name (letters) and chapter/verse (digits)
+        if not re.search(r"[A-Za-z]", chunk) or not re.search(r"\d", chunk):
+            continue
+        try:
+            ref = parse_reference(chunk)
+            formatted = ref.format()
+            if formatted not in seen:
+                seen.add(formatted)
+                citations.append(formatted)
+        except Exception:
+            continue
+
+    return citations
+
+
+def render_citation_reader_links(
+    text: str,
+    base_url: str = "#passage=",
+    as_html: bool = False,
+) -> str:
+    """Transform bracketed Scripture citations [Book Chapter:Verse] into reader hyperlinks.
+
+    Args:
+        text: Input text containing bracketed Scripture citations.
+        base_url: Base URL or hash fragment for reader navigation (default '#passage=').
+        as_html: If True, outputs HTML <a> tags with class 'citation-reader-link' and 'data-ref'.
+                 If False, outputs Markdown hyperlinks [[Book Chapter:Verse]](url).
+    """
+    if not text:
+        return ""
+
+    from urllib.parse import quote
+    from core.reference import parse_reference
+
+    # First ensure bracket formatting
+    bracketed = enforce_citation_brackets(text)
+
+    def _linkify(m: re.Match) -> str:
+        chunk = m.group(1).strip()
+        if not re.search(r"[A-Za-z]", chunk) or not re.search(r"\d", chunk):
+            return m.group(0)
+        try:
+            ref = parse_reference(chunk)
+            canon_ref = ref.format()
+            target_url = f"{base_url}{quote(canon_ref)}"
+            if as_html:
+                return (
+                    f'<a href="{target_url}" class="citation-reader-link" '
+                    f'data-ref="{canon_ref}">[{chunk}]</a>'
+                )
+            else:
+                return f"[{chunk}]({target_url})"
+        except Exception:
+            return m.group(0)
+
+    # Replace [chunk] that are not immediately followed by (
+    # To avoid double-linking already linked markdown: [ref](url)
+    return re.sub(r"\[([^\]\n]+)\](?!\()", _linkify, bracketed)
+
+
+# ==============================================================================
+# 5. Persona Dialogue System Prompt Generator
 # ==============================================================================
 
 
@@ -991,6 +1198,7 @@ Scripture presents biblical saints not as flawless moral heroes, but as broken v
    - You possess NO modern anachronistic knowledge, 21st-century technological or scientific jargon, or events occurring centuries after your era.
    - If you are an Old Testament saint, you look forward by covenant faith to the promised Seed, Davidic King, and Suffering Servant, but you do not speak as an eyewitness of Calvary or the Roman Empire.
    - If you are a New Testament saint, you testify passionately to the crucified and risen Jesus of Nazareth and the apostolic church.
+   - If you are the Whole Bible Counselor, your canonical horizon spans the entire 66-book Protestant canon from Genesis to Revelation, ministering the whole counsel of God with pastoral wisdom, redemptive-historical clarity, and Christ-centered hope.
 2. **Biblical Humility & Canonical Realism**:
    - Speak with authentic humility and brokenness, boasting only in the steadfast covenant love (chesed), mercy, and sovereign righteousness of God.
    - Never present your life or deeds as the basis of your acceptance before God. All salvation is by grace alone through faith alone.
@@ -1001,6 +1209,9 @@ Scripture presents biblical saints not as flawless moral heroes, but as broken v
 4. **Dignity, Pastoral Warmth & Reverence**:
    - Maintain the dignified, reverent, and biblical cadence characteristic of your canonical writings and narratives.
    - Engage with pastoral warmth and solemn sobriety. Avoid modern casual slang, sarcasm, or flippant banter.
+5. **Mandatory Scripture Citation Formatting**:
+   - Whenever you quote, cite, or reference Holy Scripture in your speech, you MUST ALWAYS format the reference enclosed in square brackets: `[Book Chapter:Verse]` (e.g. `[Romans 8:28]`, `[Genesis 1:1]`, `[Psalm 23:1-3]`, `[John 3:16]`, `[2 Timothy 3:16-17]`).
+   - Every citation MUST be formatted in square brackets `[Book Chapter:Verse]` so that the interactive split-screen reader can automatically parse and hyperlink the passage. Never cite Scripture in plain text without square brackets.
 
 {guardrail_directives}
 """.strip()
@@ -1024,8 +1235,17 @@ class PersonaDialogueResponse:
     latency_seconds: float = 0.0
     grounded_passages: List[str] = field(default_factory=list)
     dynamic_passages: List[Dict[str, Any]] = field(default_factory=list)
+    citations: List[str] = field(default_factory=list)
     turn_count: int = 1
     offline_fallback: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.citations and self.text:
+            self.citations = extract_scripture_citations(self.text)
+
+    def text_with_reader_links(self, base_url: str = "#passage=", as_html: bool = False) -> str:
+        """Render response text with clickable split-screen reader hyperlinks."""
+        return render_citation_reader_links(self.text, base_url=base_url, as_html=as_html)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert response to dictionary representation."""
@@ -1037,6 +1257,7 @@ class PersonaDialogueResponse:
             "latency_seconds": round(self.latency_seconds, 3),
             "grounded_passages": self.grounded_passages,
             "dynamic_passages": [dict(p) for p in self.dynamic_passages],
+            "citations": list(self.citations),
             "turn_count": self.turn_count,
             "offline_fallback": self.offline_fallback,
         }
@@ -1052,6 +1273,11 @@ class DialogueTurn:
     timestamp: str = field(default_factory=_utc_now_iso)
     grounded_passages: List[str] = field(default_factory=list)
     dynamic_passages: List[Dict[str, Any]] = field(default_factory=list)
+    citations: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.citations and self.content:
+            self.citations = extract_scripture_citations(self.content)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert dialogue turn to dictionary representation."""
@@ -1062,6 +1288,7 @@ class DialogueTurn:
             "timestamp": self.timestamp,
             "grounded_passages": list(self.grounded_passages),
             "dynamic_passages": [dict(p) for p in self.dynamic_passages],
+            "citations": list(self.citations),
         }
 
     @classmethod
@@ -1074,6 +1301,7 @@ class DialogueTurn:
             timestamp=str(data.get("timestamp", _utc_now_iso())),
             grounded_passages=list(data.get("grounded_passages", [])),
             dynamic_passages=list(data.get("dynamic_passages", [])),
+            citations=list(data.get("citations", [])),
         )
 
 
@@ -1172,17 +1400,17 @@ class DialogueTranscript:
                     badges = ", ".join(f"`{p}`" for p in turn.grounded_passages)
                     lines.append(f"*Grounded in: {badges}*")
                     lines.append("")
-                lines.append(turn.content.strip())
+                lines.append(render_citation_reader_links(turn.content.strip()))
                 lines.append("")
 
         if collected_passages or (meta and meta.get("key_passages")):
             all_refs = sorted(collected_passages | set(meta.get("key_passages", [])))
             lines.append("---")
             lines.append("")
-            lines.append("## Exegetical Reference Matrix")
+            lines.append("## Exegetical Reference Matrix (Reader Split-Screen Links)")
             lines.append("")
             for ref in all_refs:
-                lines.append(f"- **{ref}**")
+                lines.append(f"- {render_citation_reader_links(f'[{ref}]')}")
             lines.append("")
 
         lines.append("---")
@@ -1411,6 +1639,7 @@ class BiblicalPersonaSession:
 
         dyn_lines.append(
             "\nDraw explicitly upon these passages, quoting or reflecting their biblical truth where appropriate while remaining firmly in character."
+            "\nRemember to format every Scripture citation in strict square brackets `[Book Chapter:Verse]` (e.g. `[Romans 8:28]`)."
         )
         return self.system_prompt + "\n".join(dyn_lines)
 
@@ -1420,7 +1649,7 @@ class BiblicalPersonaSession:
         dynamic_passages: Optional[Sequence[DynamicRetrievedPassage]] = None,
     ) -> str:
         """Generate informative, reverent offline response when GEMINI_API_KEY is not present."""
-        passages_formatted = ", ".join(f"`{p.reference}`" for p in self.grounded_passages)
+        passages_formatted = ", ".join(f"[{p.reference}]" for p in self.grounded_passages)
         trials_formatted = "; ".join(self.persona.core_trials_and_failures)
 
         dynamic_section = ""
@@ -1429,16 +1658,16 @@ class BiblicalPersonaSession:
             for dp in dynamic_passages:
                 excerpt = dp.text[:120].strip() + ("..." if len(dp.text) > 120 else "")
                 dyn_lines.append(
-                    f"- `{dp.human_ref}` ({dp.translation}) [{dp.similarity_pct:.1f}% match]: \"{excerpt}\""
+                    f"- `[{dp.human_ref}]` ({dp.translation}) [{dp.similarity_pct:.1f}% match]: \"{excerpt}\""
                 )
             dynamic_section = "\n" + "\n".join(dyn_lines) + "\n"
 
         dyn_reflection = ""
         if dynamic_passages:
-            dyn_refs = ", ".join(f"`{dp.human_ref}` ({dp.similarity_pct:.0f}%)" for dp in dynamic_passages)
+            dyn_refs = ", ".join(f"[{dp.human_ref}] ({dp.similarity_pct:.0f}%)" for dp in dynamic_passages)
             dyn_reflection = f"\nDynamically matched scripture from my canonical writings: {dyn_refs}."
 
-        return (
+        raw_offline = (
             f"[OFFLINE PERSONA PROFILE: {self.persona.canonical_name.upper()} ({self.persona.canonical_era})]\n\n"
             f"*Identity*: {self.persona.theological_role}\n"
             f"*Canonical Lifespan*: {self.persona.lifespan_description}\n"
@@ -1450,6 +1679,7 @@ class BiblicalPersonaSession:
             f"Google Gemini API key by setting the GEMINI_API_KEY environment variable or placing it in .env.\n\n"
             f"Regarding your inquiry ('{user_message.strip()}'), reflect upon the biblical testimony in {passages_formatted}.{dyn_reflection}"
         )
+        return enforce_citation_brackets(raw_offline)
 
     def say(
         self,
@@ -1493,6 +1723,7 @@ class BiblicalPersonaSession:
             offline_text = self._build_offline_response(
                 clean_user_message, dynamic_passages=dynamic_passages
             )
+            extracted_citations = extract_scripture_citations(offline_text)
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
@@ -1503,6 +1734,7 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
             return PersonaDialogueResponse(
@@ -1512,6 +1744,7 @@ class BiblicalPersonaSession:
                 model="offline-profile",
                 grounded_passages=grounded_badge_list,
                 dynamic_passages=dynamic_passage_dicts,
+                citations=extracted_citations,
                 turn_count=self.turn_count,
                 offline_fallback=True,
             )
@@ -1533,7 +1766,9 @@ class BiblicalPersonaSession:
                 config=cfg,
                 model=self.model,
             )
-            model_text = resp.text.strip()
+            raw_model_text = resp.text.strip()
+            model_text = enforce_citation_brackets(raw_model_text)
+            extracted_citations = extract_scripture_citations(model_text)
             self.history.append(ChatMessage(role="model", content=model_text))
             self.turns.append(
                 DialogueTurn(
@@ -1543,6 +1778,7 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
 
@@ -1554,17 +1790,20 @@ class BiblicalPersonaSession:
                 latency_seconds=resp.latency_seconds,
                 grounded_passages=grounded_badge_list,
                 dynamic_passages=dynamic_passage_dicts,
+                citations=extracted_citations,
                 turn_count=self.turn_count,
                 offline_fallback=False,
             )
         except Exception as exc:
             # Fallback to offline card on API/network error
-            offline_text = (
+            raw_offline = (
                 f"[NOTICE: Live connection unavailable ({type(exc).__name__}: {str(exc)})]\n\n"
                 + self._build_offline_response(
                     clean_user_message, dynamic_passages=dynamic_passages
                 )
             )
+            offline_text = enforce_citation_brackets(raw_offline)
+            extracted_citations = extract_scripture_citations(offline_text)
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
                 DialogueTurn(
@@ -1574,6 +1813,7 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
             return PersonaDialogueResponse(
@@ -1583,6 +1823,7 @@ class BiblicalPersonaSession:
                 model="offline-error-fallback",
                 grounded_passages=grounded_badge_list,
                 dynamic_passages=dynamic_passage_dicts,
+                citations=extracted_citations,
                 turn_count=self.turn_count,
                 offline_fallback=True,
             )
@@ -1649,6 +1890,7 @@ class BiblicalPersonaSession:
             offline_text = self._build_offline_response(
                 clean_user_message, dynamic_passages=dynamic_passages
             )
+            extracted_citations = extract_scripture_citations(offline_text)
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
@@ -1659,6 +1901,7 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
             yield offline_text
@@ -1685,7 +1928,9 @@ class BiblicalPersonaSession:
                     accumulated_parts.append(chunk.text)
                     yield chunk.text
 
-            full_text = "".join(accumulated_parts).strip()
+            raw_full_text = "".join(accumulated_parts).strip()
+            full_text = enforce_citation_brackets(raw_full_text)
+            extracted_citations = extract_scripture_citations(full_text)
             self.history.append(ChatMessage(role="model", content=full_text))
             self.turns.append(
                 DialogueTurn(
@@ -1695,18 +1940,21 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
 
         except Exception as exc:
-            err_text = (
+            raw_err_text = (
                 f"\n[NOTICE: Stream interrupted ({type(exc).__name__}: {str(exc)})]\n\n"
                 + self._build_offline_response(
                     clean_user_message, dynamic_passages=dynamic_passages
                 )
             )
+            err_text = enforce_citation_brackets(raw_err_text)
             accumulated_parts.append(err_text)
-            full_text = "".join(accumulated_parts).strip()
+            full_text = enforce_citation_brackets("".join(accumulated_parts).strip())
+            extracted_citations = extract_scripture_citations(full_text)
             self.history.append(ChatMessage(role="model", content=full_text))
             self.turns.append(
                 DialogueTurn(
@@ -1716,6 +1964,7 @@ class BiblicalPersonaSession:
                     timestamp=_utc_now_iso(),
                     grounded_passages=grounded_badge_list,
                     dynamic_passages=dynamic_passage_dicts,
+                    citations=extracted_citations,
                 )
             )
             yield err_text

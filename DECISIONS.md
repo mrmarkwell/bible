@@ -3918,3 +3918,42 @@ This document is an append-only log of significant design and architectural deci
   - Biblical characters now dynamically ground their conversational turns in their own canonical writings with verified similarity percentages.
   - Strict preservation of redemptive-historical horizons prevents anachronistic errors.
   - 100% Zero-Dependency architecture maintained per ADR-003.
+
+---
+
+## ADR-117: Canonical Whole Bible Counselor Persona and Mandatory Scripture Citation Formatting with Split-Screen Reader Hyperlinks
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - Task 9.2 on the roadmap specifies: *"Implement canonical 'Whole Bible Counselor' (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses."*
+  - While individual biblical figures (e.g. Paul, Moses, David, Isaiah) speak strictly within their historical eras and specific authorial corpuses (per ADR-116 and ADR-049), users frequently seek holistic, redemptive-historical pastoral wisdom synthesizing the entire 66-book Protestant canon (Creation, Fall, Redemption, Consummation) applied to human suffering, grief, anxiety, and sanctification.
+  - Additionally, across all persona interactions (both individual saints and the Whole Bible Counselor), responses cite Scripture passages. Previously, citations were unstructured plain text or varied in style, preventing users from instantly inspecting the cited passages in the reading pane without losing conversational context.
+  - An authoritative, whole-canon counselor persona along with deterministic citation bracket enforcement and split-screen reader hyperlink navigation was needed.
+- **Decision**:
+  1. **Canonical Whole Bible Counselor Registration (`core/persona.py`)**:
+     - Registered `whole-bible` in `CANONICAL_PERSONAS` with testament `"BOTH"`, `canonical_era="Canonical Whole-Bible Horizon (Creation to Consummation / All 66 Books)"`, 10 canonical key passage anchors spanning the Pentateuch, Psalms, Major Prophets, Gospels, Epistles, and Revelation (`Genesis 50:20`, `Psalm 23:1-6`, `Psalm 119:105`, `Isaiah 40:27-31`, `Matthew 11:28-30`, `Romans 8:28-39`, `2 Corinthians 1:3-7`, `2 Timothy 3:16-17`, `Hebrews 4:14-16`, `Revelation 21:1-5`), pastoral counseling role, realistic human trials/afflictions, Christ-centered teleology, and aliases (`"counselor"`, `"pastor"`, `"biblical counselor"`, `"whole bible"`, `"wisdom counselor"`).
+     - Defined `author_books=()`: unconstrained author scope signaling whole-canon breadth.
+     - Updated `retrieve_author_scoped_rag`: when `not persona.author_books` (like `whole-bible`), Pass 1 searches the entire 66-book canon with `testament_scope=None`, dynamically retrieving relevant passages across both Old and New Testaments.
+  2. **Mandatory Citation Bracket Enforcement Engine (`core/persona.py`, `core/__init__.py`)**:
+     - Implemented `enforce_citation_brackets(text: str) -> str`: parses bare and parenthetical Scripture citations (`Romans 8:28`, `(John 3:16)`) and transforms them into standard `[Book Chapter:Verse]` brackets while preserving existing bracketed citations and rejecting non-scripture expressions.
+     - Implemented `extract_scripture_citations(text: str) -> List[str]`: returns an ordered, deduplicated list of canonical Scripture citations extracted from bracketed text, validating against canonical books and rejecting bare numbers/verse numbers.
+     - Implemented `render_citation_reader_links(text: str, base_url="#passage=", as_html=False) -> str`: transforms `[Book Chapter:Verse]` brackets into Markdown hyperlinks `[Ref](url)` or interactive HTML `<a>` tags (`class="citation-reader-link" data-ref="Ref"`).
+     - Updated `generate_persona_system_prompt()` to include non-negotiable Guardrail #5: *"Mandatory Scripture Citation Formatting: Whenever you quote, cite, or reference Holy Scripture in your speech, you MUST ALWAYS format the reference enclosed in square brackets: `[Book Chapter:Verse]`."*
+     - Enforced citation bracket transformation across `say()`, `say_stream()`, and `_build_offline_response()` for both live Gemini responses and offline profiles.
+  3. **Data Model & Transcript Reader Hyperlinking (`core/persona.py`)**:
+     - Enriched `PersonaDialogueResponse` and `DialogueTurn` with `citations: List[str]` and `text_with_reader_links()`.
+     - Updated `DialogueTranscript.to_markdown()` to format both dialogue turns and the `## Exegetical Reference Matrix (Reader Split-Screen Links)` with clickable reader hyperlinks.
+  4. **Web UI Split-Screen Reader Pane Integration (`web/static/app.js`, `web/static/style.css`, `web/server.py`)**:
+     - Updated `/api/chat/persona` response to include `citations` and `text_with_links`.
+     - Added `formatContentWithReaderLinks` in `web/static/app.js` and attached interactive click handlers to `.citation-reader-link` elements.
+     - Implemented `openSplitScreenReaderPassage(ref)`: loads the clicked passage asynchronously via `/api/passage` and renders a live, dismissible `#persona-split-reader-card` directly in the right-hand column (`persona-ref-body`) of the Persona Studio, enabling split-screen reading without navigating away from the chat.
+     - Added gold illuminated styling for `.citation-reader-link` and card styling for `.persona-split-reader-card` in `web/static/style.css`.
+  5. **Hermetic Verification & Coverage (`tests/test_persona.py`)**:
+     - Added `TestWholeBibleCounselor`, `TestCitationEnforcementAndReaderLinks`, and `TestWholeBibleCounselorSession` (17 new test cases verifying persona registration, aliases, whole-bible RAG retrieval, bracket enforcement, parentheticals, multiword books, citation extraction, markdown/html rendering, offline responses, and live turn bracket enforcement).
+     - 1,088 tests passing 100% across all 48 modules in 9.4s; system doctor 100% EXCELLENT; linter 100% clean.
+- **Consequences**:
+  - Completes Task 9.2 on the roadmap.
+  - Users can consult the Whole Bible Counselor for pastoral counsel grounded across the entire 66-book canon.
+  - All persona responses strictly format citations in `[Book Chapter:Verse]`, allowing instant split-screen reading in both Web UI and Markdown transcripts.
+  - 100% Zero-Dependency compliance per ADR-003.
+

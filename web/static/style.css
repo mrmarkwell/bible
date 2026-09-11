@@ -2376,6 +2376,24 @@ kbd {
   background: var(--gold-glow);
 }
 
+.citation-reader-link {
+  color: var(--gold-bright);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--gold-primary);
+  padding: 0 2px;
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.citation-reader-link:hover {
+  color: #FFE082;
+  background: var(--gold-badge-bg);
+  border-bottom-style: solid;
+  text-shadow: 0 0 8px var(--gold-glow);
+}
+
 /* Chat Input Bar */
 .persona-chat-input-bar {
   padding: 14px 18px;
@@ -2450,6 +2468,20 @@ kbd {
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-secondary);
+}
+
+.persona-split-reader-card {
+  border: 1px solid var(--gold-primary);
+  background: var(--bg-card);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.persona-split-reader-card .reader-vnum {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold-primary);
+  vertical-align: super;
+  margin-right: 2px;
 }
 
 .persona-key-passages-list {

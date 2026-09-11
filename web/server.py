@@ -1769,6 +1769,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "model": dialogue_resp.model,
                 "latency_seconds": dialogue_resp.latency_seconds,
                 "grounded_passages": dialogue_resp.grounded_passages,
+                "citations": dialogue_resp.citations,
+                "text_with_links": dialogue_resp.text_with_reader_links(base_url="#passage="),
                 "turn_count": session.turn_count,
                 "history": [{"role": m.role, "content": m.content} for m in session.history],
                 "offline_fallback": dialogue_resp.offline_fallback,

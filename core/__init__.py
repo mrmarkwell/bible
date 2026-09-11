@@ -129,8 +129,11 @@ from core.persona import (
     create_persona_session,
     generate_persona_system_prompt,
     get_persona_definition,
+    enforce_citation_brackets,
+    extract_scripture_citations,
     list_canonical_personas,
     load_character_scripture_passages,
+    render_citation_reader_links,
     retrieve_author_scoped_rag,
 )
 
@@ -670,6 +673,9 @@ __all__ = [
     "get_persona_definition",
     "list_canonical_personas",
     "load_character_scripture_passages",
+    "enforce_citation_brackets",
+    "extract_scripture_citations",
+    "render_citation_reader_links",
     "retrieve_author_scoped_rag",
     # 2D Projection & Semantic Scatter Map (Task 4.7)
     "DEFAULT_MAP_HEIGHT",
