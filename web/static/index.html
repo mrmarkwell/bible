@@ -95,7 +95,7 @@
         <nav class="nav-tabs" role="tablist">
           <button class="nav-tab active" data-view="passage" role="tab" aria-selected="true">Passage</button>
           <button class="nav-tab" data-view="search" role="tab" aria-selected="false">Search</button>
-          <button class="nav-tab" data-view="rag" role="tab" aria-selected="false">RAG Study</button>
+          <button class="nav-tab" data-view="rag" role="tab" aria-selected="false" title="Ask the Bible — Theological Inquiry Studio">Ask the Bible</button>
           <button class="nav-tab" data-view="persona" role="tab" aria-selected="false">Dialogue</button>
           <button class="nav-tab" data-view="similar" role="tab" aria-selected="false" title="Semantic Concordance &amp; Vector Similarity">Concordance</button>
           <button class="nav-tab" data-view="topics" role="tab" aria-selected="false">Topics</button>
@@ -180,23 +180,25 @@
           <div class="search-results-list" id="search-results-list"></div>
         </div>
 
-        <!-- Tab: RAG Scripture Study Controls -->
+        <!-- Tab: Ask the Bible Theological Inquiry Studio Controls -->
         <div class="view-panel hidden" id="panel-rag" role="tabpanel">
           <div class="canon-summary-card">
-            <h4>TGC Scripture RAG Engine</h4>
-            <p class="canon-summary-text">Dual-horizon inquiry combining FTS5 lexical search, semantic tag intersection, and cross-reference expansion.</p>
+            <h4>Ask the Bible · Inquiry Studio</h4>
+            <p class="canon-summary-text">Dual-horizon Scripture RAG inquiries combining dense vector semantics, FTS5 lexical matching, and typological knowledge graphs.</p>
           </div>
           <div class="form-group">
-            <label for="input-rag-query">Theological Inquiry</label>
+            <label for="input-rag-query">Theological Inquiry / Question</label>
             <div class="input-with-action">
               <input type="text" id="input-rag-query" placeholder="e.g. How does Jesus fulfill the Day of Atonement?" value="Trace the theme of the temple from Eden to the New Jerusalem" spellcheck="false" autocomplete="off">
-              <button class="btn btn-primary" id="btn-run-rag">Analyze</button>
+              <button class="btn btn-primary" id="btn-run-rag">Inquire</button>
             </div>
             <div class="quick-chips">
               <span class="chip chip-gold" data-rag="Trace the theme of the temple from Eden to the New Jerusalem">Temple Motif</span>
               <span class="chip chip-gold" data-rag="How does Jesus fulfill the Day of Atonement?">Day of Atonement</span>
-              <span class="chip chip-gold" data-rag="Justification by faith alone in Romans and Galatians">Justification</span>
               <span class="chip chip-gold" data-rag="The Davidic Covenant and Christological kingship">Davidic Covenant</span>
+              <span class="chip chip-gold" data-rag="Justification by faith alone in Romans and Galatians">Justification</span>
+              <span class="chip chip-gold" data-rag="The Suffering Servant in Isaiah 53 and New Testament fulfillment">Suffering Servant</span>
+              <span class="chip chip-gold" data-rag="Resurrection hope and cosmic new creation">Resurrection</span>
             </div>
           </div>
           <div class="form-group">
@@ -852,14 +854,21 @@
           </div>
         </section>
 
-        <!-- Dynamic RAG Scripture Study Stage (active in 'rag' view) -->
+        <!-- Ask the Bible Theological Inquiry Studio Stage (active in 'rag' view) -->
         <section class="rag-study-stage hidden" id="rag-study-stage">
           <div class="rag-stage-header">
             <div class="rag-stage-titles">
-              <h2 class="rag-stage-heading">TGC Dual-Horizon Scripture RAG Synthesis</h2>
-              <p class="rag-stage-subheading">Context-grounded theological synthesis across canonical epochs and redemptive thematic ribbons.</p>
+              <h2 class="rag-stage-heading">Ask the Bible · Theological Inquiry Studio</h2>
+              <p class="rag-stage-subheading">Context-grounded theological synthesis side-by-side with retrieved pericopes, typological links, and reciprocal rank fusion scores.</p>
             </div>
             <div class="rag-stage-status-pills">
+              <button class="action-btn btn-gold" id="btn-rag-copy-answer" title="Copy Synthesized Answer to Clipboard">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                <span>Copy Answer</span>
+              </button>
               <span class="badge badge-version" id="rag-stage-api-badge">Gemini Model</span>
               <span class="badge badge-count" id="rag-stage-verses-badge">0 verses retrieved</span>
             </div>
@@ -867,11 +876,14 @@
 
           <!-- Split-screen Stage: Left Scripture Grounding Column, Right Exegetical Notes Column -->
           <div class="rag-split-container">
-            <!-- Left: Grounded Canonical Passages Column -->
+            <!-- Left: Grounded Canonical Passages & Pericopes Column -->
             <div class="rag-scripture-column">
               <div class="rag-column-header">
-                <h3>Grounded Scripture Passages</h3>
-                <span class="count-pill" id="rag-grounded-count">0</span>
+                <h3>Retrieved Pericopes &amp; Grounding</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <span class="badge badge-version" id="rag-fusion-badge">RRF Ranked</span>
+                  <span class="count-pill" id="rag-grounded-count">0</span>
+                </div>
               </div>
               <div class="rag-passages-stream" id="rag-passages-stream">
                 <div class="loading-state">Submit a theological inquiry or select a preset topic from the sidebar.</div>
@@ -887,8 +899,8 @@
               <div class="rag-notes-content" id="rag-notes-content">
                 <div class="rag-empty-prompt">
                   <div class="brand-icon" style="justify-content: center; margin-bottom: 12px;">✦</div>
-                  <h4>Dual-Horizon Inquiry Engine</h4>
-                  <p>Inquire along redemptive history and across systematic doctrine. The RAG engine retrieves lexical, semantic, and typological verses, then synthesizes Christ-centered insights grounded in The Gospel Coalition Foundation Documents.</p>
+                  <h4>Ask the Bible · Dual-Horizon Inquiry</h4>
+                  <p>Inquire along redemptive history and systematic theology. The RAG engine retrieves dense vector semantics, lexical FTS5 matches, and typological links via Reciprocal Rank Fusion, synthesizing Christ-centered answers grounded in Scripture.</p>
                 </div>
               </div>
             </div>

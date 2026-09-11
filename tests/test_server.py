@@ -936,6 +936,66 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("renderChatHistory", js_text)
         self.assertIn("appendChatBubble", js_text)
 
+    def test_web_ui_ask_the_bible_inquiry_studio(self) -> None:
+        """Verify Web UI 'Ask the Bible' Theological Inquiry Studio components (Task 9.4)."""
+        # 1. Verify index.html navigation, studio headings, and action buttons
+        status, _, body = self._get("/")
+        self.assertEqual(status, 200)
+        html_text = body.decode("utf-8")
+        self.assertIn("Ask the Bible", html_text)
+        self.assertIn('title="Ask the Bible — Theological Inquiry Studio"', html_text)
+        self.assertIn("Ask the Bible · Inquiry Studio", html_text)
+        self.assertIn("Ask the Bible · Theological Inquiry Studio", html_text)
+        self.assertIn('id="btn-rag-copy-answer"', html_text)
+        self.assertIn('id="rag-fusion-badge"', html_text)
+        self.assertIn("Retrieved Pericopes &amp; Grounding", html_text)
+
+        # 2. Verify style.css rules for RRF scoring, typological arcs, and markdown citations
+        status, _, body = self._get("/style.css")
+        self.assertEqual(status, 200)
+        css_text = body.decode("utf-8")
+        self.assertIn(".rag-rrf-container", css_text)
+        self.assertIn(".rag-rrf-rank", css_text)
+        self.assertIn(".rag-rrf-score", css_text)
+        self.assertIn(".rag-rrf-bar", css_text)
+        self.assertIn(".rag-rrf-bar-fill", css_text)
+        self.assertIn(".rag-passage-christology", css_text)
+        self.assertIn(".christology-icon", css_text)
+        self.assertIn(".rag-typology-section", css_text)
+        self.assertIn(".rag-typology-title", css_text)
+        self.assertIn(".rag-typology-card", css_text)
+        self.assertIn(".rag-typology-ref", css_text)
+        self.assertIn(".rag-citation-link", css_text)
+        self.assertIn(".rag-offline-dossier", css_text)
+
+        # 3. Verify app.js implementation of Inquiry Studio functions
+        status, _, body = self._get("/app.js")
+        self.assertEqual(status, 200)
+        js_text = body.decode("utf-8")
+        self.assertIn("formatRagMarkdown", js_text)
+        self.assertIn("attachCitationLinks", js_text)
+        self.assertIn("rag-rrf-container", js_text)
+        self.assertIn("rag-rrf-rank", js_text)
+        self.assertIn("rag-passage-christology", js_text)
+        self.assertIn("rag-typology-section", js_text)
+        self.assertIn("btnRagCopyAnswer", js_text)
+
+        # 4. Verify /api/rag endpoint returns rich pericope fields for Inquiry Studio
+        status, rag_data = self._get_json("/api/rag?q=temple+presence")
+        self.assertEqual(status, 200)
+        self.assertIn("context", rag_data)
+        context = rag_data["context"]
+        self.assertIn("passages", context)
+        self.assertIn("fusion_method", context)
+        if context["passages"]:
+            first_p = context["passages"][0]
+            self.assertIn("score", first_p)
+            self.assertIn("reference", first_p)
+            self.assertIn("typological_arcs", first_p)
+            self.assertIn("christological_fulfillment", first_p)
+            self.assertIn("central_proposition", first_p)
+            self.assertIn("pericope_title", first_p)
+
     def test_web_api_map_endpoints(self) -> None:
         """Verify /api/map and /api/map/svg REST endpoints."""
         # 1. JSON endpoint /api/map

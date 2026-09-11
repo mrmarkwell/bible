@@ -125,8 +125,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const ragStageApiBadge = document.getElementById("rag-stage-api-badge");
   const ragStageVersesBadge = document.getElementById("rag-stage-verses-badge");
   const ragGroundedCount = document.getElementById("rag-grounded-count");
-  const ragPassagesStream = document.getElementById("rag-passages-stream");
   const ragNotesContent = document.getElementById("rag-notes-content");
+  const btnRagCopyAnswer = document.getElementById("btn-rag-copy-answer");
+  let lastRagSynthesizedAnswer = "";
 
   // DOM Elements - Biblical Character Dialogue Studio Stage & Sidebar
   const selectPersonaCharacter = document.getElementById("select-persona-character");
@@ -2294,8 +2295,69 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Dynamic Scripture RAG Study & Split-Screen Synthesis
+  // Ask the Bible · Theological Inquiry Studio & Dynamic Split-Screen Synthesis
   // -------------------------------------------------------------------------
+  function formatRagMarkdown(text) {
+    if (!text) return "";
+    let safe = escapeHtml(text);
+
+    // Markdown headers
+    safe = safe.replace(/^### (.*$)/gim, '<h4>$1</h4>');
+    safe = safe.replace(/^## (.*$)/gim, '<h3>$1</h3>');
+    safe = safe.replace(/^# (.*$)/gim, '<h3>$1</h3>');
+
+    // Bold and italics
+    safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    safe = safe.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Blockquotes
+    safe = safe.replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+    // Lists
+    safe = safe.replace(/^[*-] (.*$)/gim, '<li>$1</li>');
+    safe = safe.replace(/(<li>[\s\S]*?<\/li>)/gim, '<ul>$1</ul>');
+    safe = safe.replace(/<\/ul>\s*<ul>/g, '');
+
+    // Scripture citations with square brackets: [Book Chapter:Verse(-Verse)?]
+    safe = safe.replace(/\[((?:[1-3]\s+)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?\s+\d+:\d+(?:-\d+)?)\]/g, (match, citation) => {
+      return `<span class="rag-citation-link" data-citation="${citation}">[${citation}]</span>`;
+    });
+
+    // Parenthesized citations: (Book Chapter:Verse)
+    safe = safe.replace(/\(((?:[1-3]\s+)?[A-Za-z]+(?:\s+of\s+[A-Za-z]+)?\s+\d+:\d+(?:-\d+)?)\)/g, (match, citation) => {
+      return `(<span class="rag-citation-link" data-citation="${citation}">${citation}</span>)`;
+    });
+
+    // Paragraph structure
+    const paragraphs = safe.split(/\n\n+/).map(p => {
+      p = p.trim();
+      if (!p) return "";
+      if (p.startsWith("<h") || p.startsWith("<ul") || p.startsWith("<blockquote") || p.startsWith("<div")) {
+        return p;
+      }
+      return `<p>${p.replace(/\n/g, "<br>")}</p>`;
+    }).filter(Boolean);
+
+    return paragraphs.join("");
+  }
+
+  function attachCitationLinks(container) {
+    if (!container) return;
+    container.querySelectorAll(".rag-citation-link").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const cit = link.getAttribute("data-citation");
+        if (cit) {
+          const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+          if (passageTab) passageTab.click();
+          if (inputRef) inputRef.value = cit;
+          fetchPassage(cit);
+          showToast(`Opened ${cit}`);
+        }
+      });
+    });
+  }
+
   async function executeRAGStudy() {
     const query = inputRagQuery ? inputRagQuery.value.trim() : "";
     if (!query) return;
@@ -2309,10 +2371,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const fusion = selectRagFusion ? selectRagFusion.value : "rrf";
 
     if (ragPassagesStream) {
-      ragPassagesStream.innerHTML = '<div class="loading-state">Retrieving dual-horizon scripture context...</div>';
+      ragPassagesStream.innerHTML = '<div class="loading-state">Retrieving dual-horizon Scripture context via Reciprocal Rank Fusion...</div>';
     }
     if (ragNotesContent) {
-      ragNotesContent.innerHTML = '<div class="loading-state">Synthesizing TGC exegetical study notes...</div>';
+      ragNotesContent.innerHTML = '<div class="loading-state">Synthesizing TGC theological exegetical notes...</div>';
     }
     if (ragSidebarStatsContent) {
       ragSidebarStatsContent.innerHTML = 'Retrieving context across canon...';
@@ -2346,7 +2408,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const totalVerses = data.context ? data.context.total_verses : 0;
 
       if (ragStageVersesBadge) {
-        ragStageVersesBadge.textContent = `${totalVerses} verse${totalVerses === 1 ? '' : 's'} across ${passages.length} passage${passages.length === 1 ? '' : 's'}`;
+        ragStageVersesBadge.textContent = `${totalVerses} verse${totalVerses === 1 ? '' : 's'} · ${passages.length} pericope${passages.length === 1 ? '' : 's'}`;
       }
       if (ragGroundedCount) {
         ragGroundedCount.textContent = passages.length;
@@ -2357,30 +2419,93 @@ document.addEventListener("DOMContentLoaded", () => {
         const epochs = data.detected_epochs || (data.context && data.context.rag_query && data.context.rag_query.detected_epochs) || [];
         const ribbons = data.thematic_ribbons || data.detected_ribbons || (data.context && data.context.rag_query && data.context.rag_query.detected_ribbons) || [];
         const estTokens = data.context ? data.context.estimated_tokens : 0;
+        const fusionMethod = (data.context && data.context.fusion_method) || fusion || "rrf";
 
         ragSidebarStatsContent.innerHTML = `
-          <p style="font-size: 12px; margin-bottom: 5px;">Grounding: <strong>${passages.length} passages (${totalVerses} verses)</strong></p>
+          <p style="font-size: 12px; margin-bottom: 5px;">Grounding: <strong>${passages.length} pericopes (${totalVerses} verses)</strong></p>
+          <p style="font-size: 12px; margin-bottom: 5px;">Ranking Fusion: <strong style="color: var(--gold-bright); text-transform: uppercase;">${escapeHtml(fusionMethod)}</strong></p>
           <p style="font-size: 12px; margin-bottom: 5px;">Context Size: <strong>~${estTokens} tokens</strong></p>
           ${epochs.length > 0 ? `<p style="font-size: 11.5px; margin-bottom: 4px; color: #70A9F5;">Epochs: ${epochs.join(", ")}</p>` : ''}
           ${ribbons.length > 0 ? `<p style="font-size: 11.5px; color: #B97CF2;">Ribbons: ${ribbons.join(", ")}</p>` : ''}
         `;
       }
 
-      // Render Left Column: Grounded Canonical Scripture Passages
+      // Render Left Column: Grounded Canonical Scripture Passages with RRF Scores and Typological Links
       if (ragPassagesStream) {
         if (passages.length === 0) {
-          ragPassagesStream.innerHTML = '<div class="loading-state">No passages matched this inquiry.</div>';
+          ragPassagesStream.innerHTML = '<div class="loading-state">No canonical pericopes matched this inquiry.</div>';
         } else {
           ragPassagesStream.innerHTML = "";
-          passages.forEach((p) => {
+          passages.forEach((p, idx) => {
             const card = document.createElement("div");
             card.className = "rag-passage-card";
 
             const refDisplay = p.human_ref || p.reference || "Scripture Passage";
-            const scoreVal = typeof p.score === "number" ? p.score : (p.relevance_score || 1.0);
-            const scoreFormatted = Number(scoreVal).toFixed(2);
+            const rrfScore = typeof p.score === "number" ? p.score : (p.relevance_score || 0.0);
+            const scorePct = Math.min(100, Math.max(0, Math.round(rrfScore * 100)));
+            const scoreFormatted = Number(rrfScore).toFixed(3);
             const verseCount = p.verse_count || p.total_verses || (p.verses ? p.verses.length : 0);
 
+            // RRF Rank and Score Display
+            const rrfHtml = `
+              <div class="rag-rrf-container" title="Reciprocal Rank Fusion Score: ${Number(rrfScore).toFixed(4)} (${scorePct}% Match)">
+                <span class="rag-rrf-rank">#${idx + 1}</span>
+                <span class="rag-rrf-score">RRF: ${scoreFormatted}</span>
+                <div class="rag-rrf-bar"><div class="rag-rrf-bar-fill" style="width: ${scorePct}%;"></div></div>
+              </div>
+            `;
+
+            let pericopeHtml = "";
+            if (p.pericope_title) {
+              pericopeHtml = `<div class="rag-passage-pericope-title">✦ ${escapeHtml(p.pericope_title)}</div>`;
+            }
+
+            let propHtml = "";
+            if (p.central_proposition) {
+              propHtml = `<div class="rag-passage-prop"><em>Proposition:</em> "${escapeHtml(p.central_proposition)}"</div>`;
+            }
+
+            let christologyHtml = "";
+            if (p.christological_fulfillment) {
+              christologyHtml = `
+                <div class="rag-passage-christology">
+                  <span class="christology-icon">✝</span>
+                  <strong>Christological Fulfillment:</strong> ${escapeHtml(p.christological_fulfillment)}
+                </div>
+              `;
+            }
+
+            // Typological Links Section
+            let typologyHtml = "";
+            const arcs = p.typological_arcs || [];
+            if (arcs.length > 0) {
+              const arcItems = arcs.map(arc => {
+                const typeRef = arc.type_human_ref || arc.type || "Old Testament Shadow";
+                const antitypeRef = arc.antitype_human_ref || arc.antitype || "New Testament Substance";
+                const corr = arc.theological_correspondence ? `<span class="rag-typology-corr">${escapeHtml(arc.theological_correspondence)}</span>` : '';
+                const warrant = arc.warrant ? `<div class="rag-typology-warrant">${escapeHtml(arc.warrant)}</div>` : '';
+                return `
+                  <div class="rag-typology-card">
+                    <div class="rag-typology-arc-line">
+                      <span class="rag-typology-ref" data-typology-ref="${escapeHtml(typeRef)}" title="Inspect ${escapeHtml(typeRef)}">${escapeHtml(typeRef)}</span>
+                      <span class="rag-typology-arrow">➔</span>
+                      <span class="rag-typology-ref" data-typology-ref="${escapeHtml(antitypeRef)}" title="Inspect ${escapeHtml(antitypeRef)}">${escapeHtml(antitypeRef)}</span>
+                      ${corr}
+                    </div>
+                    ${warrant}
+                  </div>
+                `;
+              }).join("");
+
+              typologyHtml = `
+                <div class="rag-typology-section">
+                  <div class="rag-typology-title"><span class="typology-icon">🏛</span> Typological Connections (${arcs.length})</div>
+                  <div class="rag-typology-list">${arcItems}</div>
+                </div>
+              `;
+            }
+
+            // Badges
             const epochList = (p.storyline_epoch ? [p.storyline_epoch] : []).concat(p.epochs || []);
             const ribbonList = (p.thematic_ribbons || []).concat(p.ribbons || []);
             const lociList = p.theological_loci || [];
@@ -2391,37 +2516,45 @@ document.addEventListener("DOMContentLoaded", () => {
             const lociBadges = lociList.map((l) => `<span class="rag-pill-locus">${escapeHtml(l)}</span>`).join("");
             const reasonBadges = reasonsList.slice(0, 3).map((rs) => `<span class="rag-pill-reason">${escapeHtml(rs)}</span>`).join("");
 
-            let pericopeHtml = "";
-            if (p.pericope_title) {
-              pericopeHtml = `<div class="rag-passage-pericope-title">${escapeHtml(p.pericope_title)}</div>`;
-            }
-
-            let propHtml = "";
-            if (p.central_proposition) {
-              propHtml = `<div class="rag-passage-prop"><em>Proposition:</em> "${escapeHtml(p.central_proposition)}"</div>`;
-            }
-
             card.innerHTML = `
               <div class="rag-passage-header">
-                <span class="rag-passage-ref">${escapeHtml(refDisplay)}</span>
-                <span class="rag-passage-meta">${verseCount}v · score: ${scoreFormatted}</span>
+                <span class="rag-passage-ref" title="Click to view full chapter in reader">${escapeHtml(refDisplay)}</span>
+                ${rrfHtml}
               </div>
               ${pericopeHtml}
               <div class="rag-passage-text">${escapeHtml(p.text || "")}</div>
               ${propHtml}
+              ${christologyHtml}
+              ${typologyHtml}
               ${(epochBadges || ribbonBadges || lociBadges || reasonBadges) ? `<div class="rag-passage-badges">${epochBadges}${ribbonBadges}${lociBadges}${reasonBadges}</div>` : ''}
             `;
 
+            // Click listener on passage ref
             const refEl = card.querySelector(".rag-passage-ref");
             if (refEl) {
               refEl.addEventListener("click", () => {
                 const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
                 if (passageTab) passageTab.click();
-                inputRef.value = refDisplay;
+                if (inputRef) inputRef.value = refDisplay;
                 fetchPassage(refDisplay);
                 showToast(`Opened ${refDisplay}`);
               });
             }
+
+            // Click listeners on typological endpoint references
+            card.querySelectorAll("[data-typology-ref]").forEach((tRef) => {
+              tRef.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                const targetRef = tRef.getAttribute("data-typology-ref");
+                if (targetRef) {
+                  const passageTab = document.querySelector('.nav-tab[data-view="passage"]');
+                  if (passageTab) passageTab.click();
+                  if (inputRef) inputRef.value = targetRef;
+                  fetchPassage(targetRef);
+                  showToast(`Opened ${targetRef}`);
+                }
+              });
+            });
 
             ragPassagesStream.appendChild(card);
           });
@@ -2433,16 +2566,19 @@ document.addEventListener("DOMContentLoaded", () => {
         ragNotesContent.innerHTML = "";
 
         if (data.answer) {
+          lastRagSynthesizedAnswer = data.answer;
+
           const synthesisEl = document.createElement("div");
           synthesisEl.className = "rag-synthesis-text";
-          synthesisEl.textContent = data.answer;
+          synthesisEl.innerHTML = formatRagMarkdown(data.answer);
           ragNotesContent.appendChild(synthesisEl);
+          attachCitationLinks(synthesisEl);
 
           const banner = document.createElement("div");
           banner.className = "rag-theology-banner";
           banner.innerHTML = `
             <span>✦</span>
-            <span>Synthesized under TGC Dual-Horizon Hermeneutics (${data.model || "Gemini"})</span>
+            <span>Synthesized under TGC Dual-Horizon Hermeneutics (${escapeHtml(data.model || "Gemini")}) · Grounded Scripture Context</span>
           `;
           ragNotesContent.appendChild(banner);
         } else if (data.synthesized === false && data.error) {
@@ -2453,20 +2589,72 @@ document.addEventListener("DOMContentLoaded", () => {
           warnEl.textContent = data.error;
           ragNotesContent.appendChild(warnEl);
         } else {
-          // Pure Retrieval Mode (Offline or Unsynthesized)
-          const infoCard = document.createElement("div");
-          infoCard.className = "persona-theological-card";
-          infoCard.innerHTML = `
-            <h4>Grounded Dual-Horizon Context Retrieved</h4>
-            <p>Retrieved <strong>${passages.length} canonical passages</strong> across redemptive history. When GEMINI_API_KEY is configured, this engine synthesizes Christ-centered answers tracing biblical theology across the canon.</p>
+          // Offline Grounded Exegetical Synthesis Dossier
+          const dossierContainer = document.createElement("div");
+          dossierContainer.className = "rag-offline-dossier";
+
+          // Compose structured offline synthesis text
+          let dossierMarkdown = `### Exegetical Synthesis: ${query}\n\n`;
+          dossierMarkdown += `Across the Protestant canon, Scripture addresses this inquiry through progressive revelation unfolding along redemptive history:\n\n`;
+
+          passages.forEach((p, i) => {
+            const ref = p.human_ref || p.reference;
+            const title = p.pericope_title ? ` — *${p.pericope_title}*` : "";
+            dossierMarkdown += `**${i + 1}. [${ref}]**${title}\n`;
+            if (p.central_proposition) {
+              dossierMarkdown += `> *"${p.central_proposition}"*\n\n`;
+            }
+            if (p.christological_fulfillment) {
+              dossierMarkdown += `- **Christological Fulfillment**: ${p.christological_fulfillment}\n`;
+            }
+            if (p.storyline_epoch) {
+              dossierMarkdown += `- **Epoch**: ${p.storyline_epoch}\n`;
+            }
+            dossierMarkdown += `\n`;
+          });
+
+          lastRagSynthesizedAnswer = dossierMarkdown;
+
+          const dossierCard = document.createElement("div");
+          dossierCard.className = "rag-synthesis-text";
+          dossierCard.innerHTML = formatRagMarkdown(dossierMarkdown);
+          dossierContainer.appendChild(dossierCard);
+          attachCitationLinks(dossierCard);
+
+          const infoBanner = document.createElement("div");
+          infoBanner.className = "rag-theology-banner";
+          infoBanner.innerHTML = `
+            <span>✦</span>
+            <span>Local Grounded Synthesis (${passages.length} pericopes, ${totalVerses} verses) · Configure GEMINI_API_KEY for dynamic LLM generation</span>
           `;
-          ragNotesContent.appendChild(infoCard);
+          dossierContainer.appendChild(infoBanner);
+
+          ragNotesContent.appendChild(dossierContainer);
         }
       }
     } catch (err) {
       if (ragPassagesStream) ragPassagesStream.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Error: ${escapeHtml(err.message)}</div>`;
       if (ragNotesContent) ragNotesContent.innerHTML = `<div class="loading-state" style="color: #E74C3C;">Failed to synthesize: ${escapeHtml(err.message)}</div>`;
     }
+  }
+
+  // Copy Synthesized Answer button
+  if (btnRagCopyAnswer) {
+    btnRagCopyAnswer.addEventListener("click", () => {
+      if (!lastRagSynthesizedAnswer) {
+        showToast("No synthesized theological answer to copy yet.");
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(lastRagSynthesizedAnswer).then(() => {
+          showToast("Synthesized answer copied to clipboard!");
+        }).catch(() => {
+          showToast("Synthesized answer ready.");
+        });
+      } else {
+        showToast("Synthesized answer ready.");
+      }
+    });
   }
 
   if (btnRunRag) {
