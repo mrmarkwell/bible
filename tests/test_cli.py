@@ -4,6 +4,7 @@ Zero external dependencies (Python 3 standard library only per ADR-003).
 """
 
 import io
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -1464,6 +1465,66 @@ class TestCliExecution(unittest.TestCase):
             self.assertEqual(kwargs["esv_key"], "key_esv")
             self.assertEqual(kwargs["gemini_key"], "key_gem")
             self.assertFalse(kwargs["probe_keys"])
+
+    def test_cli_init_outputs_key_instructions_and_env_vars(self):
+        """Verify init command prints comprehensive API key instructions and env var exports."""
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr), patch.dict(os.environ, {}, clear=True), \
+             patch("tools.onboarding.discover_esv_api_key", return_value=(None, "not configured")), \
+             patch("tools.onboarding.discover_gemini_api_key", return_value=(None, "not configured")):
+            with patch("core.bootstrap.bootstrap_database") as mock_boot:
+                mock_rep = MagicMock()
+                mock_rep.is_clean = True
+                mock_rep.summary_lines.return_value = ["Summary Line 1"]
+                mock_boot.return_value = mock_rep
+
+                code = main(["init", "--no-wizard"])
+                self.assertEqual(code, 0)
+                out = stdout.getvalue()
+                self.assertIn("API Credentials & Keys Setup (ESV & Gemini)", out)
+                self.assertIn('export ESV_API_KEY="your-esv-api-key"', out)
+                self.assertIn('export GEMINI_API_KEY="your-gemini-api-key"', out)
+                self.assertIn("https://api.esv.org/", out)
+                self.assertIn("https://aistudio.google.com/app/apikey", out)
+                self.assertIn("./bible keys set --esv", out)
+                self.assertIn("./bible keys set --gemini", out)
+
+    def test_cli_init_auto_requests_keys_when_interactive_and_missing(self):
+        """Verify init auto-launches onboarding wizard when run in interactive terminal without configured keys."""
+        with patch("core.bootstrap.bootstrap_database") as mock_boot, \
+             patch("sys.stdin.isatty", return_value=True), \
+             patch.dict(os.environ, {}, clear=True), \
+             patch("tools.onboarding.discover_esv_api_key", return_value=(None, "not configured")), \
+             patch("tools.onboarding.discover_gemini_api_key", return_value=(None, "not configured")):
+            mock_rep = MagicMock()
+            mock_rep.is_clean = True
+            mock_rep.summary_lines.return_value = []
+            mock_boot.return_value = mock_rep
+
+            code = main(["init", "--quiet"])
+            self.assertEqual(code, 0)
+            mock_boot.assert_called_once()
+            kwargs = mock_boot.call_args[1]
+            self.assertTrue(kwargs["onboarding_wizard"])
+
+    def test_cli_init_no_wizard_skips_interactive_prompting(self):
+        """Verify --no-wizard explicitly suppresses interactive onboarding wizard even in interactive terminal."""
+        with patch("core.bootstrap.bootstrap_database") as mock_boot, \
+             patch("sys.stdin.isatty", return_value=True), \
+             patch.dict(os.environ, {}, clear=True), \
+             patch("tools.onboarding.discover_esv_api_key", return_value=(None, "not configured")), \
+             patch("tools.onboarding.discover_gemini_api_key", return_value=(None, "not configured")):
+            mock_rep = MagicMock()
+            mock_rep.is_clean = True
+            mock_rep.summary_lines.return_value = []
+            mock_boot.return_value = mock_rep
+
+            code = main(["init", "--no-wizard", "--quiet"])
+            self.assertEqual(code, 0)
+            mock_boot.assert_called_once()
+            kwargs = mock_boot.call_args[1]
+            self.assertFalse(kwargs["onboarding_wizard"])
 
     def test_cli_translation_help_alignment(self):
         """Verify CLI --help strings consistently document ESV default with offline WEB fallback."""

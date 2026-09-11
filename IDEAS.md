@@ -37,6 +37,14 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Interactive API Key Onboarding and Transparent Credential Guidance in Database Initialization (Rank A+)
+- **Summary**: Implement automatic external API credential onboarding request during `./bible init` when executed in an interactive terminal with missing keys, alongside dedicated credential status and environment variable export instructions (`format_credential_instructions`) displayed in every initialization run. Adds `--no-wizard` flag, incorporates key status into `BootstrapReport.summary_lines`, and outputs copy-pasteable commands (`export ESV_API_KEY="..."`, `export GEMINI_API_KEY="..."`), CLI commands (`./bible keys set`), and links to free API keys.
+- **Rationale**: Resolves GitHub Issue #4 by @mrmarkwell. Fixes the cold-start confusion where new users running `./bible init` were not informed about ESV or Gemini API keys, how to configure them, or that they unlock modern translation text and Scripture RAG.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (bundled World English Bible and offline exegesis remain 100% functional).
+  - Zero third-party dependencies? Yes (Python standard library only).
+- **Status**: Completed in Run 115 (ADR-123 / Resolving Issue #4).
+
 ### [COMPLETED] Sovereign SQLite Storage Compaction, Upsert Idempotency & FTS5 Sentry Parity Architecture (Rank A+)
 - **Summary**: Implement SQLite database compaction, FTS5 virtual table synchronization audits, and idempotent upserts across `core/db.py`, `core/bootstrap.py`, `tools/doctor.py`, `cli/main.py`, and `cli/shell.py`. Replaces `INSERT OR REPLACE` with `ON CONFLICT DO UPDATE` to prevent orphaned ghost records from accumulating in `verses_fts`. Adds `audit_fts_health()`, `rebuild_verses_fts()`, and `compact_database()` methods, auto-healing doctor sentry checks, and `./bible db compact` CLI/REPL commands. Reclaimed **126.5 MB (49.8%)** from `data/bible.db`, shrinking file size from 254.3 MB to 127.8 MB while accelerating test suite latency to 6.99s.
 - **Rationale**: Eliminates silent index bloat that had bloated `data/bible.db` by 86.7% ghost rows, protects repository storage health across generations of autonomous agent runs, and provides on-demand and auto-healing storage compaction.

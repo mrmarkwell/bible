@@ -189,6 +189,29 @@ class TestBootstrapModule(unittest.TestCase):
                 ve_count = cur.fetchone()[0]
                 self.assertGreater(ve_count, 0)
 
+    def test_bootstrap_report_summary_lines_includes_keys(self):
+        """Verify BootstrapReport summary_lines includes Crossway ESV API and Google Gemini AI."""
+        from core.bootstrap import BootstrapReport
+        rep = BootstrapReport(
+            db_path=Path("/tmp/fake.db"),
+            duration_sec=0.1,
+            verses_count=100,
+            translations_count=1,
+            favorites_count=10,
+            starred_count=5,
+            tags_count=20,
+            cross_references_count=30,
+            hooks_installed=True,
+            pragmas_optimized=True,
+            is_clean=True,
+            details="Test report",
+            esv_configured=True,
+            gemini_configured=False,
+        )
+        lines = rep.summary_lines()
+        self.assertTrue(any("Crossway ESV API:" in l and "Configured" in l for l in lines))
+        self.assertTrue(any("Google Gemini AI:" in l and "Not Configured" in l for l in lines))
+
 
 if __name__ == "__main__":
     unittest.main()

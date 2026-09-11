@@ -4584,3 +4584,45 @@ This is an append-only log of work performed by autonomous agents during their e
 - **Handoff Notes for Next Agent**:
   - GitHub Issue #3 is fully resolved with regression test coverage.
   - Project state is clean, healthy, and 100% passing.
+
+---
+
+## [Run 115] — 2026-09-11
+- **Agent**: Ralph Loop Agent (Senior PM Meta-Audit & Priority Issue Resolution Cycle — Cadence Run 115 % 5 == 0)
+- **Priority Addressed**: Mandatory Priority Check — GitHub Issue #4 Triage & Bug Resolution
+- **Issue**: Issue #4: *"./bible init doesn't help me set up keys"*
+- **Author**: @mrmarkwell
+- **Description**: *"Users will not know they need to set up ESV and GEMINI keys. The init process needs to request these or at least instruct the client how to set them as env variables."*
+- **Cadence Protocol (Senior PM Meta-Audit & Resolution)**:
+  1. **"What is the weakest aspect of this project structure?"**
+     - *Silent Cold-Start Initialization*: When new users or development agents cloned the repository and ran `./bible init`, the command executed an idempotent no-op in <0.8s because `data/bible.db` was already present. It never mentioned external API keys, never informed users that ESV and Gemini keys unlock modern translation text and Scripture RAG, and never instructed users how to configure environment variables.
+  2. **"What is preventing this from being more incredible?"**
+     - *Friction in First-Run Ergonomics*: The cold-start experience should proactively request keys when running in an interactive terminal, and in all cases provide immediate, copy-pasteable environment variable export commands (`export ESV_API_KEY="..."`, `export GEMINI_API_KEY="..."`) and links to free API keys, without requiring users to hunt through documentation.
+- **Actions Taken (Rank A+ Meta-Improvement Executed)**:
+  1. **Interactive API Key Request in `./bible init` (`cli/main.py`)**:
+     - Updated `cmd_init` in `cli/main.py` to check whether keys are missing in an interactive terminal (`sys.stdin.isatty()` and `BIBLE_TEST_MODE != "1"`).
+     - When keys are missing, `./bible init` automatically launches the interactive onboarding wizard to request ESV and Gemini keys directly.
+     - Added `--no-wizard` flag to allow users or scripts to bypass interactive prompting.
+     - Retained `--wizard` / `-w` to force interactive reconfiguration on demand.
+  2. **Dedicated Credential Instructions & Export Guidance Engine (`tools/onboarding.py`, `core/bootstrap.py`)**:
+     - Implemented `format_credential_instructions()` in `tools/onboarding.py`, producing an illuminated, copy-pasteable instructional block for terminal display.
+     - Displays configuration status and source for both Crossway ESV and Google Gemini keys.
+     - Provides clear environment variable export commands (`export ESV_API_KEY="..."`, `export GEMINI_API_KEY="..."`), CLI storage commands (`./bible keys set --esv/--gemini`), and links to free keys (`https://api.esv.org/`, `https://aistudio.google.com/app/apikey`).
+     - Added `esv_configured` and `gemini_configured` fields to `BootstrapReport` in `core/bootstrap.py`, displaying `Crossway ESV API:` and `Google Gemini AI:` statuses in `BootstrapReport.summary_lines()`.
+     - Integrated `format_credential_instructions()` directly into `cmd_init` output so that every `./bible init` run (interactive or non-interactive) clearly displays credential guidance.
+  3. **Hermetic Regression Test Suite**:
+     - Added `test_cli_init_outputs_key_instructions_and_env_vars`, `test_cli_init_auto_requests_keys_when_interactive_and_missing`, and `test_cli_init_no_wizard_skips_interactive_prompting` in `tests/test_cli.py`.
+     - Added `test_format_credential_instructions_unconfigured` and `test_format_credential_instructions_configured` in `tests/test_onboarding.py`.
+     - Added `test_bootstrap_report_summary_lines_includes_keys` in `tests/test_bootstrap.py`.
+     - Full test suite verified at **1,127 tests across 49 modules passing 100% in 7.089s**.
+  4. **ADR-123 Logged & State Machine Synchronized**:
+     - Formulated and recorded **ADR-123: Interactive API Key Onboarding and Transparent Credential Guidance in Database Initialization (`./bible init`)** in `DECISIONS.md`.
+     - Promoted Rank A+ idea to `[COMPLETED]` in `IDEAS.md`.
+- **Verification**:
+  - Full test runner: **1,127 tests across 49 modules passed 100% in 7.089s**.
+  - `python3 tools/doctor.py --fast`: **100% EXCELLENT** — all diagnostic checks passed in 1.73s.
+  - Issue closed via commit `Fixes #4`.
+- **Handoff Notes for Next Agent**:
+  - GitHub Issue #4 is completely resolved with regression tests.
+  - Project state is clean, healthy, and 100% passing.
+

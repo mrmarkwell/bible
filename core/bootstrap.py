@@ -46,11 +46,15 @@ class BootstrapReport:
     is_clean: bool
     details: str
     pericopes_count: int = 0
+    esv_configured: bool = False
+    gemini_configured: bool = False
 
     def summary_lines(self) -> List[str]:
         """Generate human-readable summary lines for CLI display."""
         hooks_text = "Installed" if self.hooks_installed else "Skipped/Inactive"
         pragmas_text = "Complete (PRAGMA optimize)" if self.pragmas_optimized else "Skipped"
+        esv_text = "Configured" if self.esv_configured else "Not Configured (offline WEB fallback)"
+        gem_text = "Configured" if self.gemini_configured else "Not Configured (offline exegesis)"
         return [
             f"Database Path:           {self.db_path}",
             f"Verses Ingested:         {self.verses_count:,} (Bundled Public Domain Translations)",
@@ -59,6 +63,8 @@ class BootstrapReport:
             f"Canonical Tags:          {self.tags_count} (dynamic bottom-up taxonomy ready)",
             f"Canonical Pericopes:     {self.pericopes_count} redemptive section headings",
             f"Cross-Reference Edges:   {self.cross_references_count} canonical OT/NT links",
+            f"Crossway ESV API:        {esv_text}",
+            f"Google Gemini AI:        {gem_text}",
             f"Git Hook Safeguards:     {hooks_text}",
             f"Pragma Optimization:     {pragmas_text}",
             f"Duration:                {self.duration_sec:.2f}s",
@@ -363,6 +369,9 @@ def bootstrap_database(
             hooks_ok, _ = install_hooks(REPO_ROOT)
 
         dur = time.time() - t0
+        from tools.onboarding import discover_esv_api_key, discover_gemini_api_key
+        cur_esv, _ = discover_esv_api_key(REPO_ROOT)
+        cur_gem, _ = discover_gemini_api_key(REPO_ROOT)
         return BootstrapReport(
             db_path=target_path,
             duration_sec=dur,
@@ -377,6 +386,8 @@ def bootstrap_database(
             is_clean=True,
             details="Database already initialized and healthy (idempotent no-op)",
             pericopes_count=stats.get("total_pericopes", 0),
+            esv_configured=bool(cur_esv),
+            gemini_configured=bool(cur_gem),
         )
 
     # Ensure parent directory exists
@@ -521,6 +532,9 @@ def bootstrap_database(
 
     # Query final verified stats
     final_stats = get_db_stats(target_path)
+    from tools.onboarding import discover_esv_api_key, discover_gemini_api_key
+    cur_esv, _ = discover_esv_api_key(REPO_ROOT)
+    cur_gem, _ = discover_gemini_api_key(REPO_ROOT)
 
     return BootstrapReport(
         db_path=target_path,
@@ -536,4 +550,6 @@ def bootstrap_database(
         is_clean=True,
         details=f"Successfully compiled and bootstrapped in {dur:.2f}s",
         pericopes_count=final_stats["total_pericopes"],
+        esv_configured=bool(cur_esv),
+        gemini_configured=bool(cur_gem),
     )

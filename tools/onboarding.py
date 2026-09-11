@@ -401,6 +401,68 @@ def get_credential_status(probe: bool = False) -> Dict[str, Any]:
     return status
 
 
+def format_credential_instructions(repo_root: Optional[Path] = None) -> str:
+    """Generate clear, copy-pasteable instructions for setting ESV and Gemini API keys.
+
+    Includes current configuration status and explicit guidance on setting environment variables,
+    using CLI configuration, or obtaining free API keys from Crossway and Google AI Studio.
+
+    Args:
+        repo_root: Optional path to repository root.
+
+    Returns:
+        Formatted multi-line string suitable for terminal display.
+    """
+    root = repo_root or REPO_ROOT
+    esv_key, esv_source = discover_esv_api_key(root)
+    gem_key, gem_source = discover_gemini_api_key(root)
+
+    lines = [
+        "=" * 65,
+        " 🔑 API Credentials & Keys Setup (ESV & Gemini)",
+        "=" * 65,
+    ]
+
+    # ESV
+    if esv_key:
+        lines.append(" • Crossway ESV API Key:")
+        lines.append(f"   Status:  CONFIGURED via {esv_source} ({mask_api_key(esv_key)})")
+    else:
+        lines.append(" • Crossway ESV API Key:")
+        lines.append("   Status:  NOT CONFIGURED (defaulting to bundled World English Bible)")
+        lines.append("   Why:     Unlocks modern English Standard Version text (Crossway)")
+        lines.append("   To set as environment variable:")
+        lines.append('     export ESV_API_KEY="your-esv-api-key"')
+        lines.append("   Or save locally in config:")
+        lines.append('     ./bible keys set --esv "your-esv-api-key"')
+        lines.append("   Get a free personal API key at: https://api.esv.org/")
+
+    lines.append("")
+
+    # Gemini
+    if gem_key:
+        lines.append(" • Google Gemini API Key:")
+        lines.append(f"   Status:  CONFIGURED via {gem_source} ({mask_api_key(gem_key)})")
+    else:
+        lines.append(" • Google Gemini API Key:")
+        lines.append("   Status:  NOT CONFIGURED (Scripture RAG & character dialogue offline)")
+        lines.append("   Why:     Unlocks dynamic Scripture RAG synthesis and Character Dialogue")
+        lines.append("   To set as environment variable:")
+        lines.append('     export GEMINI_API_KEY="your-gemini-api-key"')
+        lines.append("   Or save locally in config:")
+        lines.append('     ./bible keys set --gemini "your-gemini-api-key"')
+        lines.append("   Get a free personal API key at: https://aistudio.google.com/app/apikey")
+
+    lines.append("")
+    if not esv_key or not gem_key:
+        lines.append(" Tip: Run './bible init --wizard' or './bible keys wizard' to configure interactively.")
+    else:
+        lines.append(" All external API keys configured! Run './bible keys status --probe' to test connectivity.")
+    lines.append("=" * 65)
+
+    return "\n".join(lines)
+
+
 def run_onboarding_wizard(
     repo_root: Optional[Path] = None,
     interactive: bool = True,
@@ -456,9 +518,10 @@ def run_onboarding_wizard(
         else:
             clear_api_key("esv", repo_root=root)
             _print("  [Cleared] ESV API Key configuration removed.")
-    elif interactive and sys.stdin.isatty():
+    elif interactive and (sys.stdin.isatty() or input_fn is not None):
         _print("\n--- [Step 1/2] English Standard Version (ESV) API Key ---")
         _print("  Obtain a free personal API key at: https://api.esv.org/")
+        _print('  (Or set later via environment variable: export ESV_API_KEY="...")')
         if cur_esv:
             _print(f"  Current Status: Configured via {cur_esv_src} ({mask_api_key(cur_esv)})")
             prompt_str = "  Enter new ESV API Key (or press Enter to keep current, 'clear' to remove): "
@@ -488,9 +551,10 @@ def run_onboarding_wizard(
         else:
             clear_api_key("gemini", repo_root=root)
             _print("  [Cleared] Gemini API Key configuration removed.")
-    elif interactive and sys.stdin.isatty():
+    elif interactive and (sys.stdin.isatty() or input_fn is not None):
         _print("\n--- [Step 2/2] Google Gemini API Key ---")
         _print("  Obtain a free personal API key at: https://aistudio.google.com/app/apikey")
+        _print('  (Or set later via environment variable: export GEMINI_API_KEY="...")')
         if cur_gem:
             _print(f"  Current Status: Configured via {cur_gem_src} ({mask_api_key(cur_gem)})")
             prompt_str = "  Enter new Gemini API Key (or press Enter to keep current, 'clear' to remove): "

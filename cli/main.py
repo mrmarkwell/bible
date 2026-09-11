@@ -2275,7 +2275,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--wizard",
         "-w",
         action="store_true",
+        default=None,
         help="Launch interactive API key onboarding wizard (ESV and Gemini exegesis)",
+    )
+    parser_init.add_argument(
+        "--no-wizard",
+        action="store_true",
+        default=False,
+        help="Skip interactive API key setup wizard",
     )
     parser_init.add_argument(
         "--esv-key",
@@ -2303,15 +2310,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     def cmd_init(args: argparse.Namespace) -> int:
         from core.bootstrap import bootstrap_database
+        from tools.onboarding import (
+            discover_esv_api_key,
+            discover_gemini_api_key,
+            format_credential_instructions,
+        )
         db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
         force = getattr(args, "force", False)
         quick = getattr(args, "quick", False)
         no_hooks = getattr(args, "no_hooks", False)
         quiet = getattr(args, "quiet", False)
-        wizard = getattr(args, "wizard", False)
+        raw_wizard = getattr(args, "wizard", None)
+        no_wizard = getattr(args, "no_wizard", False)
         esv_key = getattr(args, "esv_key", None)
         gemini_key = getattr(args, "gemini_key", None)
         probe_keys = not getattr(args, "no_probe", False)
+
+        is_interactive_term = sys.stdin.isatty() and os.environ.get("BIBLE_TEST_MODE") != "1"
+        if raw_wizard is True:
+            wizard = True
+        elif no_wizard:
+            wizard = False
+        elif esv_key is not None or gemini_key is not None:
+            wizard = False
+        else:
+            # If not explicitly specified, auto-launch wizard if interactive terminal and keys are missing
+            cur_esv, _ = discover_esv_api_key()
+            cur_gem, _ = discover_gemini_api_key()
+            wizard = is_interactive_term and (not cur_esv or not cur_gem)
 
         if not quiet:
             mode_str = " (Quick/Sample Mode)" if quick else ""
@@ -2338,6 +2364,8 @@ def build_parser() -> argparse.ArgumentParser:
             for line in rep.summary_lines():
                 print(f" {line}")
             print("=" * 65 + "\n")
+            print(format_credential_instructions())
+            print()
 
         return 0 if rep.is_clean else 1
 

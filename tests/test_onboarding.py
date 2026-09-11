@@ -24,6 +24,7 @@ from tools.onboarding import (
     clear_api_key,
     discover_esv_api_key,
     discover_gemini_api_key,
+    format_credential_instructions,
     get_credential_status,
     main,
     mask_api_key,
@@ -326,6 +327,27 @@ class TestOnboarding(unittest.TestCase):
             exit_clear = main(["clear", "all"])
             self.assertEqual(exit_clear, 0)
             self.assertFalse(esv_f.exists())
+
+    def test_format_credential_instructions_unconfigured(self):
+        """Verify format_credential_instructions provides clear guidance on env vars and URLs when missing."""
+        with patch.dict(os.environ, {}, clear=True):
+            text = format_credential_instructions(repo_root=self.test_root)
+            self.assertIn("API Credentials & Keys Setup", text)
+            self.assertIn("NOT CONFIGURED", text)
+            self.assertIn('export ESV_API_KEY="your-esv-api-key"', text)
+            self.assertIn('export GEMINI_API_KEY="your-gemini-api-key"', text)
+            self.assertIn("https://api.esv.org/", text)
+            self.assertIn("https://aistudio.google.com/app/apikey", text)
+            self.assertIn("./bible keys set --esv", text)
+            self.assertIn("./bible keys set --gemini", text)
+            self.assertIn("./bible init --wizard", text)
+
+    def test_format_credential_instructions_configured(self):
+        """Verify format_credential_instructions reflects configured keys correctly."""
+        with patch.dict(os.environ, {"ESV_API_KEY": "test_esv_val", "GEMINI_API_KEY": "test_gem_val"}):
+            text = format_credential_instructions(repo_root=self.test_root)
+            self.assertIn("CONFIGURED", text)
+            self.assertIn("All external API keys configured", text)
 
 
 if __name__ == "__main__":

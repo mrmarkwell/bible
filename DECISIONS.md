@@ -4148,3 +4148,39 @@ This document is an append-only log of significant design and architectural deci
   - Completely fixes GitHub Issue #3.
   - The `#rag` endpoint and all other views maintain permanent, visible, sticky navigation.
   - Zero external dependencies preserved per ADR-003.
+
+---
+
+## ADR-123: Interactive API Key Onboarding and Transparent Credential Guidance in Database Initialization (`./bible init`) (Resolving GitHub Issue #4)
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - GitHub Issue #4 reported by @mrmarkwell: *"./bible init doesn't help me set up keys. Users will not know they need to set up ESV and GEMINI keys. The init process needs to request these or at least instruct the client how to set them as env variables."*
+  - Prior to this change, `./bible init` operated with `--wizard` defaulting to False. When a user cloned the repository and ran `./bible init`, if the database was already healthy, the command completed as an idempotent no-op in <0.8s without mentioning external API keys, without requesting them, and without providing instructions on setting `ESV_API_KEY` or `GEMINI_API_KEY` as environment variables.
+  - While the README mentioned that keys were configured during `./bible init`, the CLI did not actually prompt for them or output credential configuration guidance.
+- **Decision**:
+  1. **Automatic Interactive Key Request in `./bible init` (`cli/main.py`)**:
+     - Updated `cmd_init` in `cli/main.py` to auto-detect whether external API keys (ESV or Gemini) are missing when running in an interactive terminal (`sys.stdin.isatty()` and `BIBLE_TEST_MODE != "1"`).
+     - When keys are missing and neither `--no-wizard` nor explicit keys are provided, `./bible init` automatically launches the interactive onboarding wizard to request the keys directly from the user.
+     - Added `--no-wizard` flag to explicitly skip interactive prompting while still performing database initialization.
+     - Preserved `--wizard` / `-w` to force interactive reconfiguration even when keys already exist.
+  2. **Dedicated Credential Instructions & Environment Variable Export Guidance (`tools/onboarding.py`, `core/bootstrap.py`)**:
+     - Implemented `format_credential_instructions()` in `tools/onboarding.py`, generating a structured, formatted display of:
+       - Current configuration status of Crossway ESV and Google Gemini API keys (source and masked key if configured).
+       - Explicit copy-pasteable environment variable instructions (`export ESV_API_KEY="your-key"`, `export GEMINI_API_KEY="your-key"`).
+       - CLI configuration options (`./bible keys set --esv "..."`, `./bible keys set --gemini "..."`).
+       - Canonical links to obtain free personal API keys (`https://api.esv.org/`, `https://aistudio.google.com/app/apikey`).
+       - Clear guidance on re-running the interactive wizard (`./bible init --wizard` or `./bible keys wizard`).
+     - Added `esv_configured` and `gemini_configured` fields to `BootstrapReport` in `core/bootstrap.py`, displaying `Crossway ESV API:` and `Google Gemini AI:` statuses in `BootstrapReport.summary_lines()`.
+     - Integrated `format_credential_instructions()` directly into `cmd_init` output so that every `./bible init` run (interactive or non-interactive) clearly displays credential guidance.
+  3. **Hermetic Regression Test Coverage (`tests/test_cli.py`, `tests/test_onboarding.py`, `tests/test_bootstrap.py`)**:
+     - Added `test_cli_init_outputs_key_instructions_and_env_vars` verifying that `./bible init --no-wizard` outputs `export ESV_API_KEY=`, `export GEMINI_API_KEY=`, and canonical URLs.
+     - Added `test_cli_init_auto_requests_keys_when_interactive_and_missing` verifying auto-launch of wizard in interactive terminals.
+     - Added `test_cli_init_no_wizard_skips_interactive_prompting` verifying `--no-wizard` suppresses prompting.
+     - Added `test_format_credential_instructions_unconfigured` and `test_format_credential_instructions_configured` in `tests/test_onboarding.py`.
+     - Added `test_bootstrap_report_summary_lines_includes_keys` in `tests/test_bootstrap.py`.
+- **Consequences**:
+  - Completely resolves GitHub Issue #4.
+  - New and existing users running `./bible init` receive immediate, helpful prompting to set up keys, or clear copy-pasteable instructions on setting environment variables.
+  - 100% Zero-Dependency compliance strictly maintained per ADR-003.
+  - Test suite expanded to 1,127 tests passing hermetically in ~7s.
