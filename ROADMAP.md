@@ -6,7 +6,7 @@ This document is the single source of truth for current project status, active t
 
 ## Current Status Overview
 - **Active Phase**: Phase 9: Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI
-- **Overall Progress**: 104 Completed / 106 Total Tasks Tracked across 10 Phases (98.1%)
+- **Overall Progress**: 105 Completed / 107 Total Tasks Tracked across 10 Phases (98.1%)
 - **Architecture Mandate**: **Zero External Dependencies** (Python standard library only + Vanilla HTML/CSS/JS). No npm, no pip dependencies, zero Dependabot alerts.
 
 ---
@@ -51,6 +51,7 @@ This document is the single source of truth for current project status, active t
 - [x] **Task 0.35**: Implement Sovereign Omnichannel Platform Status Dashboard & Test Suite Latency Decoupling Architecture (`core/status.py`, `cli/main.py`, `cli/shell.py`, `web/server.py`, `tools/test_runner.py`, `tests/test_status.py`, ADR-108). *(Run 100 / Senior PM Double Milestone)*
 - [x] **Task 0.36**: Implement Automated 2D Vector Projection Pipeline & Whole-Bible Scatter Atlas Verification Architecture in vector compiler and System Doctor (`tools/build_vector_db.py`, `cli/main.py`, `tools/doctor.py`, `tests/test_build_vector_db.py`, `tests/test_doctor.py`, ADR-113). *(Run 105 / Senior PM Cleanup Sprint)*
 - [x] **Task 0.37**: Implement Sovereign Omnichannel Exegetical Study Dossier, Multi-Modal Passage Research Packet & Dynamic Theological Synthesis Engine (`core/dossier.py`, `cli/main.py`, `cli/shell.py`, `web/server.py`, `tests/test_dossier.py`, ADR-118). *(Run 110 / Senior PM Double Milestone)*
+- [x] **Task 0.38**: Implement Sovereign SQLite Storage Compactor, Upsert Idempotency & FTS5 Sentry Parity Architecture (`core/db.py`, `core/bootstrap.py`, `tools/doctor.py`, `cli/main.py`, `cli/shell.py`, `core/status.py`, ADR-119). *(Run 111 / Senior PM Cleanup Sprint)*
 
 ### Phase 1: Core Data Models & Offline Scripture Storage (Zero Dependencies)
 - [x] **Task 1.1**: Define standard canonical scripture reference model (`Book` [1-66], `Chapter`, `Verse`, `Span/Range`, OSIS identifiers) in `core/reference.py`.

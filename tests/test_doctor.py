@@ -341,6 +341,39 @@ class TestDoctorChecks(unittest.TestCase):
                 self.assertTrue(res_fix.passed)
                 self.assertIn("Auto-repaired semantic schema", res_fix.details)
 
+    def test_check_database_integrity_fts_desync_and_auto_repair(self):
+        from core.db import Database, VerseRecord
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            db_dir = tmp_path / "data"
+            db_dir.mkdir()
+            db_file = db_dir / "bible.db"
+            with Database(db_file, auto_init=True) as db:
+                db.add_translation("WEB", "World English Bible")
+                db.insert_verses([
+                    VerseRecord("WEB", 1, 1, 1, "In the beginning..."),
+                ])
+                # Artificially inject an orphaned FTS row to simulate desync
+                db.conn.execute(
+                    "INSERT INTO verses_fts (verse_id, translation_id, book_name, osis_ref, text) "
+                    "VALUES (999999, 'WEB', 'GhostBook', 'Ghost.1.1', 'Ghost text')"
+                )
+                db.conn.commit()
+
+            from unittest.mock import patch
+            with patch("core.db.Database.count_verses", return_value=31103), \
+                 patch("core.db.Database.search_text", return_value=[{"id": 1}]):
+                # Without fix, fails reporting FTS5 desync
+                res_fail = check_database_integrity(tmp_path, fix=False)
+                self.assertFalse(res_fail.passed)
+                self.assertIn("FTS5 index desynchronization detected", res_fail.details)
+
+                # With fix, auto-compacts and passes
+                res_fix = check_database_integrity(tmp_path, fix=True)
+                self.assertTrue(res_fix.passed)
+                self.assertIn("FTS5 operational", res_fix.details)
+                self.assertIn("100% parity", res_fix.details)
+
     def test_check_doc_synchronization_roadmap_validation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)

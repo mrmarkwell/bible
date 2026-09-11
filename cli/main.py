@@ -2327,6 +2327,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_db_opt = db_subparsers.add_parser("optimize", help="Run SQLite PRAGMA optimize and update query planner statistics")
     p_db_vac = db_subparsers.add_parser("vacuum", help="Reclaim unused disk space and defragment SQLite database")
+    p_db_compact = db_subparsers.add_parser("compact", help="Full database compaction: rebuild FTS5 index, purge ghost records, optimize b-trees, and vacuum")
+    p_db_compact.add_argument("--force-rebuild", "-f", action="store_true", help="Force unconditional FTS5 index reconstruction")
+    p_db_compact.add_argument("--quiet", "-q", action="store_true", help="Suppress console progress output")
+
+    p_db_rebuild_fts = db_subparsers.add_parser("rebuild-fts", aliases=["rebuild_fts"], help="Rebuild FTS5 index to 1:1 parity with canonical verses")
+    p_db_rebuild_fts.add_argument("--quiet", "-q", action="store_true", help="Suppress console progress output")
 
     def cmd_db(args: argparse.Namespace) -> int:
         action = getattr(args, "db_action", None) or "stats"
@@ -2345,6 +2351,12 @@ def build_parser() -> argparse.ArgumentParser:
                 )
                 return 1
 
+            fts_h = stats.get("fts_health", {})
+            fts_note = ""
+            if fts_h:
+                sync_str = "100% PARITY" if fts_h.get("is_synchronized") else f"DESYNC ({fts_h.get('orphaned_count', 0):,} orphaned)"
+                fts_note = f" ({fts_h.get('fts_count', 0):,} entries, {sync_str})"
+
             print("=" * 65)
             print(" Bible Engine Database Diagnostics & Storage Status")
             print("=" * 65)
@@ -2354,7 +2366,7 @@ def build_parser() -> argparse.ArgumentParser:
             print(f" Integrity Check:      {stats['integrity_check']}")
             print(f" Journal Mode:         {stats['journal_mode'].upper()}")
             print(f" Page Size / Count:    {stats['page_size']} bytes / {stats['page_count']:,} pages")
-            print(f" FTS5 Search Index:    {stats['fts5_status'].upper()}")
+            print(f" FTS5 Search Index:    {stats['fts5_status'].upper()}{fts_note}")
             print("-" * 65)
             print(f" Total Verses:         {stats['total_verses']:,}")
             for tr in stats["translations"]:
@@ -2384,7 +2396,42 @@ def build_parser() -> argparse.ArgumentParser:
             print(f"Successfully vacuumed database and reclaimed unused storage at '{db_path}'.")
             return 0
 
-        sys.stderr.write(f"Unknown db action '{action}'. Available: stats, status, init, optimize, vacuum\n")
+        if action == "compact":
+            if not db_path.exists():
+                sys.stderr.write(f"Error: Database file not found at '{db_path}'.\n")
+                return 1
+            force = getattr(args, "force_rebuild", False)
+            quiet = getattr(args, "quiet", False)
+            if not quiet:
+                print(f"Compacting database and defragmenting FTS5 index at '{db_path}'...")
+            with Database(db_path) as db:
+                rep = db.compact_database(force_rebuild_fts=force)
+            if not quiet:
+                h = rep["fts_health"]
+                print("=" * 65)
+                print(" Bible Engine Sovereign Database Compaction Report")
+                print("=" * 65)
+                print(f" Database:             {db_path}")
+                print(f" Size Before:          {rep['size_before_human']} ({rep['size_before_bytes']:,} bytes)")
+                print(f" Size After:           {rep['size_after_human']} ({rep['size_after_bytes']:,} bytes)")
+                print(f" Storage Reclaimed:    {rep['saved_human']} ({rep['saved_bytes']:,} bytes, {rep['saved_pct']}%)")
+                print(f" FTS5 Rebuilt:         {'Yes (rebuilt for 100% parity)' if rep['rebuilt_fts'] else 'Optimized (already in 100% parity)'}")
+                print(f" FTS5 Index Count:     {h['fts_count']:,} entries (verses: {h['verses_count']:,}, orphaned: {h['orphaned_count']})")
+                print("=" * 65)
+            return 0
+
+        if action in ("rebuild-fts", "rebuild_fts"):
+            if not db_path.exists():
+                sys.stderr.write(f"Error: Database file not found at '{db_path}'.\n")
+                return 1
+            quiet = getattr(args, "quiet", False)
+            with Database(db_path) as db:
+                count = db.rebuild_verses_fts()
+            if not quiet:
+                print(f"Successfully rebuilt FTS5 index for {count:,} canonical verses with 100% parity.")
+            return 0
+
+        sys.stderr.write(f"Unknown db action '{action}'. Available: stats, status, init, optimize, vacuum, compact, rebuild-fts\n")
         return 1
 
     parser_db.set_defaults(func=cmd_db)

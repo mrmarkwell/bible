@@ -735,7 +735,7 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
                     time.time() - t0,
                 )
 
-            # 4. Check FTS5 index sanity
+            # 4. Check FTS5 index sanity and parity
             res = db.search_text("faith hope love", translation_id="WEB")
             if not res:
                 return CheckResult(
@@ -744,6 +744,29 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
                     "FTS5 full-text search query returned 0 results for known passage",
                     time.time() - t0,
                 )
+
+            fts_health = db.audit_fts_health()
+            if not fts_health["is_synchronized"]:
+                if fix:
+                    db.compact_database(force_rebuild_fts=True)
+                    fts_health = db.audit_fts_health()
+                    if not fts_health["is_synchronized"]:
+                        return CheckResult(
+                            "SQLite Scripture Database",
+                            False,
+                            f"FTS5 auto-repair failed: {fts_health['fts_count']} entries vs {fts_health['verses_count']} verses",
+                            time.time() - t0,
+                        )
+                    schema_repaired = True
+                else:
+                    return CheckResult(
+                        "SQLite Scripture Database",
+                        False,
+                        f"FTS5 index desynchronization detected: {fts_health['fts_count']:,} entries vs {fts_health['verses_count']:,} verses "
+                        f"({fts_health['orphaned_count']:,} orphaned ghosts, bloat ratio: {fts_health['bloat_ratio']:.1f}x). "
+                        "Run with --fix or './bible db compact' to compact.",
+                        time.time() - t0,
+                    )
 
             # 5. Check Phase 7 Semantic Coverage & Exegetical Quality
             semantic_summary = ""
@@ -808,7 +831,7 @@ def check_database_integrity(repo_root: Path, fix: bool = False, re_audit: bool 
             return CheckResult(
                 "SQLite Scripture Database",
                 True,
-                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational, {len(existing_tables)} tables verified{semantic_summary}{vector_summary}){fix_msg}",
+                f"OK (PRAGMA quick_check & FK passed, {total_verses:,} WEB verses, FTS5 operational ({fts_health['fts_count']:,} entries [100% parity]), {len(existing_tables)} tables verified{semantic_summary}{vector_summary}){fix_msg}",
                 dur,
             )
     except Exception as exc:
@@ -1296,6 +1319,13 @@ if __name__ == "__main__":
         help="Disable ANSI color codes",
     )
     parser.add_argument(
+        "--compact",
+        "--compact-db",
+        dest="compact",
+        action="store_true",
+        help="Compact database: rebuild FTS5 index, purge ghost records, optimize b-trees, and vacuum",
+    )
+    parser.add_argument(
         "--repo",
         type=str,
         default=None,
@@ -1321,6 +1351,22 @@ if __name__ == "__main__":
         badge = styler.green("[PASS]") if res.passed else styler.red("[FAIL]")
         print(f"{badge} {res.name}: {res.details}")
         sys.exit(0 if res.passed else 1)
+
+    if getattr(args, "compact", False):
+        from core.db import Database
+        db_file = target_repo / "data" / "bible.db"
+        if not db_file.exists():
+            print(f"Error: Database not found at {db_file}")
+            sys.exit(1)
+        print(f"Compacting database at {db_file}...")
+        with Database(db_file) as db:
+            rep = db.compact_database(force_rebuild_fts=True)
+        h = rep["fts_health"]
+        print(
+            f"Compaction complete: size reduced from {rep['size_before_human']} to {rep['size_after_human']} "
+            f"(reclaimed {rep['saved_human']} [{rep['saved_pct']}%]). FTS5 index at 100% parity ({h['fts_count']:,} entries)."
+        )
+        sys.exit(0)
 
     is_tty = (
         hasattr(sys.stdout, "isatty")

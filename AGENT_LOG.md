@@ -4413,3 +4413,56 @@ This is an append-only log of work performed by autonomous agents during their e
 - **Handoff Notes for Next Agent**:
   - Task 0.37 and Run 110 Senior PM Double Milestone are 100% complete, verified, and pushed to `origin/main`.
   - Next task on the domain roadmap is Phase 9, **Task 9.3**: *Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.*
+
+---
+
+## [Run 111] — 2026-09-11
+- **Agent**: Senior Product Manager & Meta-Architect / Sovereign Systems Lead (Run 111 / ADR-119)
+- **Phase**: Senior Product Manager Meta-Improvement & System Health Sprint (Phase 0 Task 0.38)
+- **Mandate**: Cadence protocol: Senior Product Manager Cleanup Sprint. Step into Senior PM persona, audit whole-system health and processes, address the two mandatory diagnostic questions, formulate and execute at least ONE Rank A+ meta-improvement (Task 0.38 / ADR-119), preserve domain roadmap state (Phase 9 Tasks 9.3/9.4 remain untouched), verify 100% test pass rate with zero external dependencies, and emit Human Executive Briefing.
+- **The Two Mandatory Diagnostic Questions**:
+  1. **"What is the weakest aspect of this project structure?"**
+     - *Silent SQLite Storage & FTS5 Index Ghost Bloat*: In `core/db.py`, `insert_verse` and `insert_verses` utilized `INSERT OR REPLACE INTO verses (...)`. In SQLite, `INSERT OR REPLACE` deletes conflicting rows internally without firing `AFTER DELETE` triggers; however, the replacement row triggers `AFTER INSERT` with a new autoincrement ID, inserting duplicate records into `verses_fts`. Across repeated bootstrap operations and translation ingestion runs, **404,333 orphaned ghost records** accumulated in `verses_fts` (an 86.7% ghost bloat ratio), expanding `data/bible.db` to 254.3 MB (266,608,640 bytes).
+  2. **"What is preventing this from being more incredible?"**
+     - *Lack of Autonomous Compaction & Storage Sentry Telemetry*: The system possessed no automated parity verification between the canonical `verses` table and `verses_fts`, no on-demand compaction or FTS rebuild commands in CLI or REPL shell, and no auto-healing sentry in `tools/doctor.py` or `core/bootstrap.py` to audit index health and reclaim storage.
+- **Actions Taken (Rank A+ Meta-Improvement Executed)**:
+  1. **Upsert Idempotency Architecture (`core/db.py`)**:
+     - Switched `insert_verse` and `insert_verses` to standard SQLite upsert semantics: `INSERT INTO verses (...) ON CONFLICT (translation_id, book_id, chapter, verse, subverse) DO UPDATE SET text = excluded.text, osis_ref = excluded.osis_ref, canonical_verse_id = excluded.canonical_verse_id`.
+     - Preserves row IDs across re-ingestions and guarantees reliable `trg_verses_fts_update` trigger execution without ghost row accumulation.
+  2. **FTS Health Audit & Sovereign Rebuild Engine (`core/db.py`, `core/__init__.py`)**:
+     - Implemented `Database.audit_fts_health() -> Dict[str, Any]` (measures `fts_count`, `verses_count`, `orphaned_count`, `is_synchronized`, `bloat_ratio`).
+     - Implemented `Database.rebuild_verses_fts() -> int` (cleans ghost records, rebuilds from canonical verses, and optimizes segments via `INSERT INTO verses_fts(verses_fts) VALUES('optimize')`).
+     - Implemented `Database.compact_database(force_rebuild_fts: bool = False) -> Dict[str, Any]` (audits, rebuilds, optimizes b-trees, and runs `VACUUM`, returning reclaimed bytes/percentage).
+     - Added and exported `format_size(bytes_count: int) -> str`.
+  3. **Bootstrap Self-Healing & Parity Checks (`core/bootstrap.py`)**:
+     - Updated `get_db_stats()` to include `fts_health`, `fts_synchronized`, and `fts_bloat_ratio`.
+     - Updated `bootstrap_database()` to audit FTS health and auto-rebuild if desynchronized.
+  4. **System Doctor Sentry & On-Demand Compactor (`tools/doctor.py`)**:
+     - Added FTS5 parity sentry to `check_database`: detects desync/orphaned entries, auto-repairs when `fix=True`.
+     - Added `--compact` / `--compact-db` CLI flag to compact database on-demand.
+  5. **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Extended `./bible db` CLI with `compact` and `rebuild-fts` subcommands.
+     - Extended `./bible db stats` to report FTS index parity and orphaned counts.
+     - Added `/db compact`, `/db rebuild-fts`, and top-level `/compact` alias to REPL `BibleShell`.
+  6. **System Status Dashboard & Telemetry (`core/status.py`)**:
+     - Added `db_fts_synchronized`, `db_fts_bloat_ratio`, and `db_fts_count` to `PlatformStatus`, `to_dict()`, and ANSI dashboard storage footer.
+  7. **Hermetic Test Suite Expansion**:
+     - Added unit tests in `tests/test_db.py`, `tests/test_doctor.py`, `tests/test_cli.py`, `tests/test_shell.py`, `tests/test_bootstrap.py`, and `tests/test_status.py`.
+     - Full test suite verified at **1,114 tests across 49 modules passing 100% in 6.992s**.
+  8. **Physical Database Compaction (`data/bible.db`)**:
+     - Successfully compacted: size plummeted from **254.3 MB (266,608,640 bytes)** down to **127.8 MB (133,967,872 bytes)** — **126.5 MB reclaimed (49.8% reduction)**.
+     - Verified exact FTS5 parity: **62,205 entries for 62,205 verses (0 orphaned)**.
+  9. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-119: Sovereign SQLite Storage Compaction, Upsert Idempotency & FTS5 Sentry Parity Architecture** in `DECISIONS.md`.
+     - Added Task 0.38 to `ROADMAP.md` and marked `[x]` (105/107 tasks completed, 98.1%).
+     - Promoted Rank A+ idea to `[COMPLETED]` in `IDEAS.md`.
+- **Verification**:
+  - Full test runner: **1,114 tests across 49 modules passed 100% in 6.992s**.
+  - `python3 tools/doctor.py --fast`: **100% EXCELLENT** — all diagnostic checks passed in 1.70s.
+  - `python3 tools/linter.py`: **100% CLEAN** — 103 files checked in 0.770s (0 errors, 0 warnings).
+  - Module-test suite symmetry: **100% MATCH** across all 49 production modules.
+  - Zero external dependencies: 100% Python standard library and vanilla HTML/CSS/JS per ADR-003.
+- **Handoff Notes for Next Agent**:
+  - Task 0.38 and Run 111 Senior PM Cleanup Sprint are 100% complete, verified, and pushed to `origin/main`.
+  - Next task on the domain roadmap is Phase 9, **Task 9.3**: *Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.*
+

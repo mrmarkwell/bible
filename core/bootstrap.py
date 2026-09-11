@@ -18,7 +18,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from core.crossref import CrossReferenceService
-from core.db import DEFAULT_DB_PATH, Database
+from core.db import DEFAULT_DB_PATH, Database, format_size
 from core.pericopes import PericopeService
 from core.reference import Book, BOOKS
 
@@ -109,6 +109,15 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
             "sqlite_version": "N/A",
             "integrity_check": "missing",
             "fts5_status": "inactive",
+            "fts_health": {
+                "fts_count": 0,
+                "verses_count": 0,
+                "orphaned_count": 0,
+                "is_synchronized": False,
+                "bloat_ratio": 1.0,
+            },
+            "fts_synchronized": False,
+            "fts_bloat_ratio": 1.0,
             "page_size": 0,
             "page_count": 0,
             "journal_mode": "N/A",
@@ -203,11 +212,18 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         cp_row = db.execute_sql("SELECT count(*) FROM character_profiles").fetchone()
         total_character_profiles = cp_row[0] if cp_row else 0
 
-        # FTS5 Index status
+        # FTS5 Index status and parity audit
         fts_row = db.execute_sql(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='verses_fts'"
         ).fetchone()
         fts_active = bool(fts_row and fts_row[0] > 0)
+        fts_health = db.audit_fts_health() if fts_active else {
+            "fts_count": 0,
+            "verses_count": total_verses,
+            "orphaned_count": 0,
+            "is_synchronized": False,
+            "bloat_ratio": 1.0,
+        }
 
     return {
         "exists": True,
@@ -232,6 +248,9 @@ def get_db_stats(db_path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         "sqlite_version": sqlite_version,
         "integrity_check": integrity,
         "fts5_status": "active" if fts_active else "missing",
+        "fts_health": fts_health,
+        "fts_synchronized": fts_health["is_synchronized"],
+        "fts_bloat_ratio": fts_health["bloat_ratio"],
         "page_size": page_size,
         "page_count": page_count,
         "journal_mode": journal_mode,
@@ -476,8 +495,17 @@ def bootstrap_database(
 
         db.sync_verse_embeddings_from_pericopes(translation_id="WEB")
 
-    # 8. Optimize Pragmas and Analyzers
-    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.96)
+    # 8. Audit & Synchronize FTS5 Search Index
+    _notify("Auditing FTS5 search index parity and b-tree optimization...", 0.95)
+    fts_h = db.audit_fts_health()
+    if not fts_h["is_synchronized"]:
+        _notify("Rebuilding FTS5 full-text index for 100% parity...", 0.96)
+        db.rebuild_verses_fts()
+    else:
+        db.execute_sql("INSERT INTO verses_fts(verses_fts) VALUES('optimize')")
+
+    # 9. Optimize Pragmas and Analyzers
+    _notify("Optimizing SQLite query planner statistics (PRAGMA optimize)...", 0.97)
     db.optimize()
     db.close()
 

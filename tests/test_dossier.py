@@ -21,11 +21,7 @@ from unittest.mock import MagicMock, patch
 from core.crossref import CrossReferenceService, RelationshipType
 from core.db import (
     Database,
-    PericopeRecord,
-    TypologicalArcRecord,
     VerseRecord,
-    VerseTagRecord,
-    VerseTheologyRecord,
 )
 from core.tags import TaggingService
 from core.dossier import (
@@ -39,7 +35,6 @@ from core.dossier import (
     ExegeticalDossier,
     ExegeticalDossierService,
 )
-from core.persona import get_persona_definition
 from core.reference import parse_reference
 from cli.main import main
 from cli.shell import BibleShell

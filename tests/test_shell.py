@@ -212,6 +212,22 @@ class TestShell(unittest.TestCase):
 
         stdout.truncate(0)
         stdout.seek(0)
+        shell.onecmd("/db compact")
+        self.assertIn("Successfully compacted database", stdout.getvalue())
+        self.assertIn("100% parity", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/compact")
+        self.assertIn("Successfully compacted database", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
+        shell.onecmd("/db rebuild-fts")
+        self.assertIn("Successfully rebuilt FTS5 index", stdout.getvalue())
+
+        stdout.truncate(0)
+        stdout.seek(0)
         shell.onecmd("/help")
         self.assertIn("/db", stdout.getvalue())
         self.assertIn("/init", stdout.getvalue())
@@ -219,6 +235,8 @@ class TestShell(unittest.TestCase):
         # Autocompletion test
         db_opts = shell.complete_db("op", "db op", 0, 0)
         self.assertIn("optimize", db_opts)
+        db_comp = shell.complete_db("com", "db com", 0, 0)
+        self.assertIn("compact", db_comp)
         init_opts = shell.complete_init("--fo", "init --fo", 0, 0)
         self.assertIn("--force", init_opts)
 

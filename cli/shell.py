@@ -2761,7 +2761,7 @@ class BibleShell(cmd.Cmd):
         self.do_serve(arg)
 
     def do_db(self, arg: str) -> None:
-        """Database inspection and maintenance: /db [stats|status|optimize|vacuum|init]"""
+        """Database inspection and maintenance: /db [stats|status|optimize|vacuum|compact|rebuild-fts|init]"""
         parts = arg.strip().split()
         sub = parts[0].lower() if parts else "stats"
 
@@ -2773,6 +2773,12 @@ class BibleShell(cmd.Cmd):
                 self.stdout.write(f"Database does not exist at {stats['path']}. Use '/init' to create it.\n")
                 return
 
+            fts_h = stats.get("fts_health", {})
+            fts_note = ""
+            if fts_h:
+                sync_str = "100% PARITY" if fts_h.get("is_synchronized") else f"DESYNC ({fts_h.get('orphaned_count', 0):,} orphaned)"
+                fts_note = f" ({fts_h.get('fts_count', 0):,} entries, {sync_str})"
+
             self.stdout.write("=================================================================\n")
             self.stdout.write(" Bible Engine Database Storage Diagnostics\n")
             self.stdout.write("=================================================================\n")
@@ -2781,7 +2787,7 @@ class BibleShell(cmd.Cmd):
             self.stdout.write(f" SQLite Version:       {stats['sqlite_version']}\n")
             self.stdout.write(f" Integrity Check:      {stats['integrity_check']}\n")
             self.stdout.write(f" Journal Mode:         {stats['journal_mode'].upper()}\n")
-            self.stdout.write(f" FTS5 Search Index:    {stats['fts5_status'].upper()}\n")
+            self.stdout.write(f" FTS5 Search Index:    {stats['fts5_status'].upper()}{fts_note}\n")
             self.stdout.write("-----------------------------------------------------------------\n")
             self.stdout.write(f" Total Verses:         {stats['total_verses']:,}\n")
             for tr in stats["translations"]:
@@ -2801,10 +2807,29 @@ class BibleShell(cmd.Cmd):
                 self._init_db()
             self.db.vacuum()
             self.stdout.write("✓ Successfully vacuumed SQLite database.\n")
+        elif sub == "compact":
+            if self.db is None:
+                self._init_db()
+            self.stdout.write("Compacting database and defragmenting FTS5 index...\n")
+            rep = self.db.compact_database(force_rebuild_fts=True)
+            h = rep["fts_health"]
+            self.stdout.write(
+                f"✓ Successfully compacted database: size reduced from {rep['size_before_human']} to {rep['size_after_human']} "
+                f"(reclaimed {rep['saved_human']} [{rep['saved_pct']}%]). FTS5 index at 100% parity ({h['fts_count']:,} entries).\n"
+            )
+        elif sub in ("rebuild-fts", "rebuild_fts"):
+            if self.db is None:
+                self._init_db()
+            cnt = self.db.rebuild_verses_fts()
+            self.stdout.write(f"✓ Successfully rebuilt FTS5 index for {cnt:,} canonical verses with 100% parity.\n")
         elif sub in ("init", "setup", "bootstrap"):
             self.do_init(" ".join(parts[1:]))
         else:
-            self.stdout.write(f"Unknown db action '{sub}'. Available: stats, status, optimize, vacuum, init\n")
+            self.stdout.write(f"Unknown db action '{sub}'. Available: stats, status, optimize, vacuum, compact, rebuild-fts, init\n")
+
+    def do_compact(self, arg: str) -> None:
+        """Compact database and reclaim unused storage: /compact"""
+        self.do_db("compact")
 
     def do_init(self, arg: str) -> None:
         """Bootstrap or repair scripture database: /init [--force] [--quick]"""
@@ -3508,7 +3533,7 @@ System & Web:
 
     def complete_db(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:
         """Auto-complete db actions."""
-        options = ["stats", "status", "optimize", "vacuum", "init"]
+        options = ["stats", "status", "optimize", "vacuum", "compact", "rebuild-fts", "init"]
         return [o for o in options if o.startswith(text.lower())]
 
     def complete_init(self, text: str, line: str, begidx: int, endidx: int) -> List[str]:

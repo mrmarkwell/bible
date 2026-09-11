@@ -514,6 +514,107 @@ class TestFullTextSearch(unittest.TestCase):
 
         self.assertEqual(len(self.db.search_text("radiant")), 0)
 
+    def test_audit_fts_health_clean(self):
+        health = self.db.audit_fts_health()
+        self.assertTrue(health["is_synchronized"])
+        self.assertEqual(health["orphaned_count"], 0)
+        self.assertEqual(health["bloat_ratio"], 1.0)
+        self.assertEqual(health["fts_count"], health["verses_count"])
+
+    def test_insert_verse_idempotency_and_zero_ghost_fts(self):
+        initial_health = self.db.audit_fts_health()
+        initial_count = initial_health["verses_count"]
+        v_before = self.db.get_verse("John", 1, 5, translation_id="WEB")
+        self.assertIsNotNone(v_before)
+        assert v_before is not None
+
+        # Re-insert the same verse citation with updated text
+        updated_verse = VerseRecord(
+            translation_id="WEB",
+            book_id=43,
+            chapter=1,
+            verse=5,
+            text="The light shines in the darkness, and the darkness hasn't overcome it. [Updated]",
+        )
+        row_id = self.db.insert_verse(updated_verse)
+        self.assertEqual(row_id, v_before.id)
+
+        # Verify verse count is identical and FTS health is 100% synchronized
+        post_health = self.db.audit_fts_health()
+        self.assertEqual(post_health["verses_count"], initial_count)
+        self.assertEqual(post_health["fts_count"], initial_count)
+        self.assertEqual(post_health["orphaned_count"], 0)
+        self.assertTrue(post_health["is_synchronized"])
+        self.assertEqual(post_health["bloat_ratio"], 1.0)
+
+        # Verify new text is searchable and old unique phrase is replaced
+        self.assertEqual(len(self.db.search_text("Updated", translation_id="WEB")), 1)
+
+    def test_insert_verses_idempotency_and_zero_ghost_fts(self):
+        initial_health = self.db.audit_fts_health()
+        initial_count = initial_health["verses_count"]
+
+        # Batch re-insert with identical citation keys
+        batch = [
+            VerseRecord(
+                translation_id="WEB",
+                book_id=1,
+                chapter=1,
+                verse=1,
+                text="In the beginning, God created the heavens and the earth. [Batch Upsert]",
+            ),
+            VerseRecord(
+                translation_id="WEB",
+                book_id=1,
+                chapter=1,
+                verse=3,
+                text="God said, 'Let there be light,' and there was light. [Batch Upsert]",
+            ),
+        ]
+        inserted = self.db.insert_verses(batch)
+        self.assertEqual(inserted, 2)
+
+        post_health = self.db.audit_fts_health()
+        self.assertEqual(post_health["verses_count"], initial_count)
+        self.assertEqual(post_health["fts_count"], initial_count)
+        self.assertEqual(post_health["orphaned_count"], 0)
+        self.assertTrue(post_health["is_synchronized"])
+        self.assertEqual(post_health["bloat_ratio"], 1.0)
+
+    def test_rebuild_verses_fts_clears_ghost_records(self):
+        # Inject an artificial orphaned entry directly into verses_fts
+        with self.db.conn:
+            self.db.conn.execute(
+                """
+                INSERT INTO verses_fts (verse_id, translation_id, book_name, osis_ref, text)
+                VALUES (999999, 'WEB', 'GhostBook', 'Ghost.1.1', 'A ghost verse that has no parent verse row')
+                """
+            )
+
+        desync_health = self.db.audit_fts_health()
+        self.assertFalse(desync_health["is_synchronized"])
+        self.assertGreater(desync_health["orphaned_count"], 0)
+        self.assertGreater(desync_health["bloat_ratio"], 1.0)
+
+        # Rebuild FTS
+        new_count = self.db.rebuild_verses_fts()
+        rebuilt_health = self.db.audit_fts_health()
+        self.assertTrue(rebuilt_health["is_synchronized"])
+        self.assertEqual(rebuilt_health["orphaned_count"], 0)
+        self.assertEqual(rebuilt_health["bloat_ratio"], 1.0)
+        self.assertEqual(new_count, rebuilt_health["verses_count"])
+
+    def test_compact_database(self):
+        # Test compact_database on the in-memory database
+        rep = self.db.compact_database(force_rebuild_fts=True)
+        self.assertIn("size_before_bytes", rep)
+        self.assertIn("size_after_bytes", rep)
+        self.assertIn("saved_bytes", rep)
+        self.assertIn("rebuilt_fts", rep)
+        self.assertTrue(rep["rebuilt_fts"])
+        self.assertTrue(rep["fts_health"]["is_synchronized"])
+
+
 
 class TestSpansTagsAndCrossReferences(unittest.TestCase):
     """Test passage spans, semantic tagging, and cross-reference links."""

@@ -32,6 +32,7 @@ from core.db import (
     VerseRecord,
     VerseTagRecord,
     VerseTheologyRecord,
+    format_size,
     sanitize_fts_query,
 )
 from core.esv import (
@@ -404,6 +405,7 @@ __all__ = [
     "CharacterProfileRecord",
     "SearchResult",
     "sanitize_fts_query",
+    "format_size",
     # Pericopes & Headings
     "CANONICAL_PERICOPES",
     "PericopeService",

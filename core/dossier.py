@@ -20,14 +20,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import html
 import json
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from core.db import Database, VerseRecord, CrossReferenceRecord, PericopeRecord, VerseTagRecord, VerseTheologyRecord, TypologicalArcRecord
+from core.db import Database, VerseRecord
 from core.reference import Reference, parse_reference
 from core.vector import get_pericope_recommender, PericopeRecommender
 from core.persona import CANONICAL_PERSONAS, CharacterPersonaDefinition
-from core.terminal import THEMES, RESET, BOLD, DIM, ITALIC, CYAN, YELLOW, GREEN, BOLD_GOLD
+from core.terminal import THEMES, RESET, BOLD, GREEN
 
 
 @dataclass

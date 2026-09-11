@@ -34,6 +34,8 @@ class TestBootstrapModule(unittest.TestCase):
         self.assertEqual(stats["total_verses"], 0)
         self.assertEqual(stats["size_bytes"], 0)
         self.assertEqual(stats["fts5_status"], "inactive")
+        self.assertFalse(stats["fts_synchronized"])
+        self.assertIn("fts_health", stats)
 
     def test_get_db_stats_existing_bundled(self):
         """Verify stats retrieval on bundled canonical scripture database."""
@@ -41,6 +43,9 @@ class TestBootstrapModule(unittest.TestCase):
         self.assertTrue(stats["exists"])
         self.assertGreaterEqual(stats["total_verses"], 31100)
         self.assertEqual(stats["fts5_status"], "active")
+        self.assertTrue(stats["fts_synchronized"])
+        self.assertEqual(stats["fts_bloat_ratio"], 1.0)
+        self.assertEqual(stats["fts_health"]["orphaned_count"], 0)
         self.assertEqual(stats["integrity_check"], "ok")
         self.assertGreaterEqual(stats["total_tags"], 1)
         self.assertGreaterEqual(stats["total_cross_references"], 40)

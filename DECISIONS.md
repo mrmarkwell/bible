@@ -4000,4 +4000,44 @@ This document is an append-only log of significant design and architectural deci
   - Pastors, teachers, and agents can generate comprehensive, multi-modal study packets for any scripture passage with a single command (`./bible dossier "Romans 8:28-30"`).
   - 100% Zero-Dependency architecture strictly maintained per ADR-003.
 
+---
+
+## ADR-119: Sovereign SQLite Storage Compaction, Upsert Idempotency & FTS5 Sentry Parity Architecture
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - During autonomous Run #111 (Senior Product Manager Meta-Improvement & System Health Sprint), the Senior PM meta-audit evaluated the two mandatory diagnostic questions:
+    1. *"What is the weakest aspect of this project structure?"*
+       - *Silent SQLite Storage & FTS5 Index Bloat*: In `core/db.py`, `insert_verse` and `insert_verses` utilized `INSERT OR REPLACE INTO verses (...)`. In SQLite, `INSERT OR REPLACE` executes an internal row deletion on conflict without firing `AFTER DELETE` triggers. However, the subsequent insertion assigns a new autoincrement row ID and triggers `AFTER INSERT`, inserting a new record into `verses_fts`. Across repeated bootstrap operations and translation ingestion runs, this architectural mismatch resulted in **404,333 orphaned ghost records** accumulating inside `verses_fts` (an 86.7% ghost bloat ratio), expanding `data/bible.db` to 254.3 MB (266,608,640 bytes).
+    2. *"What is preventing this from being more incredible?"*
+       - *Lack of Autonomous Compaction & Storage Sentry Telemetry*: The system possessed no automated parity verification between the canonical `verses` table and `verses_fts`, no on-demand compaction or FTS rebuild commands in CLI or REPL shell, and no auto-healing sentry in `tools/doctor.py` or `core/bootstrap.py` to audit index health and reclaim storage.
+- **Decision**:
+  1. **Upsert Idempotency in `core/db.py`**:
+     - Replaced `INSERT OR REPLACE INTO verses (...)` in `insert_verse` and `insert_verses` with standard SQLite upsert semantics:
+       `INSERT INTO verses (...) ON CONFLICT (translation_id, book_id, chapter, verse, subverse) DO UPDATE SET text = excluded.text, osis_ref = excluded.osis_ref, canonical_verse_id = excluded.canonical_verse_id`.
+     - Preserves immutable primary key row IDs upon re-ingestion, avoiding duplicate `AFTER INSERT` trigger fires on `verses_fts` and ensuring `trg_verses_fts_update` fires reliably.
+  2. **FTS Health Audit & Sovereign Rebuild Engine (`core/db.py`)**:
+     - Implemented `Database.audit_fts_health() -> Dict[str, Any]`: Computes `fts_count`, `verses_count`, `orphaned_count`, `is_synchronized`, and `bloat_ratio`.
+     - Implemented `Database.rebuild_verses_fts() -> int`: Cleans ghost records, rebuilds from canonical verses, and executes `INSERT INTO verses_fts(verses_fts) VALUES('optimize')` to merge index segments.
+     - Implemented `Database.compact_database(force_rebuild_fts: bool = False) -> Dict[str, Any]`: Automatically audits FTS parity, rebuilds if bloat exists or forced, runs SQLite b-tree optimization, and executes `VACUUM` to return disk blocks to the host OS. Returns pre-size, post-size, reclaimed bytes, and percentage saved.
+     - Implemented and exported `format_size(bytes_count: int) -> str` in `core/db.py` and `core/__init__.py`.
+  3. **Bootstrap Self-Healing & Parity Checks (`core/bootstrap.py`)**:
+     - Updated `get_db_stats()` to include `fts_health`, `fts_synchronized`, and `fts_bloat_ratio`.
+     - Updated `bootstrap_database()` to audit FTS health and trigger automatic rebuilding if desynchronization is detected.
+  4. **System Doctor Sentry & On-Demand Compactor (`tools/doctor.py`)**:
+     - Added FTS5 parity check to `check_database`: flags orphaned FTS records or desynchronization as health issues, and auto-repairs them when run with `--fix`.
+     - Added `--compact` / `--compact-db` CLI flag to compact database on-demand.
+  5. **Omnichannel CLI & REPL Integration (`cli/main.py`, `cli/shell.py`)**:
+     - Extended `./bible db` CLI with `compact` and `rebuild-fts` subcommands.
+     - Extended `./bible db stats` to report FTS index parity and orphaned ghost counts.
+     - Added `/db compact`, `/db rebuild-fts`, and top-level `/compact` alias to interactive REPL `BibleShell`.
+  6. **System Status Dashboard & Telemetry (`core/status.py`)**:
+     - Added `db_fts_synchronized`, `db_fts_bloat_ratio`, and `db_fts_count` to `PlatformStatus`, `to_dict()`, and ANSI dashboard storage footer.
+- **Consequences**:
+  - `data/bible.db` compacted from **254.3 MB down to 127.8 MB** (**126.5 MB reclaimed, 49.8% reduction**).
+  - FTS5 virtual table restored to 100% exact parity with canonical verses: **62,205 entries for 62,205 verses (0 orphaned)**.
+  - Zero external dependencies strictly preserved per ADR-003.
+  - Hermetic test execution velocity accelerated from 9.6s to 7.0s due to compact FTS5 b-tree seeks.
+
+
 

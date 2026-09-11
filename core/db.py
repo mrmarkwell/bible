@@ -40,6 +40,17 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def format_size(bytes_count: int) -> str:
+    """Format byte count into human-readable representation."""
+    if bytes_count < 1024:
+        return f"{bytes_count} B"
+    elif bytes_count < 1024 * 1024:
+        return f"{bytes_count / 1024:.1f} KB"
+    else:
+        return f"{bytes_count / (1024 * 1024):.1f} MB"
+
+
+
 def sanitize_fts_query(query: str) -> str:
     """Sanitize and format query string for safe SQLite FTS5 matching.
 
@@ -980,6 +991,123 @@ class Database:
         """Run SQLite PRAGMA optimize to update query planner statistics."""
         self.conn.execute("PRAGMA optimize")
 
+    def audit_fts_health(self) -> Dict[str, Any]:
+        """Audit full-text search index integrity and parity against canonical verses.
+
+        Returns:
+            Dictionary containing:
+                - fts_count: Total entries in verses_fts virtual table.
+                - verses_count: Total entries in verses storage table.
+                - orphaned_count: Count of verses_fts rows whose verse_id does not exist in verses.
+                - is_synchronized: True if fts_count == verses_count and orphaned_count == 0.
+                - bloat_ratio: Ratio of fts_count to verses_count (1.0 = optimal).
+        """
+        cur = self.conn.cursor()
+        cur.execute("SELECT count(*) FROM verses_fts")
+        fts_count = cur.fetchone()[0]
+
+        cur.execute("SELECT count(*) FROM verses")
+        verses_count = cur.fetchone()[0]
+
+        cur.execute(
+            """
+            SELECT count(*)
+            FROM verses_fts f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM verses v WHERE v.id = f.verse_id
+            )
+            """
+        )
+        orphaned_count = cur.fetchone()[0]
+        cur.close()
+
+        is_sync = (fts_count == verses_count) and (orphaned_count == 0)
+        bloat = (fts_count / verses_count) if verses_count > 0 else 1.0
+
+        return {
+            "fts_count": fts_count,
+            "verses_count": verses_count,
+            "orphaned_count": orphaned_count,
+            "is_synchronized": is_sync,
+            "bloat_ratio": round(bloat, 3),
+        }
+
+    def rebuild_verses_fts(self) -> int:
+        """Rebuild the verses_fts full-text search virtual table from canonical verses.
+
+        Eliminates all orphaned ghost entries, synchronizes 1:1 parity, and optimizes the FTS5 b-tree.
+
+        Returns:
+            New total count of indexed verses in verses_fts.
+        """
+        with self.conn:
+            self.conn.execute("DELETE FROM verses_fts")
+            self.conn.execute(
+                """
+                INSERT INTO verses_fts (verse_id, translation_id, book_name, osis_ref, text)
+                SELECT v.id, v.translation_id, b.name, v.osis_ref, v.text
+                FROM verses v
+                JOIN books b ON b.id = v.book_id
+                """
+            )
+            self.conn.execute("INSERT INTO verses_fts(verses_fts) VALUES('optimize')")
+
+        cur = self.conn.execute("SELECT count(*) FROM verses_fts")
+        count = cur.fetchone()[0]
+        cur.close()
+        return count
+
+    def compact_database(self, force_rebuild_fts: bool = False) -> Dict[str, Any]:
+        """Perform comprehensive database compaction, FTS5 defragmentation, and disk reclamation.
+
+        1. Audits FTS health. If orphaned entries exist or force_rebuild_fts is True, rebuilds verses_fts.
+        2. Optimizes FTS5 b-tree structure ('optimize').
+        3. Runs PRAGMA optimize.
+        4. Runs VACUUM to defragment B-trees and reclaim free filesystem pages.
+
+        Returns:
+            Dictionary with before/after byte sizes, savings, and status.
+        """
+        db_file: Optional[Path] = None
+        size_before = 0
+        if self.db_path != ":memory:":
+            p = Path(self.db_path)
+            if p.exists():
+                db_file = p
+                size_before = p.stat().st_size
+
+        health = self.audit_fts_health()
+        rebuilt = False
+        if force_rebuild_fts or not health["is_synchronized"]:
+            self.rebuild_verses_fts()
+            rebuilt = True
+        else:
+            with self.conn:
+                self.conn.execute("INSERT INTO verses_fts(verses_fts) VALUES('optimize')")
+
+        self.optimize()
+        self.vacuum()
+
+        size_after = size_before
+        if db_file and db_file.exists():
+            size_after = db_file.stat().st_size
+
+        saved_bytes = max(0, size_before - size_after)
+        saved_pct = (saved_bytes / size_before * 100.0) if size_before > 0 else 0.0
+
+        return {
+            "size_before_bytes": size_before,
+            "size_after_bytes": size_after,
+            "size_before_human": format_size(size_before),
+            "size_after_human": format_size(size_after),
+            "saved_bytes": saved_bytes,
+            "saved_human": format_size(saved_bytes),
+            "saved_pct": round(saved_pct, 1),
+            "rebuilt_fts": rebuilt,
+            "fts_health": self.audit_fts_health(),
+        }
+
+
     @contextmanager
     def transaction(self) -> Generator[sqlite3.Connection, None, None]:
         """Context manager providing an atomic SQLite transaction block."""
@@ -1145,9 +1273,14 @@ class Database:
         with self.conn:
             cur = self.conn.execute(
                 """
-                INSERT OR REPLACE INTO verses (
+                INSERT INTO verses (
                     translation_id, book_id, chapter, verse, subverse, text, osis_ref, canonical_verse_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (translation_id, book_id, chapter, verse, subverse)
+                DO UPDATE SET
+                    text = excluded.text,
+                    osis_ref = excluded.osis_ref,
+                    canonical_verse_id = excluded.canonical_verse_id
                 """,
                 (
                     t_id,
@@ -1198,9 +1331,14 @@ class Database:
         with self.conn:
             self.conn.executemany(
                 """
-                INSERT OR REPLACE INTO verses (
+                INSERT INTO verses (
                     translation_id, book_id, chapter, verse, subverse, text, osis_ref, canonical_verse_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (translation_id, book_id, chapter, verse, subverse)
+                DO UPDATE SET
+                    text = excluded.text,
+                    osis_ref = excluded.osis_ref,
+                    canonical_verse_id = excluded.canonical_verse_id
                 """,
                 rows,
             )

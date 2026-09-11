@@ -41,6 +41,9 @@ class PlatformStatus:
     db_size_bytes: int = 0
     db_size_str: str = "0 B"
     db_healthy: bool = False
+    db_fts_synchronized: bool = True
+    db_fts_bloat_ratio: float = 1.0
+    db_fts_count: int = 0
 
     # Scripture canon
     total_verses: int = 0
@@ -101,6 +104,9 @@ class PlatformStatus:
                 "size_bytes": self.db_size_bytes,
                 "size_human": self.db_size_str,
                 "healthy": self.db_healthy,
+                "fts_synchronized": self.db_fts_synchronized,
+                "fts_bloat_ratio": self.db_fts_bloat_ratio,
+                "fts_count": self.db_fts_count,
             },
             "scripture": {
                 "total_verses": self.total_verses,
@@ -359,6 +365,15 @@ def get_platform_status(
                 except Exception:
                     pass
 
+                # FTS5 Parity & Health
+                try:
+                    fts_h = db.audit_fts_health()
+                    status.db_fts_synchronized = fts_h["is_synchronized"]
+                    status.db_fts_bloat_ratio = fts_h["bloat_ratio"]
+                    status.db_fts_count = fts_h["fts_count"]
+                except Exception:
+                    pass
+
                 # Vector Corpora Completed
                 try:
                     from core.corpora import CANONICAL_CORPORA
@@ -542,7 +557,8 @@ def format_terminal_dashboard(
 
     # Storage Footer
     lines.append("")
-    storage_line = f" 💾 Database: {status.db_path} ({status.db_size_str})"
+    fts_note = " • FTS5 Parity: 100%" if status.db_fts_synchronized else f" • FTS5 Desync ({status.db_fts_bloat_ratio:.1f}x bloat)"
+    storage_line = f" 💾 Database: {status.db_path} ({status.db_size_str}{fts_note})"
     lines.append(f"{c_dim}{storage_line}{c_reset}")
 
     # Quick Action Tips

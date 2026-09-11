@@ -61,6 +61,7 @@ class TestStatusModule(unittest.TestCase):
 
         d = status.to_dict()
         self.assertEqual(d["database"]["path"], "/mock/path/bible.db")
+        self.assertTrue(d["database"]["fts_synchronized"])
         self.assertEqual(d["scripture"]["total_verses"], 31103)
         self.assertEqual(d["knowledge_graph"]["pericopes"], 1304)
         self.assertEqual(d["vector_database"]["total_embeddings"], 1317)
@@ -81,6 +82,8 @@ class TestStatusModule(unittest.TestCase):
         )
 
         self.assertTrue(status.db_exists)
+        self.assertTrue(status.db_fts_synchronized)
+        self.assertEqual(status.db_fts_bloat_ratio, 1.0)
         self.assertGreaterEqual(status.total_verses, 31100)
         self.assertEqual(status.total_books, 66)
         self.assertGreaterEqual(len(status.translations), 1)

@@ -796,6 +796,27 @@ class TestCliExecution(unittest.TestCase):
         self.assertIn("Successfully optimized", stdout.getvalue())
         self.assertIn("Successfully vacuumed", stdout.getvalue())
 
+    def test_cli_db_compact(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "db", "compact"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Compaction Report", out)
+        self.assertIn("Storage Reclaimed:", out)
+        self.assertIn("100% parity", out)
+
+    def test_cli_db_rebuild_fts(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "db", "rebuild-fts"])
+        self.assertEqual(code, 0)
+        out = stdout.getvalue()
+        self.assertIn("Successfully rebuilt FTS5 index", out)
+        self.assertIn("100% parity", out)
+
     def test_cli_init_idempotent(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
