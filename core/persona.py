@@ -45,6 +45,10 @@ from core.llm import (
     GenerationConfig,
 )
 from core.reference import parse_reference
+from core.rag import (
+    RetrievedPassage,
+    ScriptureRAGEngine,
+)
 from core.semantic_audit import CharacterEntityDeduplicator
 from core.theology import (
     TGCTheologyEngine,
@@ -66,6 +70,39 @@ def _utc_now_iso() -> str:
 
 
 @dataclass(frozen=True)
+class DynamicRetrievedPassage:
+    """Scripture passage dynamically retrieved via author-scoped Scripture RAG with similarity scores."""
+
+    reference: str
+    human_ref: str
+    score: float
+    similarity_pct: float
+    text: str
+    translation: str
+    pericope_title: Optional[str] = None
+    theological_loci: Tuple[str, ...] = ()
+    thematic_ribbons: Tuple[str, ...] = ()
+    central_proposition: Optional[str] = None
+    retrieval_reasons: Tuple[str, ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert dynamic retrieved passage to JSON dictionary."""
+        return {
+            "reference": self.reference,
+            "human_ref": self.human_ref,
+            "score": round(self.score, 4),
+            "similarity_pct": round(self.similarity_pct, 1),
+            "text": self.text,
+            "translation": self.translation,
+            "pericope_title": self.pericope_title,
+            "theological_loci": list(self.theological_loci),
+            "thematic_ribbons": list(self.thematic_ribbons),
+            "central_proposition": self.central_proposition,
+            "retrieval_reasons": list(self.retrieval_reasons),
+        }
+
+
+@dataclass(frozen=True)
 class CharacterPersonaDefinition:
     """Immutable authoritative definition of a biblical character persona."""
 
@@ -80,6 +117,7 @@ class CharacterPersonaDefinition:
     christ_centered_orientation: str
     speaking_style: str
     aliases: Tuple[str, ...] = field(default_factory=tuple)
+    author_books: Tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert persona definition to dictionary representation."""
@@ -95,6 +133,7 @@ class CharacterPersonaDefinition:
             "christ_centered_orientation": self.christ_centered_orientation,
             "speaking_style": self.speaking_style,
             "aliases": list(self.aliases),
+            "author_books": list(self.author_books),
         }
 
 
@@ -125,6 +164,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Earnestly rejoiced to see the day of Christ afar off (John 8:56), trusting that God would provide the Lamb for the burnt offering on the mount of the LORD.",
         speaking_style="Venerable, hospitable, reverently sober, reflecting the nomad dwelling in tents who looks forward to the city that has foundations, whose designer and builder is God.",
         aliases=("Abram", "Father Abraham"),
+        author_books=("Genesis",),
     ),
     CharacterPersonaDefinition(
         id="jacob",
@@ -149,6 +189,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Prophesied on his deathbed that the scepter will not depart from Judah, nor the ruler's staff from between his feet, until Shiloh comes, to whom shall be the obedience of the peoples (Gen 49:10).",
         speaking_style="Limping yet resolute patriarch, seasoned by afflictions, speaking with deep reverence of the God of his fathers who has been his shepherd all his life long.",
         aliases=("Jacob", "Israel"),
+        author_books=("Genesis",),
     ),
     CharacterPersonaDefinition(
         id="joseph",
@@ -174,6 +215,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Testifies that what brothers meant for evil against him, God meant for good, to bring about the saving of many lives—foreshadowing the cross where man's evil is transfigured by God's sovereign redemption.",
         speaking_style="Forgiving, emotionally tender, wise in administrative and prophetic discernment, attributing every dream interpretation and elevation wholly to God.",
         aliases=("Joseph", "Zaphenath-paneah"),
+        author_books=("Genesis",),
     ),
 
     # --- Exodus & The Law ---
@@ -204,6 +246,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Proclaimed that the LORD God will raise up a Prophet like him from among their brothers, to whom they must listen; authored the Torah which writes of Jesus (John 5:46).",
         speaking_style="Authoritative yet profoundly meek, steeped in divine holiness and the dread thunder of Sinai, constantly interceding with God for a rebellious and stiff-necked people.",
         aliases=("Moses", "prophet Moses", "servant of the LORD"),
+        author_books=("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"),
     ),
     CharacterPersonaDefinition(
         id="aaron",
@@ -230,6 +273,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Points forward through the sprinkled blood, the scapegoat, and the incense cloud on Yom Kippur to the sinless High Priest who entered not with the blood of bulls and goats, but with His own blood once for all.",
         speaking_style="Reverent, sacerdotal, acutely conscious of human unworthiness before the Holy of Holies, speaking of atonement, clean and unclean, and the blessing of Aaron (Num 6:24-26).",
         aliases=("Aaron", "Aaron the priest", "high priest Aaron"),
+        author_books=("Exodus", "Leviticus", "Numbers"),
     ),
     CharacterPersonaDefinition(
         id="joshua",
@@ -253,6 +297,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Bowed face down before the Commander of the Army of the LORD outside Jericho; points to the greater Joshua who leads God's redeemed into the true eternal Sabbath rest.",
         speaking_style="Courageous, vigilant, unyielding in fidelity to the book of the law, summoning all hearers: 'Choose this day whom you will serve... but as for me and my house, we will serve the LORD.'",
         aliases=("Joshua", "Hoshea", "Joshua son of Nun"),
+        author_books=("Joshua",),
     ),
 
     # --- United Monarchy & Wisdom ---
@@ -284,6 +329,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Prophesied of the Messiah who sits at God's right hand ('The LORD said to my Lord', Ps 110), whose soul would not be abandoned to Sheol (Ps 16), and whose hands and feet would be pierced (Ps 22).",
         speaking_style="Passionate, poetic, deeply penitent over personal wickedness, exulting in the steadfast covenant love (chesed) and kingly rule of God.",
         aliases=("David", "King David", "sweet psalmist of Israel", "son of Jesse"),
+        author_books=("Psalms", "1 Samuel", "2 Samuel"),
     ),
     CharacterPersonaDefinition(
         id="solomon",
@@ -310,6 +356,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Acknowledges that 'something greater than Solomon is here' (Matt 12:42); his stone temple was but a shadow of the true Temple, Christ Jesus Himself.",
         speaking_style="Philosophical, aphoristic, majestic yet mournful, warning against youthful folly and concluding with the fear of the Lord as the beginning of wisdom.",
         aliases=("Solomon", "King Solomon", "Jedidiah"),
+        author_books=("Proverbs", "Ecclesiastes", "Song of Solomon", "1 Kings"),
     ),
 
     # --- Prophets ---
@@ -337,6 +384,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Appeared on the Mount of Transfiguration alongside Moses, conversing with Jesus about His departure (exodus) which He was about to accomplish at Jerusalem (Luke 9:30-31).",
         speaking_style="Urgent, fearless, confrontational toward idolatry, but quieted by the gentle whisper of God, declaring: 'The LORD, He is God!'",
         aliases=("Elijah", "Elijah the Tishbite", "prophet Elijah"),
+        author_books=("1 Kings", "2 Kings"),
     ),
     CharacterPersonaDefinition(
         id="isaiah",
@@ -363,6 +411,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Provides the clearest Old Testament revelation of Christ: Immanuel born of a virgin (Isa 7:14), the Child called Wonderful Counselor, Mighty God (Isa 9:6), and the Suffering Servant pierced for our transgressions (Isa 53).",
         speaking_style="Lofty, poetic, majestic, alternating between fiery condemnation of hypocritical worship and ecstatic comfort: 'Comfort, comfort My people, says your God.'",
         aliases=("Isaiah", "prophet Isaiah", "son of Amoz"),
+        author_books=("Isaiah",),
     ),
     CharacterPersonaDefinition(
         id="jeremiah",
@@ -389,6 +438,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Promised that days are coming when the LORD will make a New Covenant with the house of Israel, forgiving their iniquity and remembering their sin no more—instituted by Christ in His blood.",
         speaking_style="Sorrowful, passionately honest, tender-hearted, weeping for the hurt of the daughter of his people, yet steadfast in declaring God's relentless righteousness.",
         aliases=("Jeremiah", "weeping prophet", "son of Hilkiah"),
+        author_books=("Jeremiah", "Lamentations"),
     ),
     CharacterPersonaDefinition(
         id="daniel",
@@ -414,6 +464,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Saw in night visions One like a Son of Man coming with the clouds of heaven to receive from the Ancient of Days dominion, glory, and a kingdom that will not pass away—Jesus' favored self-designation.",
         speaking_style="Courteous, resolute, uncompromising in holy convictions, deeply prayerful in fasting and sackcloth, giving all honor to the God of heaven who reveals mysteries.",
         aliases=("Daniel", "Belteshazzar"),
+        author_books=("Daniel",),
     ),
 
     # --- Gospels & Transition ---
@@ -441,6 +492,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Bore eyewitness testimony pointing the world away from himself to Jesus: 'Behold, the Lamb of God, who takes away the sin of the world!' and 'He must increase, but I must decrease.'",
         speaking_style="Fiery, austere, stripping away religious hypocrisy: 'You brood of vipers! Bear fruit in keeping with repentance!' Yet utterly tender and joyful as the friend of the Bridegroom.",
         aliases=("John the Baptist", "John the Baptizer", "the Baptist"),
+        author_books=("Matthew", "Mark", "Luke", "John"),
     ),
     CharacterPersonaDefinition(
         id="mary",
@@ -467,6 +519,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Magnifies the Lord and rejoices in God her Savior (Luke 1:46-47); directs all disciples to Christ: 'Whatever He says to you, do it' (John 2:5); stands redeemed by the blood of her Son.",
         speaking_style="Contemplative, treasuring things in her heart, praising God for exalting the humble and scattering the proud, reverent and motherly.",
         aliases=("Mary", "virgin Mary", "mother of Jesus"),
+        author_books=("Luke", "Matthew", "John", "Acts"),
     ),
 
     # --- Apostles & Early Church ---
@@ -498,6 +551,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Testifies with burning eyewitness passion: 'You are the Christ, the Son of the living God' and 'He Himself bore our sins in His body on the tree, that we might die to sin and live to righteousness.'",
         speaking_style="Bold, straightforward, affectionate, humbled by his catastrophic denials and Christ's overwhelming grace; calls believers 'beloved' and exhorts them to stand firm in the true grace of God.",
         aliases=("Simon", "Simon Peter", "Cephas", "Simeon"),
+        author_books=("1 Peter", "2 Peter", "Acts", "Matthew", "Mark"),
     ),
     CharacterPersonaDefinition(
         id="paul",
@@ -529,6 +583,22 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Resolved to know nothing except Jesus Christ and Him crucified (1 Cor 2:2); declares: 'Far be it from me to boast except in the cross of our Lord Jesus Christ, by which the world has been crucified to me, and I to the world' (Gal 6:14).",
         speaking_style="Intellectually rigorous, doctrinally precise, burning with missionary fervor, breaking out into doxologies of praise, deeply affectionate toward his spiritual children in the faith.",
         aliases=("Saul", "Saul of Tarsus", "Apostle Paul", "Paul"),
+        author_books=(
+            "Romans",
+            "1 Corinthians",
+            "2 Corinthians",
+            "Galatians",
+            "Ephesians",
+            "Philippians",
+            "Colossians",
+            "1 Thessalonians",
+            "2 Thessalonians",
+            "1 Timothy",
+            "2 Timothy",
+            "Titus",
+            "Philemon",
+            "Acts",
+        ),
     ),
     CharacterPersonaDefinition(
         id="john-apostle",
@@ -558,6 +628,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Focuses entirely upon Jesus as the Word become flesh, the Lamb slain before the foundation of the world, whose pierced side gushed blood and water for the cleansing of sin.",
         speaking_style="Contemplative, profound, using simple yet cosmic antitheses (light vs. darkness, life vs. death, truth vs. lie, love vs. hate), warmly addressing believers as 'little children'.",
         aliases=("John", "Beloved Disciple", "John the Apostle", "son of Zebedee"),
+        author_books=("John", "1 John", "2 John", "3 John", "Revelation"),
     ),
     CharacterPersonaDefinition(
         id="james",
@@ -584,6 +655,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Calls himself simply: 'James, a servant of God and of the Lord Jesus Christ' (Jas 1:1), holding the faith of our Lord Jesus Christ, the Lord of glory, without partiality (Jas 2:1).",
         speaking_style="Direct, practical, uncompromising, steeped in Old Testament wisdom and the Sermon on the Mount, speaking against double-mindedness and demanding deeds of love.",
         aliases=("James", "James the Just", "brother of the Lord"),
+        author_books=("James", "Acts"),
     ),
     CharacterPersonaDefinition(
         id="mary-magdalene",
@@ -608,6 +680,7 @@ CANONICAL_PERSONAS: Tuple[CharacterPersonaDefinition, ...] = (
         christ_centered_orientation="Centered wholly on the living Lord Jesus ('Rabboni!'), rejoicing that He who was dead is alive forevermore and ascending to His Father and our Father.",
         speaking_style="Devoted, tender, unashamedly weeping with joy and gratitude for deliverance, bearing joyful, simple testimony: 'I have seen the Lord!'",
         aliases=("Mary Magdalene", "Magdalene"),
+        author_books=("Matthew", "Mark", "Luke", "John"),
     ),
 )
 
@@ -734,6 +807,123 @@ def load_character_scripture_passages(
     return results
 
 
+def retrieve_author_scoped_rag(
+    persona: CharacterPersonaDefinition,
+    query: str,
+    rag_engine: Optional[ScriptureRAGEngine] = None,
+    db: Optional[Database] = None,
+    translation: str = DEFAULT_TRANSLATION,
+    max_passages: int = 3,
+    min_score: float = 0.05,
+    expand_testament_horizon: bool = True,
+) -> List[DynamicRetrievedPassage]:
+    """Dynamically retrieve canonical passages for a biblical character with similarity scores.
+
+    Implements a two-pass author-scoped retrieval strategy per ADR-116:
+    1. Primary Pass: Queries the hybrid tri-modal Scripture RAG engine strictly
+       constrained to the persona's author_books (e.g. Pauline epistles for Paul,
+       Pentateuch for Moses, Psalms for David) within their canonical testament horizon.
+    2. Secondary Pass (Optional Expansion): If the primary pass yields fewer than
+       max_passages and expand_testament_horizon is True, expands retrieval to the
+       broader canonical testament horizon (e.g. Old Testament for OT saints,
+       New Testament for NT saints) to maintain redemptive-historical integrity
+       while preventing anachronistic cross-testament violations.
+
+    Args:
+        persona: The target character persona definition.
+        query: User message or inquiry to ground in canonical scripture.
+        rag_engine: Optional ScriptureRAGEngine instance (instantiated if None).
+        db: Optional Database instance (used if rag_engine is None).
+        translation: Preferred Bible translation (defaults to ESV).
+        max_passages: Maximum dynamic passages to retrieve (defaults to 3).
+        min_score: Minimum relevance / RRF score threshold (defaults to 0.05).
+        expand_testament_horizon: Whether to backfill from broader testament if
+            author books return fewer than max_passages (defaults to True).
+
+    Returns:
+        List of DynamicRetrievedPassage objects with similarity percentages and metadata.
+    """
+    if not query or not query.strip():
+        return []
+
+    clean_query = query.strip()
+    engine = rag_engine or ScriptureRAGEngine(db=db, translation=translation)
+
+    testament_scope = persona.testament if persona.testament in ("OT", "NT") else None
+
+    collected_passages: List[DynamicRetrievedPassage] = []
+    seen_references: Set[str] = set()
+
+    # Pass 1: Author books constrained retrieval (if author_books defined)
+    if persona.author_books:
+        try:
+            author_window = engine.retrieve(
+                query=clean_query,
+                max_passages=max_passages,
+                min_score=min_score,
+                preferred_translation=translation,
+                testament=testament_scope,
+                books=persona.author_books,
+            )
+            for rp in author_window.passages:
+                if rp.reference not in seen_references:
+                    seen_references.add(rp.reference)
+                    sim_pct = round(max(0.0, min(1.0, rp.score)) * 100.0, 1)
+                    collected_passages.append(
+                        DynamicRetrievedPassage(
+                            reference=rp.reference,
+                            human_ref=rp.human_ref,
+                            score=float(rp.score),
+                            similarity_pct=sim_pct,
+                            text=rp.text,
+                            translation=rp.translation,
+                            pericope_title=rp.pericope_title,
+                            theological_loci=tuple(rp.theological_loci),
+                            thematic_ribbons=tuple(rp.thematic_ribbons),
+                            central_proposition=rp.central_proposition,
+                            retrieval_reasons=tuple(rp.retrieval_reasons),
+                        )
+                    )
+        except Exception:
+            pass
+
+    # Pass 2: Secondary expansion within the character's broader testament horizon
+    if len(collected_passages) < max_passages and expand_testament_horizon:
+        try:
+            broader_window = engine.retrieve(
+                query=clean_query,
+                max_passages=max_passages,
+                min_score=min_score,
+                preferred_translation=translation,
+                testament=testament_scope,
+            )
+            for rp in broader_window.passages:
+                if rp.reference not in seen_references:
+                    seen_references.add(rp.reference)
+                    sim_pct = round(max(0.0, min(1.0, rp.score)) * 100.0, 1)
+                    collected_passages.append(
+                        DynamicRetrievedPassage(
+                            reference=rp.reference,
+                            human_ref=rp.human_ref,
+                            score=float(rp.score),
+                            similarity_pct=sim_pct,
+                            text=rp.text,
+                            translation=rp.translation,
+                            pericope_title=rp.pericope_title,
+                            theological_loci=tuple(rp.theological_loci),
+                            thematic_ribbons=tuple(rp.thematic_ribbons),
+                            central_proposition=rp.central_proposition,
+                            retrieval_reasons=tuple(rp.retrieval_reasons),
+                        )
+                    )
+                    if len(collected_passages) >= max_passages:
+                        break
+        except Exception:
+            pass
+
+    return collected_passages[:max_passages]
+
+
 # ==============================================================================
 # 4. Persona Dialogue System Prompt Generator
 # ==============================================================================
@@ -833,6 +1023,7 @@ class PersonaDialogueResponse:
     model: str
     latency_seconds: float = 0.0
     grounded_passages: List[str] = field(default_factory=list)
+    dynamic_passages: List[Dict[str, Any]] = field(default_factory=list)
     turn_count: int = 1
     offline_fallback: bool = False
 
@@ -845,6 +1036,7 @@ class PersonaDialogueResponse:
             "model": self.model,
             "latency_seconds": round(self.latency_seconds, 3),
             "grounded_passages": self.grounded_passages,
+            "dynamic_passages": [dict(p) for p in self.dynamic_passages],
             "turn_count": self.turn_count,
             "offline_fallback": self.offline_fallback,
         }
@@ -859,6 +1051,7 @@ class DialogueTurn:
     content: str
     timestamp: str = field(default_factory=_utc_now_iso)
     grounded_passages: List[str] = field(default_factory=list)
+    dynamic_passages: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert dialogue turn to dictionary representation."""
@@ -868,6 +1061,7 @@ class DialogueTurn:
             "content": self.content,
             "timestamp": self.timestamp,
             "grounded_passages": list(self.grounded_passages),
+            "dynamic_passages": [dict(p) for p in self.dynamic_passages],
         }
 
     @classmethod
@@ -879,6 +1073,7 @@ class DialogueTurn:
             content=str(data.get("content", "")),
             timestamp=str(data.get("timestamp", _utc_now_iso())),
             grounded_passages=list(data.get("grounded_passages", [])),
+            dynamic_passages=list(data.get("dynamic_passages", [])),
         )
 
 
@@ -1093,6 +1288,7 @@ class BiblicalPersonaSession:
         db: Optional[Database] = None,
         llm_client: Optional[GeminiClient] = None,
         theology_engine: Optional[TGCTheologyEngine] = None,
+        rag_engine: Optional[ScriptureRAGEngine] = None,
         translation: str = DEFAULT_TRANSLATION,
         fallback_translation: str = FALLBACK_TRANSLATION,
         model: str = DEFAULT_GEMINI_MODEL,
@@ -1101,6 +1297,9 @@ class BiblicalPersonaSession:
         session_id: Optional[str] = None,
         title: Optional[str] = None,
         created_at: Optional[str] = None,
+        enable_dynamic_rag: bool = True,
+        rag_max_passages: int = 3,
+        rag_min_score: float = 0.05,
     ) -> None:
         """Initialize persona dialogue session.
 
@@ -1109,6 +1308,7 @@ class BiblicalPersonaSession:
             db: Database connection.
             llm_client: Optional GeminiClient instance.
             theology_engine: Optional TGCTheologyEngine instance.
+            rag_engine: Optional ScriptureRAGEngine instance for dynamic per-turn retrieval.
             translation: Preferred Bible translation (defaults to ESV).
             fallback_translation: Fallback translation if unseeded (defaults to WEB).
             model: Gemini model identifier.
@@ -1117,16 +1317,23 @@ class BiblicalPersonaSession:
             session_id: Optional persistent session ID.
             title: Optional session title.
             created_at: Optional ISO timestamp when session originated.
+            enable_dynamic_rag: Whether to dynamically retrieve author-scoped passages each turn.
+            rag_max_passages: Maximum dynamic passages to retrieve per turn (default 3).
+            rag_min_score: Minimum relevance / RRF score for dynamic passages (default 0.05).
         """
         self.persona = persona
         self.db = db or Database()
         self.theology_engine = theology_engine or get_theology_engine()
         self.llm_client = llm_client or GeminiClient(model=model)
+        self.rag_engine = rag_engine
         self.translation = translation
         self.fallback_translation = fallback_translation
         self.model = model
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        self.enable_dynamic_rag = enable_dynamic_rag
+        self.rag_max_passages = rag_max_passages
+        self.rag_min_score = rag_min_score
 
         self.session_id = session_id or self._generate_session_id(self.persona.id)
         self.title = title or f"Dialogue with {self.persona.canonical_name}"
@@ -1166,10 +1373,70 @@ class BiblicalPersonaSession:
         """Total dialogue turns completed."""
         return len([m for m in self.history if m.role == "user"])
 
-    def _build_offline_response(self, user_message: str) -> str:
+    def retrieve_turn_context(self, user_message: str) -> List[DynamicRetrievedPassage]:
+        """Dynamically retrieve author-scoped canonical passages for this dialogue turn."""
+        if not self.enable_dynamic_rag:
+            return []
+        try:
+            return retrieve_author_scoped_rag(
+                persona=self.persona,
+                query=user_message,
+                rag_engine=self.rag_engine,
+                db=self.db,
+                translation=self.translation,
+                max_passages=self.rag_max_passages,
+                min_score=self.rag_min_score,
+            )
+        except Exception:
+            return []
+
+    def _build_turn_system_prompt(
+        self, dynamic_passages: Sequence[DynamicRetrievedPassage]
+    ) -> str:
+        """Build turn-specific system prompt augmenting master prompt with dynamic passages."""
+        if not dynamic_passages:
+            return self.system_prompt
+
+        dyn_lines: List[str] = [
+            "\n\n### Dynamically Retrieved Scripture Grounding (Author-Scoped)",
+            "The following passages were dynamically retrieved from Sacred Scripture as most relevant to the inquirer's message, scored by similarity:",
+        ]
+        for dp in dynamic_passages:
+            dyn_lines.append(
+                f"- **{dp.human_ref} ({dp.translation})** [Similarity Match: {dp.similarity_pct:.1f}%]:"
+            )
+            dyn_lines.append(f"  > {dp.text}")
+            if dp.theological_loci:
+                dyn_lines.append(f"  *Theological Loci*: {', '.join(dp.theological_loci)}")
+
+        dyn_lines.append(
+            "\nDraw explicitly upon these passages, quoting or reflecting their biblical truth where appropriate while remaining firmly in character."
+        )
+        return self.system_prompt + "\n".join(dyn_lines)
+
+    def _build_offline_response(
+        self,
+        user_message: str,
+        dynamic_passages: Optional[Sequence[DynamicRetrievedPassage]] = None,
+    ) -> str:
         """Generate informative, reverent offline response when GEMINI_API_KEY is not present."""
         passages_formatted = ", ".join(f"`{p.reference}`" for p in self.grounded_passages)
         trials_formatted = "; ".join(self.persona.core_trials_and_failures)
+
+        dynamic_section = ""
+        if dynamic_passages:
+            dyn_lines = ["*Dynamically Retrieved Canonical Passages (Similarity Scored)*:"]
+            for dp in dynamic_passages:
+                excerpt = dp.text[:120].strip() + ("..." if len(dp.text) > 120 else "")
+                dyn_lines.append(
+                    f"- `{dp.human_ref}` ({dp.translation}) [{dp.similarity_pct:.1f}% match]: \"{excerpt}\""
+                )
+            dynamic_section = "\n" + "\n".join(dyn_lines) + "\n"
+
+        dyn_reflection = ""
+        if dynamic_passages:
+            dyn_refs = ", ".join(f"`{dp.human_ref}` ({dp.similarity_pct:.0f}%)" for dp in dynamic_passages)
+            dyn_reflection = f"\nDynamically matched scripture from my canonical writings: {dyn_refs}."
 
         return (
             f"[OFFLINE PERSONA PROFILE: {self.persona.canonical_name.upper()} ({self.persona.canonical_era})]\n\n"
@@ -1177,10 +1444,11 @@ class BiblicalPersonaSession:
             f"*Canonical Lifespan*: {self.persona.lifespan_description}\n"
             f"*Christ-Centered Teleology*: {self.persona.christ_centered_orientation}\n"
             f"*Canonical Scripture Foundations*: {passages_formatted}\n"
+            f"{dynamic_section}"
             f"*Human Frailty & Canonical Realism*: {trials_formatted}\n\n"
             f"Note: To engage in live generative dialogue with {self.persona.canonical_name}, please configure your "
             f"Google Gemini API key by setting the GEMINI_API_KEY environment variable or placing it in .env.\n\n"
-            f"Regarding your inquiry ('{user_message.strip()}'), reflect upon the biblical testimony in {passages_formatted}."
+            f"Regarding your inquiry ('{user_message.strip()}'), reflect upon the biblical testimony in {passages_formatted}.{dyn_reflection}"
         )
 
     def say(
@@ -1213,9 +1481,18 @@ class BiblicalPersonaSession:
             )
         )
 
+        # Dynamic author-scoped Scripture RAG retrieval
+        dynamic_passages = self.retrieve_turn_context(clean_user_message)
+        dynamic_passage_dicts = [dp.to_dict() for dp in dynamic_passages]
+        grounded_badge_list = [f"{dp.human_ref} ({dp.similarity_pct:.0f}% match)" for dp in dynamic_passages]
+        if not grounded_badge_list:
+            grounded_badge_list = [p.reference for p in self.grounded_passages]
+
         # Check API key availability
         if not self.llm_client.is_available():
-            offline_text = self._build_offline_response(clean_user_message)
+            offline_text = self._build_offline_response(
+                clean_user_message, dynamic_passages=dynamic_passages
+            )
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
@@ -1224,7 +1501,8 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=offline_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
             return PersonaDialogueResponse(
@@ -1232,7 +1510,8 @@ class BiblicalPersonaSession:
                 character_id=self.persona.id,
                 text=offline_text,
                 model="offline-profile",
-                grounded_passages=[p.reference for p in self.grounded_passages],
+                grounded_passages=grounded_badge_list,
+                dynamic_passages=dynamic_passage_dicts,
                 turn_count=self.turn_count,
                 offline_fallback=True,
             )
@@ -1245,10 +1524,12 @@ class BiblicalPersonaSession:
             max_output_tokens=self.max_output_tokens,
         )
 
+        turn_system_instruction = self._build_turn_system_prompt(dynamic_passages)
+
         try:
             resp = self.llm_client.generate_content(
                 prompt=self.history,
-                system_instruction=self.system_prompt,
+                system_instruction=turn_system_instruction,
                 config=cfg,
                 model=self.model,
             )
@@ -1260,7 +1541,8 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=model_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
 
@@ -1270,7 +1552,8 @@ class BiblicalPersonaSession:
                 text=model_text,
                 model=resp.model,
                 latency_seconds=resp.latency_seconds,
-                grounded_passages=[p.reference for p in self.grounded_passages],
+                grounded_passages=grounded_badge_list,
+                dynamic_passages=dynamic_passage_dicts,
                 turn_count=self.turn_count,
                 offline_fallback=False,
             )
@@ -1278,7 +1561,9 @@ class BiblicalPersonaSession:
             # Fallback to offline card on API/network error
             offline_text = (
                 f"[NOTICE: Live connection unavailable ({type(exc).__name__}: {str(exc)})]\n\n"
-                + self._build_offline_response(clean_user_message)
+                + self._build_offline_response(
+                    clean_user_message, dynamic_passages=dynamic_passages
+                )
             )
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
@@ -1287,7 +1572,8 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=offline_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
             return PersonaDialogueResponse(
@@ -1295,10 +1581,31 @@ class BiblicalPersonaSession:
                 character_id=self.persona.id,
                 text=offline_text,
                 model="offline-error-fallback",
-                grounded_passages=[p.reference for p in self.grounded_passages],
+                grounded_passages=grounded_badge_list,
+                dynamic_passages=dynamic_passage_dicts,
                 turn_count=self.turn_count,
                 offline_fallback=True,
             )
+
+    def step(
+        self,
+        user_message: str,
+        config: Optional[GenerationConfig] = None,
+    ) -> PersonaDialogueResponse:
+        """Execute one dialogue turn with dynamic author-scoped Scripture RAG retrieval.
+
+        Primary interface for character conversation turns, seamlessly retrieving
+        canonical passages from the character's writings with similarity scores
+        and injecting them into the turn context.
+
+        Args:
+            user_message: Inquirer question or prompt.
+            config: Optional GenerationConfig override.
+
+        Returns:
+            PersonaDialogueResponse containing character answer, similarity-scored passages, and metadata.
+        """
+        return self.say(user_message=user_message, config=config)
 
     def say_stream(
         self,
@@ -1330,9 +1637,18 @@ class BiblicalPersonaSession:
             )
         )
 
+        # Dynamic author-scoped Scripture RAG retrieval
+        dynamic_passages = self.retrieve_turn_context(clean_user_message)
+        dynamic_passage_dicts = [dp.to_dict() for dp in dynamic_passages]
+        grounded_badge_list = [f"{dp.human_ref} ({dp.similarity_pct:.0f}% match)" for dp in dynamic_passages]
+        if not grounded_badge_list:
+            grounded_badge_list = [p.reference for p in self.grounded_passages]
+
         # Check API key availability
         if not self.llm_client.is_available():
-            offline_text = self._build_offline_response(clean_user_message)
+            offline_text = self._build_offline_response(
+                clean_user_message, dynamic_passages=dynamic_passages
+            )
             self.history.append(ChatMessage(role="user", content=clean_user_message))
             self.history.append(ChatMessage(role="model", content=offline_text))
             self.turns.append(
@@ -1341,7 +1657,8 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=offline_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
             yield offline_text
@@ -1354,11 +1671,13 @@ class BiblicalPersonaSession:
             max_output_tokens=self.max_output_tokens,
         )
 
+        turn_system_instruction = self._build_turn_system_prompt(dynamic_passages)
+
         accumulated_parts: List[str] = []
         try:
             for chunk in self.llm_client.generate_stream(
                 prompt=self.history,
-                system_instruction=self.system_prompt,
+                system_instruction=turn_system_instruction,
                 config=cfg,
                 model=self.model,
             ):
@@ -1374,14 +1693,17 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=full_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
 
         except Exception as exc:
             err_text = (
                 f"\n[NOTICE: Stream interrupted ({type(exc).__name__}: {str(exc)})]\n\n"
-                + self._build_offline_response(clean_user_message)
+                + self._build_offline_response(
+                    clean_user_message, dynamic_passages=dynamic_passages
+                )
             )
             accumulated_parts.append(err_text)
             full_text = "".join(accumulated_parts).strip()
@@ -1392,7 +1714,8 @@ class BiblicalPersonaSession:
                     speaker=self.persona.canonical_name,
                     content=full_text,
                     timestamp=_utc_now_iso(),
-                    grounded_passages=[p.reference for p in self.grounded_passages],
+                    grounded_passages=grounded_badge_list,
+                    dynamic_passages=dynamic_passage_dicts,
                 )
             )
             yield err_text
@@ -1446,6 +1769,8 @@ class BiblicalPersonaSession:
         db: Optional[Database] = None,
         llm_client: Optional[GeminiClient] = None,
         theology_engine: Optional[TGCTheologyEngine] = None,
+        rag_engine: Optional[ScriptureRAGEngine] = None,
+        enable_dynamic_rag: bool = True,
     ) -> "BiblicalPersonaSession":
         """Resume a prior dialogue session from disk by its session_id."""
         mgr = DialogueSessionManager(sessions_dir=sessions_dir)
@@ -1461,11 +1786,13 @@ class BiblicalPersonaSession:
             db=db,
             llm_client=llm_client,
             theology_engine=theology_engine,
+            rag_engine=rag_engine,
             translation=tr.translation,
             model=tr.model,
             session_id=tr.session_id,
             title=tr.title,
             created_at=tr.created_at,
+            enable_dynamic_rag=enable_dynamic_rag,
         )
         session.turns = list(tr.turns)
         session.history = []
@@ -1473,6 +1800,10 @@ class BiblicalPersonaSession:
             role = "user" if turn.role == "user" else "model"
             session.history.append(ChatMessage(role=role, content=turn.content))
         return session
+
+
+# Alias per Roadmap Task 9.1
+CharacterDialogueSession = BiblicalPersonaSession
 
 
 # ==============================================================================
@@ -1485,11 +1816,15 @@ def create_persona_session(
     db: Optional[Database] = None,
     llm_client: Optional[GeminiClient] = None,
     theology_engine: Optional[TGCTheologyEngine] = None,
+    rag_engine: Optional[ScriptureRAGEngine] = None,
     translation: str = DEFAULT_TRANSLATION,
     fallback_translation: str = FALLBACK_TRANSLATION,
     model: str = DEFAULT_GEMINI_MODEL,
     session_id: Optional[str] = None,
     title: Optional[str] = None,
+    enable_dynamic_rag: bool = True,
+    rag_max_passages: int = 3,
+    rag_min_score: float = 0.05,
 ) -> BiblicalPersonaSession:
     """Factory helper to instantiate a BiblicalPersonaSession by character name or ID.
 
@@ -1498,11 +1833,15 @@ def create_persona_session(
         db: Optional database connection.
         llm_client: Optional GeminiClient.
         theology_engine: Optional theology engine.
+        rag_engine: Optional ScriptureRAGEngine instance.
         translation: Preferred scripture translation (default ESV).
         fallback_translation: Fallback translation (default WEB).
         model: Gemini model identifier.
         session_id: Optional explicit session ID.
         title: Optional session title.
+        enable_dynamic_rag: Whether to dynamically retrieve author-scoped passages each turn.
+        rag_max_passages: Maximum dynamic passages to retrieve per turn.
+        rag_min_score: Minimum relevance score threshold for retrieved passages.
 
     Returns:
         Configured BiblicalPersonaSession instance.
@@ -1523,9 +1862,13 @@ def create_persona_session(
         db=db,
         llm_client=llm_client,
         theology_engine=theology_engine,
+        rag_engine=rag_engine,
         translation=translation,
         fallback_translation=fallback_translation,
         model=model,
         session_id=session_id,
         title=title,
+        enable_dynamic_rag=enable_dynamic_rag,
+        rag_max_passages=rag_max_passages,
+        rag_min_score=rag_min_score,
     )

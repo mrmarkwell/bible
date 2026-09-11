@@ -178,11 +178,12 @@ class TheologicalFacetFilter:
     genre: Optional[str] = None      # e.g. "Gospel", "Epistle", "Wisdom & Poetry", etc.
     epoch: Optional[Union[str, RedemptiveEpoch]] = None  # e.g. "creation", "incarnation_climax"
     locus: Optional[Union[str, TheologicalLocus]] = None  # e.g. "soteriology", "christology"
+    books: Optional[Sequence[Union[str, int]]] = None    # e.g. ("Romans", "Galatians") or (45, 48)
 
     @property
     def is_active(self) -> bool:
         """Return True if any facet constraint is specified."""
-        return bool(self.testament or self.genre or self.epoch or self.locus)
+        return bool(self.testament or self.genre or self.epoch or self.locus or self.books)
 
     def matches_reference(self, ref: Reference, db: Database) -> bool:
         """Check whether a Reference satisfies all active facet criteria."""
@@ -240,6 +241,19 @@ class TheologicalFacetFilter:
             except Exception:
                 return False
 
+        # 5. Book / author-scoped pre-filter
+        if self.books:
+            target_books: Set[int] = set()
+            for b in self.books:
+                if isinstance(b, int):
+                    target_books.add(b)
+                else:
+                    resolved_b = get_book(b)
+                    if resolved_b:
+                        target_books.add(resolved_b.number)
+            if target_books and ref.book.number not in target_books:
+                return False
+
         return True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -249,6 +263,7 @@ class TheologicalFacetFilter:
             "genre": self.genre,
             "epoch": self.epoch.value if isinstance(self.epoch, RedemptiveEpoch) else self.epoch,
             "locus": self.locus.value if isinstance(self.locus, TheologicalLocus) else self.locus,
+            "books": list(self.books) if self.books else None,
         }
 
 
@@ -827,6 +842,7 @@ class ScriptureRAGEngine:
         genre: Optional[str] = None,
         epoch: Optional[Union[str, RedemptiveEpoch]] = None,
         locus: Optional[Union[str, TheologicalLocus]] = None,
+        books: Optional[Sequence[Union[str, int]]] = None,
         fusion_method: Optional[str] = None,
         rrf_k: Optional[int] = None,
     ) -> RAGContextWindow:
@@ -852,6 +868,7 @@ class ScriptureRAGEngine:
             genre: Literary genre pre-filter (e.g. 'Gospel', 'Epistle', 'Wisdom & Poetry').
             epoch: Redemptive storyline epoch pre-filter (e.g. 'creation', 'incarnation_climax').
             locus: Systematic theological locus pre-filter (e.g. 'soteriology', 'christology').
+            books: Book names or canonical IDs pre-filter for author-scoped retrieval.
             fusion_method: Ranking fusion strategy ('rrf' or 'composite'). Defaults to 'rrf'.
             rrf_k: Reciprocal Rank Fusion smoothing constant k (default: 60).
 
@@ -865,6 +882,7 @@ class ScriptureRAGEngine:
             genre=genre,
             epoch=epoch,
             locus=locus,
+            books=books,
         )
         effective_fusion = (fusion_method or self.weights.fusion_method).strip().lower()
         effective_k = rrf_k if rrf_k is not None else self.weights.rrf_k
@@ -1687,6 +1705,7 @@ def retrieve_rag_context(
     genre: Optional[str] = None,
     epoch: Optional[Union[str, RedemptiveEpoch]] = None,
     locus: Optional[Union[str, TheologicalLocus]] = None,
+    books: Optional[Sequence[Union[str, int]]] = None,
     fusion_method: Optional[str] = None,
     rrf_k: Optional[int] = None,
 ) -> RAGContextWindow:
@@ -1703,6 +1722,7 @@ def retrieve_rag_context(
         genre=genre,
         epoch=epoch,
         locus=locus,
+        books=books,
         fusion_method=fusion_method,
         rrf_k=rrf_k,
     )

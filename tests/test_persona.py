@@ -513,5 +513,173 @@ class TestDialogueSessionManager(unittest.TestCase):
         self.assertEqual(resumed_session.turn_count, 2)
 
 
+class CharacterDialogueRAGRetrievalTest(unittest.TestCase):
+    """Test suite for author-scoped dynamic per-turn RAG retrieval and CharacterDialogueSession.step()."""
+
+    def test_author_books_catalog_completeness(self):
+        """Every canonical persona must specify valid, non-empty author_books."""
+        from core.persona import CANONICAL_PERSONAS, get_persona_definition
+
+        for p in CANONICAL_PERSONAS:
+            self.assertTrue(
+                len(p.author_books) > 0,
+                f"Persona '{p.id}' has empty author_books!",
+            )
+            # Verify serialization
+            d = p.to_dict()
+            self.assertIn("author_books", d)
+            self.assertEqual(d["author_books"], list(p.author_books))
+
+        # Check key biblical figures have accurate author books
+        paul = get_persona_definition("paul")
+        self.assertIn("Romans", paul.author_books)
+        self.assertIn("Galatians", paul.author_books)
+
+        moses = get_persona_definition("moses")
+        self.assertIn("Genesis", moses.author_books)
+        self.assertIn("Exodus", moses.author_books)
+
+        david = get_persona_definition("david")
+        self.assertIn("Psalms", david.author_books)
+
+        john = get_persona_definition("john-apostle")
+        self.assertIn("John", john.author_books)
+        self.assertIn("Revelation", john.author_books)
+
+    def test_dynamic_retrieved_passage_dataclass(self):
+        """DynamicRetrievedPassage must encapsulate similarity scores and metadata."""
+        from core.persona import DynamicRetrievedPassage
+
+        dp = DynamicRetrievedPassage(
+            reference="45:3:21-26",
+            human_ref="Romans 3:21-26",
+            score=0.885,
+            similarity_pct=88.5,
+            text="But now the righteousness of God has been manifested...",
+            translation="ESV",
+            pericope_title="The Righteousness of God Through Faith",
+            theological_loci=("soteriology", "christology"),
+            thematic_ribbons=("covenant_grace",),
+            central_proposition="God is both just and the justifier of the one who has faith.",
+            retrieval_reasons=("dense_vector_pericope_semantic_similarity",),
+        )
+        self.assertEqual(dp.reference, "45:3:21-26")
+        self.assertEqual(dp.similarity_pct, 88.5)
+        d = dp.to_dict()
+        self.assertEqual(d["score"], 0.885)
+        self.assertEqual(d["similarity_pct"], 88.5)
+        self.assertEqual(d["theological_loci"], ["soteriology", "christology"])
+
+    def test_retrieve_author_scoped_rag_author_filtering(self):
+        """retrieve_author_scoped_rag must constrain search to the character's author books."""
+        from core.persona import get_persona_definition, retrieve_author_scoped_rag
+
+        paul = get_persona_definition("paul")
+        passages = retrieve_author_scoped_rag(paul, "justification by faith in Christ", max_passages=3)
+        self.assertTrue(len(passages) > 0)
+        for p in passages:
+            self.assertIn(
+                p.human_ref.split()[0],
+                paul.author_books,
+                f"Passage {p.human_ref} is not within Paul's author books!",
+            )
+            self.assertGreater(p.score, 0.0)
+            self.assertGreater(p.similarity_pct, 0.0)
+            self.assertLessEqual(p.similarity_pct, 100.0)
+
+    def test_retrieve_author_scoped_rag_testament_integrity(self):
+        """OT characters must strictly retrieve OT passages, preventing anachronistic NT retrieval."""
+        from core.persona import get_persona_definition, retrieve_author_scoped_rag
+        from core.reference import parse_reference
+
+        moses = get_persona_definition("moses")
+        passages = retrieve_author_scoped_rag(moses, "covenant holiness tabernacle sacrifice", max_passages=3)
+        self.assertTrue(len(passages) > 0)
+        for p in passages:
+            ref = parse_reference(p.human_ref)
+            self.assertEqual(ref.book.testament, "OT")
+
+    def test_character_dialogue_session_alias_and_step(self):
+        """CharacterDialogueSession must alias BiblicalPersonaSession and support step()."""
+        from core.persona import (
+            BiblicalPersonaSession,
+            CharacterDialogueSession,
+            create_persona_session,
+        )
+
+        self.assertIs(CharacterDialogueSession, BiblicalPersonaSession)
+
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+
+        session = create_persona_session("paul", llm_client=mock_client)
+        resp = session.step("How are we justified before God?")
+
+        self.assertEqual(resp.character_name, "Paul (Apostle)")
+        self.assertTrue(resp.offline_fallback)
+        self.assertTrue(len(resp.dynamic_passages) > 0)
+
+        # Check dynamic passages fields
+        first_dp = resp.dynamic_passages[0]
+        self.assertIn("human_ref", first_dp)
+        self.assertIn("score", first_dp)
+        self.assertIn("similarity_pct", first_dp)
+        self.assertIn("text", first_dp)
+
+        # Grounded badges should contain similarity percentages
+        self.assertTrue(any("% match" in b for b in resp.grounded_passages))
+
+        # Check turn recorded dynamic passages
+        last_turn = session.turns[-1]
+        self.assertEqual(last_turn.role, "character")
+        self.assertTrue(len(last_turn.dynamic_passages) > 0)
+        turn_dict = last_turn.to_dict()
+        self.assertIn("dynamic_passages", turn_dict)
+
+        # Check offline text includes dynamic passages section
+        self.assertIn("Dynamically Retrieved Canonical Passages", resp.text)
+
+    def test_step_with_mocked_live_llm(self):
+        """step() must inject dynamically retrieved passages into live Gemini system prompt."""
+        from core.llm import LLMResponse
+        from core.persona import create_persona_session
+
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = True
+        mock_client.generate_content.return_value = LLMResponse(
+            text="Grace and peace to you! Being justified by faith, we have peace with God.",
+            model="gemini-2.5-pro",
+            latency_seconds=0.45,
+            usage={"prompt_tokens": 100, "completion_tokens": 25, "total_tokens": 125},
+        )
+
+        session = create_persona_session("paul", llm_client=mock_client)
+        resp = session.step("Explain justification by faith alone.")
+
+        self.assertFalse(resp.offline_fallback)
+        self.assertEqual(resp.model, "gemini-2.5-pro")
+        self.assertIn("peace with God", resp.text)
+        self.assertTrue(len(resp.dynamic_passages) > 0)
+
+        # Verify system_instruction passed to GeminiClient contained dynamic passages block
+        call_kwargs = mock_client.generate_content.call_args[1]
+        sys_instruction = call_kwargs["system_instruction"]
+        self.assertIn("### Dynamically Retrieved Scripture Grounding (Author-Scoped)", sys_instruction)
+        self.assertIn("Similarity Match:", sys_instruction)
+
+    def test_dynamic_rag_disabled(self):
+        """When enable_dynamic_rag is False, step() must not execute dynamic retrieval."""
+        from core.persona import create_persona_session
+
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+
+        session = create_persona_session("paul", llm_client=mock_client, enable_dynamic_rag=False)
+        resp = session.step("What is faith?")
+
+        self.assertEqual(len(resp.dynamic_passages), 0)
+        self.assertFalse(any("% match" in b for b in resp.grounded_passages))
+
+
 if __name__ == "__main__":
     unittest.main()

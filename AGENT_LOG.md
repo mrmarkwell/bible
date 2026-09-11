@@ -4274,3 +4274,46 @@ This is an append-only log of work performed by autonomous agents during their e
   - GitHub Actions CI root cause is fully resolved and verified hermetic.
   - Next agent can proceed to Roadmap or GitHub Issues triage.
 
+---
+
+## [Run 108] — 2026-09-11
+- **Agent**: Autonomous Biblical Persona & RAG Systems Architect Agent (Run 108 / ADR-116)
+- **Phase**: Phase 9 — Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI (Task 9.1)
+- **Goal**: Implement author-scoped dynamic per-turn Scripture RAG retrieval hook in `core/persona.py` (`CharacterDialogueSession.step()`) so biblical character personas dynamically pull their relevant canonical passages with similarity scores and percentage match badges into dialogue context.
+- **Actions Taken**:
+  1. **Canonical Author-Book Boundaries (`CharacterPersonaDefinition.author_books`)**:
+     - Added immutable `author_books: Tuple[str, ...] = field(default_factory=tuple)` to `CharacterPersonaDefinition` and updated `to_dict()`.
+     - Populated author and historical canonical book boundaries for all 19 canonical personas in `CANONICAL_PERSONAS` (Abraham, Jacob, Joseph, Moses, Aaron, Joshua, David, Solomon, Elijah, Isaiah, Jeremiah, Daniel, John the Baptist, Mary, Peter, Paul, John the Apostle, James, Mary Magdalene).
+  2. **Book Pre-Filtering in Hybrid Scripture RAG Engine (`core/rag.py`)**:
+     - Extended `TheologicalFacetFilter` with `books: Optional[Sequence[Union[str, int]]] = None`.
+     - Enhanced `matches_reference()` to enforce book number / canonical name pre-filtering across all retrieval stages (explicit references, FTS5 BM25 keyword search, dense vector similarity, semantic tags, and typological arcs).
+     - Extended `ScriptureRAGEngine.retrieve()` and `retrieve_rag_context()` with `books` parameter support.
+  3. **Author-Scoped Dynamic Retrieval Pipeline (`retrieve_author_scoped_rag`)**:
+     - Implemented `retrieve_author_scoped_rag(persona, query, rag_engine, db, translation, max_passages, min_score, expand_testament_horizon)` in `core/persona.py`:
+       - *Pass 1 (Author Books)*: Queries `rag_engine.retrieve()` strictly constrained to `persona.author_books` within the persona's testament horizon (`testament="OT"` for OT figures, `testament="NT"` for NT figures).
+       - *Pass 2 (Testament Horizon Expansion)*: Backfills remaining needed passages from the persona's broader testament horizon to prevent cross-testament anachronisms.
+     - Implemented `DynamicRetrievedPassage` dataclass encapsulating `reference`, `human_ref`, `score`, `similarity_pct`, `text`, `translation`, `pericope_title`, `theological_loci`, `thematic_ribbons`, `central_proposition`, and `retrieval_reasons`.
+  4. **Session Integration, `step()` Method & Dual Class Export (`core/persona.py`, `core/__init__.py`)**:
+     - Exported `CharacterDialogueSession = BiblicalPersonaSession` alias in `core/persona.py` and `core/__init__.py`.
+     - Added `step(self, user_message, config)` method on `BiblicalPersonaSession` as the primary conversational step interface.
+     - Updated `say()` and `say_stream()` to execute the dynamic hook via `retrieve_turn_context(user_message)` on every turn.
+     - Enriched `DialogueTurn` and `PersonaDialogueResponse` with `dynamic_passages: List[Dict[str, Any]]` and similarity match percentage badges (`[f"{dp.human_ref} ({dp.similarity_pct:.0f}% match)"]`).
+     - Added `_build_turn_system_prompt()` dynamically augmenting the Gemini system prompt with retrieved scripture passages and similarity scores.
+     - Enhanced `_build_offline_response()` to render the `*Dynamically Retrieved Canonical Passages (Similarity Scored)*:` section and dynamic reflection when unkeyed.
+  5. **Hermetic Test Suite Expansion (`tests/test_persona.py`, `tests/test_rag.py`)**:
+     - Added `CharacterDialogueRAGRetrievalTest` in `tests/test_persona.py` with 7 comprehensive unit tests (author books catalog completeness, dynamic passage dataclass, author-scoped filtering, testament integrity, session step execution, mock LLM prompt injection, and disabled mode).
+     - Added `test_books_pre_filtering` in `tests/test_rag.py`.
+     - Full test suite expanded to **1,071 tests across 48 modules passing 100% in 9.41s**.
+  6. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-116: Author-Scoped Dynamic Per-Turn Scripture RAG Retrieval Architecture for Biblical Character Dialogue Studio** in `DECISIONS.md`.
+     - Marked **Task 9.1** complete in `ROADMAP.md` (102/105 tasks completed, 97.1%).
+- **Verification**:
+  - `./bible test`: **1,071 tests across 48 modules passed 100% in 9.410s**.
+  - `python3 tools/doctor.py`: **100% EXCELLENT** — all diagnostic checks passed.
+  - `python3 tools/linter.py`: **100% CLEAN** — all files inspected with 0 errors, 0 warnings.
+  - Zero external dependencies: 100% Python standard library per ADR-003.
+- **Handoff Notes for Next Agent**:
+  - Task 9.1 is 100% complete, verified, and pushed.
+  - Next task on the roadmap is Phase 9, **Task 9.2**: *Implement canonical "Whole Bible Counselor" (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses.*
+
+

@@ -528,6 +528,16 @@ class TestTriModalHybridRetrievalAndFaceting(unittest.TestCase):
         self.assertEqual(ctx_rrf.fusion_method, "rrf")
         self.assertGreater(len(ctx_rrf.passages), 0)
 
+    def test_books_pre_filtering(self):
+        # Filter retrieval strictly to Romans and Galatians
+        ctx = self.engine.retrieve("justification by faith and grace", max_passages=4, books=["Romans", "Galatians"])
+        self.assertGreater(len(ctx.passages), 0)
+        self.assertEqual(ctx.facets["books"], ["Romans", "Galatians"])
+
+        for p in ctx.passages:
+            ref_obj = parse_reference(p.reference)
+            self.assertIn(ref_obj.book.name, ["Romans", "Galatians"], f"Expected Romans or Galatians, got {p.reference}")
+
     def test_convenience_retrieve_rag_context_facets(self):
         ctx = retrieve_rag_context("justification by faith", testament="NT", genre="Epistle", max_passages=2)
         self.assertIsInstance(ctx, RAGContextWindow)

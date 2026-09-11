@@ -118,10 +118,12 @@ from core.persona import (
     CANONICAL_PERSONAS,
     DEFAULT_SESSIONS_DIR,
     BiblicalPersonaSession,
+    CharacterDialogueSession,
     CharacterPersonaDefinition,
     DialogueSessionManager,
     DialogueTranscript,
     DialogueTurn,
+    DynamicRetrievedPassage,
     GroundedScripturePassage,
     PersonaDialogueResponse,
     create_persona_session,
@@ -129,6 +131,7 @@ from core.persona import (
     get_persona_definition,
     list_canonical_personas,
     load_character_scripture_passages,
+    retrieve_author_scoped_rag,
 )
 
 from core.bootstrap import (
@@ -654,10 +657,12 @@ __all__ = [
     "CANONICAL_PERSONAS",
     "DEFAULT_SESSIONS_DIR",
     "BiblicalPersonaSession",
+    "CharacterDialogueSession",
     "CharacterPersonaDefinition",
     "DialogueSessionManager",
     "DialogueTranscript",
     "DialogueTurn",
+    "DynamicRetrievedPassage",
     "GroundedScripturePassage",
     "PersonaDialogueResponse",
     "create_persona_session",
@@ -665,6 +670,7 @@ __all__ = [
     "get_persona_definition",
     "list_canonical_personas",
     "load_character_scripture_passages",
+    "retrieve_author_scoped_rag",
     # 2D Projection & Semantic Scatter Map (Task 4.7)
     "DEFAULT_MAP_HEIGHT",
     "DEFAULT_MAP_MARGIN",

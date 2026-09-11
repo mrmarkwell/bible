@@ -3879,4 +3879,42 @@ This document is an append-only log of significant design and architectural deci
   - Completely resolves GitHub Actions CI failure on `main`, ensuring all Python versions (3.10, 3.11, 3.12, 3.13) compile and verify a 100% complete database out of the box with zero manual intervention.
   - Zero external dependencies: 100% Python 3 standard library and SQLite.
 
+---
 
+## ADR-116: Author-Scoped Dynamic Per-Turn Scripture RAG Retrieval Architecture for Biblical Character Dialogue Studio
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - Task 9.1 on the roadmap initiates Phase 9 (*Biblical Character Dialogue Studio & Exegetical Voice Synthesizer*): *"Implement author-scoped dynamic per-turn RAG retrieval hook in `core/persona.py` (`CharacterDialogueSession.step()`) so characters dynamically pull their relevant canonical passages with similarity scores into dialogue context."*
+  - Previously, biblical character personas in `core/persona.py` (`BiblicalPersonaSession`) relied solely upon a static list of pre-configured passages (`persona.key_passages`) loaded at session startup. While effective for basic profile grounding, this static approach lacked per-turn responsiveness: when an inquirer posed specific theological questions (e.g., asking Paul about justification by faith, Moses about sacrificial holiness, or David about soul-affliction), the character could not dynamically retrieve the most relevant passages from their own canonical corpus.
+  - Furthermore, running an unconstrained whole-Bible RAG query during persona dialogue would introduce severe redemptive-historical anachronisms: Old Testament figures (e.g., Abraham, Moses, David) could erroneously retrieve New Testament epistles or Johannine apocalyptic literature, violating the Canonical Horizon Constraint mandated by ADR-049 and `THEOLOGY.md`.
+  - A robust, hermeneutically guarded, author-scoped dynamic retrieval pipeline was required to power interactive dialogue while preserving zero-dependency compliance per ADR-003.
+- **Decision**:
+  1. **Canonical Author-Book Registry (`CharacterPersonaDefinition.author_books`)**:
+     - Extended `CharacterPersonaDefinition` with an immutable `author_books: Tuple[str, ...] = field(default_factory=tuple)` property and updated `to_dict()`.
+     - Populated canonical author and associated historical book boundaries for all 19 canonical personas in `CANONICAL_PERSONAS` (e.g., Paul -> Pauline corpus + Acts; Moses -> Pentateuch; David -> Psalms, 1-2 Samuel; Solomon -> Proverbs, Ecclesiastes, Song of Solomon, 1 Kings; John the Apostle -> Gospel, Epistles, Revelation).
+  2. **Book Pre-Filtering in Hybrid Scripture RAG Engine (`core/rag.py`)**:
+     - Extended `TheologicalFacetFilter` with `books: Optional[Sequence[Union[str, int]]] = None`.
+     - Updated `matches_reference()` to enforce book number / canonical name pre-filtering across all retrieval stages (explicit references, FTS5 BM25 keyword search, dense vector similarity, semantic tags, and typological arcs).
+     - Extended `ScriptureRAGEngine.retrieve()` and `retrieve_rag_context()` with `books` parameter support.
+  3. **Two-Pass Author-Scoped Dynamic Retrieval Algorithm (`core/persona.py`)**:
+     - Implemented `retrieve_author_scoped_rag(persona, query, rag_engine, db, translation, max_passages, min_score, expand_testament_horizon)`:
+       - *Pass 1 (Author-Scoped)*: Queries `rag_engine.retrieve()` strictly constrained to `books=persona.author_books` within the persona's testament horizon (`testament="OT"` for OT saints; `testament="NT"` for NT saints).
+       - *Pass 2 (Testament Horizon Expansion)*: If fewer than `max_passages` are found, expands retrieval to the character's broader testament horizon without book restriction, preserving historical integrity while preventing cross-testament anachronism.
+     - Implemented `DynamicRetrievedPassage` dataclass encapsulating `reference`, `human_ref`, `score`, `similarity_pct`, `text`, `translation`, `pericope_title`, `theological_loci`, `thematic_ribbons`, `central_proposition`, and `retrieval_reasons`.
+  4. **Session Integration, `step()` Method & Dual Class Export (`core/persona.py`, `core/__init__.py`)**:
+     - Exported `CharacterDialogueSession = BiblicalPersonaSession` alias in `core/persona.py` and `core/__init__.py`.
+     - Added `step(self, user_message, config)` method on `BiblicalPersonaSession` as the primary conversational step interface.
+     - Updated `say()` and `say_stream()` to execute the dynamic hook via `retrieve_turn_context(user_message)` on every turn.
+     - Enriched `DialogueTurn` and `PersonaDialogueResponse` with `dynamic_passages: List[Dict[str, Any]]` and similarity match percentage badges (`[f"{dp.human_ref} ({dp.similarity_pct:.0f}% match)"]`).
+     - Added `_build_turn_system_prompt()` dynamically appending retrieved scripture passages with similarity scores to the Gemini system prompt.
+     - Enhanced `_build_offline_response()` to render the `*Dynamically Retrieved Canonical Passages (Similarity Scored)*:` section and dynamic reflection when unkeyed.
+  5. **Hermetic Test Suite Coverage (`tests/test_persona.py`, `tests/test_rag.py`)**:
+     - Added `CharacterDialogueRAGRetrievalTest` in `tests/test_persona.py` (7 comprehensive unit tests covering author books catalog completeness, dynamic passage dataclass, author-scoped filtering, testament integrity, session step execution, mock LLM prompt injection, and disabled mode).
+     - Added `test_books_pre_filtering` in `tests/test_rag.py`.
+     - Verified 100% test pass rate across 1,071 tests in 48 modules in 9.4s.
+- **Consequences**:
+  - Fulfills Task 9.1 on the roadmap, launching Phase 9 development.
+  - Biblical characters now dynamically ground their conversational turns in their own canonical writings with verified similarity percentages.
+  - Strict preservation of redemptive-historical horizons prevents anachronistic errors.
+  - 100% Zero-Dependency architecture maintained per ADR-003.
