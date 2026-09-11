@@ -37,6 +37,20 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [VETTED] Omnichannel Exegetical Dossier Web Viewer & Interactive Study Notebook Modal (Rank A+)
+- **Summary**: Implement a dedicated Exegetical Study Dossier viewer and interactive modal in the Web UI (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`), calling `/api/dossier?ref=...&format=html` (or `format=json`) to render the full illuminated multi-modal research packet (comparative text across translations, pericope structural passports, biblical theology, semantic tags, typological arcs, cross-references, vector proximity, and persona perspectives) with tabbed format switching and one-click Markdown/HTML export directly in the browser.
+- **Rationale**: Connects the newly implemented sovereign Exegetical Dossier engine (ADR-118) directly to the web user experience, empowering pastors and scholars exploring Scripture in the web app to open a complete, publication-ready exegetical dossier without leaving their reading flow.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% offline local SQLite and browser rendering).
+  - Zero third-party dependencies? Yes (vanilla HTML/CSS/JS, Python stdlib).
+  - High performance? Yes (sub-25ms response).
+- **Proposed Roadmap Phase**: Phase 9 (Post-Concordance Polish / Task 9.4).
+- **Suggested Tasks**:
+  - [ ] Add "Study Dossier" action buttons/icons to passage cards and reader navigation in `web/static/index.html`.
+  - [ ] Implement `openStudyDossier(ref)` modal with tabbed format viewers (`Sacred HTML`, `Markdown`, `JSON`) in `web/static/app.js`.
+  - [ ] Add styling for dossier modal overlay, responsive side-by-side translation panels, and export triggers in `web/static/style.css`.
+  - [ ] Add hermetic unit tests in `tests/test_web_server.py`.
+
 ### [COMPLETED] Sovereign Omnichannel Exegetical Study Dossier & Multi-Modal Passage Research Packet Engine (Rank A+)
 - **Summary**: Implement a unified, multi-modal Exegetical Study Dossier service (`core/dossier.py`, `core/__init__.py`), CLI subcommands (`dossier`, `study`, `research`, `packet`), REPL commands (`/dossier`, `/study`, `/research`, `/read`), and REST API endpoints (`/api/dossier`, `/api/study`) that aggregate all 8 theological dimensions of a passage into a single publication-ready packet: 1) Comparative Scripture text, 2) Pericope structural passport, 3) Biblical theology & storyline horizon, 4) Thematic semantic tags & TGC categories, 5) Typological redemptive arcs, 6) Curated canonical cross-references, 7) Dense semantic vector proximity, and 8) Canonical character persona commentary & Whole Bible Counselor synthesis. Supports 5 export formats: Terminal ANSI with sacred color theming, Markdown with YAML frontmatter, standalone HTML with modern sacred styling, JSON, and clean Plain Text.
 - **Rationale**: Solves the exegesis fragmentation gap where pastors, scholars, and development agents previously had to run up to 7 separate commands to assemble passage data. Provides an instantaneous, single-command sovereign research dossier for sermon preparation, personal exegesis, and academic study.
