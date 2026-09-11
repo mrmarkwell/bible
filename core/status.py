@@ -512,7 +512,8 @@ def format_terminal_dashboard(
 
     # Line 5
     arcs_stat = f"{status.total_typological_arcs} OT->NT fulfillments"
-    persona_stat = "19 Canonical Biblical Personas"
+    from core.persona import CANONICAL_PERSONAS
+    persona_stat = f"{len(CANONICAL_PERSONAS)} Canonical Biblical Personas"
     lines.append(f"   • Typology Arcs: {arcs_stat:<22} • Personas:     {persona_stat}")
 
     # Divider
@@ -546,7 +547,7 @@ def format_terminal_dashboard(
 
     # Quick Action Tips
     lines.append("")
-    tip_line = f" {c_dim}Quick Commands:{c_reset} {c_bold}./bible shell{c_reset} (REPL) • {c_bold}./bible get \"Rom 8\"{c_reset} • {c_bold}./bible ask \"query\"{c_reset} • {c_bold}./bible serve{c_reset}"
+    tip_line = f" {c_dim}Quick Commands:{c_reset} {c_bold}./bible shell{c_reset} (REPL) • {c_bold}./bible get \"Rom 8\"{c_reset} • {c_bold}./bible study \"Rom 8\"{c_reset} • {c_bold}./bible ask \"query\"{c_reset} • {c_bold}./bible serve{c_reset}"
     lines.append(tip_line)
     lines.append("")
 

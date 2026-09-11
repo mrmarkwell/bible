@@ -3957,3 +3957,47 @@ This document is an append-only log of significant design and architectural deci
   - All persona responses strictly format citations in `[Book Chapter:Verse]`, allowing instant split-screen reading in both Web UI and Markdown transcripts.
   - 100% Zero-Dependency compliance per ADR-003.
 
+---
+
+## ADR-118: Sovereign Omnichannel Exegetical Study Dossier, Multi-Modal Passage Research Packet & Dynamic Theological Synthesis Engine
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - During autonomous Run #110 (Senior Product Manager Meta-Improvement Sprint & 10th-Iteration Executive Briefing Double Milestone), the Senior PM meta-audit evaluated the weakest aspect of the project and what prevents it from reaching greater heights:
+    *The Exegetical Fragmentation Gap*: While Bible Engine contains deep, rich theological datasets (comparative scripture text, pericopes, theological loci, thematic tags, typological arcs, canonical cross-references, dense semantic vector neighbors, and canonical character personas), these datasets previously required executing up to 7 disparate CLI commands (`./bible get`, `./bible pericope`, `./bible ribbon`, `./bible tag for`, `./bible crossref for`, `./bible arcs`, `./bible similar`, `./bible chat`).
+    Pastors preparing sermons, scholars researching passages, Bible study teachers, and AI development agents had no single, unified command to compile a complete, comprehensive, multi-modal study packet for any scripture passage.
+  - To maximize the sovereign utility and sacred-modern architecture of the platform, the Senior PM conceived and executed the Exegetical Study Dossier Engine during this meta-sprint.
+- **Decision**:
+  1. **Unified Exegetical Study Dossier Service (`core/dossier.py`, `core/__init__.py`)**:
+     - Implemented `ExegeticalDossierService` and `ExegeticalDossier` aggregating 8 distinct theological dimensions for any scripture reference:
+       1) Comparative Scripture text across available translations (`verses_by_translation`).
+       2) Pericope structural passport (`title`, `genre`, `literary_structure`, `central_proposition`, `redemptive_summary`).
+       3) Biblical theology & storyline horizon (`storyline_epoch`, `theological_locus`, `primary_doctrine`, `thematic_ribbon`).
+       4) Thematic semantic tags & TGC categories (`name`, `category`, `confidence`, `starred`, `notes`).
+       5) Typological redemptive arcs linking OT shadows to NT Christological fulfillments (`title`, `type_ref`, `antitype_ref`, `theological_correspondence`, `warrant`).
+       6) Curated canonical cross-references with relationship typology (`target_ref`, `direction`, `relationship_type`, `icon`, `confidence`).
+       7) Dense semantic vector proximity identifying topologically nearest pericopes across the 66-book canon (`rank`, `score`, `match_pct`, `title`, `human_ref`, `genre`, `redemptive_summary`).
+       8) Canonical biblical character persona exegesis & pastoral reflections (author persona + Whole Bible Counselor synthesis).
+  2. **Omnichannel Multi-Modal Exporters (`core/dossier.py`)**:
+     - `.to_dict()` & `.to_json()`: Complete machine-readable data serialization for APIs and automated pipelines.
+     - `.to_markdown()`: Publication-ready Markdown research document complete with YAML frontmatter, tables, blockquotes, and thematic sections.
+     - `.to_html()`: Standalone HTML presentation document featuring responsive CSS, card layouts, gold illuminated headings, badges, and cross-reference tables.
+     - `.to_ansi()`: Terminal console presentation formatted with sacred theme colors, box borders, and badge annotations.
+     - `.to_text()`: Clean plain-text formatted output without ANSI escape codes.
+  3. **Omnichannel CLI Subcommands (`cli/main.py`)**:
+     - Implemented `dossier` subcommand with first-class aliases `study`, `research`, and `packet`.
+     - Supports `--format` (`ansi`, `markdown`, `html`, `json`, `text`), `--export` (`-o`, path), `--translations` (`-t`), `--top-xrefs`, `--top-vectors`, `--persona`, `--theme`, `--no-color`, `--no-refs`, `--no-vectors`, `--no-personas`, and `--db`.
+     - Registered aliases in `registered_commands` in `preprocess_cli_argv()`.
+  4. **Interactive REPL Shell Integration (`cli/shell.py`)**:
+     - Added `/dossier`, `/study`, `/research`, and `/read` commands to `BibleShell`.
+  5. **REST API Endpoint (`web/server.py`)**:
+     - Added `/api/dossier`, `/api/study`, `/api/research`, `/api/packet` supporting `?ref=...&format=json|markdown|html|text|ansi`.
+  6. **Hermetic Test Suite Coverage (`tests/test_dossier.py`)**:
+     - Author comprehensive test suite (`TestExegeticalDossierService`, `TestExegeticalDossierExporters`, `TestExegeticalDossierCLI`, `TestExegeticalDossierShell`, `TestExegeticalDossierRestAPI`) covering 18 test cases.
+     - Restores 1-to-1 module-test suite symmetry in `tools/doctor.py` across 49 production modules (1,106 tests passing 100% in 40.7s).
+- **Consequences**:
+  - Eliminates exegesis fragmentation across the platform.
+  - Pastors, teachers, and agents can generate comprehensive, multi-modal study packets for any scripture passage with a single command (`./bible dossier "Romans 8:28-30"`).
+  - 100% Zero-Dependency architecture strictly maintained per ADR-003.
+
+

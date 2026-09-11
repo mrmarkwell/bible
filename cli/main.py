@@ -6042,6 +6042,164 @@ def build_parser() -> argparse.ArgumentParser:
     parser_chat.set_defaults(func=cmd_chat)
 
     # -------------------------------------------------------------------------
+    # Subcommand: dossier (aliases: study, research, packet)
+    # -------------------------------------------------------------------------
+    parser_dossier = subparsers.add_parser(
+        "dossier",
+        aliases=["study", "research", "packet"],
+        help="Generate comprehensive multi-dimensional Exegetical Study Dossier for any Scripture passage",
+        description=(
+            "Generate a unified, multi-dimensional theological dossier aggregating comparative Scripture text, "
+            "parent pericope exegesis, theological facets, semantic tags, typological arcs, canonical cross-references, "
+            "vector nearest neighbors, and biblical persona commentary. Exports to ANSI, Markdown, HTML, JSON, or Plain Text."
+        ),
+    )
+    parser_dossier.add_argument(
+        "reference",
+        nargs="+",
+        help="Scripture citation or span (e.g. 'Romans 8:28-30', 'Genesis 3:15', 'John 3:16')",
+    )
+    parser_dossier.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Path to SQLite database",
+    )
+    parser_dossier.add_argument(
+        "--format",
+        "-f",
+        choices=["ansi", "markdown", "md", "html", "json", "text", "txt"],
+        default="ansi",
+        help="Output format (default: ansi)",
+    )
+    parser_dossier.add_argument(
+        "--export",
+        "-o",
+        "--output",
+        dest="export_path",
+        default=None,
+        help="Export dossier to specified file path (.md, .html, .json, .txt)",
+    )
+    parser_dossier.add_argument(
+        "--translations",
+        "-t",
+        default="WEB,KJV",
+        help="Comma-separated translations to include (default: 'WEB,KJV')",
+    )
+    parser_dossier.add_argument(
+        "--top-xrefs",
+        type=int,
+        default=15,
+        help="Maximum number of canonical cross-references to include (default: 15)",
+    )
+    parser_dossier.add_argument(
+        "--top-vectors",
+        type=int,
+        default=5,
+        help="Maximum number of dense vector neighbor pericopes to include (default: 5)",
+    )
+    parser_dossier.add_argument(
+        "--no-vectors",
+        action="store_true",
+        help="Disable dense vector neighbor proximity retrieval",
+    )
+    parser_dossier.add_argument(
+        "--no-refs",
+        action="store_true",
+        help="Disable canonical cross-reference retrieval",
+    )
+    parser_dossier.add_argument(
+        "--no-personas",
+        action="store_true",
+        help="Disable biblical persona reflections",
+    )
+    parser_dossier.add_argument(
+        "--persona",
+        default=None,
+        help="Specific biblical character persona to feature (e.g. 'paul', 'whole-bible')",
+    )
+    parser_dossier.add_argument(
+        "--theme",
+        default="sacred",
+        help="Color theme for ANSI terminal output (default: 'sacred')",
+    )
+    parser_dossier.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color styling",
+    )
+
+    def cmd_dossier(args: argparse.Namespace) -> int:
+        db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
+        if not db_path.exists():
+            sys.stderr.write(f"Error: Database not found at {db_path}. Run './bible init' first.\n")
+            return 1
+
+        ref_str = " ".join(args.reference) if isinstance(args.reference, list) else str(args.reference)
+        try:
+            ref = parse_reference(ref_str)
+        except Exception as exc:
+            sys.stderr.write(f"Error: Invalid scripture citation '{ref_str}': {exc}\n")
+            return 1
+
+        tr_raw = getattr(args, "translations", "WEB,KJV") or "WEB,KJV"
+        translations = [t.strip().upper() for t in tr_raw.split(",") if t.strip()]
+
+        top_xrefs = 0 if getattr(args, "no_refs", False) else getattr(args, "top_xrefs", 15)
+        top_vectors = 0 if getattr(args, "no_vectors", False) else getattr(args, "top_vectors", 5)
+        include_personas = not getattr(args, "no_personas", False)
+        persona_id = getattr(args, "persona", None)
+
+        from core.dossier import ExegeticalDossierService
+        with Database(db_path) as db:
+            svc = ExegeticalDossierService(db)
+            dos = svc.generate_dossier(
+                reference=ref,
+                translations=translations,
+                top_crossrefs=top_xrefs,
+                top_vectors=top_vectors,
+                include_personas=include_personas,
+                persona_id=persona_id,
+            )
+
+        fmt = getattr(args, "format", "ansi").lower()
+        use_color = not getattr(args, "no_color", False) and should_use_color()
+        theme = getattr(args, "theme", "sacred")
+
+        if fmt in ("json",):
+            output_content = dos.to_json(indent=2)
+        elif fmt in ("markdown", "md"):
+            output_content = dos.to_markdown()
+        elif fmt in ("html", "htm"):
+            output_content = dos.to_html()
+        elif fmt in ("text", "txt"):
+            output_content = dos.to_text()
+        else:
+            output_content = dos.to_ansi(color=use_color, theme=theme)
+
+        export_path = getattr(args, "export_path", None)
+        if export_path:
+            p = Path(export_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            if p.suffix in (".md", ".markdown") and fmt == "ansi":
+                p.write_text(dos.to_markdown(), encoding="utf-8")
+            elif p.suffix in (".html", ".htm") and fmt == "ansi":
+                p.write_text(dos.to_html(), encoding="utf-8")
+            elif p.suffix in (".json",) and fmt == "ansi":
+                p.write_text(dos.to_json(indent=2), encoding="utf-8")
+            elif p.suffix in (".txt",) and fmt == "ansi":
+                p.write_text(dos.to_text(), encoding="utf-8")
+            else:
+                p.write_text(output_content, encoding="utf-8")
+            print(f"Exported Exegetical Study Dossier ({dos.human_ref}) to {p}")
+        else:
+            print(output_content)
+
+        return 0
+
+    parser_dossier.set_defaults(func=cmd_dossier)
+
+    # -------------------------------------------------------------------------
     # Subcommand: ci (aliases: workflow, workflows, actions)
     # -------------------------------------------------------------------------
     parser_ci = subparsers.add_parser(
@@ -6314,6 +6472,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         "ci", "workflow", "workflows", "actions",
         "keys", "key", "onboarding", "credentials",
         "status", "info", "dashboard", "overview",
+        "dossier", "study", "research", "packet", "dossiers",
     }
 
     pos_idx = -1

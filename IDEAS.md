@@ -37,6 +37,16 @@ Ideas can be added directly by the repository owner or generated during interact
 
 ## Active Ideas & Brainstorming Hopper
 
+### [COMPLETED] Sovereign Omnichannel Exegetical Study Dossier & Multi-Modal Passage Research Packet Engine (Rank A+)
+- **Summary**: Implement a unified, multi-modal Exegetical Study Dossier service (`core/dossier.py`, `core/__init__.py`), CLI subcommands (`dossier`, `study`, `research`, `packet`), REPL commands (`/dossier`, `/study`, `/research`, `/read`), and REST API endpoints (`/api/dossier`, `/api/study`) that aggregate all 8 theological dimensions of a passage into a single publication-ready packet: 1) Comparative Scripture text, 2) Pericope structural passport, 3) Biblical theology & storyline horizon, 4) Thematic semantic tags & TGC categories, 5) Typological redemptive arcs, 6) Curated canonical cross-references, 7) Dense semantic vector proximity, and 8) Canonical character persona commentary & Whole Bible Counselor synthesis. Supports 5 export formats: Terminal ANSI with sacred color theming, Markdown with YAML frontmatter, standalone HTML with modern sacred styling, JSON, and clean Plain Text.
+- **Rationale**: Solves the exegesis fragmentation gap where pastors, scholars, and development agents previously had to run up to 7 separate commands to assemble passage data. Provides an instantaneous, single-command sovereign research dossier for sermon preparation, personal exegesis, and academic study.
+- **Constraints & Alignment**:
+  - Offline-first? Yes (100% offline local SQLite data aggregation and rendering in <25ms).
+  - Zero third-party dependencies? Yes (100% Python standard library per ADR-003).
+  - Multi-modal? Yes (ANSI terminal, Markdown, HTML, JSON, and Plain Text).
+- **Proposed Roadmap Phase**: Phase 0 (Task 0.37 / ADR-118).
+- **Status**: Completed and verified during Run 110 Senior PM Double Milestone (ADR-118).
+
 ### [COMPLETED] Whole-Bible Verse Micro-Anchor Embedding Architecture & Sovereign Parent-Document Alignment (Rank A+)
 - **Summary**: Implement high-velocity set-based SQL micro-anchor synchronization from parent pericopes into `verse_embeddings` across all 31,103 canonical verses (`Database.sync_verse_embeddings_from_pericopes(translation_id="WEB") -> int`), completing in ~0.12s. Integrate automated verse micro-anchor synchronization directly into the vector compilation lifecycle (`tools/build_vector_db.py` / `./bible build-vectors` with `--sync-verses` and `--no-sync-verses`), update System Doctor (`tools/doctor.py`) to audit verse micro-anchor coverage (31,103 verse micro-anchors), expose telemetry in `core/status.py`, and complete Task 7.15, marking 100% completion of the Bible Engine roadmap across all 9 phases.
 - **Rationale**: Direct verse embedding generation from external LLM APIs would fragment narrative context, duplicate parent pericope semantics, and incur high overhead. Propagating the parent pericope's 768-dimensional dense Semantic Passport embedding and 2D projection coordinates to each covered verse establishes a parent-document retrieval paradigm, enabling pinpoint single-verse semantic search (e.g. `./bible vector similar "John 3:16"`) while linking back to full pericope theology.

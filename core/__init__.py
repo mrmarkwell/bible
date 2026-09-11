@@ -359,6 +359,17 @@ from core.semantic_compiler import (
     SemanticDatabaseCompiler,
     get_semantic_compiler,
 )
+from core.dossier import (
+    DossierCrossRef,
+    DossierPericope,
+    DossierPersonaPerspective,
+    DossierTag,
+    DossierTheology,
+    DossierTypologicalArc,
+    DossierVectorNeighbor,
+    ExegeticalDossier,
+    ExegeticalDossierService,
+)
 
 
 
@@ -693,5 +704,15 @@ __all__ = [
     "SemanticPassport",
     "SemanticPassportGenerator",
     "generate_semantic_passport",
+    # Exegetical Study Dossier (ADR-118)
+    "DossierCrossRef",
+    "DossierPericope",
+    "DossierPersonaPerspective",
+    "DossierTag",
+    "DossierTheology",
+    "DossierTypologicalArc",
+    "DossierVectorNeighbor",
+    "ExegeticalDossier",
+    "ExegeticalDossierService",
 ]
 

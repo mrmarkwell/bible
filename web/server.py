@@ -22,6 +22,7 @@ import webbrowser
 from core.arcs import build_arc_network
 from core.crossref import CrossReferenceService
 from core.db import DEFAULT_DB_PATH, Database, PericopeRecord
+from core.dossier import ExegeticalDossierService
 from core.llm import DEFAULT_GEMINI_MODEL, ChatMessage, GeminiClient
 from core.pericopes import PericopeService
 from core.persona import (
@@ -124,6 +125,37 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         payload = svg_content.encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "image/svg+xml; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def send_html(self, html_content: str, status: int = 200) -> None:
+        """Send a formatted HTML response."""
+        payload = html_content.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def send_text(
+        self,
+        text_content: str,
+        content_type: str = "text/plain; charset=utf-8",
+        status: int = 200,
+    ) -> None:
+        """Send a plain text, markdown, or ANSI console response."""
+        payload = text_content.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -251,6 +283,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_similar(query, body_data=body_data)
         elif clean_path in ("/api/vector/search", "/api/similar/search", "/api/search/vector"):
             self.handle_vector_search(query, body_data=body_data)
+        elif clean_path in ("/api/dossier", "/api/study", "/api/research", "/api/packet"):
+            self.handle_dossier(query, body_data=body_data)
         else:
             self.send_json_error(f"Unknown API endpoint: '{path}'", status=404)
 
@@ -2024,6 +2058,92 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             })
         except Exception as exc:
             _send_sse("error", {"error": str(exc)})
+
+    def handle_dossier(
+        self,
+        query: Dict[str, List[str]],
+        body_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """GET/POST /api/dossier — Generate sovereign exegetical study dossier."""
+        ref_raw = (
+            self._get_param(query, body_data, "ref")
+            or self._get_param(query, body_data, "reference")
+            or self._get_param(query, body_data, "passage")
+            or self._get_param(query, body_data, "q")
+        )
+        if not ref_raw:
+            self.send_json_error(
+                "Missing required parameter: 'ref' (e.g. ?ref=Romans+8:28-30)", status=400
+            )
+            return
+
+        fmt = str(self._get_param(query, body_data, "format", "json")).strip().lower()
+        theme = str(self._get_param(query, body_data, "theme", "warm")).strip().lower()
+
+        top_xrefs_raw = self._get_param(query, body_data, "top_xrefs", 8)
+        try:
+            top_xrefs = int(top_xrefs_raw)
+        except (ValueError, TypeError):
+            top_xrefs = 8
+
+        top_vectors_raw = self._get_param(query, body_data, "top_vectors", 4)
+        try:
+            top_vectors = int(top_vectors_raw)
+        except (ValueError, TypeError):
+            top_vectors = 4
+
+        persona = self._get_param(query, body_data, "persona", None)
+        if persona:
+            persona = str(persona).strip() or None
+
+        translations_param = self._get_param(query, body_data, "translations", None)
+        translations = None
+        if translations_param:
+            if isinstance(translations_param, list):
+                translations = [
+                    str(t).strip().upper() for t in translations_param if str(t).strip()
+                ]
+            elif isinstance(translations_param, str):
+                translations = [
+                    t.strip().upper() for t in translations_param.split(",") if t.strip()
+                ]
+
+        include_vectors_param = self._get_param(query, body_data, "include_vectors", True)
+        include_vectors = include_vectors_param not in (False, "false", "0", "no")
+
+        include_personas_param = self._get_param(query, body_data, "include_personas", True)
+        include_personas = include_personas_param not in (False, "false", "0", "no")
+
+        if not include_vectors:
+            top_vectors = 0
+
+        try:
+            service = ExegeticalDossierService(db=self.db)
+            dossier = service.generate_dossier(
+                reference=str(ref_raw),
+                translations=translations,
+                top_crossrefs=top_xrefs,
+                top_vectors=top_vectors,
+                persona_id=persona,
+                include_personas=include_personas,
+            )
+
+            if fmt == "html":
+                self.send_html(dossier.to_html())
+            elif fmt in ("markdown", "md"):
+                self.send_text(
+                    dossier.to_markdown(), content_type="text/markdown; charset=utf-8"
+                )
+            elif fmt in ("text", "txt"):
+                self.send_text(dossier.to_text())
+            elif fmt == "ansi":
+                self.send_text(dossier.to_ansi())
+            else:
+                self.send_json(dossier.to_dict())
+        except ValueError as exc:
+            self.send_json_error(str(exc), status=400)
+        except Exception as exc:
+            self.send_json_error(f"Error compiling exegetical dossier: {exc}", status=500)
 
     # -------------------------------------------------------------------------
     # Static File Serving

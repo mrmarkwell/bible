@@ -226,6 +226,100 @@ class BibleShell(cmd.Cmd):
             return
         self._display_reference(ref)
 
+    def do_dossier(self, arg: str) -> None:
+        """Generate comprehensive Exegetical Study Dossier: /dossier <ref> [--format=ansi|md|html|json] [--export=file]
+
+        Examples:
+          /dossier Romans 8:28-30
+          /study Genesis 3:15
+          /dossier John 3:16 --format=md
+          /dossier Psalm 23 --export=psalm23_study.html
+        """
+        arg = arg.strip()
+        if not arg:
+            self.stdout.write("Usage: /dossier <reference> [--format=ansi|md|html|json] [--export=path]\n")
+            return
+
+        parts = arg.split()
+        ref_tokens = []
+        fmt = "ansi"
+        export_path = None
+        i = 0
+        while i < len(parts):
+            p = parts[i]
+            if p.startswith("--format="):
+                fmt = p.split("=", 1)[1].lower()
+            elif p in ("-f", "--format") and i + 1 < len(parts):
+                i += 1
+                fmt = parts[i].lower()
+            elif p.startswith("--export="):
+                export_path = p.split("=", 1)[1]
+            elif p in ("-o", "--export", "--output") and i + 1 < len(parts):
+                i += 1
+                export_path = parts[i]
+            else:
+                ref_tokens.append(p)
+            i += 1
+
+        ref_str = " ".join(ref_tokens)
+        try:
+            ref = parse_reference(ref_str)
+        except Exception as exc:
+            self.stdout.write(f"Could not parse '{ref_str}' as a canonical scripture citation: {exc}\n")
+            return
+
+        from core.dossier import ExegeticalDossierService
+        svc = ExegeticalDossierService(self.db)
+        avail = self.db.get_available_translation_ids()
+        used_tr = tuple(avail) if avail else (self.translation_id, "KJV")
+        dos = svc.generate_dossier(
+            reference=ref,
+            translations=used_tr,
+            top_crossrefs=15,
+            top_vectors=5,
+            include_personas=True,
+        )
+
+        if fmt in ("json",):
+            out = dos.to_json(indent=2)
+        elif fmt in ("markdown", "md"):
+            out = dos.to_markdown()
+        elif fmt in ("html", "htm"):
+            out = dos.to_html()
+        elif fmt in ("text", "txt"):
+            out = dos.to_text()
+        else:
+            out = dos.to_ansi(color=self.use_color, theme=self.theme)
+
+        if export_path:
+            exp_p = Path(export_path)
+            exp_p.parent.mkdir(parents=True, exist_ok=True)
+            if exp_p.suffix in (".md", ".markdown") and fmt == "ansi":
+                exp_p.write_text(dos.to_markdown(), encoding="utf-8")
+            elif exp_p.suffix in (".html", ".htm") and fmt == "ansi":
+                exp_p.write_text(dos.to_html(), encoding="utf-8")
+            elif exp_p.suffix in (".json",) and fmt == "ansi":
+                exp_p.write_text(dos.to_json(indent=2), encoding="utf-8")
+            elif exp_p.suffix in (".txt",) and fmt == "ansi":
+                exp_p.write_text(dos.to_text(), encoding="utf-8")
+            else:
+                exp_p.write_text(out, encoding="utf-8")
+            self.stdout.write(f"Exported Exegetical Study Dossier ({dos.human_ref}) to {exp_p}\n")
+        else:
+            self.stdout.write("\n" + out + "\n\n")
+
+    def do_study(self, arg: str) -> None:
+        """Alias for /dossier: generate comprehensive Exegetical Study Dossier."""
+        self.do_dossier(arg)
+
+    def do_research(self, arg: str) -> None:
+        """Alias for /dossier: generate comprehensive Exegetical Study Dossier."""
+        self.do_dossier(arg)
+
+    def do_read(self, arg: str) -> None:
+        """Quick scripture reading helper: /read <ref> (e.g. /read Rom 8:28)."""
+        self.do_get(arg)
+
     def do_search(self, arg: str) -> None:
         """Search scripture text: search <query> [-e] [-b BOOK] [-n LIMIT]"""
         arg = arg.strip()
