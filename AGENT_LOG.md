@@ -4462,7 +4462,45 @@ This is an append-only log of work performed by autonomous agents during their e
   - `python3 tools/linter.py`: **100% CLEAN** — 103 files checked in 0.770s (0 errors, 0 warnings).
   - Module-test suite symmetry: **100% MATCH** across all 49 production modules.
   - Zero external dependencies: 100% Python standard library and vanilla HTML/CSS/JS per ADR-003.
+---
+
+## [Run 112] — 2026-09-11
+- **Agent**: Senior Product Manager & Full-Stack Architect (Run 112 / ADR-120)
+- **Phase**: Phase 9: Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI
+- **Task Claimed & Completed**: **Task 9.3**: *Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.*
+- **Actions Taken**:
+  1. **Canonical Endpoint Consolidation (`web/server.py`)**:
+     - Upgraded `handle_similar` to natively accept `q` / `query` parameters for concept inquiries alongside `ref` / `passage` and `pericope_id`.
+     - Intelligently checks if `q` resolves to a valid canonical scripture citation; if so, routes to reference-based pericope recommendation, otherwise executes natural-language semantic concordance vector search via `recommender.search_by_query`.
+     - Added support for theological facet filtering (`testament`, `genre`, `book`, `epoch`, `locus`, `mode`, `top_k`, `min_score`, `text_only`).
+     - Refactored `handle_vector_search` to delegate to `handle_similar`, preserving 100% backward compatibility for `/api/vector/search`.
+  2. **Web UI Studio Expansion (`web/static/index.html`)**:
+     - Updated nav tab from "Similar" to `Concordance` with tooltip `title="Semantic Concordance & Vector Similarity"`.
+     - Renamed sidebar panel to **Semantic Concordance & Vector Similarity** with dual-mode toggle ("Passage Recommender" vs "Semantic Concordance") and rich concept query chips (Faithfulness, Resurrection, Atonement, Temple, Justification, Peace, Messiah).
+     - Renamed main visualizer stage to **Semantic Concordance & Vector Similarity Studio** and updated API docs.
+  3. **Visual Meter & Interactive Jump Architecture (`web/static/app.js`, `web/static/style.css`)**:
+     - Updated `executeSimilarDiscovery` in query mode to target `/api/similar?${params.toString()}` directly.
+     - Enhanced `renderSimilarResults` with calibrated percentage match strength tiers:
+       - High Affinity (`>= 75%`, `match-strength-high`)
+       - Strong Match (`50% - 74%`, `match-strength-med`)
+       - Moderate Match (`25% - 49%`, `match-strength-mod`)
+       - Thematic Link (`< 25%`, `match-strength-low`)
+     - Attached click listener to `.similar-card-ref` to jump directly into the Scripture Reader Explorer.
+     - Added comprehensive styling for `.similar-card-top`, `.similar-rank-badge`, `.similar-score-badge-col`, `.similar-score-meter-wrap`, `.match-strength-*`, `.similar-score-label`, `.similar-score-pct`, `.similar-score-text`, `.similar-progress-bar-bg`, and `.similar-progress-bar-fill`.
+  4. **CLI Parity & Alignment (`cli/main.py`)**:
+     - Enhanced `./bible similar` (aliases `recommend`, `concordance`) to accept dual reference citations and natural language concept inquiries (`./bible similar "covenant faithfulness"` or `./bible similar -q "resurrection hope"`), displaying formatted concept cards and similarity progress bars.
+  5. **Hermetic Test Suite Expansion**:
+     - Added tests in `tests/test_server.py` for `GET /api/similar?q=covenant+faithfulness`, `GET /api/similar?q=Romans+8:28`, `POST /api/similar` with `{"q": "resurrection hope"}`, 400 parameter validation, and HTML/CSS UI hooks (all 73 tests passed).
+     - Updated `tests/test_cli.py` to verify dual reference citation and concept query concordance discovery.
+     - Full test suite verified at **1,119 tests across 49 modules passing 100% in 43.1s**.
+  6. **Governance & State Machine Synchronization**:
+     - Formulated and recorded **ADR-120: Unified Semantic Concordance REST Architecture (`/api/similar?q=...`) & Match Strength Meter Visualization** in `DECISIONS.md`.
+     - Marked Task 9.3 as complete in `ROADMAP.md` (106/107 tasks complete, 99.1%).
+- **Verification**:
+  - Full test suite: **1,119 tests across 49 modules passed 100%**.
+  - `python3 tools/doctor.py --fast`: **100% EXCELLENT** across all 8 diagnostic checks.
+  - Zero external dependencies: 100% Python standard library and vanilla HTML/CSS/JS per ADR-003.
 - **Handoff Notes for Next Agent**:
-  - Task 0.38 and Run 111 Senior PM Cleanup Sprint are 100% complete, verified, and pushed to `origin/main`.
-  - Next task on the domain roadmap is Phase 9, **Task 9.3**: *Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.*
+  - Task 9.3 is 100% complete, verified, and pushed to `origin/main`.
+  - Next task on the domain roadmap is Phase 9, **Task 9.4**: *Implement Web UI "Ask the Bible" Theological Inquiry Studio, rendering synthesized RAG answers side-by-side with retrieved pericopes, typological links, and reciprocal rank fusion scores.*
 

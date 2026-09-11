@@ -1537,18 +1537,28 @@ class TestCliExecution(unittest.TestCase):
             code = main(["similar", "Genesis 1:1", "--top-k", "3"])
         self.assertEqual(code, 0)
         out = stdout.getvalue()
-        self.assertIn("Canonical Scripture Pericope Recommender", out)
+        self.assertIn("Semantic Concordance & Vector Similarity Studio", out)
         self.assertIn("Source Passage:", out)
         self.assertIn("Top Recommendations", out)
 
-        # JSON mode
+        # Concept query mode
+        stdout_q = io.StringIO()
+        with patch("sys.stdout", stdout_q):
+            code_q = main(["similar", "covenant faithfulness", "--top-k", "2"])
+        self.assertEqual(code_q, 0)
+        out_q = stdout_q.getvalue()
+        self.assertIn("Concept Inquiry:", out_q)
+        self.assertIn("covenant faithfulness", out_q)
+        self.assertIn("Top Recommendations", out_q)
+
+        # JSON mode with -q flag
         import json
         stdout_json = io.StringIO()
         with patch("sys.stdout", stdout_json):
-            code_json = main(["similar", "Romans 8:28", "--top-k", "2", "--json"])
+            code_json = main(["similar", "-q", "resurrection hope", "--top-k", "2", "--json"])
         self.assertEqual(code_json, 0)
         data = json.loads(stdout_json.getvalue())
-        self.assertIn("source", data)
+        self.assertEqual(data["query_type"], "query")
         self.assertIn("matches", data)
         self.assertEqual(len(data["matches"]), 2)
 

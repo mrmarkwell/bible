@@ -145,6 +145,6 @@ This document is the single source of truth for current project status, active t
 ### Phase 9: Advanced Scripture RAG, Dynamic Persona Grounding & Semantic Concordance UI
 - [x] **Task 9.1**: Implement author-scoped dynamic per-turn RAG retrieval hook in `core/persona.py` (`CharacterDialogueSession.step()`) so characters dynamically pull their relevant canonical passages with similarity scores into dialogue context. *(Run 108 / ADR-116)*
 - [x] **Task 9.2**: Implement canonical "Whole Bible Counselor" (`whole-bible`) persona in `core/persona.py` and enforce mandatory Scripture citation formatting (`[Book Chapter:Verse]`) with split-screen reader hyperlinks across all persona responses. *(Run 109 / ADR-117)*
-- [ ] **Task 9.3**: Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.
+- [x] **Task 9.3**: Implement dedicated Semantic Concordance & Vector Similarity UI panel in Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges. *(Run 112 / ADR-120)*
 - [ ] **Task 9.4**: Implement Web UI "Ask the Bible" Theological Inquiry Studio, rendering synthesized RAG answers side-by-side with retrieved pericopes, typological links, and reciprocal rank fusion scores.
 

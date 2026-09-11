@@ -986,19 +986,46 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn("match_pct", rec0)
         self.assertIn("human_ref", rec0)
 
+        # /api/similar via GET with concept query 'q' (Semantic Concordance)
+        status_q_sim, _, body_q_sim = self._get("/api/similar?q=covenant+faithfulness&top_k=3")
+        self.assertEqual(status_q_sim, 200)
+        data_q_sim = json.loads(body_q_sim.decode("utf-8"))
+        self.assertEqual(data_q_sim["query_type"], "query")
+        self.assertIn("matches", data_q_sim)
+        self.assertGreaterEqual(len(data_q_sim["matches"]), 1)
+        match_sim0 = data_q_sim["matches"][0]
+        self.assertIn("match_pct", match_sim0)
+        self.assertIn("%", match_sim0["match_pct"])
+        self.assertIn("score", match_sim0)
+
+        # /api/similar via GET with reference query in 'q'
+        status_q_ref, _, body_q_ref = self._get("/api/similar?q=Romans+8:28&top_k=2")
+        self.assertEqual(status_q_ref, 200)
+        data_q_ref = json.loads(body_q_ref.decode("utf-8"))
+        self.assertIn("matches", data_q_ref)
+        self.assertGreaterEqual(len(data_q_ref["matches"]), 1)
+
         # /api/similar alias via GET
         status_alias, _, body_alias = self._get("/api/vector/similar?ref=Romans+8:28&top_k=2")
         self.assertEqual(status_alias, 200)
         data_alias = json.loads(body_alias.decode("utf-8"))
         self.assertEqual(data_alias["query_type"], "passage")
 
-        # /api/similar POST
+        # /api/similar POST with reference
         status_post, _, body_post = self._post("/api/similar", {"ref": "Genesis 1:1", "top_k": 2})
         self.assertEqual(status_post, 200)
         data_post = json.loads(body_post.decode("utf-8"))
         self.assertEqual(data_post["query_type"], "passage")
 
-        # /api/similar 400 Bad Request if missing ref and pericope_id
+        # /api/similar POST with concept query 'q'
+        status_post_q, _, body_post_q = self._post("/api/similar", {"q": "resurrection hope", "top_k": 2})
+        self.assertEqual(status_post_q, 200)
+        data_post_q = json.loads(body_post_q.decode("utf-8"))
+        self.assertEqual(data_post_q["query_type"], "query")
+        self.assertGreaterEqual(len(data_post_q["matches"]), 1)
+        self.assertIn("match_pct", data_post_q["matches"][0])
+
+        # /api/similar 400 Bad Request if missing ref, pericope_id, and q
         status_err, _, body_err = self._get("/api/similar")
         self.assertEqual(status_err, 400)
         self.assertIn("Missing required parameter", json.loads(body_err.decode("utf-8"))["error"])
@@ -1027,19 +1054,28 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertGreater(health_data.get("total_pericope_embeddings", 0), 0)
 
     def test_similar_ui_assets(self) -> None:
-        """Verify HTML and CSS contain Task 4.8 UI hooks and selectors."""
+        """Verify HTML and CSS contain Task 9.3 Concordance UI hooks, badges, and selectors."""
         status_html, _, body_html = self._get("/index.html")
         self.assertEqual(status_html, 200)
         html_str = body_html.decode("utf-8")
         self.assertIn('data-view="similar"', html_str)
         self.assertIn('id="panel-similar"', html_str)
         self.assertIn('id="similar-visualizer-stage"', html_str)
+        self.assertIn('Semantic Concordance &amp; Vector Similarity', html_str)
+        self.assertIn('id="btn-similar-mode-query"', html_str)
+        self.assertIn('/api/similar?q=', html_str)
 
         status_css, _, body_css = self._get("/style.css")
         self.assertEqual(status_css, 200)
         css_str = body_css.decode("utf-8")
         self.assertIn(".similar-visualizer-stage", css_str)
         self.assertIn(".similar-card", css_str)
+        self.assertIn(".similar-card-top", css_str)
+        self.assertIn(".similar-rank-badge", css_str)
+        self.assertIn(".similar-score-badge-col", css_str)
+        self.assertIn(".similar-score-meter-wrap", css_str)
+        self.assertIn(".match-strength-high", css_str)
+        self.assertIn(".match-strength-med", css_str)
 
 
 class TestWebCliAndShellIntegration(unittest.TestCase):

@@ -4940,14 +4940,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser_map.set_defaults(func=cmd_map)
 
-    # Subcommand: similar (aliases: recommend)
+    # Subcommand: similar (aliases: recommend, concordance)
     parser_similar = subparsers.add_parser(
         "similar",
-        aliases=["recommend"],
+        aliases=["recommend", "concordance"],
         help="Find semantically similar pericopes across the Bible using vector embeddings",
-        description="Search for the most semantically related pericopes across the 66 canonical books using dense 768-dimensional embeddings and cosine similarity.",
+        description="Search for the most semantically related pericopes across the 66 canonical books using dense 768-dimensional embeddings, cosine similarity, and natural language concordance.",
     )
-    parser_similar.add_argument("reference", help="Source scripture citation (e.g. 'Romans 8:28-39', 'Genesis 1:1')")
+    parser_similar.add_argument(
+        "reference",
+        nargs="?",
+        default=None,
+        help="Source scripture citation or semantic concept inquiry (e.g. 'Romans 8:28-39', 'covenant faithfulness')",
+    )
+    parser_similar.add_argument(
+        "--query",
+        "-q",
+        dest="query_text",
+        help="Natural language semantic concept inquiry for concordance discovery",
+    )
     parser_similar.add_argument("--top-k", "-k", type=int, default=10, help="Number of recommendations to return (default: 10)")
     parser_similar.add_argument("--min-score", type=float, default=0.0, help="Minimum cosine similarity threshold (default: 0.0)")
     parser_similar.add_argument("--testament", "-T", choices=["OT", "NT", "ot", "nt"], help="Filter recommendations by testament")
@@ -4958,9 +4969,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     def cmd_similar(args: argparse.Namespace) -> int:
         from core.vector import get_pericope_recommender
+        from core.reference import parse_reference
+
         db_path = Path(args.db).resolve() if args.db else DEFAULT_DB_PATH
         if not db_path.exists():
             sys.stderr.write(f"Error: Database not found at '{db_path}'. Run './bible init'.\n")
+            return 1
+
+        target_input = (getattr(args, "query_text", None) or getattr(args, "reference", None) or "").strip()
+        if not target_input:
+            sys.stderr.write("Error: Please provide a scripture citation or concept inquiry (e.g. ./bible similar 'Romans 8:28' or ./bible similar 'covenant faithfulness').\n")
             return 1
 
         db = Database(db_path)
@@ -4968,15 +4986,49 @@ def build_parser() -> argparse.ArgumentParser:
 
         try:
             recommender = get_pericope_recommender(db)
-            result = recommender.recommend_for_reference(
-                reference=args.reference,
-                top_k=getattr(args, "top_k", 10),
-                min_score=getattr(args, "min_score", 0.0),
-                testament=getattr(args, "testament", None),
-                genre=getattr(args, "genre", None),
-                book=getattr(args, "book", None),
-                mode=getattr(args, "mode", "hierarchical"),
-            )
+
+            is_ref = False
+            if not getattr(args, "query_text", None):
+                try:
+                    candidate_ref = parse_reference(target_input)
+                    if candidate_ref and candidate_ref.book:
+                        matching = db.get_pericopes_for_reference(candidate_ref)
+                        if matching or db.get_pericopes_for_book(candidate_ref.book.number):
+                            is_ref = True
+                except Exception:
+                    is_ref = False
+
+            if is_ref:
+                try:
+                    result = recommender.recommend_for_reference(
+                        reference=target_input,
+                        top_k=getattr(args, "top_k", 10),
+                        min_score=getattr(args, "min_score", 0.0),
+                        testament=getattr(args, "testament", None),
+                        genre=getattr(args, "genre", None),
+                        book=getattr(args, "book", None),
+                        mode=getattr(args, "mode", "hierarchical"),
+                    )
+                except Exception:
+                    result = recommender.search_by_query(
+                        query_text=target_input,
+                        top_k=getattr(args, "top_k", 10),
+                        min_score=getattr(args, "min_score", 0.0),
+                        testament=getattr(args, "testament", None),
+                        genre=getattr(args, "genre", None),
+                        book=getattr(args, "book", None),
+                        mode=getattr(args, "mode", "hierarchical"),
+                    )
+            else:
+                result = recommender.search_by_query(
+                    query_text=target_input,
+                    top_k=getattr(args, "top_k", 10),
+                    min_score=getattr(args, "min_score", 0.0),
+                    testament=getattr(args, "testament", None),
+                    genre=getattr(args, "genre", None),
+                    book=getattr(args, "book", None),
+                    mode=getattr(args, "mode", "hierarchical"),
+                )
         except Exception as exc:
             sys.stderr.write(f"Error: {exc}\n")
             return 1
@@ -4987,6 +5039,7 @@ def build_parser() -> argparse.ArgumentParser:
 
         source = result.get("source", {})
         matches = result.get("matches", [])
+        query_type = result.get("query_type", "passage")
         color_enabled = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
         gold = "\033[1;33m" if color_enabled else ""
         cyan = "\033[1;36m" if color_enabled else ""
@@ -4995,15 +5048,20 @@ def build_parser() -> argparse.ArgumentParser:
         reset = "\033[0m" if color_enabled else ""
 
         print(f"{gold}======================================================================{reset}")
-        print(f"{gold} Canonical Scripture Pericope Recommender (Vector Similarity){reset}")
+        print(f"{gold} Semantic Concordance & Vector Similarity Studio{reset}")
         print(f"{gold}======================================================================{reset}")
-        print(f" Source Passage:   {cyan}{source.get('human_ref', args.reference)}{reset}")
-        if source.get("title"):
-            print(f" Pericope Title:   {source.get('title')}")
-        if source.get("genre"):
-            print(f" Genre / Scope:    {source.get('genre')} · {source.get('testament', '')}")
-        if source.get("redemptive_summary"):
-            print(f" Summary:          {dim}{source.get('redemptive_summary')}{reset}")
+        if query_type == "passage" and source:
+            print(f" Source Passage:   {cyan}{source.get('human_ref', target_input)}{reset}")
+            if source.get("title"):
+                print(f" Pericope Title:   {source.get('title')}")
+            if source.get("genre"):
+                print(f" Genre / Scope:    {source.get('genre')} · {source.get('testament', '')}")
+            if source.get("redemptive_summary"):
+                print(f" Summary:          {dim}{source.get('redemptive_summary')}{reset}")
+        else:
+            print(f" Concept Inquiry:  {cyan}“{result.get('query', target_input)}”{reset}")
+            print(f" Mode:             {dim}Semantic Concordance Vector Search ({result.get('embedding_mode', 'vector')}){reset}")
+
         print(f"----------------------------------------------------------------------")
         print(f" Top Recommendations ({len(matches)} matches across {result.get('total_vectors', 0):,} pericopes):")
 
@@ -5019,10 +5077,10 @@ def build_parser() -> argparse.ArgumentParser:
                 if m.get("genre") or m.get("testament"):
                     print(f"     {dim}[{m.get('testament', '')} · {m.get('genre', '')}]{reset}")
                 if m.get("redemptive_summary"):
-                    print(f"     {dim}↳ {m.get('redemptive_summary')[:100]}...{reset}")
+                    print(f"     ↳ {dim}{m.get('redemptive_summary')[:100]}...{reset}")
 
         print(f"----------------------------------------------------------------------")
-        print(f" Web UI Explorer:  Launch './bible serve' and open the 'Similar' tab.")
+        print(f" Web UI Explorer:  Launch './bible serve' and open the 'Concordance' tab.")
         print(f"{gold}======================================================================{reset}")
         return 0
 

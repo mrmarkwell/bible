@@ -4039,5 +4039,42 @@ This document is an append-only log of significant design and architectural deci
   - Zero external dependencies strictly preserved per ADR-003.
   - Hermetic test execution velocity accelerated from 9.6s to 7.0s due to compact FTS5 b-tree seeks.
 
+---
+
+## ADR-120: Unified Semantic Concordance REST Architecture (`/api/similar?q=...`) & Match Strength Meter Visualization
+- **Date**: 2026-09-11
+- **Status**: Accepted
+- **Context**:
+  - Phase 9, Task 9.3 requires a dedicated Semantic Concordance & Vector Similarity UI panel in the Web UI (`web/static/index.html`, `web/static/app.js`) and REST endpoint (`/api/similar?q=...`), rendering ranked passages with percentage match strength badges.
+  - Previously, `/api/similar` strictly required either `ref` or `pericope_id` parameter, rejecting natural language concept inquiries (`?q=...`) with an HTTP 400 error and requiring callers to navigate to a separate `/api/vector/search` endpoint.
+  - In the Web UI, the similarity tab was labeled generically as "Similar", lacking prominent Semantic Concordance branding, concept query presets, and calibrated match strength meters for visual correspondence hierarchy.
+- **Decision**:
+  1. **Unified Semantic Concordance REST Endpoint (`web/server.py`)**:
+     - Upgraded `handle_similar` to natively accept `q` / `query` parameter for concept inquiries alongside `ref` / `passage` and `pericope_id`.
+     - Intelligently checks whether `q` can resolve to a canonical scripture citation (with existing pericope boundaries), routing automatically to reference-based pericope recommendation when valid or natural language vector concordance search when a concept inquiry is passed.
+     - Added support for theological facet filtering (`testament`, `genre`, `book`, `epoch`, `locus`, `mode`, `top_k`, `min_score`, `text_only`).
+     - Preserved backward compatibility for `/api/vector/search` by delegating directly to `handle_similar`.
+     - Supports both HTTP GET query parameters and HTTP POST JSON body payloads.
+  2. **Dedicated Semantic Concordance Web UI Panel (`web/static/index.html`, `web/static/app.js`, `web/static/style.css`)**:
+     - Updated navigation tab to `Concordance` with tooltip `Semantic Concordance & Vector Similarity`.
+     - Upgraded sidebar panel to **Semantic Concordance & Vector Similarity** featuring dual-mode toggle ("Passage Recommender" vs "Semantic Concordance") and rich theological concept chips (Covenant, Resurrection, Atonement, Temple, Justification, Peace, Messiah).
+     - Upgraded main visualizer stage to **Semantic Concordance & Vector Similarity Studio** with ranked passages and telemetry.
+     - Integrated calibrated percentage match strength meters with four tiers:
+       - High Affinity (`>= 75%`, gold/amber accent, `match-strength-high`)
+       - Strong Match (`50% - 74%`, teal/cyan accent, `match-strength-med`)
+       - Moderate Match (`25% - 49%`, blue accent, `match-strength-mod`)
+       - Thematic Link (`< 25%`, slate/muted accent, `match-strength-low`)
+     - Added interactive citation links on `.similar-card-ref` to jump directly into the Scripture Reader Explorer.
+  3. **Omnichannel CLI Integration (`cli/main.py`)**:
+     - Enhanced `./bible similar` and its aliases (`recommend`, `concordance`) to accept both scripture citations and concept inquiries (`./bible similar "covenant faithfulness"` or `./bible similar -q "resurrection hope"`), displaying formatted concept cards and similarity progress bars.
+  4. **Hermetic Test Suite Verification (`tests/test_server.py`, `tests/test_cli.py`)**:
+     - Expanded `test_api_similar_and_vector_search` and `test_similar_ui_assets` in `tests/test_server.py`.
+     - Updated `test_cli_similar_subcommand` in `tests/test_cli.py`.
+     - Total test suite verified at **1,119 tests across 49 production modules passing 100% in 43.1s**.
+- **Consequences**:
+  - Delivers Phase 9 Task 9.3 with 100% zero external dependencies (ADR-003).
+  - Users can explore Scripture conceptually via AI-powered semantic concordance through Web UI, REST API (`/api/similar?q=...`), and CLI (`./bible similar`).
+
+
 
 

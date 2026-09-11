@@ -1118,14 +1118,21 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         query: Dict[str, List[str]],
         body_data: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """GET or POST /api/similar or /api/vector/similar — Find semantically similar pericopes."""
+        """GET or POST /api/similar or /api/vector/similar — Find semantically similar pericopes.
+
+        Supports:
+          - ?q=... (concept inquiry or scripture reference for semantic concordance)
+          - ?ref=... or ?passage=... (scripture reference recommendation)
+          - ?pericope_id=... or ?id=... (pericope ID recommendation)
+        """
         body = body_data or {}
         ref_str = query.get("ref", query.get("passage", [None]))[0] or body.get("ref") or body.get("passage")
         pid_val = query.get("pericope_id", query.get("id", [None]))[0] or body.get("pericope_id") or body.get("id")
+        q_str = query.get("q", query.get("query", [None]))[0] or body.get("q") or body.get("query")
 
-        if not ref_str and pid_val is None:
+        if not ref_str and pid_val is None and not q_str:
             self.send_json_error(
-                "Missing required parameter: 'ref' (scripture citation) or 'pericope_id'",
+                "Missing required parameter: 'q' (concept inquiry/concordance), 'ref' (scripture citation), or 'pericope_id'",
                 status=400,
             )
             return
@@ -1145,6 +1152,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         testament = query.get("testament", [None])[0] or body.get("testament")
         genre = query.get("genre", [None])[0] or body.get("genre")
         book = query.get("book", [None])[0] or body.get("book")
+        epoch = query.get("epoch", [None])[0] or body.get("epoch")
+        locus = query.get("locus", [None])[0] or body.get("locus")
         mode = query.get("mode", ["hierarchical"])[0] or body.get("mode", "hierarchical")
 
         try:
@@ -1158,9 +1167,11 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     testament=testament,
                     genre=genre,
                     book=book,
+                    epoch=epoch,
+                    locus=locus,
                     mode=mode,
                 )
-            else:
+            elif ref_str:
                 result = recommender.recommend_for_reference(
                     reference=ref_str,
                     top_k=top_k,
@@ -1168,11 +1179,70 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                     testament=testament,
                     genre=genre,
                     book=book,
+                    epoch=epoch,
+                    locus=locus,
                     mode=mode,
                 )
+            else:
+                # q_str provided
+                clean_q = str(q_str).strip()
+                if not clean_q:
+                    self.send_json_error("Query parameter 'q' cannot be empty", status=400)
+                    return
+
+                # Check if clean_q can resolve to a canonical scripture citation
+                is_ref = False
+                text_only = query.get("text_only", [None])[0] or body.get("text_only")
+                if not text_only:
+                    try:
+                        candidate_ref = parse_reference(clean_q)
+                        if candidate_ref and candidate_ref.book:
+                            matching = self.db.get_pericopes_for_reference(candidate_ref)
+                            if matching or self.db.get_pericopes_for_book(candidate_ref.book.number):
+                                is_ref = True
+                    except Exception:
+                        is_ref = False
+
+                if is_ref:
+                    try:
+                        result = recommender.recommend_for_reference(
+                            reference=clean_q,
+                            top_k=top_k,
+                            min_score=min_score,
+                            testament=testament,
+                            genre=genre,
+                            book=book,
+                            epoch=epoch,
+                            locus=locus,
+                            mode=mode,
+                        )
+                    except Exception:
+                        result = recommender.search_by_query(
+                            query_text=clean_q,
+                            top_k=top_k,
+                            min_score=min_score,
+                            testament=testament,
+                            genre=genre,
+                            book=book,
+                            epoch=epoch,
+                            locus=locus,
+                            mode=mode,
+                        )
+                else:
+                    result = recommender.search_by_query(
+                        query_text=clean_q,
+                        top_k=top_k,
+                        min_score=min_score,
+                        testament=testament,
+                        genre=genre,
+                        book=book,
+                        epoch=epoch,
+                        locus=locus,
+                        mode=mode,
+                    )
             self.send_json(result)
         except ValueError as exc:
-            self.send_json_error(str(exc), status=404)
+            self.send_json_error(str(exc), status=404 if "not found" in str(exc).lower() else 400)
         except Exception as exc:
             self.send_json_error(f"Error computing pericope recommendations: {exc}", status=500)
 
@@ -1182,46 +1252,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
         body_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """GET or POST /api/vector/search — Natural language semantic query vector search over pericopes."""
-        body = body_data or {}
-        q_text = query.get("q", query.get("query", [None]))[0] or body.get("q") or body.get("query")
-
-        if not q_text or not str(q_text).strip():
-            self.send_json_error("Missing required parameter: 'q' or 'query'", status=400)
-            return
-
-        try:
-            top_k_str = query.get("top_k", query.get("limit", [None]))[0] or body.get("top_k") or body.get("limit") or 10
-            top_k = int(top_k_str)
-        except (ValueError, TypeError):
-            top_k = 10
-
-        try:
-            min_score_str = query.get("min_score", [None])[0] or body.get("min_score") or 0.0
-            min_score = float(min_score_str)
-        except (ValueError, TypeError):
-            min_score = 0.0
-
-        testament = query.get("testament", [None])[0] or body.get("testament")
-        genre = query.get("genre", [None])[0] or body.get("genre")
-        book = query.get("book", [None])[0] or body.get("book")
-        mode = query.get("mode", ["hierarchical"])[0] or body.get("mode", "hierarchical")
-
-        try:
-            recommender = get_pericope_recommender(self.db)
-            result = recommender.search_by_query(
-                query_text=str(q_text).strip(),
-                top_k=top_k,
-                min_score=min_score,
-                testament=testament,
-                genre=genre,
-                book=book,
-                mode=mode,
-            )
-            self.send_json(result)
-        except ValueError as exc:
-            self.send_json_error(str(exc), status=400)
-        except Exception as exc:
-            self.send_json_error(f"Error executing vector query search: {exc}", status=500)
+        # Delegate directly to handle_similar which provides unified query / reference handling
+        self.handle_similar(query, body_data=body_data)
 
     def handle_slide(self, query: Dict[str, List[str]]) -> None:
         """GET /api/slide or /api/slide.svg — Render high-resolution visual scripture slide."""

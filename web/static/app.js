@@ -2022,14 +2022,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (testament) params.append("testament", testament);
         url = `/api/similar?${params.toString()}`;
       } else {
-        const query = (inputSimilarQuery ? inputSimilarQuery.value : "covenant faithfulness").trim();
+        const query = (inputSimilarQuery ? inputSimilarQuery.value : "covenant faithfulness and sovereign grace").trim();
         const params = new URLSearchParams({
           q: query,
           top_k: topK,
           min_score: minScore,
         });
         if (testament) params.append("testament", testament);
-        url = `/api/vector/search?${params.toString()}`;
+        url = `/api/similar?${params.toString()}`;
       }
 
       const res = await fetch(url);
@@ -2056,7 +2056,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Update source card
     if (data.query_type === "passage" && data.source) {
       const src = data.source;
-      if (similarSourceModePill) similarSourceModePill.textContent = "SOURCE PERICOPE";
+      if (similarSourceModePill) similarSourceModePill.textContent = "PASSAGE CONCORDANCE";
       if (similarSourceTitle) similarSourceTitle.textContent = `${src.human_ref} · ${src.title}`;
       if (similarSourceTestament) {
         similarSourceTestament.textContent = src.testament || "Canon";
@@ -2076,14 +2076,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     } else {
-      if (similarSourceModePill) similarSourceModePill.textContent = "SEMANTIC QUERY";
+      if (similarSourceModePill) similarSourceModePill.textContent = "SEMANTIC CONCORDANCE";
       if (similarSourceTitle) similarSourceTitle.textContent = `“${data.query || ""}”`;
       if (similarSourceTestament) similarSourceTestament.style.display = "none";
       if (similarSourceGenre) {
         similarSourceGenre.textContent = data.embedding_mode === "gemini" ? "Gemini text-embedding-004" : "Offline Pure-Stdlib Vector";
         similarSourceGenre.style.display = "inline-block";
       }
-      if (similarSourceSummary) similarSourceSummary.textContent = `Vector similarity search matching conceptual propositions and themes across canonical thought units.`;
+      if (similarSourceSummary) similarSourceSummary.textContent = `Dense vector concordance ranking canonical pericopes by conceptual and doctrinal affinity.`;
       if (similarSourceProp) similarSourceProp.style.display = "none";
     }
 
@@ -2114,6 +2114,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const clampedPct = Math.max(5, Math.min(100, pct));
       const testClass = m.testament === "NT" ? "badge-count" : "badge-gold";
 
+      let strengthClass = "match-strength-low";
+      let strengthLabel = "Thematic Link";
+      if (pct >= 75) {
+        strengthClass = "match-strength-high";
+        strengthLabel = "High Affinity";
+      } else if (pct >= 50) {
+        strengthClass = "match-strength-med";
+        strengthLabel = "Strong Match";
+      } else if (pct >= 25) {
+        strengthClass = "match-strength-mod";
+        strengthLabel = "Moderate Match";
+      }
+
       html += `
         <div class="similar-card" data-ref="${escapeHtml(m.human_ref)}" data-pid="${m.pericope_id}">
           <div class="similar-card-top">
@@ -2122,17 +2135,17 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
             <div class="similar-card-header-col">
               <div class="similar-card-ref-row">
-                <span class="similar-card-ref">${escapeHtml(m.human_ref)}</span>
+                <span class="similar-card-ref" data-ref="${escapeHtml(m.human_ref)}">${escapeHtml(m.human_ref)}</span>
                 <span class="badge ${testClass}">${escapeHtml(m.testament)}</span>
                 <span class="badge badge-version">${escapeHtml(m.genre)}</span>
               </div>
               <h4 class="similar-card-title">${escapeHtml(m.title)}</h4>
             </div>
             <div class="similar-score-badge-col">
-              <div class="similar-score-meter-wrap" title="Cosine Similarity: ${m.score}">
+              <div class="similar-score-meter-wrap ${strengthClass}" title="Cosine Similarity: ${m.score} (${m.match_pct})">
                 <div class="similar-score-label">
                   <span class="similar-score-pct">${m.match_pct}</span>
-                  <span class="similar-score-text">Match</span>
+                  <span class="similar-score-text">${strengthLabel}</span>
                 </div>
                 <div class="similar-progress-bar-bg">
                   <div class="similar-progress-bar-fill" style="width: ${clampedPct}%;"></div>
@@ -2164,7 +2177,7 @@ document.addEventListener("DOMContentLoaded", () => {
     similarResultsStream.innerHTML = html;
 
     // Attach click events
-    similarResultsStream.querySelectorAll(".btn-similar-read").forEach((btn) => {
+    similarResultsStream.querySelectorAll(".btn-similar-read, .similar-card-ref").forEach((btn) => {
       btn.addEventListener("click", () => {
         const ref = btn.getAttribute("data-ref");
         if (ref) {
