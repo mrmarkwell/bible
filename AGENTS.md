@@ -30,8 +30,14 @@ When the human author initiates a conversation asking questions, brainstorming, 
 # Run a fixed number of continuous iterations (e.g. 5):
 ./ralph.sh --loop 5
 
-# Explicit Executive Summary Briefing (on-demand):
-./ralph.sh --summary
+# Supercharged Project Overview & Status (Instant, without running a loop iteration):
+./ralph.sh status
+./ralph.sh overview
+./ralph.sh summary
+./ralph.sh status --json
+
+# Explicit Executive Summary Milestone Iteration (on-demand):
+./ralph.sh --milestone -p
 ./ralph.sh -s -p
 
 # Explicit Senior Product Manager Cleanup Sprint (on-demand):

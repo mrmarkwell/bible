@@ -2069,15 +2069,27 @@ def build_parser() -> argparse.ArgumentParser:
     # Subcommand: summary
     parser_summary = subparsers.add_parser(
         "summary",
-        help="Generate executive summary and trajectory briefing across recent Ralph iterations",
-        description="Review work done across recent iterations, project completion trajectory, and health.",
+        help="Generate executive summary, supercharged git status, and whole project overview",
+        description="Review work done, repository git status, project completion trajectory, and health.",
+    )
+    parser_summary.add_argument(
+        "--overview",
+        "-o",
+        action="store_true",
+        help="Display whole project overview and supercharged git status (default)",
+    )
+    parser_summary.add_argument(
+        "--retrospective",
+        "-r",
+        action="store_true",
+        help="Output detailed multi-iteration retrospective briefing",
     )
     parser_summary.add_argument(
         "--window",
         "-w",
         type=int,
         default=10,
-        help="Number of past iterations to review (default: 10)",
+        help="Number of past iterations to review in retrospective (default: 10)",
     )
     parser_summary.add_argument(
         "--no-doctor",
@@ -2085,18 +2097,40 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip running live doctor diagnostics",
     )
     parser_summary.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color formatting",
+    )
+    parser_summary.add_argument(
+        "--markdown",
+        "--md",
+        action="store_true",
+        help="Output overview in Markdown format",
+    )
+    parser_summary.add_argument(
         "--json",
         action="store_true",
         help="Output machine-readable JSON telemetry",
     )
     def cmd_summary(args: argparse.Namespace) -> int:
-        from tools.executive_summary import generate_summary, format_markdown_report
+        from tools.executive_summary import (
+            generate_summary,
+            format_overview,
+            format_markdown_overview,
+            format_markdown_report,
+            should_color,
+        )
         repo_root = Path(__file__).resolve().parent.parent
         report = generate_summary(window=args.window, repo_root=repo_root, run_doctor=not args.no_doctor)
         if getattr(args, "json", False):
             print(report.to_json(indent=2))
-        else:
+        elif getattr(args, "retrospective", False):
             print(format_markdown_report(report))
+        elif getattr(args, "markdown", False):
+            print(format_markdown_overview(report))
+        else:
+            use_color = should_color() and not getattr(args, "no_color", False)
+            print(format_overview(report, use_color=use_color))
         return 0
 
     parser_summary.set_defaults(func=cmd_summary)

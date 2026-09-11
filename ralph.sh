@@ -104,14 +104,17 @@ Usage:
 
 Operating Modes:
   (no args)             Launch single interactive session in terminal TUI (with auto-cadence detection)
+  status, --status      Display whole project overview & status without running an iteration (supercharged git status)
+  overview, --overview  Alias for status
+  summary, --summary    Display whole project overview & status without running an iteration
   --print, -p           Launch single headless autonomous cycle with real-time streaming telemetry
   --loop, -l [N]        Run continuous autonomous loop (iterates until all tasks complete, BLOCKED.md, or N cycles)
   --cleanup, -c         Explicitly run a Senior Product Manager Meta-Improvement Sprint (answering diagnostic questions)
-  --summary, -s         Explicitly run a 10th-Iteration Executive Summary & Trajectory Briefing Double Milestone
+  --milestone, -m       Explicitly run a 10th-Iteration Executive Summary & Trajectory Briefing Double Milestone
   --help, -h            Show this help reference guide
 
 Options with Subcommands:
-  -p, --print           Run in headless mode with streaming telemetry (e.g. ./ralph.sh -c -p, ./ralph.sh -s -p)
+  -p, --print           Run in headless mode with streaming telemetry (e.g. ./ralph.sh -c -p, ./ralph.sh -m -p)
   [PROMPT]              Custom initial instruction prompt to execute
 
 Cadence Protocol:
@@ -121,11 +124,13 @@ Cadence Protocol:
 
 Examples:
   ./ralph.sh                     # Interactive single iteration (opens TUI)
+  ./ralph.sh status              # Supercharged git status & whole project overview (no iteration)
+  ./ralph.sh summary             # Instant executive summary (no iteration)
   ./ralph.sh -p                  # Headless single iteration (streams progress and exits)
   ./ralph.sh --loop              # Continuous loop until completion
   ./ralph.sh --loop 5            # Continuous loop for 5 iterations
   ./ralph.sh --cleanup -p        # Headless Senior PM Cleanup Sprint on-demand
-  ./ralph.sh --summary -p        # Headless Executive Summary milestone on-demand
+  ./ralph.sh --milestone -p      # Headless Executive Summary milestone iteration on-demand
 EOF
 }
 
@@ -136,6 +141,15 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     show_help
     exit 0
+fi
+
+# Instant Status / Overview / Summary Mode (No Ralph iteration)
+if [ "${1:-}" = "status" ] || [ "${1:-}" = "--status" ] || [ "${1:-}" = "-st" ] || \
+   [ "${1:-}" = "overview" ] || [ "${1:-}" = "--overview" ] || \
+   ( [ "${1:-}" = "summary" ] && [ "${2:-}" != "-p" ] && [ "${2:-}" != "--print" ] ) || \
+   ( ( [ "${1:-}" = "--summary" ] || [ "${1:-}" = "-s" ] ) && [ "${2:-}" != "-p" ] && [ "${2:-}" != "--print" ] ); then
+    shift
+    exec python3 "$REPO_DIR/tools/executive_summary.py" "$@"
 fi
 
 if [ ! -x "$JETSKI_CLI" ]; then
@@ -261,8 +275,8 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
     exit 0
 fi
 
-# Explicit Executive Summary Mode (--summary / -s)
-if [ "${1:-}" = "--summary" ] || [ "${1:-}" = "-s" ]; then
+# Explicit Executive Summary / Milestone Iteration Mode (--milestone / -m / --summary -p)
+if [ "${1:-}" = "--milestone" ] || [ "${1:-}" = "-m" ] || [ "${1:-}" = "--summary" ] || [ "${1:-}" = "-s" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
     echo "======================================================================"

@@ -124,5 +124,22 @@ class TestHarness(unittest.TestCase):
             self.assertIn("--summary", res.stdout)
 
 
+    def test_ralph_status_and_overview_commands(self):
+        """Verify ./ralph.sh status, --status, overview, and summary display overview without running an iteration."""
+        import subprocess
+
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+
+        for cmd_arg in ["status", "--status", "overview", "--overview", "summary", "--summary"]:
+            res = subprocess.run([ralph_path, cmd_arg, "--no-doctor"], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"ralph.sh {cmd_arg} failed with code {res.returncode}")
+            self.assertIn("AUTOLOOP EXECUTIVE PROJECT OVERVIEW", res.stdout)
+            self.assertIn("1. REPOSITORY & VCS STATUS", res.stdout)
+            self.assertIn("3. ROADMAP & MILESTONE PROGRESS", res.stdout)
+            # Verify it did not invoke Jetski
+            self.assertNotIn("Invoking Executive Summary & Trajectory Briefing", res.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

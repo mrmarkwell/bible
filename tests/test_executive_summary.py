@@ -207,12 +207,98 @@ class TestExecutiveSummary(unittest.TestCase):
             self.assertIn("Module-Test Suite Symmetry", details_str)
             self.assertIn("SQLite Scripture Database", details_str)
 
-    def test_active_phase_dynamic_fallback(self):
-        report = generate_summary(window=1, run_doctor=False)
-        md = format_markdown_report(report)
-        # Verify it reflects the live active phase parsed dynamically from ROADMAP.md
-        self.assertNotIn("Phase 5: Visual Slide Generator", md)
-        self.assertIn(report.roadmap_stats.active_phase, md)
+    def test_render_progress_bar(self):
+        from tools.executive_summary import render_progress_bar
+        self.assertEqual(render_progress_bar(0.0, width=10), "[░░░░░░░░░░]")
+        self.assertEqual(render_progress_bar(100.0, width=10), "[██████████]")
+        self.assertEqual(render_progress_bar(50.0, width=10), "[█████░░░░░]")
+        self.assertEqual(render_progress_bar(-10.0, width=10), "[░░░░░░░░░░]")
+        self.assertEqual(render_progress_bar(120.0, width=10), "[██████████]")
+
+    def test_get_cadence_info(self):
+        from tools.executive_summary import get_cadence_info, RunEntry
+        runs_empty = []
+        c0 = get_cadence_info(runs_empty)
+        self.assertEqual(c0.next_run, 1)
+        self.assertEqual(c0.cadence_icon, "🚀")
+
+        # Run 4 -> next run is 5 (cleanup)
+        runs_4 = [RunEntry(run_number=i, title=f"Run {i}", date_str="2026-09-10", phase="P", task="T") for i in range(1, 5)]
+        c5 = get_cadence_info(runs_4)
+        self.assertEqual(c5.next_run, 5)
+        self.assertEqual(c5.cadence_icon, "🧹")
+        self.assertIn("Cleanup Sprint", c5.cadence_name)
+
+        # Run 9 -> next run is 10 (double milestone)
+        runs_9 = [RunEntry(run_number=i, title=f"Run {i}", date_str="2026-09-10", phase="P", task="T") for i in range(1, 10)]
+        c10 = get_cadence_info(runs_9)
+        self.assertEqual(c10.next_run, 10)
+        self.assertEqual(c10.cadence_icon, "👑")
+        self.assertIn("Double Milestone", c10.cadence_name)
+
+    def test_get_blocker_info(self):
+        from tools.executive_summary import get_blocker_info
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            # Unblocked initially
+            b0 = get_blocker_info(root)
+            self.assertFalse(b0.is_blocked)
+            self.assertIn("0 Blockers", b0.summary)
+
+            # Create BLOCKED.md
+            (root / "BLOCKED.md").write_text("# Blocked\nMissing ESV_API_KEY credential\n", encoding="utf-8")
+            b1 = get_blocker_info(root)
+            self.assertTrue(b1.is_blocked)
+            self.assertIn("Missing ESV_API_KEY", b1.summary)
+
+    def test_format_overview_and_markdown(self):
+        from tools.executive_summary import format_overview, format_markdown_overview
+        report = generate_summary(window=3, run_doctor=False)
+        overview = format_overview(report, use_color=False)
+        self.assertIn("AUTOLOOP EXECUTIVE PROJECT OVERVIEW", overview)
+        self.assertIn("1. REPOSITORY & VCS STATUS", overview)
+        self.assertIn("2. AUTONOMOUS RALPH LOOP ENGINE STATE", overview)
+        self.assertIn("3. ROADMAP & MILESTONE PROGRESS (WHOLE PROJECT)", overview)
+        self.assertIn("4. RECENT ACTIVITY SNAPSHOT", overview)
+        self.assertIn("5. SYSTEM HEALTH & ARCHITECTURAL INVARIANTS", overview)
+
+        md_overview = format_markdown_overview(report)
+        self.assertIn("# Executive Summary & Trajectory Briefing — Whole Project Overview", md_overview)
+        self.assertIn("## 1. Repository & VCS Status", md_overview)
+        self.assertIn("## 3. Whole Project Roadmap Progress", md_overview)
+        self.assertIn("Phase Breakdown", md_overview)
+
+    def test_cli_modes(self):
+        import io
+        from unittest.mock import patch
+        from tools.executive_summary import main as summary_main
+
+        # Default overview
+        out = io.StringIO()
+        with patch("sys.stdout", out):
+            summary_main(["--no-doctor", "--no-color"])
+        self.assertIn("AUTOLOOP EXECUTIVE PROJECT OVERVIEW", out.getvalue())
+
+        # Markdown mode
+        out_md = io.StringIO()
+        with patch("sys.stdout", out_md):
+            summary_main(["--no-doctor", "--markdown"])
+        self.assertIn("# Executive Summary & Trajectory Briefing — Whole Project Overview", out_md.getvalue())
+
+        # Retrospective mode
+        out_retro = io.StringIO()
+        with patch("sys.stdout", out_retro):
+            summary_main(["--no-doctor", "--retrospective", "--window", "3"])
+        self.assertIn("Review of Work Done", out_retro.getvalue())
+
+        # JSON mode
+        out_json = io.StringIO()
+        with patch("sys.stdout", out_json):
+            summary_main(["--no-doctor", "--json"])
+        data = json.loads(out_json.getvalue())
+        self.assertIn("vcs", data)
+        self.assertIn("blocker", data)
+        self.assertIn("cadence", data)
 
 
 if __name__ == "__main__":

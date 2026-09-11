@@ -14,9 +14,10 @@ Use this skill whenever the user asks for an **executive summary**, a review of 
 ## Automatic Cadence & On-Demand Usage
 
 - **Automatic 10th Iteration Double Milestone**: Every 10th Ralph loop iteration (`run_number % 10 == 0`, e.g. Run #010, #020, #030...) performs the **Senior Product Manager role** (since 10 is divisible by 5) by answering the core diagnostic questions and executing a Rank A+ meta-improvement. At the end of the cycle, the agent delivers the curated **Human Executive Briefing post-summary**.
-- **On-Demand Usage**: Can be executed at any time on-demand via the CLI or python tool:
-  - Command: `./bible summary` or `python3 tools/executive_summary.py`
-  - Custom window (e.g. last 5 or 20 runs): `./bible summary --window 20`
+- **On-Demand Usage**: Can be executed at any time on-demand via `./ralph.sh status`, CLI, or python tool:
+  - Command: `./ralph.sh status`, `./ralph.sh overview`, `./bible summary`, or `python3 tools/executive_summary.py`
+  - Instant project overview (supercharged git status): `./ralph.sh status` (or `python3 tools/executive_summary.py --overview`)
+  - Custom retrospective window (e.g. last 5 or 20 runs): `./bible summary --window 20` or `python3 tools/executive_summary.py --window 20`
 
 ## Procedure
 
