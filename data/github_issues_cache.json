@@ -35,11 +35,11 @@
         "site_admin": false
       },
       "labels": [],
-      "state": "open",
+      "state": "closed",
       "locked": false,
       "assignees": [],
       "milestone": null,
-      "comments": 0,
+      "comments": 1,
       "created_at": "2026-09-11T15:18:56Z",
       "updated_at": "2026-09-11T15:18:56Z",
       "closed_at": null,
@@ -73,8 +73,17 @@
       },
       "timeline_url": "https://api.github.com/repos/mrmarkwell/bible/issues/5/timeline",
       "performed_via_github_app": null,
-      "state_reason": null,
-      "pinned_comment": null
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "comments_list": [
+        {
+          "user": {
+            "login": "agent"
+          },
+          "created_at": "2026-09-12T18:52:03.857252+00:00",
+          "body": "Resolved in commit 6c3c3b3 with regression test."
+        }
+      ]
     },
     {
       "url": "https://api.github.com/repos/mrmarkwell/bible/issues/6",
@@ -162,5 +171,6 @@
       "state_reason": null,
       "pinned_comment": null
     }
-  ]
+  ],
+  "last_updated_utc": "2026-09-12T18:52:03.857275+00:00"
 }
