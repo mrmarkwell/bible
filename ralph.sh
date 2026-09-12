@@ -8,10 +8,20 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
 JETSKI_CLI="/google/bin/releases/jetski-devs/tools/cli"
-DEFAULT_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md."
+DEFAULT_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
+
+MANDATORY PRE-CHECKS ON EVERY CYCLE:
+1. Priority 0: Check GitHub Actions CI/CD health (python3 tools/ci.py check). If broken, fixing CI/CD is top priority.
+2. Priority 1: Check for open GitHub issues (python3 tools/github_issues.py check). If an open issue exists, prioritize resolving or triaging it before advancing roadmap tasks.
+3. Cadence / Roadmap: If CI/CD is healthy and no open issues exist, proceed with cadence or roadmap task selection per AGENTS.md."
+
 CLEANUP_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
 
 MANDATORY CADENCE: Senior Product Manager Meta-Improvement & System Health Sprint.
+
+MANDATORY PRE-CHECKS ON EVERY CYCLE:
+1. Priority 0: Check GitHub Actions CI/CD health (python3 tools/ci.py check). If broken, fixing CI/CD is top priority.
+2. Priority 1: Check for open GitHub issues (python3 tools/github_issues.py check). If an open issue exists, prioritize resolving or triaging it before or as part of the sprint.
 
 You are acting as a Senior Product Manager auditing the entire project structure and execution processes.
 DO NOT make standard feature progress on the roadmap tasks.
@@ -34,6 +44,10 @@ Requirements:
 SUMMARY_PROMPT="Execute one cycle of the Ralph loop per AGENTS.md.
 
 MANDATORY CADENCE: Senior Product Manager Meta-Improvement Sprint & 10th-Iteration Executive Briefing.
+
+MANDATORY PRE-CHECKS ON EVERY CYCLE:
+1. Priority 0: Check GitHub Actions CI/CD health (python3 tools/ci.py check). If broken, fixing CI/CD is top priority.
+2. Priority 1: Check for open GitHub issues (python3 tools/github_issues.py check). If an open issue exists, prioritize resolving or triaging it before or as part of the milestone.
 
 Every 10th iteration is divisible by 5 and represents a double milestone.
 You are acting as a Senior Product Manager auditing the entire project structure and execution processes, followed by curating the 10-iteration Executive Summary.
@@ -209,15 +223,21 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
         NEXT_RUN=$(get_next_run_number)
         CYCLE_PROMPT="$DEFAULT_PROMPT"
         SPRINT_BANNER="Standard Cycle (Roadmap Task Execution)"
+        CI_PROMPT=""
+        GITHUB_PROMPT=""
+        CI_SUMMARY=""
+        ISSUE_SUMMARY=""
 
         # Priority 0: Check for broken GitHub Actions CI/CD (TOP PRIORITY)
         CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+        # Priority 1: Check for open GitHub issues / bug reports
+        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+
         if [ -n "$CI_PROMPT" ]; then
             CYCLE_PROMPT="$CI_PROMPT"
             CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
             SPRINT_BANNER="CI/CD FIX TOP PRIORITY ($CI_SUMMARY)"
-        # Priority 1: Check for open GitHub issues / bug reports
-        elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
+        elif [ -n "$GITHUB_PROMPT" ]; then
             CYCLE_PROMPT="$GITHUB_PROMPT"
             ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
             SPRINT_BANNER="BUG REPORT PRIORITY ($ISSUE_SUMMARY)"
@@ -279,6 +299,19 @@ fi
 if [ "${1:-}" = "--milestone" ] || [ "${1:-}" = "-m" ] || [ "${1:-}" = "--summary" ] || [ "${1:-}" = "-s" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
+    CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+    GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+    if [ -n "$CI_PROMPT" ]; then
+        CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
+        echo " [!] GitHub Actions CI/CD failure detected: Prioritizing CI/CD repair ($CI_SUMMARY)."
+        PROMPT="$CI_PROMPT"
+    elif [ -n "$GITHUB_PROMPT" ]; then
+        ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
+        echo " [!] Open GitHub issue detected: Prioritizing bug report resolution ($ISSUE_SUMMARY)."
+        PROMPT="$GITHUB_PROMPT"
+    else
+        PROMPT="$SUMMARY_PROMPT"
+    fi
     echo "======================================================================"
     echo " Invoking Executive Summary & Trajectory Briefing (Run #$NEXT_RUN)"
     echo " Cadence: On-Demand / 10th Iteration Review"
@@ -286,7 +319,7 @@ if [ "${1:-}" = "--milestone" ] || [ "${1:-}" = "-m" ] || [ "${1:-}" = "--summar
     if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
         shift
         set +e
-        "$JETSKI_CLI" --dangerously-skip-permissions -p "$SUMMARY_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
         PIPE_STATUSES=("${PIPESTATUS[@]}")
         set -e
         EXIT_CODE="${PIPE_STATUSES[0]:-0}"
@@ -296,13 +329,26 @@ if [ "${1:-}" = "--milestone" ] || [ "${1:-}" = "-m" ] || [ "${1:-}" = "--summar
         fi
         exit "$EXIT_CODE"
     fi
-    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$SUMMARY_PROMPT" "$@"
+    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$PROMPT" "$@"
 fi
 
 # Explicit Cleanup Sprint Mode (--cleanup / -c)
 if [ "${1:-}" = "--cleanup" ] || [ "${1:-}" = "-c" ]; then
     shift
     NEXT_RUN=$(get_next_run_number)
+    CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+    GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
+    if [ -n "$CI_PROMPT" ]; then
+        CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
+        echo " [!] GitHub Actions CI/CD failure detected: Prioritizing CI/CD repair ($CI_SUMMARY)."
+        PROMPT="$CI_PROMPT"
+    elif [ -n "$GITHUB_PROMPT" ]; then
+        ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
+        echo " [!] Open GitHub issue detected: Prioritizing bug report resolution ($ISSUE_SUMMARY)."
+        PROMPT="$GITHUB_PROMPT"
+    else
+        PROMPT="$CLEANUP_PROMPT"
+    fi
     echo "======================================================================"
     echo " Invoking Senior Product Manager Meta-Improvement Sprint (Run #$NEXT_RUN)"
     echo " Cadence: On-Demand / Cadence Sprint"
@@ -310,7 +356,7 @@ if [ "${1:-}" = "--cleanup" ] || [ "${1:-}" = "-c" ]; then
     if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
         shift
         set +e
-        "$JETSKI_CLI" --dangerously-skip-permissions -p "$CLEANUP_PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
+        "$JETSKI_CLI" --dangerously-skip-permissions -p "$PROMPT" --print-timeout "$DEFAULT_TIMEOUT" --output-format stream-json "$@" | python3 "$REPO_DIR/tools/stream_runner.py"
         PIPE_STATUSES=("${PIPESTATUS[@]}")
         set -e
         EXIT_CODE="${PIPE_STATUSES[0]:-0}"
@@ -320,7 +366,7 @@ if [ "${1:-}" = "--cleanup" ] || [ "${1:-}" = "-c" ]; then
         fi
         exit "$EXIT_CODE"
     fi
-    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CLEANUP_PROMPT" "$@"
+    exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$PROMPT" "$@"
 fi
 
 # Check if user explicitly passed print/headless mode
@@ -329,11 +375,12 @@ if [ "${1:-}" = "--print" ] || [ "${1:-}" = "-p" ]; then
     NEXT_RUN=$(get_next_run_number)
     if [ "$#" -eq 0 ]; then
         CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+        GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
         if [ -n "$CI_PROMPT" ]; then
             CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
             echo " [!] GitHub Actions CI/CD failure detected: Prioritizing CI/CD repair ($CI_SUMMARY)."
             PROMPT="$CI_PROMPT"
-        elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
+        elif [ -n "$GITHUB_PROMPT" ]; then
             ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
             echo " [!] Open GitHub issue detected: Prioritizing bug report resolution ($ISSUE_SUMMARY)."
             PROMPT="$GITHUB_PROMPT"
@@ -366,13 +413,14 @@ fi
 if [ "$#" -eq 0 ]; then
     NEXT_RUN=$(get_next_run_number)
     CI_PROMPT=$(python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true)
+    GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)
     if [ -n "$CI_PROMPT" ]; then
         CI_SUMMARY=$(python3 "$REPO_DIR/tools/ci.py" check --summary 2>/dev/null || true)
         echo "======================================================================"
         echo " Launching Ralph Loop (Priority: Broken CI/CD Repair: $CI_SUMMARY)"
         echo "======================================================================"
         exec "$JETSKI_CLI" --dangerously-skip-permissions -i "$CI_PROMPT"
-    elif GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null) && [ -n "$GITHUB_PROMPT" ]; then
+    elif [ -n "$GITHUB_PROMPT" ]; then
         ISSUE_SUMMARY=$(python3 "$REPO_DIR/tools/github_issues.py" check --summary 2>/dev/null || true)
         echo "======================================================================"
         echo " Launching Ralph Loop (Priority: GitHub Bug Report: $ISSUE_SUMMARY)"

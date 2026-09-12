@@ -4184,3 +4184,44 @@ This document is an append-only log of significant design and architectural deci
   - New and existing users running `./bible init` receive immediate, helpful prompting to set up keys, or clear copy-pasteable instructions on setting environment variables.
   - 100% Zero-Dependency compliance strictly maintained per ADR-003.
   - Test suite expanded to 1,127 tests passing hermetically in ~7s.
+
+---
+
+## ADR-124: Universal Multi-Iteration GitHub Issue and CI/CD Pre-Check Protocol across Autonomous and Interactive Ralph Loops
+- **Date**: 2026-09-12
+- **Status**: Accepted
+- **Context**:
+  - A bug was identified where the first iteration of the Ralph loop checked for open GitHub issues and broken CI/CD, but subsequent iterations did not check.
+  - Diagnostic analysis uncovered five compounding architectural and harness causes:
+    1. **Interactive Session Process Replacement**: When invoked interactively via `./ralph.sh`, `ralph.sh` queried `tools/github_issues.py check --prompt` and launched `exec "$JETSKI_CLI" -i "$GITHUB_PROMPT"`. The shell process was replaced by `exec`. On subsequent iterations within that interactive session (prompted by the user saying "next task", "ralph", etc.), `ralph.sh` was no longer running, leaving the agent without prompt-level guidance to re-check issues.
+    2. **Prompt Templates Omitting Priority Pre-Checks**: In `ralph.sh`, `DEFAULT_PROMPT`, `CLEANUP_PROMPT`, and `SUMMARY_PROMPT` lacked instructions requiring agents to check GitHub Actions CI/CD (`python3 tools/ci.py check`) or open GitHub issues (`python3 tools/github_issues.py check`). Agents receiving these prompts were never instructed to verify external issues before advancing roadmap tasks.
+    3. **Cadence & On-Demand Execution Bypassing Issue Checks**: When invoked via `--cleanup` (`-c`) or `--milestone` (`-m`), `ralph.sh` directly executed Jetski with `$CLEANUP_PROMPT` or `$SUMMARY_PROMPT` without first verifying CI/CD or open GitHub issues.
+    4. **Inverted Lifecycle Hierarchy in Documentation**: In `AGENTS.md`, Priority 0 Check (CI/CD) and Priority 1 Check (GitHub Issues) were documented under the heading `Standard Loop Lifecycle (Iterations Not Divisible by 5 or 10)`, implying that cadence iterations (multiples of 5 or 10) should skip issue checks, and line 60 summarized the pipeline as `Boot → Cadence Check → Execute`, omitting pre-checks entirely.
+    5. **Continuous Loop Variable Scope & Evaluation**: In `ralph.sh --loop`, `CI_PROMPT` and `GITHUB_PROMPT` variables were not explicitly reset at the start of each while iteration, and `GITHUB_PROMPT` was chained in an `elif` condition rather than evaluated independently with safe fallback.
+- **Decision**:
+  1. **Mandatory Priority Pre-Checks in Prompt Definitions (`ralph.sh`)**:
+     - Updated `DEFAULT_PROMPT`, `CLEANUP_PROMPT`, and `SUMMARY_PROMPT` to explicitly instruct agents on mandatory pre-checks on EVERY cycle:
+       1. Priority 0: Check GitHub Actions CI/CD health (`python3 tools/ci.py check`).
+       2. Priority 1: Check for open GitHub issues (`python3 tools/github_issues.py check`).
+       3. Cadence / Roadmap: If CI/CD is healthy and 0 open issues exist, proceed with cadence or roadmap task selection.
+  2. **Independent Pre-Check Evaluation & Variable Reset in Continuous Loop (`ralph.sh`)**:
+     - In `--loop` mode, explicitly reset `CI_PROMPT=""`, `GITHUB_PROMPT=""`, `CI_SUMMARY=""`, `ISSUE_SUMMARY=""`, and `CYCLE_PROMPT="$DEFAULT_PROMPT"` at the start of every iteration.
+     - Independently evaluate `python3 "$REPO_DIR/tools/ci.py" check --prompt 2>/dev/null || true` and `python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true`.
+     - Test cleanly via `[ -n "$CI_PROMPT" ]` and `elif [ -n "$GITHUB_PROMPT" ]` to guarantee issues are prioritized on every single iteration.
+  3. **Priority Pre-Checks in On-Demand Cadence Modes (`ralph.sh`)**:
+     - Updated `--milestone` (`-m`) and `--cleanup` (`-c`) command branches to check CI/CD and open GitHub issues before launching Jetski, routing to repair or bug prompts if issues exist.
+  4. **Universal Loop Lifecycle Architecture (`AGENTS.md`, `GEMINI.md`)**:
+     - Reorganized `AGENTS.md` and `GEMINI.md` to establish the Universal Loop Lifecycle where Priority 0 (CI/CD) and Priority 1 (GitHub issues) are universal mandatory pre-checks across EVERY iteration (both initial and subsequent, standard and cadence).
+     - Explicitly documented that Cadence Sprints and Double Milestones require Priority 0 and Priority 1 to be verified green/clean before initiating cadence activities.
+  5. **Hermetic Regression Test Suite (`tests/test_harness.py`)**:
+     - Authored `test_default_prompt_contains_mandatory_issue_and_ci_checks` verifying prompt contents.
+     - Authored `test_cleanup_and_summary_prompts_contain_priority_checks` verifying cadence prompts.
+     - Authored `test_ralph_loop_evaluates_github_issues_across_all_iterations` verifying continuous loop variable reset and independent evaluation.
+     - Authored `test_ralph_cleanup_and_milestone_check_github_issues` verifying on-demand mode pre-checks.
+     - Authored `test_agents_md_universal_prechecks_hierarchy` verifying documentation integrity.
+- **Consequences**:
+  - Completely fixes the bug: every iteration of the Ralph loop across all execution modes (interactive, continuous `--loop`, on-demand `--cleanup`, on-demand `--milestone`, headless `-p`) enforces Priority 0 and Priority 1 checks.
+  - Subsequent iterations in multi-turn interactive sessions and autonomous loops reliably check and resolve open GitHub issues before picking up roadmap tasks.
+  - 100% Zero-Dependency compliance strictly maintained per ADR-003.
+  - Full test suite verified at 1,132 tests passing hermetically in ~7.1s.
+

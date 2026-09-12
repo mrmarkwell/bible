@@ -57,7 +57,7 @@ tmux new -s ralph
 ```
 
 When spawned by `./ralph.sh`, direct CLI invocation, or when given an autonomous trigger (`"Execute one cycle of the Ralph loop"` / `"next task"`):
-Follow the **Boot → Cadence Check → Execute → Log → Push → Terminate** pipeline.
+Follow the **Boot → Check Blockers → Priority 0 (CI/CD Health) → Priority 1 (GitHub Issues) → Cadence Check → Execute → Log → Push → Terminate** pipeline across EVERY iteration (both initial and subsequent).
 
 ```mermaid
 flowchart TD
@@ -83,9 +83,58 @@ flowchart TD
 
 ---
 
+### Universal Loop Lifecycle (Mandatory Pre-Checks on EVERY Iteration)
+
+Every iteration of the Ralph loop—whether the very first iteration, subsequent iterations in a multi-turn session, continuous `--loop` cycles, or cadence sprints—MUST execute the following pre-checks in strict priority order before selecting tasks:
+
+#### 1. Boot & Orient
+1. **Read Core Docs**:
+   - `MANIFESTO.md`: Refresh on the overarching goals and architecture.
+   - `ROADMAP.md`: Review active phase, completed tasks, and backlog.
+   - `DECISIONS.md`: Review recent architectural decisions to avoid contradictory implementations.
+   - `AGENT_LOG.md`: Read the last 2–3 entries to understand recent changes and context.
+2. **Check for Blockers**:
+   - Check if `BLOCKED.md` exists.
+   - If `BLOCKED.md` exists and contains an unanswered blocker: **DO NOT PROCEED**. Terminate or address only items that unblock the state.
+   - If `BLOCKED.md` contains a human resolution: Ingest the resolution, apply any necessary setup, **delete or clear `BLOCKED.md`**, and proceed.
+
+#### 2. Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY ON EVERY ITERATION)
+Before addressing bug reports, cadence sprints, or selecting a roadmap task, check the status of GitHub Actions continuous integration using `python3 tools/ci.py check` (or `./bible ci check`):
+- **If GitHub Actions CI is broken/failing**: You **MUST** fix the broken CI/CD pipeline on GitHub as the **TOP PRIORITY** before resolving issues, conducting cadence sprints, or starting roadmap tasks:
+  1. Interrogate the failure matrix (`python3 tools/ci.py --details` or `./bible ci --run <id>`).
+  2. Identify the failing steps, jobs, and Python versions (e.g. Python 3.10, 3.11, 3.12, 3.13).
+  3. Fix the root cause in code, concurrency models, test runner, or workflow definitions.
+  4. Verify 100% hermetic unit tests pass across all environments (`./bible test`).
+  5. Commit with message `fix(ci): <explanation>`, immediately push (`git push origin main`), and verify that GitHub Actions returns to green (`python3 tools/ci.py --watch`).
+  6. Document the triage, root cause, and remediation in `AGENT_LOG.md` and `DECISIONS.md`.
+- **Only once GitHub Actions CI/CD is verified green/healthy (or offline fallback), proceed to Priority 1 Check.**
+
+#### 3. Priority 1 Check: Open GitHub Issue / Bug Report Triage (MANDATORY ON EVERY ITERATION)
+Before selecting cadence sprints or roadmap tasks, check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`):
+- **Mandatory on Every Iteration**: Every iteration (both the initial cycle and all subsequent cycles in multi-turn sessions or `--loop`) MUST run this check.
+- If an open GitHub issue (bug report) exists, **address it in this iteration before proceeding to cadence sprints or roadmap tasks**:
+  1. **Fix & Close (Bug Resolved)**: Reproduce the bug, write hermetic regression unit test(s) in `tests/test_*.py`, fix the code, verify 100% test pass rate (`./bible test`), include `Fixes #<number>` in your git commit message (GitHub automatically closes the issue upon push to `origin/main`), and close the issue via `python3 tools/github_issues.py close <number> --comment "Resolved in commit with regression test."`.
+  2. **Close as Irrelevant / Duplicate / Not Planned**: If the bug report is invalid, duplicate, out-of-scope, or already resolved, close it with a clear, polite explanation via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<explanation>"`.
+  3. **Comment with Diagnostic Status**: If the issue cannot be resolved immediately (e.g. requires external credentials or reproduction details), post an explanatory comment via `python3 tools/github_issues.py comment <number> "<diagnostic comment>"`.
+- Record your triage action, reasoning, and resolution in `AGENT_LOG.md`.
+- **Only once all open GitHub issues are resolved or triaged, proceed to Cadence & Task Selection.**
+
+#### 4. Cadence & Task Selection (Only If CI/CD is Green and 0 Open Issues)
+If GitHub Actions CI/CD is green and there are NO open GitHub issues:
+1. **10th Iteration Double Milestone**: If `run_number % 10 == 0`, `iteration % 10 == 0`, or invoked via `--milestone` / `--summary`, execute the **Senior PM Meta-Improvement Sprint & 10th-Iteration Executive Briefing**.
+2. **5th Iteration Cleanup Sprint**: If `run_number % 5 == 0`, `iteration % 5 == 0`, or invoked via `--cleanup`, execute the **Senior Product Manager Meta-Improvement & System Health Sprint**.
+3. **Standard Cycle**:
+   - Open `ROADMAP.md`.
+   - Locate the highest-priority task marked `[TODO]` under the active phase whose prerequisites are satisfied.
+   - Update its status in `ROADMAP.md` to `[IN PROGRESS]` (include your agent identifier / timestamp).
+   - **Scope Control**: Work on **ONE** coherent unit of work only. Small, atomic iterations prevent context degradation.
+
+---
+
 ### Cadence Protocol: The Senior Product Manager Cleanup Sprint (Every 5th Iteration)
 
 Every **fifth iteration** of the autonomous Ralph loop (e.g., Run #005, #010, #015, #020..., or when `run_number % 5 == 0`, or when invoked via `--cleanup` / `-c`) is a dedicated **Senior Product Manager Meta-Improvement & System Health Sprint**.
+- **Prerequisite**: Priority 0 (CI/CD Health) and Priority 1 (GitHub Issues) MUST be verified green/clean before initiating the cleanup sprint. If broken CI/CD or an open bug report is detected, resolving that failure takes precedence.
 
 #### 1. Core Purpose & Mindset
 - **Role**: Step out of the developer/coder persona and assume the role of a **Senior Product Manager & Meta-Architect**.
@@ -114,6 +163,7 @@ The Senior PM audits the entire system across:
 ### Cadence Protocol: Executive Summary & Senior PM Double Milestone (Every 10th Iteration)
 
 Every **tenth iteration** of the autonomous Ralph loop (e.g., Run #010, #020, #030..., or when `run_number % 10 == 0`, or when invoked via `--summary` / `-s`) is a dedicated **Senior Product Manager Meta-Improvement Sprint & Executive Briefing Double Milestone**:
+- **Prerequisite**: Priority 0 (CI/CD Health) and Priority 1 (GitHub Issues) MUST be verified green/clean before initiating the double milestone. If broken CI/CD or an open bug report is detected, resolving that failure takes precedence.
 - **Why?**: Because the 10th iteration is divisible by 5, it fully performs the **Senior Product Manager role** (answering the two core diagnostic questions and executing a Rank A+ meta-improvement).
 - **Post-Summary Executive Briefing**: In addition to the Senior PM meta-improvement, the agent curates the multi-iteration retrospective across the last 10 runs and delivers the comprehensive **Executive Briefing** at the end of the iteration.
 
@@ -137,45 +187,6 @@ Every **tenth iteration** of the autonomous Ralph loop (e.g., Run #010, #020, #0
 
 ---
 
-#### Standard Loop Lifecycle (Iterations Not Divisible by 5 or 10)
-
-When the iteration is a standard cycle:
-
-#### 1. Boot & Orient
-1. **Read Core Docs**:
-   - `MANIFESTO.md`: Refresh on the overarching goals and architecture.
-   - `ROADMAP.md`: Review active phase, completed tasks, and backlog.
-   - `DECISIONS.md`: Review recent architectural decisions to avoid contradictory implementations.
-   - `AGENT_LOG.md`: Read the last 2–3 entries to understand recent changes and context.
-2. **Check for Blockers**:
-   - Check if `BLOCKED.md` exists.
-   - If `BLOCKED.md` exists and contains an unanswered blocker: **DO NOT PROCEED**. Terminate or address only items that unblock the state.
-   - If `BLOCKED.md` contains a human resolution: Ingest the resolution, apply any necessary setup, **delete or clear `BLOCKED.md`**, and proceed.
-
-#### 2. Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY)
-Before addressing bug reports or selecting a roadmap task, check the status of GitHub Actions continuous integration using `python3 tools/ci.py check` (or `./bible ci check`):
-- **If GitHub Actions CI is broken/failing**: You **MUST** fix the broken CI/CD pipeline on GitHub as the **TOP PRIORITY** before resolving issues or starting roadmap tasks:
-  1. Interrogate the failure matrix (`python3 tools/ci.py --details` or `./bible ci --run <id>`).
-  2. Identify the failing steps, jobs, and Python versions (e.g. Python 3.10, 3.11, 3.12, 3.13).
-  3. Fix the root cause in code, concurrency models, test runner, or workflow definitions.
-  4. Verify 100% hermetic unit tests pass across all environments (`./bible test`).
-  5. Commit with message `fix(ci): <explanation>`, immediately push (`git push origin main`), and verify that GitHub Actions returns to green (`python3 tools/ci.py --watch`).
-  6. Document the triage, root cause, and remediation in `AGENT_LOG.md` and `DECISIONS.md`.
-- **Only once GitHub Actions CI/CD is verified green/healthy (or offline fallback), proceed to Priority 1 Check.**
-
-#### 3. Priority 1 Check: Open GitHub Issue / Bug Report Triage
-Before selecting a roadmap task, check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`):
-- If an open GitHub issue (bug report) exists, **address it in this iteration before proceeding to roadmap tasks**:
-  1. **Fix & Close (Bug Resolved)**: Reproduce the bug, write hermetic regression unit test(s) in `tests/test_*.py`, fix the code, verify 100% test pass rate (`./bible test`), include `Fixes #<number>` in your git commit message (GitHub automatically closes the issue upon push to `origin/main`), and close the issue via `python3 tools/github_issues.py close <number> --comment "Resolved in commit with regression test."`.
-  2. **Close as Irrelevant / Duplicate / Not Planned**: If the bug report is invalid, duplicate, out-of-scope, or already resolved, close it with a clear, polite explanation via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<explanation>"`.
-- Record your triage action, reasoning, and resolution in `AGENT_LOG.md`.
-
-#### 4. Task Selection
-1. Open `ROADMAP.md`.
-2. Locate the highest-priority task marked `[TODO]` under the active phase whose prerequisites are satisfied.
-3. Update its status in `ROADMAP.md` to `[IN PROGRESS]` (include your agent identifier / timestamp).
-4. **Scope Control**: Work on **ONE** coherent unit of work only. Do not attempt to complete multiple large milestones in a single turn. Small, atomic iterations prevent context degradation.
-
 #### 5. Execution & Verification
 1. **Test-Driven / Verification-Driven**:
    - Before writing or refactoring production code, ensure tests exist or write unit tests.
@@ -193,7 +204,7 @@ Before selecting a roadmap task, check for open GitHub issues using `python3 too
   - **Record your decision** immediately in `DECISIONS.md` using the ADR format.
   - Proceed with confidence.
 
-#### 5. Escalation & Blockers (`BLOCKED.md`)
+#### 7. Escalation & Blockers (`BLOCKED.md`)
 Only escalate to the human author when you are **truly blocked**.
 True blockers are strictly defined as:
 - Required secrets, API keys, or external credentials that are absent from the environment and cannot be resolved locally. **Failing to ask for a required credential or silently substituting synthetic placeholder data when the task required real API execution is strictly unacceptable. If a task requires external credentials/keys that are missing, you MUST stop working and create `BLOCKED.md`!**
@@ -213,7 +224,7 @@ True blockers are strictly defined as:
 4. Self-terminate cleanly.
 
 
-#### 6. Logging, Handoff & Explicit Post-Summary Ingestion
+#### 8. Logging, Handoff & Explicit Post-Summary Ingestion
 When your task is complete and verified:
 1. **Update `ROADMAP.md`**:
    - Mark the completed task as `[DONE]`.

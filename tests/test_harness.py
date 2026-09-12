@@ -140,6 +140,73 @@ class TestHarness(unittest.TestCase):
             # Verify it did not invoke Jetski
             self.assertNotIn("Invoking Executive Summary & Trajectory Briefing", res.stdout)
 
+    def test_default_prompt_contains_mandatory_issue_and_ci_checks(self):
+        """Verify DEFAULT_PROMPT instructs agents on Priority 0 (CI/CD) and Priority 1 (GitHub issues) on every cycle."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("tools/ci.py check", content)
+        self.assertIn("tools/github_issues.py check", content)
+        self.assertIn("MANDATORY PRE-CHECKS ON EVERY CYCLE:", content)
+
+    def test_cleanup_and_summary_prompts_contain_priority_checks(self):
+        """Verify CLEANUP_PROMPT and SUMMARY_PROMPT instruct agents on priority pre-checks."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Both prompts must mandate checking CI and issues before proceeding with meta-audit
+        self.assertIn("Priority 0: Check GitHub Actions CI/CD health (python3 tools/ci.py check)", content)
+        self.assertIn("Priority 1: Check for open GitHub issues (python3 tools/github_issues.py check)", content)
+
+    def test_ralph_loop_evaluates_github_issues_across_all_iterations(self):
+        """Verify ralph.sh continuous loop evaluates GitHub issues independently on every loop iteration."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Loop body must reset variables and evaluate github_issues.py
+        self.assertIn('CI_PROMPT=""', content)
+        self.assertIn('GITHUB_PROMPT=""', content)
+        self.assertIn('GITHUB_PROMPT=$(python3 "$REPO_DIR/tools/github_issues.py" check --prompt 2>/dev/null || true)', content)
+        self.assertIn('elif [ -n "$GITHUB_PROMPT" ]; then', content)
+
+    def test_ralph_cleanup_and_milestone_check_github_issues(self):
+        """Verify on-demand --cleanup and --milestone modes check CI/CD and GitHub issues before launching."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ralph_path = os.path.join(repo_root, "ralph.sh")
+        with open(ralph_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Ensure --milestone checks for broken CI and open issues
+        milestone_idx = content.find('if [ "${1:-}" = "--milestone" ]')
+        cleanup_idx = content.find('if [ "${1:-}" = "--cleanup" ]')
+        self.assertNotEqual(milestone_idx, -1)
+        self.assertNotEqual(cleanup_idx, -1)
+
+        milestone_block = content[milestone_idx:cleanup_idx]
+        self.assertIn('tools/github_issues.py" check --prompt', milestone_block)
+        self.assertIn('tools/ci.py" check --prompt', milestone_block)
+
+        cleanup_block = content[cleanup_idx:content.find('# Check if user explicitly passed print/headless mode')]
+        self.assertIn('tools/github_issues.py" check --prompt', cleanup_block)
+        self.assertIn('tools/ci.py" check --prompt', cleanup_block)
+
+    def test_agents_md_universal_prechecks_hierarchy(self):
+        """Verify AGENTS.md encodes universal priority checks across all iterations."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        agents_path = os.path.join(repo_root, "AGENTS.md")
+        with open(agents_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("Universal Loop Lifecycle (Mandatory Pre-Checks on EVERY Iteration)", content)
+        self.assertIn("Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY ON EVERY ITERATION)", content)
+        self.assertIn("Priority 1 Check: Open GitHub Issue / Bug Report Triage (MANDATORY ON EVERY ITERATION)", content)
+
 
 if __name__ == "__main__":
     unittest.main()

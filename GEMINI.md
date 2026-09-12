@@ -31,20 +31,21 @@ In this mode:
 2. **Check Blockers**: If [BLOCKED.md](file:///usr/local/google/home/markwell/personal_dev/bible/BLOCKED.md) exists and is unresolved, halt immediately. If resolved, clear it and proceed. **Mandatory Blocker Rule**: If a task requires external credentials that are absent, you MUST NOT silently generate hollow placeholder data; you MUST stop and record a blocker in `BLOCKED.md` requesting the necessary key!
    - **Where to find `ESV_API_KEY`**: Stored locally in `.env` (`ESV_API_KEY=...`) or `config/esv_api_key.txt` (POSIX 0600 permissions, strictly ignored by git). Automatically discovered via `core.esv.get_esv_api_key()` or `tools.onboarding.discover_esv_api_key()` for passage queries, semantic tagging context, and embeddings.
    - **`GEMINI_API_KEY` Scope**: Needed **ONLY** for serving the app (dynamic Scripture RAG and Persona Chat in `./bible serve`), gathered interactively during `./bible init`. For application development like semantic tagging, agents MUST use local skills (`skills/semantic-tagging/SKILL.md`) rather than wasteful external API calls. Missing `GEMINI_API_KEY` is never a blocker for development agents.
-3. **Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY)**:
+3. **Priority 0 Check: GitHub Actions CI/CD Health (TOP PRIORITY ON EVERY ITERATION)**:
    - Check the health of GitHub Actions CI on `origin/main` using `python3 tools/ci.py check` (or `./bible ci check`).
    - If CI/CD is failing or broken on GitHub Actions, **HALT ALL OTHER TASKS AND FIX CI/CD FIRST**.
-   - Do not pick up new roadmap tasks or triage normal GitHub issues while CI is red.
+   - Do not pick up new roadmap tasks, cadence sprints, or triage normal GitHub issues while CI is red.
    - Investigate failure logs (`./bible ci status --details` or `gh run view --log-failed`), reproduce locally, fix root cause, verify hermetic test pass (`./bible test`), commit, and push immediately (`git push origin main`).
    - Monitor CI until it passes (`./bible ci --watch`).
-4. **Priority Check: Open GitHub Issue / Bug Report Triage**:
+4. **Priority 1 Check: Open GitHub Issue / Bug Report Triage (MANDATORY ON EVERY ITERATION)**:
    - Check for open GitHub issues using `python3 tools/github_issues.py check` (or `./bible issues list`).
-   - If an open GitHub issue exists, **prioritize addressing it in this iteration before roadmap tasks**:
-     - *Path A (Fix & Close)*: Write regression test, fix bug, verify 100% tests pass (`./bible test`), commit with `Fixes #<number>`, and close via `python3 tools/github_issues.py close <number> --comment "..."` (or let GitHub native commit parsing close on push).
+   - Every iteration—both the initial iteration and all subsequent iterations in multi-turn sessions or `--loop`—MUST perform this check before selecting cadence sprints or roadmap tasks.
+   - If an open GitHub issue exists, **prioritize addressing it in this iteration before roadmap tasks or cadence sprints**:
+     - *Path A (Fix & Close)*: Write regression test, fix bug, verify 100% tests pass (`./bible test`), include `Fixes #<number>`, and close via `python3 tools/github_issues.py close <number> --comment "..."` (or let GitHub native commit parsing close on push).
      - *Path B (Close with Reason)*: Close invalid/duplicate/unplanned issue via `python3 tools/github_issues.py close <number> --reason not_planned --comment "<reason>"`.
      - *Path C (Diagnostic Comment)*: If blocked or awaiting information, post status comment via `python3 tools/github_issues.py comment <number> "<status and reason>"`.
    - Document triage and resolution in `AGENT_LOG.md`.
-5. **Cadence Check (10th Iteration = Senior PM Meta-Sprint + Executive Briefing; 5th Iteration = Senior PM Cleanup Sprint)**:
+5. **Cadence & Task Selection (Only If CI/CD is Green and 0 Open Issues)**:
    - **If Run Number is a multiple of 10, loop iteration % 10 == 0, or invoked via `--summary`**:
      - Step into the **Senior Product Manager & Meta-Architect** role (since 10 is divisible by 5): answer the two core diagnostic questions (*"What is the weakest aspect?"*, *"What is preventing this from being more incredible?"*), formulate and **execute** a Rank A+ meta-improvement with 100% passing tests and zero dependencies.
      - Next, run `python3 tools/executive_summary.py` (or `./bible summary`) to curate the accomplishments across the last 10 iterations from `AGENT_LOG.md`.
