@@ -58,10 +58,54 @@ def get_repo_info(repo_override: Optional[str] = None, cwd: Optional[Path] = Non
 
 
 def get_auth_token(token_override: Optional[str] = None) -> Optional[str]:
-    """Retrieve GitHub API personal access token from override or environment."""
+    """Retrieve GitHub API personal access token from override, environment, or config files.
+
+    Search order:
+    1. token_override parameter (if non-empty)
+    2. GITHUB_TOKEN or GH_TOKEN environment variables
+    3. .env file in cwd or repository root
+    4. config/github_token.txt or config/gh_token.txt in repository root
+    5. ~/.config/github/token or ~/.config/bible/github_token
+    """
     if token_override and token_override.strip():
         return token_override.strip()
-    return os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or None
+
+    env_token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if env_token and env_token.strip():
+        return env_token.strip()
+
+    if os.environ.get("BIBLE_TEST_MODE") == "1":
+        return None
+
+    candidate_paths = [
+        Path.cwd() / ".env",
+        REPO_ROOT / ".env",
+        REPO_ROOT / "config" / "github_token.txt",
+        REPO_ROOT / "config" / "gh_token.txt",
+        Path.home() / ".config" / "github" / "token",
+        Path.home() / ".config" / "bible" / "github_token",
+    ]
+    for p in candidate_paths:
+        if p.is_file():
+            try:
+                content = p.read_text(encoding="utf-8").strip()
+                if p.name == ".env":
+                    for line in content.splitlines():
+                        line = line.strip()
+                        if line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        if k.strip() in ("GITHUB_TOKEN", "GH_TOKEN"):
+                            clean_v = v.strip().strip("'\"")
+                            if clean_v:
+                                return clean_v
+                else:
+                    if content:
+                        return content.splitlines()[0].strip()
+            except Exception:
+                continue
+
+    return None
 
 
 def make_ci_request(

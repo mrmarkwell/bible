@@ -215,5 +215,192 @@ class TestGitHubIssuesEngine(unittest.TestCase):
         self.assertIn("#42:", out_sum.getvalue())
 
 
+    def test_get_auth_token_from_files(self) -> None:
+        """Verify token discovery from .env and config/ directory when BIBLE_TEST_MODE is disabled."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            env_file = tmppath / ".env"
+            env_file.write_text("SOME_VAR=123\nGITHUB_TOKEN=token_from_dotenv\nOTHER=abc\n", encoding="utf-8")
+
+            # Patch cwd and REPO_ROOT paths to point to tmpdir
+            with patch.dict(os.environ, {"BIBLE_TEST_MODE": "0"}, clear=True):
+                with patch("tools.github_issues.REPO_ROOT", tmppath):
+                    with patch("pathlib.Path.cwd", return_value=tmppath):
+                        tok = github_issues.get_auth_token()
+                        self.assertEqual(tok, "token_from_dotenv")
+
+            # Test config/github_token.txt fallback
+            env_file.unlink()
+            cfg_dir = tmppath / "config"
+            cfg_dir.mkdir()
+            cfg_file = cfg_dir / "github_token.txt"
+            cfg_file.write_text("token_from_config_file\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"BIBLE_TEST_MODE": "0"}, clear=True):
+                with patch("tools.github_issues.REPO_ROOT", tmppath):
+                    with patch("pathlib.Path.cwd", return_value=tmppath):
+                        tok = github_issues.get_auth_token()
+                        self.assertEqual(tok, "token_from_config_file")
+
+    def test_save_and_load_cached_issues(self) -> None:
+        """Verify atomic caching and state filtering of issues."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = Path(tmpdir) / "github_issues_cache.json"
+            issues_to_cache = [
+                {"number": 10, "title": "Open Issue 10", "state": "open"},
+                {"number": 11, "title": "Closed Issue 11", "state": "closed"},
+            ]
+            ok = github_issues.save_cached_issues("test/repo", issues_to_cache, cache_path=cache_file)
+            self.assertTrue(ok)
+            self.assertTrue(cache_file.exists())
+
+            # Load open issues
+            open_issues = github_issues.load_cached_issues("test/repo", state="open", cache_path=cache_file)
+            self.assertEqual(len(open_issues), 1)
+            self.assertEqual(open_issues[0]["number"], 10)
+
+            # Load all issues
+            all_issues = github_issues.load_cached_issues("test/repo", state="all", cache_path=cache_file)
+            self.assertEqual(len(all_issues), 2)
+
+            # Check cache freshness
+            self.assertTrue(github_issues.is_cache_fresh(cache_path=cache_file, ttl_seconds=60))
+
+    @patch("tools.github_issues.make_api_request")
+    def test_list_issues_cache_fallback_on_403(self, mock_req: MagicMock) -> None:
+        """Verify list_issues falls back to cache when GitHub rate limit (HTTP 403) occurs."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = Path(tmpdir) / "test_cache.json"
+            github_issues.save_cached_issues(
+                "mrmarkwell/bible",
+                [{"number": 5, "title": "Cached Issue 5", "state": "open"}],
+                cache_path=cache_file,
+            )
+
+            # Mock 403 Rate Limit from GitHub
+            mock_req.return_value = (403, {"message": "API rate limit exceeded"}, {})
+
+            ok, issues, err = github_issues.list_issues(
+                "mrmarkwell",
+                "bible",
+                state="open",
+                use_cache=True,
+                force_refresh=True,
+                cache_path=cache_file,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(len(issues), 1)
+            self.assertEqual(issues[0]["number"], 5)
+            self.assertEqual(issues[0]["title"], "Cached Issue 5")
+
+    @patch("tools.github_issues.make_api_request")
+    def test_list_issues_cache_fallback_on_offline(self, mock_req: MagicMock) -> None:
+        """Verify list_issues falls back to cache when network status is 0 (offline)."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = Path(tmpdir) / "test_cache.json"
+            github_issues.save_cached_issues(
+                "mrmarkwell/bible",
+                [{"number": 6, "title": "Cached Issue 6", "state": "open"}],
+                cache_path=cache_file,
+            )
+
+            # Mock network failure (status 0)
+            mock_req.return_value = (0, {"error": "Connection refused"}, {})
+
+            ok, issues, err = github_issues.list_issues(
+                "mrmarkwell",
+                "bible",
+                state="open",
+                use_cache=True,
+                force_refresh=True,
+                cache_path=cache_file,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(len(issues), 1)
+            self.assertEqual(issues[0]["number"], 6)
+
+    @patch("tools.github_issues.make_api_request")
+    def test_get_issue_cache_fallback(self, mock_req: MagicMock) -> None:
+        """Verify get_issue retrieves from local cache when GitHub API fails."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = Path(tmpdir) / "test_cache.json"
+            github_issues.save_cached_issues(
+                "mrmarkwell/bible",
+                [{"number": 42, "title": "Cached Issue 42", "state": "open", "body": "Detail body"}],
+                cache_path=cache_file,
+            )
+
+            # Mock 404/403 failure from GitHub
+            mock_req.return_value = (403, {"message": "Rate limited"}, {})
+
+            ok, issue, err = github_issues.get_issue(
+                "mrmarkwell",
+                "bible",
+                42,
+                use_cache=True,
+                cache_path=cache_file,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(issue.get("number"), 42)
+            self.assertEqual(issue.get("title"), "Cached Issue 42")
+
+    def test_update_cached_issue_state_and_cmd_close_local(self) -> None:
+        """Verify local cache closure when GITHUB_TOKEN is not available."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = Path(tmpdir) / "test_cache.json"
+            github_issues.save_cached_issues(
+                "mrmarkwell/bible",
+                [{"number": 5, "title": "Issue 5", "state": "open"}],
+                cache_path=cache_file,
+            )
+
+            # Update cache directly
+            updated = github_issues.update_cached_issue_state(
+                5, state="closed", reason="completed", comment="Fixed locally", cache_path=cache_file
+            )
+            self.assertTrue(updated)
+
+            # Verify issue is now closed in cache
+            open_issues = github_issues.load_cached_issues("mrmarkwell/bible", state="open", cache_path=cache_file)
+            self.assertEqual(len(open_issues), 0)
+
+            closed_issues = github_issues.load_cached_issues("mrmarkwell/bible", state="closed", cache_path=cache_file)
+            self.assertEqual(len(closed_issues), 1)
+            self.assertEqual(closed_issues[0]["state"], "closed")
+            self.assertEqual(closed_issues[0]["state_reason"], "completed")
+
+            # Verify cmd_close updates local cache when unauthenticated
+            with patch("tools.github_issues.get_cache_path", return_value=cache_file):
+                out = io.StringIO()
+                with patch("sys.stdout", out):
+                    exit_code = github_issues.cmd_close(github_issues.argparse.Namespace(
+                        repo="mrmarkwell/bible",
+                        token=None,
+                        issue_number=5,
+                        reason="completed",
+                        comment="Closed via unit test",
+                    ))
+                self.assertEqual(exit_code, 0)
+                self.assertIn("marked issue #5 as closed in local cache", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

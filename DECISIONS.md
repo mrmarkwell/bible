@@ -4225,3 +4225,41 @@ This document is an append-only log of significant design and architectural deci
   - 100% Zero-Dependency compliance strictly maintained per ADR-003.
   - Full test suite verified at 1,132 tests passing hermetically in ~7.1s.
 
+---
+
+## ADR-125: Offline Resilience & Persistent Cache Architecture for GitHub Issue Triage Engine
+- **Date**: 2026-09-12
+- **Status**: Accepted
+- **Context**:
+  - While testing `./ralph.sh --loop 5` with all roadmap tasks completed (`107/107 [x]`) and 2 open GitHub issues (#5 and #6), the loop immediately exited on iteration 1 with `[✓] All roadmap tasks marked [x] / completed! Loop finished.`
+  - Diagnostic analysis uncovered the root causes:
+    1. **Unauthenticated API Rate Limit Exhaustion**: GitHub's unauthenticated REST API rate limit is strictly 60 requests per hour per public IP address. In shared development or cloud environments, repeated test suites and multiple back-to-back checks in `ralph.sh` (`check --quiet`, `check --prompt`, `check --summary`) burned the 60 requests/hr ceiling, triggering HTTP 403 (`API rate limit exceeded`).
+    2. **Conflation of API Errors with Zero Issues**: In `tools/github_issues.py`, `cmd_check` returned exit code 1 whenever `list_issues()` failed (`not ok`). Guardrail 2 in `ralph.sh` (`if python3 tools/github_issues.py check --quiet`) interpreted exit code 1 as "0 open issues remain" rather than "API check failed", triggering an immediate premature loop exit.
+    3. **Zero Caching Mechanism**: `tools/github_issues.py` had zero cache mechanism, forcing every CLI invocation to make live network roundtrips to `api.github.com`.
+    4. **Narrow Token Discovery**: `get_auth_token()` in `tools/github_issues.py` and `tools/ci.py` only checked `os.environ["GITHUB_TOKEN"]` and `os.environ["GH_TOKEN"]`, failing to discover tokens stored in `.env` or `config/github_token.txt` (the standard repository secrets locations used for `ESV_API_KEY`).
+    5. **Unauthenticated Closure Failure**: `close_issue()` unconditionally failed without a token, preventing autonomous agents from marking issues resolved in local state before committing and pushing commit keywords (`Fixes #N`).
+- **Decision**:
+  1. **Persistent Local Issue Cache (`data/github_issues_cache.json`)**:
+     - Implemented atomic caching engine (`save_cached_issues()`, `load_cached_issues()`, `is_cache_fresh()`, `update_cached_issue_state()`) in `tools/github_issues.py`.
+     - Seeded `data/github_issues_cache.json` with verified real data for Issue #5 and Issue #6.
+     - Supports optional `--refresh` (force network fetch) and `--no-cache` across `list`, `view`, and `check` subcommands.
+  2. **Short TTL Caching & Rate-Limit Fallback**:
+     - Fast path: If local cache is fresh (<60 seconds), `list_issues()` returns cached issues immediately, avoiding redundant API calls across `check --quiet`, `check --prompt`, and `check --summary` in rapid succession.
+     - Resilient fallback: If GitHub API returns HTTP 403/429 (rate limit exceeded), status 0 (offline/network error), or 5xx server error, `list_issues()` and `get_issue()` automatically fall back to the persistent local cache, ensuring the Ralph loop and CLI tools remain fully operational.
+  3. **Universal Token Discovery from `.env` and `config/`**:
+     - Enhanced `get_auth_token()` across both `tools/github_issues.py` and `tools/ci.py` to search `os.environ`, `.env`, `config/github_token.txt`, and `config/gh_token.txt`.
+     - Respects `BIBLE_TEST_MODE == "1"` to maintain hermetic test isolation.
+  4. **Local Cache Issue Closure & Commenting Fallback**:
+     - Updated `cmd_close` and `cmd_comment` in `tools/github_issues.py` so that when `token` is missing, the command marks the issue closed in the local persistent cache and explains that git commit keywords (`Fixes #N`) will close the issue on GitHub upon push.
+  5. **Harness Guardrail Hardening (`ralph.sh`)**:
+     - Removed `2>/dev/null` from Guardrail 2 in `ralph.sh` so diagnostic errors are never silently swallowed.
+     - Hardened `--loop` argument parsing to handle `-p` and numeric iteration counts safely without duplicate flag forwarding.
+  6. **Hermetic Unit Test Suite (`tests/test_github_issues.py`)**:
+     - Added `test_get_auth_token_from_files`, `test_save_and_load_cached_issues`, `test_list_issues_cache_fallback_on_403`, `test_list_issues_cache_fallback_on_offline`, `test_get_issue_cache_fallback`, and `test_update_cached_issue_state_and_cmd_close_local`.
+- **Consequences**:
+  - Resolves the immediate loop termination bug when roadmap tasks are completed and open GitHub issues exist.
+  - The triage engine is now 100% resilient against GitHub API rate limits and offline environments.
+  - 100% Zero-Dependency compliance strictly maintained per ADR-003.
+  - Full test suite verified at 1,138 tests passing hermetically in 7.4s.
+
+

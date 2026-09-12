@@ -175,10 +175,16 @@ fi
 if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
     shift
     MAX_ITERATIONS=0
-    if [ "$#" -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
-        MAX_ITERATIONS="$1"
-        shift
-    fi
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = "-p" ] || [ "$1" = "--print" ]; then
+            shift
+        elif [[ "$1" =~ ^[0-9]+$ ]] && [ "$MAX_ITERATIONS" -eq 0 ]; then
+            MAX_ITERATIONS="$1"
+            shift
+        else
+            break
+        fi
+    done
 
     echo "======================================================================"
     echo " Starting Continuous Ralph Loop"
@@ -210,7 +216,7 @@ if [ "${1:-}" = "--loop" ] || [ "${1:-}" = "-l" ]; then
 
         # Guardrail 2: Check for remaining roadmap tasks
         if ! grep -q '\[ \]' ROADMAP.md; then
-            if python3 "$REPO_DIR/tools/github_issues.py" check --quiet 2>/dev/null; then
+            if python3 "$REPO_DIR/tools/github_issues.py" check --quiet; then
                 echo ""
                 echo " [!] All roadmap tasks completed, but open GitHub issue detected. Continuing loop to resolve bug report."
             else
