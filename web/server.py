@@ -363,7 +363,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_json_error("Missing required query parameter: 'ref'", status=400)
             return
 
-        version = query.get("version", ["WEB"])[0].strip().upper()
+        version = query.get("version", ["ESV"])[0].strip().upper()
 
         try:
             parsed_ref = parse_reference(ref_str)
@@ -492,6 +492,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "reference": parsed_ref.format(),
                 "translation_id": used_id,
                 "fallback_for": fallback_for,
+                "fallback_warning": getattr(self.db, "last_esv_warning", None) if is_fallback else None,
+                "fallback_error": str(self.db.last_esv_error) if (is_fallback and getattr(self.db, "last_esv_error", None)) else None,
                 "total_verses": len(verse_items),
                 "total_pericopes": len(pericope_items),
                 "verses": verse_items,
@@ -529,7 +531,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             )
             return
 
-        version = query.get("version", ["WEB"])[0].strip().upper()
+        version = query.get("version", ["ESV"])[0].strip().upper()
         ref = parse_reference(f"{book.name} {chapter}")
 
         try:
@@ -554,6 +556,8 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
                 "chapter": chapter,
                 "translation_id": used_id,
                 "fallback_for": fallback_for,
+                "fallback_warning": getattr(self.db, "last_esv_warning", None) if is_fallback else None,
+                "fallback_error": str(self.db.last_esv_error) if (is_fallback and getattr(self.db, "last_esv_error", None)) else None,
                 "total_verses": len(verse_items),
                 "verses": verse_items,
             })
@@ -1268,7 +1272,7 @@ class BibleRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_json_error(f"Invalid scripture reference '{ref_str}': {exc}", status=400)
             return
 
-        version = query.get("version", ["WEB"])[0].strip().upper()
+        version = query.get("version", ["ESV"])[0].strip().upper()
         verses, used_id, _ = self.db.get_verses_with_fallback(parsed_ref, translation_id=version)
         if not verses:
             self.send_json_error(f"No verses found for '{ref_str}' in translation '{version}'", status=404)

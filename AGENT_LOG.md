@@ -4703,5 +4703,53 @@ This is an append-only log of work performed by autonomous agents during their e
   - The premature exit bug is completely resolved. `./ralph.sh --loop 5` correctly detects open GitHub issues #5 and #6, even when GitHub API is rate-limited or offline.
   - Next cycle can resolve Issue #5 ("Invalid ESV API key is silently ignored").
 
+---
+
+## [Run 118] — 2026-09-12
+- **Agent**: Ralph Loop Agent (Bug Resolution & Default Alignment Cycle)
+- **Priority Addressed**: Bug Resolution — Open GitHub Issue #5: "Invalid ESV API key is silently ignored"
+- **User Request / Issue Details**:
+  - Issue #5 by @mrmarkwell: *"Invalid ESV API key is silently ignored. My ESV_API_KEY must not be working but the bible app doesn't give me any indication. It just falls back to WEB. There should be a warning message any time ESV fails to be fetched. ESV should be the default if no version is specified."*
+- **Root Cause Analysis**:
+  1. **Silent Exception Discard in Database Layer (`core/db.py`)**: `Database.get_verses_with_fallback()` wrapped live ESV API fetching in an uninformative `except Exception: pass` block. When Crossway returned HTTP 401/403 (unauthorized/forbidden due to invalid key), HTTP 429 (rate limit), or network dropouts, the exception was discarded without recording why the fetch failed or setting any diagnostic state.
+  2. **Gated CLI Fallback Notices**: In `cli/main.py`, fallback notices were guarded by `if is_fb and (has_explicit_version or getattr(args, "verbose", False)):`. When the user invoked `./bible "John 3:16"` or `./bible get "John 3:16"` with no version specified (relying on default), fallback to WEB occurred silently.
+  3. **Vague Error Reporting**: Even when `--verbose` or explicit `-t ESV` was provided, the notice merely stated `Notice: Translation 'ESV' not available; falling back to 'WEB'.`, giving the user zero indication that an invalid API key was the root cause.
+  4. **Whole-Chapter Cache Incomplete Coverage Bug**: In `Database.get_verses_with_fallback()`, cache verification for multi-verse spans only validated `expected_count` when `start_verse` and `end_verse` were specified. When a whole chapter was queried (e.g. `Genesis 1`), caching a single verse like `Genesis 1:1` caused `get_verses_with_fallback()` to return only that single verse instead of verifying complete coverage against `get_chapter_verse_count(book_id, chapter)`.
+  5. **Inconsistent Defaults & Missing Subcommand Aliases**: `parser_get` lacked aliases `read` and `passage`, and `parser_build_vectors` defaulted to `WEB` instead of `ESV`.
+- **Actions Taken**:
+  1. **Diagnostic Error Tracking in `Database` (`core/db.py`)**:
+     - Added `self.last_esv_warning`, `self.last_esv_error`, and `self.last_fallback_reason` attributes to `Database`.
+     - In `get_verses_with_fallback()`, caught and categorized exceptions from `client.fetch_verses()` into `self.last_esv_error` and `self.last_esv_warning` (distinguishing authentication errors, rate limits, network drops, unconfigured keys, and offline mode).
+     - Added `Database.get_chapter_verse_count(book_id, chapter)` and updated cache verification for whole-chapter references (`ref.is_whole_chapter`) to require the full chapter verse count before serving from cache.
+     - Added `is_mock_client` detection in `get_verses_with_fallback()` to allow mock clients in unit tests to bypass the offline test guard hermetically.
+  2. **Transparent, Actionable Warnings in CLI (`cli/main.py`)**:
+     - Updated `cmd_get` to unconditionally emit `Warning: Failed to fetch ESV passage '<ref>': <error>. Falling back to '<fallback>'.` on `sys.stderr` whenever an ESV API fetch fails, regardless of `--verbose` or explicit version flags.
+     - Added unconfigured key warning: `Warning: ESV requested but ESV_API_KEY is not configured; falling back to '<fallback>'. Run './bible init' or set ESV_API_KEY.`
+     - Preserved `Notice: Translation '<id>' not available; falling back to '<fallback>'.` for backwards compatibility with existing CLI tests and verbose mode.
+     - Enhanced `cmd_compare` and `cmd_slide` with transparent ESV API failure warnings.
+     - Added aliases `aliases=["read", "passage"]` to `parser_get` and added them to `registered_commands` in `preprocess_cli_argv()`.
+     - Aligned `parser_build_vectors` to `default="ESV"`.
+  3. **Interactive REPL Shell Warning Surfacing (`cli/shell.py`)**:
+     - Enhanced `_display_reference()` to display `[Warning: Failed to fetch ESV passage '<ref>' (<error>); showing fallback '<fallback>']` when ESV API errors occur, and unconfigured notices when `ESV_API_KEY` is absent.
+  4. **Web Server Default Alignment & Diagnostic Payloads (`web/server.py`)**:
+     - Aligned default translation across `/api/passage`, `/api/verses` (chapter view), and `/api/slide` to `"ESV"`.
+     - Added `fallback_warning` and `fallback_error` fields to API JSON responses.
+  5. **Hermetic Regression Test Suite**:
+     - `tests/test_esv.py`: Added `test_invalid_esv_api_key_records_error_and_warning` and `test_unconfigured_esv_key_records_fallback_reason`.
+     - `tests/test_cli.py`: Added `test_cli_get_warns_on_invalid_esv_api_key`, `test_cli_get_warns_on_missing_esv_key_default`, and `test_cli_read_and_passage_aliases`.
+     - `tests/test_shell.py`: Added `test_shell_displays_warning_on_invalid_esv_key` and preprocess alias assertions.
+  6. **ADR-126 Logged in `DECISIONS.md` & State Synchronized**:
+     - Recorded **ADR-126: Transparent ESV API Failure Warnings, Default Translation Alignment, and Whole-Chapter Cache Coverage Verification** in `DECISIONS.md`.
+     - Updated `IDEAS.md` marking Unified Translation Default Alignment & Transparent CLI Fallback Notices as `[COMPLETED]`.
+     - Closed Issue #5 in local cache (`python3 tools/github_issues.py close 5 --comment "Resolved in commit with regression test."`).
+- **Verification**:
+  - Full test runner: **1,144 tests across 49 modules passed 100% in 7.138s**.
+  - `python3 tools/doctor.py`: **100% EXCELLENT** across all 10 diagnostic suites in 10.14s.
+  - Zero third-party dependencies maintained (Python 3 stdlib only per ADR-003).
+- **Handoff Notes for Next Agent**:
+  - GitHub Issue #5 is fully resolved, verified with hermetic regression tests, and closed.
+  - Next cycle should triage/resolve open GitHub Issue #6: *"Search results should have better snippet previews"*.
+
+
 
 

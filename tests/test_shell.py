@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from cli.main import preprocess_cli_argv
 from cli.shell import BibleShell
@@ -593,10 +593,46 @@ class TestCliCitationPreprocessing(unittest.TestCase):
         self.assertEqual(preprocess_cli_argv(["recommend", "Genesis 1:1"]), ["recommend", "Genesis 1:1"])
         self.assertEqual(preprocess_cli_argv(["build-vectors", "--status"]), ["build-vectors", "--status"])
         self.assertEqual(preprocess_cli_argv(["compile-vectors", "--status"]), ["compile-vectors", "--status"])
+        self.assertEqual(preprocess_cli_argv(["read", "John 3:16"]), ["read", "John 3:16"])
+        self.assertEqual(preprocess_cli_argv(["passage", "John 3:16"]), ["passage", "John 3:16"])
 
     def test_preprocess_preserves_empty_and_unknown(self):
         self.assertEqual(preprocess_cli_argv([]), [])
         self.assertEqual(preprocess_cli_argv(["nonexistent_subcommand"]), ["nonexistent_subcommand"])
+
+    def test_shell_displays_warning_on_invalid_esv_key(self):
+        """Verify interactive shell outputs clear warning when ESV API key fails authentication."""
+        from core.esv import ESVAuthError
+        from core.reference import parse_reference
+        out = io.StringIO()
+        shell = BibleShell(stdout=out)
+        mock_db = MagicMock()
+        mock_db.get_verses_with_fallback.return_value = (
+            [
+                VerseRecord(
+                    translation_id="WEB",
+                    book_id=43,
+                    chapter=3,
+                    verse=16,
+                    text="For God so loved the world...",
+                    canonical_verse_id=43003016,
+                )
+            ],
+            "WEB",
+            True,
+        )
+        mock_db.last_esv_error = ESVAuthError(
+            "ESV API authentication failed (HTTP 401): invalid or unauthorized API key."
+        )
+        shell.db = mock_db
+        shell.translation_id = "ESV"
+
+        ref = parse_reference("John 3:16")
+        shell._display_reference(ref)
+        val = out.getvalue()
+        self.assertIn("Warning: Failed to fetch ESV passage 'John 3:16'", val)
+        self.assertIn("HTTP 401", val)
+        self.assertIn("invalid or unauthorized API key", val)
 
     def test_shell_build_vectors_commands(self):
         """Verify /build-vectors and /compile-vectors commands and tab-completion."""

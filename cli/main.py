@@ -387,10 +387,26 @@ def cmd_get(args: argparse.Namespace) -> int:
                     ref, translation_id=req_id, fallback_id=fallback
                 )
 
-                if is_fb and (has_explicit_version or getattr(args, "verbose", False)):
-                    sys.stderr.write(
-                        f"Notice: Translation '{req_id}' not available; falling back to '{eff_id}'.\n"
-                    )
+                if is_fb:
+                    if req_id == "ESV":
+                        if getattr(db, "last_esv_error", None):
+                            err_msg = str(db.last_esv_error).rstrip(".")
+                            sys.stderr.write(
+                                f"Warning: Failed to fetch ESV passage '{ref.format()}': {err_msg}. Falling back to '{eff_id}'.\n"
+                            )
+                        elif getattr(db, "last_fallback_reason", None) == "ESV API key is not configured":
+                            sys.stderr.write(
+                                f"Warning: ESV requested but ESV_API_KEY is not configured; falling back to '{eff_id}'. Run './bible init' or set ESV_API_KEY.\n"
+                            )
+                        elif has_explicit_version or getattr(args, "verbose", False):
+                            if getattr(db, "last_fallback_reason", None):
+                                sys.stderr.write(
+                                    f"Warning: Failed to fetch ESV passage '{ref.format()}' ({db.last_fallback_reason}). Falling back to '{eff_id}'.\n"
+                                )
+                    if has_explicit_version or getattr(args, "verbose", False):
+                        sys.stderr.write(
+                            f"Notice: Translation '{req_id}' not available; falling back to '{eff_id}'.\n"
+                        )
 
                 if not verses:
                     if fallback and fallback != req_id:
@@ -502,6 +518,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
                     ref, translation_id=req_id, fallback_id=fallback
                 )
                 if is_fb:
+                    if req_id == "ESV" and getattr(db, "last_esv_error", None):
+                        err_msg = str(db.last_esv_error).rstrip(".")
+                        sys.stderr.write(
+                            f"Warning: Failed to fetch ESV passage '{ref.format()}': {err_msg}. Falling back to '{eff_id}'.\n"
+                        )
                     sys.stderr.write(
                         f"Notice: Translation '{req_id}' not available; falling back to '{eff_id}'.\n"
                     )
@@ -1426,9 +1447,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", help="Subcommand to execute")
 
-    # Subcommand: get
+    # Subcommand: get (aliases: read, passage)
     parser_get = subparsers.add_parser(
         "get",
+        aliases=["read", "passage"],
         help="Lookup scripture passage by canonical reference (e.g. 'John 3:16', 'Rom 8:28-30')",
         description="Fetch and display scripture passage by reference with multi-translation and fallback support.",
     )
@@ -3000,6 +3022,11 @@ def build_parser() -> argparse.ArgumentParser:
             verses, used_id, is_fallback = db.get_verses_with_fallback(
                 ref, translation_id=args.version
             )
+            if is_fallback and getattr(args, "version", "ESV") == "ESV" and getattr(db, "last_esv_error", None):
+                err_msg = str(db.last_esv_error).rstrip(".")
+                sys.stderr.write(
+                    f"Warning: Failed to fetch ESV passage '{ref_str}': {err_msg}. Falling back to '{used_id}'.\n"
+                )
             if not verses:
                 sys.stderr.write(f"Error: No verses found for '{ref_str}' in translation '{args.version}'.\n")
                 return 1
@@ -5347,8 +5374,8 @@ def build_parser() -> argparse.ArgumentParser:
         "-v_id",
         dest="version",
         type=str,
-        default="WEB",
-        help="Target scripture translation for passage context (default: WEB)",
+        default="ESV",
+        help="Target scripture translation for passage context (default: ESV with offline WEB fallback)",
     )
     parser_build_vectors.add_argument(
         "--json",
@@ -6612,7 +6639,7 @@ def preprocess_cli_argv(argv: Optional[Sequence[str]]) -> Optional[List[str]]:
         return raw_args
 
     registered_commands = {
-        "get", "compare", "search", "find", "translations", "versions",
+        "get", "read", "passage", "compare", "search", "find", "translations", "versions",
         "corpora", "corpus",
         "tag", "tags", "crossref", "xref", "refs",
         "doctor", "summary", "shell", "interactive", "repl", "console",

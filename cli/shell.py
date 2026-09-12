@@ -186,9 +186,19 @@ class BibleShell(cmd.Cmd):
             return
 
         if is_fallback:
-            self.stdout.write(
-                f"[Notice: Translation '{self.translation_id}' not available; showing fallback '{effective_trans}']\n"
-            )
+            if self.translation_id == "ESV" and getattr(self.db, "last_esv_error", None):
+                err_msg = str(self.db.last_esv_error).rstrip(".")
+                self.stdout.write(
+                    f"[Warning: Failed to fetch ESV passage '{ref}' ({err_msg}); showing fallback '{effective_trans}']\n"
+                )
+            elif self.translation_id == "ESV" and getattr(self.db, "last_fallback_reason", None) == "ESV API key is not configured":
+                self.stdout.write(
+                    f"[Warning: ESV requested but ESV_API_KEY is not configured; showing fallback '{effective_trans}']\n"
+                )
+            else:
+                self.stdout.write(
+                    f"[Notice: Translation '{self.translation_id}' not available; showing fallback '{effective_trans}']\n"
+                )
 
         # Show pericope heading if available
         from core.pericopes import PericopeService

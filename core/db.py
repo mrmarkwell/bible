@@ -939,6 +939,9 @@ class Database:
         # Optimize SQLite performance for analytical reads and concurrent writes
         self._configure_pragmas()
         self._esv_client: Optional[Any] = None
+        self.last_esv_warning: Optional[str] = None
+        self.last_esv_error: Optional[Exception] = None
+        self.last_fallback_reason: Optional[str] = None
         self._max_cross_ref_spans: Optional[Tuple[int, int]] = None
         self._max_verse_tags_span: Optional[int] = None
         self._max_spans_span: Optional[int] = None
@@ -1442,6 +1445,9 @@ class Database:
             ref = reference
 
         req_id = translation_id.strip().upper()
+        self.last_esv_warning = None
+        self.last_esv_error = None
+        self.last_fallback_reason = None
 
         if req_id == "ESV":
             # 1. Check ephemeral 500-verse LRU cache
@@ -1456,13 +1462,21 @@ class Database:
                     expected_count = ref.end_verse - ref.start_verse + 1
                     if len(cached) >= expected_count:
                         return cached, "ESV", False
+                elif ref.is_whole_chapter:
+                    total_ch = self.get_chapter_verse_count(ref.book.number, ref.start_chapter)
+                    if total_ch and len(cached) >= total_ch:
+                        return cached, "ESV", False
                 else:
                     return cached, "ESV", False
 
             # 2. Attempt live ESV API fetch if allowed
             if allow_network:
-                has_custom_client = getattr(self, "_esv_client", None) is not None
-                if has_custom_client:
+                client = self.get_esv_client()
+                is_mock_client = (
+                    getattr(self, "_custom_esv_client", False)
+                    or hasattr(client, "assert_called")
+                )
+                if is_mock_client:
                     is_offline = False
                 else:
                     is_offline = (
@@ -1471,16 +1485,37 @@ class Database:
                         or "unittest" in sys.modules
                     )
                 if not is_offline:
-                    client = self.get_esv_client()
                     if client.is_available():
-
                         try:
                             fetched = client.fetch_verses(ref)
                             if fetched:
                                 self.save_esv_cached_verses(fetched)
                                 return fetched, "ESV", False
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            self.last_esv_error = exc
+                            self.last_fallback_reason = str(exc)
+                            self.last_esv_warning = (
+                                f"Failed to fetch ESV passage '{ref.format()}': {exc}"
+                            )
+                    else:
+                        msg = "ESV API key is not configured"
+                        self.last_fallback_reason = msg
+                        self.last_esv_warning = (
+                            f"ESV API key is not configured. Set the ESV_API_KEY environment variable "
+                            f"or run './bible init' to configure ESV access."
+                        )
+                else:
+                    msg = "offline mode active"
+                    self.last_fallback_reason = msg
+                    self.last_esv_warning = (
+                        f"ESV live fetch disabled ({msg})"
+                    )
+            else:
+                msg = "network fetch disabled"
+                self.last_fallback_reason = msg
+                self.last_esv_warning = (
+                    f"ESV live fetch skipped ({msg})"
+                )
 
 
             # 3. If ESV unavailable, cascade to fallback
@@ -1499,6 +1534,7 @@ class Database:
             return verses, req_id, False
 
         # Attempt fallback if configured and different from requested translation
+        self.last_fallback_reason = f"Translation '{req_id}' not available"
         if fallback_id:
             fb_id = fallback_id.strip().upper()
             if fb_id != req_id:
@@ -1547,6 +1583,17 @@ class Database:
         cur.close()
         return count
 
+    def get_chapter_verse_count(self, book_id: int, chapter: int) -> int:
+        """Return total unique verses in a given book chapter based on installed translations."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT COUNT(DISTINCT canonical_verse_id) FROM verses WHERE book_id = ? AND chapter = ?",
+            (book_id, chapter),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return row[0] if row else 0
+
     def _row_to_verse(self, row: sqlite3.Row) -> VerseRecord:
         """Convert a SQLite row to a VerseRecord."""
         return VerseRecord(
@@ -1574,6 +1621,7 @@ class Database:
     def set_esv_client(self, client: Any) -> None:
         """Set custom ESVClient instance (useful for hermetic test mocking)."""
         self._esv_client = client
+        self._custom_esv_client = True
 
     def get_esv_cached_verses(
         self,

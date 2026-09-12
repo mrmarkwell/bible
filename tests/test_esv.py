@@ -398,6 +398,41 @@ class TestDatabaseESVFallback(unittest.TestCase):
         self.assertEqual(len(verses), 1)
         self.assertIn("one and only Son", verses[0].text)
 
+    def test_invalid_esv_api_key_records_error_and_warning(self):
+        """Verify invalid ESV API key records ESVAuthError and fallback reason instead of silent failure."""
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = True
+        mock_client.fetch_verses.side_effect = ESVAuthError(
+            "ESV API authentication failed (HTTP 401): invalid or unauthorized API key."
+        )
+        self.db.set_esv_client(mock_client)
+
+        verses, eff_id, is_fb = self.db.get_verses_with_fallback(
+            "John 3:16", translation_id="ESV", fallback_id="WEB"
+        )
+        self.assertEqual(eff_id, "WEB")
+        self.assertTrue(is_fb)
+        self.assertIsNotNone(self.db.last_esv_error)
+        self.assertIsInstance(self.db.last_esv_error, ESVAuthError)
+        self.assertIn("invalid or unauthorized API key", str(self.db.last_esv_error))
+        self.assertIn("HTTP 401", self.db.last_fallback_reason)
+        self.assertIn("Failed to fetch ESV passage", self.db.last_esv_warning)
+
+    def test_unconfigured_esv_key_records_fallback_reason(self):
+        """Verify unconfigured ESV API key records explicit reason rather than silent failure."""
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+        self.db.set_esv_client(mock_client)
+
+        verses, eff_id, is_fb = self.db.get_verses_with_fallback(
+            "John 3:16", translation_id="ESV", fallback_id="WEB"
+        )
+        self.assertEqual(eff_id, "WEB")
+        self.assertTrue(is_fb)
+        self.assertIsNone(self.db.last_esv_error)
+        self.assertEqual(self.db.last_fallback_reason, "ESV API key is not configured")
+        self.assertIn("ESV API key is not configured", self.db.last_esv_warning)
+
 
 class TestCliESVCommands(unittest.TestCase):
     """Test CLI subcommands: ./bible esv [status|cache|clear|fetch]."""

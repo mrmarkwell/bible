@@ -1,6 +1,6 @@
 {
   "repo": "mrmarkwell/bible",
-  "last_fetched_utc": "2026-09-12T18:19:27.208604+00:00",
+  "last_fetched_utc": "2026-09-12T18:49:45.200802+00:00",
   "issues": [
     {
       "url": "https://api.github.com/repos/mrmarkwell/bible/issues/5",
@@ -74,8 +74,7 @@
       "timeline_url": "https://api.github.com/repos/mrmarkwell/bible/issues/5/timeline",
       "performed_via_github_app": null,
       "state_reason": null,
-      "pinned_comment": null,
-      "comments_list": []
+      "pinned_comment": null
     },
     {
       "url": "https://api.github.com/repos/mrmarkwell/bible/issues/6",
@@ -161,8 +160,7 @@
       "timeline_url": "https://api.github.com/repos/mrmarkwell/bible/issues/6/timeline",
       "performed_via_github_app": null,
       "state_reason": null,
-      "pinned_comment": null,
-      "comments_list": []
+      "pinned_comment": null
     }
   ]
 }

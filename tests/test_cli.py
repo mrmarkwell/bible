@@ -467,6 +467,50 @@ class TestCliExecution(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("No verses found for reference 'John 3:16' in translation 'ESV'.", stderr.getvalue())
 
+    def test_cli_get_warns_on_invalid_esv_api_key(self):
+        """Regression test for Issue #5: verify invalid ESV API key emits a clear warning on stderr."""
+        from core.esv import ESVAuthError
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = True
+        mock_client.fetch_verses.side_effect = ESVAuthError(
+            "ESV API authentication failed (HTTP 401): invalid or unauthorized API key."
+        )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.object(Database, "get_esv_client", return_value=mock_client), \
+             patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16"])
+
+        self.assertEqual(code, 0)
+        self.assertIn("Warning: Failed to fetch ESV passage 'John 3:16': ESV API authentication failed (HTTP 401): invalid or unauthorized API key. Falling back to 'WEB'.", stderr.getvalue())
+        self.assertIn("=== John 3:16 (WEB) ===", stdout.getvalue())
+
+    def test_cli_get_warns_on_missing_esv_key_default(self):
+        """Regression test for Issue #5: verify unconfigured ESV key emits clear warning when falling back."""
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.object(Database, "get_esv_client", return_value=mock_client), \
+             patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+            code = main(["--db", str(self.db_path), "get", "John 3:16"])
+
+        self.assertEqual(code, 0)
+        self.assertIn("Warning: ESV requested but ESV_API_KEY is not configured; falling back to 'WEB'.", stderr.getvalue())
+        self.assertIn("=== John 3:16 (WEB) ===", stdout.getvalue())
+
+    def test_cli_read_and_passage_aliases(self):
+        """Verify 'read' and 'passage' aliases work identically to 'get'."""
+        for cmd in ("read", "passage"):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with patch("sys.stdout", stdout), patch("sys.stderr", stderr):
+                code = main(["--db", str(self.db_path), cmd, "John 3:16"])
+            self.assertEqual(code, 0, f"Subcommand '{cmd}' failed")
+            self.assertIn("For God so loved the world", stdout.getvalue())
+
     def test_cli_compare_default_aligned(self):
         stdout = io.StringIO()
         stderr = io.StringIO()

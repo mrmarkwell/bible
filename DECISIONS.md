@@ -4262,4 +4262,45 @@ This document is an append-only log of significant design and architectural deci
   - 100% Zero-Dependency compliance strictly maintained per ADR-003.
   - Full test suite verified at 1,138 tests passing hermetically in 7.4s.
 
+---
 
+## ADR-126: Transparent ESV API Failure Warnings, Default Translation Alignment, and Whole-Chapter Cache Coverage Verification
+- **Date**: 2026-09-12
+- **Status**: Accepted
+- **Context**:
+  - In GitHub Issue #5, the user reported: *"Invalid ESV API key is silently ignored. My ESV_API_KEY must not be working but the bible app doesn't give me any indication. It just falls back to WEB. There should be a warning message any time ESV fails to be fetched. ESV should be the default if no version is specified."*
+  - Comprehensive architectural audit of `core/db.py`, `cli/main.py`, `cli/shell.py`, and `web/server.py` identified five root causes:
+    1. **Silent Exception Swallowing in `core/db.py`**: In `Database.get_verses_with_fallback()`, the live API fetch was wrapped in an uninformative `except Exception: pass` block. When Crossway returned HTTP 401/403 (invalid API key), HTTP 429 (rate limit), or network dropouts, `ESVAuthError` / `ESVNetworkError` was discarded without recording why the fetch failed.
+    2. **Gated Fallback Notices in CLI**: In `cli/main.py`, fallback notices were guarded by `if is_fb and (has_explicit_version or getattr(args, "verbose", False)):`. When the user invoked `./bible "John 3:16"` or `./bible get "John 3:16"` using the default translation without passing `--verbose`, the fallback to WEB executed in complete silence.
+    3. **Missing Error Specificity**: Even when `--verbose` or explicit `-t ESV` was supplied, the notice was merely `Notice: Translation 'ESV' not available; falling back to 'WEB'.`, providing no diagnostic feedback that an API key authentication failure was the underlying culprit.
+    4. **Incomplete Whole-Chapter Cache Validation**: In `Database.get_verses_with_fallback()`, cache verification for multi-verse spans only validated `expected_count` when `start_verse` and `end_verse` were present. When a whole-chapter reference was queried (e.g. `Genesis 1`), having a single verse (e.g. `Genesis 1:1`) in `esv_cache` triggered the `else: return cached, "ESV", False` branch, returning an incomplete 1-verse chapter instead of checking against the chapter's total verse count and cascading to the complete 31-verse chapter.
+    5. **Subcommand Alias Omission & Parameter Inconsistency**: `parser_get` lacked aliases for `read` and `passage`, and `parser_build_vectors` defaulted to `WEB` instead of `ESV`.
+- **Decision**:
+  1. **Detailed Error & Fallback Reason Tracking in `Database` (`core/db.py`)**:
+     - Added `self.last_esv_warning`, `self.last_esv_error`, and `self.last_fallback_reason` attributes to `Database`.
+     - In `get_verses_with_fallback()`, captured exceptions from `client.fetch_verses()` into `self.last_esv_error` and recorded precise diagnostic reasons for authentication failures (HTTP 401/403), rate limits (HTTP 429), network drops, unconfigured keys, and offline mode.
+     - Added `Database.get_chapter_verse_count(book_id, chapter)` to query total verses in a chapter.
+     - Updated cache verification to ensure whole-chapter lookups (`ref.is_whole_chapter`) verify complete verse coverage before returning from cache.
+     - Implemented `is_mock_client` detection in `get_verses_with_fallback()` allowing mock clients in unit tests to bypass the offline test guard cleanly and hermetically.
+  2. **Actionable Warning Messages Across CLI Subcommands (`cli/main.py`)**:
+     - Updated `cmd_get` to always emit `Warning: Failed to fetch ESV passage '<ref>': <error>. Falling back to '<fallback>'.` on `sys.stderr` when an ESV API error occurs, regardless of `--verbose` or explicit `--version`.
+     - Added unconfigured key warning when ESV is requested or defaulted without `ESV_API_KEY`: `Warning: ESV requested but ESV_API_KEY is not configured; falling back to '<fallback>'. Run './bible init' or set ESV_API_KEY.`
+     - Preserved `Notice: Translation '<id>' not available; falling back to '<fallback>'.` for backwards compatibility with existing CLI tests and verbose mode.
+     - Enhanced `cmd_compare` and `cmd_slide` to emit transparent warnings when ESV API errors occur.
+     - Added `aliases=["read", "passage"]` to `parser_get` and added `"read"` and `"passage"` to `registered_commands` in `preprocess_cli_argv()`.
+     - Updated `parser_build_vectors` to default to `ESV` (`default="ESV"` with offline WEB fallback).
+  3. **Interactive REPL Shell Warning Surfacing (`cli/shell.py`)**:
+     - Updated `_display_reference()` to output `[Warning: Failed to fetch ESV passage '<ref>' (<error>); showing fallback '<fallback>']` when ESV API errors occur, and `[Warning: ESV requested but ESV_API_KEY is not configured; showing fallback '<fallback>']` when unconfigured.
+  4. **Web Server Default Alignment & Diagnostic Payload Enrichment (`web/server.py`)**:
+     - Aligned default translation across `/api/passage`, `/api/verses` (chapter view), and `/api/slide` to `"ESV"`.
+     - Added `fallback_warning` and `fallback_error` fields to the JSON response payloads when fallback occurs.
+  5. **Hermetic Regression Unit Test Suite Expansion (`tests/test_esv.py`, `tests/test_cli.py`, `tests/test_shell.py`)**:
+     - Added `test_invalid_esv_api_key_records_error_and_warning` and `test_unconfigured_esv_key_records_fallback_reason` in `tests/test_esv.py`.
+     - Added `test_cli_get_warns_on_invalid_esv_api_key`, `test_cli_get_warns_on_missing_esv_key_default`, and `test_cli_read_and_passage_aliases` in `tests/test_cli.py`.
+     - Added `test_shell_displays_warning_on_invalid_esv_key` and preprocess alias assertions in `tests/test_shell.py`.
+- **Consequences**:
+  - Resolves GitHub Issue #5 with comprehensive regression test coverage.
+  - Zero silent failures: any invalid, expired, or unauthorized `ESV_API_KEY` immediately surfaces a clear, actionable warning explaining the failure and remediation.
+  - Unified default translation: ESV is consistently the default translation across all CLI commands, shell REPL, and HTTP API endpoints, with transparent cascading to bundled WEB when offline or unconfigured.
+  - Whole-chapter cache consistency: partial chapter caches no longer mask complete chapter requests.
+  - 100% Zero-Dependency architecture (ADR-003) strictly preserved with 1,144 hermetic unit tests passing in ~7.1s.
