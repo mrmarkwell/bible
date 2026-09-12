@@ -130,11 +130,11 @@
           "archived_by": null
         }
       ],
-      "state": "open",
+      "state": "closed",
       "locked": false,
       "assignees": [],
       "milestone": null,
-      "comments": 0,
+      "comments": 1,
       "created_at": "2026-09-11T18:01:57Z",
       "updated_at": "2026-09-11T18:01:57Z",
       "closed_at": null,
@@ -168,9 +168,18 @@
       },
       "timeline_url": "https://api.github.com/repos/mrmarkwell/bible/issues/6/timeline",
       "performed_via_github_app": null,
-      "state_reason": null,
-      "pinned_comment": null
+      "state_reason": "completed",
+      "pinned_comment": null,
+      "comments_list": [
+        {
+          "user": {
+            "login": "agent"
+          },
+          "created_at": "2026-09-12T19:29:38.900627+00:00",
+          "body": "Resolved in commit with regression test. Upgraded bootstrap_database to incrementally synchronize and update database tables, schemas, newly pulled raw translations (WEB, KJV), curated favorites, cross-references, pericopes, personas, and embeddings on existing databases instead of prematurely exiting with an idempotent no-op."
+        }
+      ]
     }
   ],
-  "last_updated_utc": "2026-09-12T18:52:03.857275+00:00"
+  "last_updated_utc": "2026-09-12T19:29:38.900653+00:00"
 }

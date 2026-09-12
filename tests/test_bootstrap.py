@@ -8,6 +8,7 @@ import tempfile
 import unittest
 
 from core.bootstrap import (
+    REPO_ROOT,
     bootstrap_database,
     format_size,
     get_db_stats,
@@ -211,6 +212,146 @@ class TestBootstrapModule(unittest.TestCase):
         lines = rep.summary_lines()
         self.assertTrue(any("Crossway ESV API:" in l and "Configured" in l for l in lines))
         self.assertTrue(any("Google Gemini AI:" in l and "Not Configured" in l for l in lines))
+
+    def test_bootstrap_updates_system_when_new_content_pulled(self):
+        """Regression test for Issue #6: running bootstrap on an existing DB updates newly pulled translations."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = Path(tmpdir) / "test_existing.db"
+            tmp_kjv_dir = Path(tmpdir) / "kjv"
+            tmp_kjv_dir.mkdir(parents=True, exist_ok=True)
+
+            # Step 1: Initial state - DB initialized with only 2 John in WEB, no KJV
+            rep1 = bootstrap_database(
+                db_path=tmp_db,
+                raw_kjv_dir=tmp_kjv_dir,  # Empty KJV dir initially
+                books=[BOOKS[63]],        # 2 John (13 verses)
+                force=False,
+                install_git_hooks=False,
+            )
+            self.assertTrue(rep1.is_clean)
+            self.assertEqual(rep1.verses_count, 13)
+            self.assertEqual(rep1.translations_count, 1)
+
+            with Database(tmp_db) as db:
+                self.assertIsNotNone(db.get_verse("2 John", 1, 1, translation_id="WEB"))
+                self.assertIsNone(db.get_verse("2 John", 1, 1, translation_id="KJV"))
+
+            # Step 2: Simulate "git pull" pulling new KJV content by populating tmp_kjv_dir
+            source_kjv_file = REPO_ROOT / "data" / "raw" / "kjv" / "2John.json"
+            if source_kjv_file.exists():
+                (tmp_kjv_dir / "2John.json").write_text(
+                    source_kjv_file.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            else:
+                import json
+                (tmp_kjv_dir / "2John.json").write_text(
+                    json.dumps({
+                        "chapters": [{
+                            "chapter": "1",
+                            "verses": [{"verse": str(i), "text": f"KJV verse {i}"} for i in range(1, 14)]
+                        }]
+                    }),
+                    encoding="utf-8",
+                )
+
+            # Step 3: Run ./bible init (bootstrap_database) WITHOUT --force
+            rep2 = bootstrap_database(
+                db_path=tmp_db,
+                raw_kjv_dir=tmp_kjv_dir,
+                books=[BOOKS[63]],
+                force=False,
+                install_git_hooks=False,
+            )
+            self.assertTrue(rep2.is_clean)
+            # The database MUST now have both WEB and KJV (26 verses across 2 translations)
+            self.assertEqual(rep2.translations_count, 2)
+            self.assertEqual(rep2.verses_count, 26)
+
+            with Database(tmp_db) as db:
+                verse_web = db.get_verse("2 John", 1, 1, translation_id="WEB")
+                verse_kjv = db.get_verse("2 John", 1, 1, translation_id="KJV")
+                self.assertIsNotNone(verse_web)
+                self.assertIsNotNone(verse_kjv)
+
+    def test_bootstrap_updates_curated_favorites_on_existing_db(self):
+        """Regression test for Issue #6: running bootstrap on existing DB synchronizes updated favorites."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = Path(tmpdir) / "test_fav_update.db"
+            tmp_csv = Path(tmpdir) / "favorites.csv"
+
+            # Initial CSV with 1 entry
+            tmp_csv.write_text(
+                "book,chapter,start_verse,end_verse,starred\n"
+                "Romans,8,28,28,1\n",
+                encoding="utf-8",
+            )
+
+            rep1 = bootstrap_database(
+                db_path=tmp_db,
+                favorites_csv=tmp_csv,
+                books=[BOOKS[63]],
+                force=False,
+                install_git_hooks=False,
+            )
+            self.assertEqual(rep1.favorites_count, 1)
+            self.assertEqual(rep1.starred_count, 1)
+
+            # Simulate pulling new favorites in CSV
+            tmp_csv.write_text(
+                "book,chapter,start_verse,end_verse,starred\n"
+                "Romans,8,28,28,1\n"
+                "Romans,8,38,39,1\n"
+                "John,3,16,16,0\n",
+                encoding="utf-8",
+            )
+
+            # Re-run bootstrap without force
+            rep2 = bootstrap_database(
+                db_path=tmp_db,
+                favorites_csv=tmp_csv,
+                books=[BOOKS[63]],
+                force=False,
+                install_git_hooks=False,
+            )
+            self.assertTrue(rep2.is_clean)
+            self.assertEqual(rep2.favorites_count, 3)
+            self.assertEqual(rep2.starred_count, 2)
+
+    def test_cli_init_update_and_sync_flags(self):
+        """Regression test for Issue #6: verify CLI init --update and --sync flags execute successfully."""
+        from unittest.mock import patch
+        from cli.main import main
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_db = Path(tmpdir) / "cli_init_test.db"
+            with patch("core.bootstrap.bootstrap_database") as mock_boot:
+                from core.bootstrap import BootstrapReport
+                mock_rep = BootstrapReport(
+                    db_path=fake_db,
+                    duration_sec=0.2,
+                    verses_count=62205,
+                    translations_count=2,
+                    favorites_count=829,
+                    starred_count=50,
+                    tags_count=318,
+                    cross_references_count=343603,
+                    hooks_installed=True,
+                    pragmas_optimized=True,
+                    is_clean=True,
+                    details="Database updated and synchronized",
+                )
+                mock_boot.return_value = mock_rep
+
+                # Test --update flag
+                ret1 = main(["--db", str(fake_db), "init", "--update", "--quiet", "--no-wizard"])
+                self.assertEqual(ret1, 0)
+                mock_boot.assert_called()
+
+                # Test --sync flag
+                mock_boot.reset_mock()
+                ret2 = main(["--db", str(fake_db), "init", "--sync", "--quiet", "--no-wizard"])
+                self.assertEqual(ret2, 0)
+                mock_boot.assert_called()
 
 
 if __name__ == "__main__":

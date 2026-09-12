@@ -2274,14 +2274,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser_init = subparsers.add_parser(
         "init",
         aliases=["setup", "bootstrap"],
-        help="Bootstrap and compile sovereign scripture database from raw sources",
-        description="Compile World English Bible (31,103 verses), favorites, canonical taxonomies, cross-references, and git hooks.",
+        help="Bootstrap, update, and synchronize sovereign scripture database from raw sources",
+        description="Compile or synchronize World English Bible, King James Version, favorites, canonical taxonomies, cross-references, and git hooks.",
     )
     parser_init.add_argument(
         "--force",
         "-f",
         action="store_true",
         help="Recompile and re-index database from scratch even if already initialized",
+    )
+    parser_init.add_argument(
+        "--update",
+        "-u",
+        action="store_true",
+        help="Explicitly update and synchronize database with newly pulled repository content (default behavior on existing databases)",
+    )
+    parser_init.add_argument(
+        "--sync",
+        action="store_true",
+        help="Alias for --update: synchronize database with newly pulled repository content",
     )
     parser_init.add_argument(
         "--quick",
@@ -2365,7 +2376,9 @@ def build_parser() -> argparse.ArgumentParser:
             mode_str = " (Quick/Sample Mode)" if quick else ""
             if force:
                 mode_str += " [Rebuild --force]"
-            print(f"Bible Engine: Bootstrapping Sovereign Database{mode_str}...")
+            elif getattr(args, "update", False) or getattr(args, "sync", False):
+                mode_str += " [Update & Sync]"
+            print(f"Bible Engine: Initializing & Synchronizing Sovereign Database{mode_str}...")
 
         rep = bootstrap_database(
             db_path=db_path,
@@ -2405,6 +2418,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_db_stats = db_subparsers.add_parser("stats", aliases=["status"], help="Show database storage metrics, table row counts, and pragmas")
     p_db_init = db_subparsers.add_parser("init", aliases=["setup", "bootstrap"], help="Bootstrap offline database from raw sources")
     p_db_init.add_argument("--force", "-f", action="store_true", help="Recompile from scratch")
+    p_db_init.add_argument("--update", "-u", action="store_true", help="Synchronize and update database with newly pulled content")
+    p_db_init.add_argument("--sync", action="store_true", help="Alias for --update: synchronize database with newly pulled content")
     p_db_init.add_argument("--quick", action="store_true", help="Fast sample bootstrap")
     p_db_init.add_argument("--no-hooks", action="store_true", help="Skip git hooks installation")
     p_db_init.add_argument("--quiet", "-q", action="store_true", help="Suppress progress output")
